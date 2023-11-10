@@ -81,3 +81,35 @@ curl -X POST "http://localhost:8000/generate-text" -H "Content-Type: application
     ],
     "temperature": 0.7
 }'
+
+
+### Parameter Guide
+
+*note* This stuff still needs to be expanded and updated
+
+{
+  "prompt": "A tabby is a",
+  "max_tokens": 200,
+  "temperature": 1,
+  "top_p": 0.9,
+  "seed": 10,
+  "stream": true,
+  "token_repetition_penalty": 0.5,
+  "stop": ["###"]
+}
+
+prompt: This is the initial text or message that sets the context for the generated completions.
+
+max_tokens: It defines the maximum number of tokens (words or characters) you want in the generated text.
+
+temperature: The temperature parameter controls the randomness of the output.
+
+top_p: The top_p parameter controls the diversity of the output.
+
+seed: This parameter is set to 10. It is a seed value that helps to reproduce the same results if provided with the same seed.
+
+stream: A boolean value set to true. It enables Server-Sent Events (SSE) streaming.
+
+token_repetition_penalty: This parameter controls the penalty for token repetitions in the generated text.
+
+stop: An array of strings that, if present in the generated text, will signal the model to stop generating.

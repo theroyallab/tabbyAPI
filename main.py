@@ -1,5 +1,4 @@
-# main.py
-
+import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from llm import ModelManager
@@ -7,8 +6,9 @@ from uvicorn import run
 
 app = FastAPI()
 
-# Example: Using a different model directory
-modelManager = ModelManager("/home/david/Models/SynthIA-7B-v2.0-5.0bpw-h6-exl2")
+# Initialize the modelManager with a default model path
+default_model_path = "~/Models/SynthIA-7B-v2.0-5.0bpw-h6-exl2"
+modelManager = ModelManager(default_model_path)
 
 class TextRequest(BaseModel):
     model: str
@@ -21,15 +21,21 @@ class TextResponse(BaseModel):
 
 @app.post("/generate-text", response_model=TextResponse)
 def generate_text(request: TextRequest):
+    global modelManager
     try:
-        #model_path = request.model  # You can use this path to load a specific model if needed
-        messages = request.messages
-        #temperature = request.temperature
+        model_path = request.model
 
-        # Assuming you need to extract the user's message from the messages list
+        if model_path and model_path != modelManager.config.model_path:
+            # Check if the specified model path exists
+            if not os.path.exists(model_path):
+                raise HTTPException(status_code=400, detail="Model path does not exist")
+
+            # Reinitialize the modelManager with the new model path
+            modelManager = ModelManager(model_path)
+
+        messages = request.messages
         user_message = next(msg["content"] for msg in messages if msg["role"] == "user")
 
-        # You can then use user_message as the prompt for generation
         output, generation_time = modelManager.generate_text(user_message)
         return {"response": output, "generation_time": generation_time}
     except RuntimeError as e:
