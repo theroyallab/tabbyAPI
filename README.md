@@ -36,8 +36,11 @@ pip install -r requirements.txt
 5. Install exllamav2 to your venv
 
 git clone https://github.com/turboderp/exllamav2.git
+
 cd exllamav2
+
 pip install -r requirements.txt
+
 python setup.py install
 
 
