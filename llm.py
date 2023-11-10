@@ -11,6 +11,8 @@ from exllamav2.generator import (
     ExLlamaV2Sampler
 )
 import time
+
+
 class ModelManager:
     def __init__(self, model_directory: str = None):
         if model_directory is None:
@@ -24,12 +26,25 @@ class ModelManager:
         self.model.load_autosplit(self.cache)
         self.tokenizer = ExLlamaV2Tokenizer(self.config)
         self.generator = ExLlamaV2BaseGenerator(self.model, self.cache, self.tokenizer)
-    def generate_text(self, prompt: str, max_new_tokens: int = 150,seed: int = random.randint(0,999999) ):
+
+    def generate_text(self,
+                      prompt: str,
+                      max_tokens: int = 150,
+                      temperature=0.5,
+                      seed: int = random.randint(0, 999999),
+                      token_repetition_penalty: float = 1.0,
+                      stop: list = None):
         try:
             self.generator.warmup()
             time_begin = time.time()
+            settings = ExLlamaV2Sampler.Settings()
+            settings.token_repetition_penalty = token_repetition_penalty
+
+            if stop:
+                settings.stop_sequence = stop
+
             output = self.generator.generate_simple(
-                prompt, ExLlamaV2Sampler.Settings(), max_new_tokens, seed=seed
+                prompt, settings, max_tokens, seed=seed
             )
             time_end = time.time()
             time_total = time_end - time_begin

@@ -7,13 +7,19 @@ from uvicorn import run
 app = FastAPI()
 
 # Initialize the modelManager with a default model path
-default_model_path = "~/Models/SynthIA-7B-v2.0-5.0bpw-h6-exl2"
+default_model_path = "/home/david/Models/SynthIA-7B-v2.0-5.0bpw-h6-exl2"
 modelManager = ModelManager(default_model_path)
-
+print(output)
 class TextRequest(BaseModel):
-    model: str
-    messages: list[dict]
-    temperature: float
+    model: str = None  # Make the "model" field optional with a default value of None
+    prompt: str
+    max_tokens: int = 200
+    temperature: float = 1
+    top_p: float = 0.9
+    seed: int = 10
+    stream: bool = False
+    token_repetition_penalty: float = 1.0
+    stop: list = None
 
 class TextResponse(BaseModel):
     response: str
@@ -23,20 +29,9 @@ class TextResponse(BaseModel):
 def generate_text(request: TextRequest):
     global modelManager
     try:
-        model_path = request.model
-
-        if model_path and model_path != modelManager.config.model_path:
-            # Check if the specified model path exists
-            if not os.path.exists(model_path):
-                raise HTTPException(status_code=400, detail="Model path does not exist")
-
-            # Reinitialize the modelManager with the new model path
-            modelManager = ModelManager(model_path)
-
-        messages = request.messages
-        user_message = next(msg["content"] for msg in messages if msg["role"] == "user")
-
-        output, generation_time = modelManager.generate_text(user_message)
+        prompt = request.prompt  # Get the prompt from the request
+        user_message = prompt  # Assuming that prompt is equivalent to the user's message
+        output, generation_time = modelManager.generate_text(prompt=user_message)
         return {"response": output, "generation_time": generation_time}
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))

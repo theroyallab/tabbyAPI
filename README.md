@@ -74,13 +74,19 @@ The tabbyAPI application provides the following endpoint:
 ### Example Request (using `curl`)
 
 
-curl -X POST "http://localhost:8000/generate-text" -H "Content-Type: application/json" -d '{
-    "model": "your_model_name",
-    "messages": [
-        {"role": "user", "content": "Say this is a test!"}
-    ],
-    "temperature": 0.7
-}'
+curl http://127.0.0.1:8000/generate-text \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Your_Model_Path",
+    "prompt": "A tabby is a",
+    "max_tokens": 200,
+    "temperature": 1,
+    "top_p": 0.9,
+    "seed": 10,
+    "stream": true,
+    "token_repetition_penalty": 0.5,
+    "stop": ["###"]
+  }'
 
 
 ### Parameter Guide
