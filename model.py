@@ -1,4 +1,4 @@
-import json, uuid, os, gc, time
+import gc, time
 import torch
 
 from exllamav2 import(
@@ -34,6 +34,7 @@ class ModelContainer:
     gpu_split: list or None = None
 
     def __init__(self, model_directory: str, quiet = False, **kwargs):
+        print(kwargs)
         """
         Create model container
 
@@ -57,6 +58,7 @@ class ModelContainer:
                     full model.
                 'gpu_split_auto' (bool): Automatically split model across available devices (default: True)
                 'gpu_split' (list): Allocation for weights and (some) tensors, per device
+                'no_flash_attn' (bool): Turns off flash attention (increases vram usage)
         """
 
         self.quiet = quiet
@@ -72,6 +74,7 @@ class ModelContainer:
         if "max_seq_len" in kwargs: self.config.max_seq_len = kwargs["max_seq_len"]
         if "rope_scale" in kwargs: self.config.scale_pos_emb = kwargs["rope_scale"]
         if "rope_alpha" in kwargs: self.config.scale_alpha_value = kwargs["rope_alpha"]
+        if "no_flash_attn" in kwargs: self.config.no_flash_attn = kwargs["no_flash_attn"]
 
         chunk_size = min(kwargs.get("chunk_size", 2048), self.config.max_seq_len)
         self.config.max_input_len = chunk_size

@@ -1,15 +1,16 @@
 import os
+import argparse
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from llm import ModelManager
-from uvicorn import run
+from model import ModelContainer
+from utils import add_args
 
 app = FastAPI()
 
-# Initialize the modelManager with a default model path
-default_model_path = "/home/david/Models/SynthIA-7B-v2.0-5.0bpw-h6-exl2"
-modelManager = ModelManager(default_model_path)
-print(output)
+# Initialize a model container. This can be undefined at any period of time
+model_container: ModelContainer = None
+
 class TextRequest(BaseModel):
     model: str = None  # Make the "model" field optional with a default value of None
     prompt: str
@@ -25,6 +26,7 @@ class TextResponse(BaseModel):
     response: str
     generation_time: str
 
+# TODO: Currently broken
 @app.post("/generate-text", response_model=TextResponse)
 def generate_text(request: TextRequest):
     global modelManager
@@ -36,5 +38,23 @@ def generate_text(request: TextRequest):
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Debug progress check
+def progress(module, modules):
+    print(f"Loaded {module}/{modules} modules")
+    yield
+
 if __name__ == "__main__":
-    run(app, host="0.0.0.0", port=8012, reload=True)
+    # Convert this parser to use a YAML config
+    parser = argparse.ArgumentParser(description = "TabbyAPI - An API server for exllamav2")
+    add_args(parser)
+    args = parser.parse_args()
+
+    # If an initial model dir is specified, create a container and load the model
+    if args.model_dir:
+        model_container = ModelContainer(args.model_dir, False, **vars(args))
+        print("Loading an initial model...")
+        model_container.load(progress)
+        print("Model successfully loaded.")
+
+    # Reload is for dev purposes ONLY!
+    uvicorn.run("main:app", host="0.0.0.0", port=8012, log_level="debug", reload=True)
