@@ -1,10 +1,9 @@
-import os
-import argparse
 import uvicorn
+import yaml
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from model import ModelContainer
-from utils import add_args
+from progress.bar import IncrementalBar
 
 app = FastAPI()
 
@@ -38,22 +37,30 @@ def generate_text(request: TextRequest):
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Debug progress check
-def progress(module, modules):
-    print(f"Loaded {module}/{modules} modules")
-    yield
+# Wrapper callback for load progress
+def load_progress(module, modules):
+    yield module, modules
 
 if __name__ == "__main__":
-    # Convert this parser to use a YAML config
-    parser = argparse.ArgumentParser(description = "TabbyAPI - An API server for exllamav2")
-    add_args(parser)
-    args = parser.parse_args()
+    # Load from YAML config. Possibly add a config -> kwargs conversion function
+    with open('config.yml', 'r') as config_file:
+        config = yaml.safe_load(config_file)
 
-    # If an initial model dir is specified, create a container and load the model
-    if args.model_dir:
-        model_container = ModelContainer(args.model_dir, False, **vars(args))
-        print("Loading an initial model...")
-        model_container.load(progress)
+    # If an initial model name is specified, create a container and load the model
+    if config["model_name"]:
+        model_path = f"{config['model_dir']}/{config['model_name']}" if config['model_dir'] else f"models/{config['model_name']}"
+
+        model_container = ModelContainer(model_path, False, **config)
+        load_status = model_container.load_gen(load_progress)
+        for (module, modules) in load_status:
+            if module == 0:
+                loading_bar: IncrementalBar = IncrementalBar("Modules", max = modules)        
+            else:
+                loading_bar.next()
+
+                if module == modules:
+                    loading_bar.finish()
+
         print("Model successfully loaded.")
 
     # Reload is for dev purposes ONLY!

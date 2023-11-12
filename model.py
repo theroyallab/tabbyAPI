@@ -34,7 +34,6 @@ class ModelContainer:
     gpu_split: list or None = None
 
     def __init__(self, model_directory: str, quiet = False, **kwargs):
-        print(kwargs)
         """
         Create model container
 
@@ -75,6 +74,9 @@ class ModelContainer:
         if "rope_scale" in kwargs: self.config.scale_pos_emb = kwargs["rope_scale"]
         if "rope_alpha" in kwargs: self.config.scale_alpha_value = kwargs["rope_alpha"]
         if "no_flash_attn" in kwargs: self.config.no_flash_attn = kwargs["no_flash_attn"]
+
+        if "low_mem" in kwargs and kwargs["low_mem"]:
+            self.config.set_low_mem()
 
         chunk_size = min(kwargs.get("chunk_size", 2048), self.config.max_seq_len)
         self.config.max_input_len = chunk_size
