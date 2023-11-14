@@ -1,5 +1,7 @@
+import pathlib
 from OAI.models.completions import CompletionResponse, CompletionRespChoice
 from OAI.models.common import UsageStats
+from OAI.models.models import ModelList, ModelCard
 from typing import Optional
 
 def create_completion_response(text: str, index: int, model_name: Optional[str]):
@@ -17,3 +19,12 @@ def create_completion_response(text: str, index: int, model_name: Optional[str])
     )
 
     return response
+
+def get_model_list(model_path: pathlib.Path):
+    model_card_list = ModelList()
+    for path in model_path.parent.iterdir():
+        if path.is_dir():
+            model_card = ModelCard(id = path.name)
+            model_card_list.data.append(model_card)
+
+    return model_card_list

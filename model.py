@@ -1,4 +1,4 @@
-import gc, time
+import gc, time, pathlib
 import torch
 from exllamav2 import(
     ExLlamaV2,
@@ -11,7 +11,6 @@ from exllamav2.generator import(
     ExLlamaV2StreamingGenerator,
     ExLlamaV2Sampler
 )
-from os import path
 from typing import Optional
 
 # Bytes to reserve on first device when loading with auto split
@@ -102,11 +101,11 @@ class ModelContainer:
                 self.draft_config.max_input_len = kwargs["chunk_size"]
                 self.draft_config.max_attn_size = kwargs["chunk_size"] ** 2
 
-    def get_model_name(self):
-        if self.draft_enabled:
-            return path.basename(path.normpath(self.draft_config.model_dir))
-        else:
-            return path.basename(path.normpath(self.config.model_dir))
+
+    def get_model_path(self):
+        model_path = pathlib.Path(self.draft_config.model_dir if self.draft_enabled else self.config.model_dir)
+        return model_path
+
 
     def load(self, progress_callback = None):
         """
