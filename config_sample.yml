@@ -1,8 +1,14 @@
-model_dir: "D:/models"
-model_name: "this_is_a_exl2_model"
-max_seq_len: 4096
-gpu_split: "auto"
-rope_scale: 1.0
-rope_alpha: 1.0
-no_flash_attention: False
-low_mem: False
+# Network options
+network:
+  host: "0.0.0.0"
+  port: 8012
+# Only used if you want to initially load a model
+model:
+  model_dir: "D:/models"
+  model_name: "airoboros-mistral2.2-7b-exl2"
+  max_seq_len: 4096
+  gpu_split: "auto"
+  rope_scale: 1.0
+  rope_alpha: 1.0
+  no_flash_attention: False
+  low_mem: False

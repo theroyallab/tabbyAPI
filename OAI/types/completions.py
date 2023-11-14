@@ -2,7 +2,7 @@ from uuid import uuid4
 from time import time
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Union
-from OAI.models.common import LogProbs, UsageStats
+from OAI.types.common import LogProbs, UsageStats
 
 class CompletionRespChoice(BaseModel):
     finish_reason: str

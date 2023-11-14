@@ -32,7 +32,7 @@ class ModelContainer:
     gpu_split_auto: bool = True
     gpu_split: list or None = None
 
-    def __init__(self, model_directory: str, quiet = False, **kwargs):
+    def __init__(self, model_directory: pathlib.Path, quiet = False, **kwargs):
         """
         Create model container
 
@@ -62,11 +62,11 @@ class ModelContainer:
         self.quiet = quiet
 
         self.cache_fp8 = "cache_mode" in kwargs and kwargs["cache_mode"] == "FP8"
-        self.gpu_split_auto = kwargs.get("gpu_split_auto", True)
         self.gpu_split = kwargs.get("gpu_split", None)
+        self.gpu_split_auto = self.gpu_split == "auto"
 
         self.config = ExLlamaV2Config()
-        self.config.model_dir = model_directory
+        self.config.model_dir = str(model_directory.resolve())
         self.config.prepare()
 
         if "max_seq_len" in kwargs: self.config.max_seq_len = kwargs["max_seq_len"]
@@ -85,7 +85,7 @@ class ModelContainer:
         if self.draft_enabled:
 
             self.draft_config = ExLlamaV2Config()
-            self.draft_config.model_dir = kwargs["draft_model_directory"]
+            self.draft_config.model_dir = kwargs["draft_model_dir"]
             self.draft_config.prepare()
 
             self.draft_config.max_seq_len = self.config.max_seq_len
@@ -103,7 +103,7 @@ class ModelContainer:
 
 
     def get_model_path(self):
-        model_path = pathlib.Path(self.draft_config.model_dir if self.draft_enabled else self.config.model_dir)
+        model_path = pathlib.Path(self.config.model_dir)
         return model_path
 
 
@@ -185,9 +185,12 @@ class ModelContainer:
 
         if self.model: self.model.unload()
         self.model = None
+        if self.draft_model: self.draft_model.unload()
+        self.draft_model = None
         self.config = None
         self.cache = None
         self.tokenizer = None
+        self.generator = None
         gc.collect()
         torch.cuda.empty_cache()
 
