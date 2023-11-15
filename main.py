@@ -8,6 +8,7 @@ from progress.bar import IncrementalBar
 from sse_starlette import EventSourceResponse
 from OAI.types.completions import CompletionRequest
 from OAI.types.model import ModelCard, ModelLoadRequest, ModelLoadResponse
+from OAI.types.token import TokenEncodeRequest, TokenEncodeResponse, TokenDecodeRequest, TokenDecodeResponse
 from OAI.utils import create_completion_response, get_model_list
 from typing import Optional
 from utils import load_progress
@@ -79,6 +80,20 @@ async def unload_model():
 
     model_container.unload()
     model_container = None
+
+@app.post("/v1/token/encode", dependencies=[Depends(check_api_key)])
+async def encode_tokens(data: TokenEncodeRequest):
+    tokens = model_container.get_tokens(data.text, None, **data.get_params())[0].tolist()
+    response = TokenEncodeResponse(tokens=tokens, length=len(tokens))
+
+    return response.model_dump_json()
+
+@app.post("/v1/token/decode", dependencies=[Depends(check_api_key)])
+async def decode_tokens(data: TokenDecodeRequest):
+    message = model_container.get_tokens(None, data.tokens, **data.get_params())
+    response = TokenDecodeResponse(text=message)
+
+    return response.model_dump_json()
 
 @app.post("/v1/completions", dependencies=[Depends(check_api_key)])
 async def generate_completion(request: Request, data: CompletionRequest):
