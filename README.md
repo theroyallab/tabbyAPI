@@ -74,7 +74,7 @@ curl -X POST \
   -H "Authorization: Bearer 2261702e8a220c6c4671a264cd1236ce" \
   -d '{
     "model": "airoboros-mistral2.2-7b-exl2",
-    "prompt": ["Hello there! My name is", "Brian", "and I am", "an AI"],
+    "prompt": ["A tabby","is"],
     "stream": true,
     "top_p": 0.73,
     "stop": "[",
