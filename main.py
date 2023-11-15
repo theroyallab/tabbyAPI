@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request, HTTPException, Depends
 from model import ModelContainer
 from progress.bar import IncrementalBar
 from sse_starlette import EventSourceResponse
-from OAI.types.completions import CompletionRequest
+from OAI.types.completion import CompletionRequest
 from OAI.types.model import ModelCard, ModelLoadRequest, ModelLoadResponse
 from OAI.types.token import TokenEncodeRequest, TokenEncodeResponse, TokenDecodeRequest, TokenDecodeResponse
 from OAI.utils import create_completion_response, get_model_list

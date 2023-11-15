@@ -35,10 +35,10 @@ class CompletionRequest(BaseModel):
     max_tokens: Optional[int] = 150
 
     # Not supported sampling params
-    presence_penalty: Optional[int] = 0
+    presence_penalty: Optional[float] = 0.0
 
     # Aliased to repetition_penalty
-    frequency_penalty: int = 0
+    frequency_penalty: Optional[float] = 0.0
 
     # Sampling params
     token_healing: Optional[bool] = False

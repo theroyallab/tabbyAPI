@@ -1,5 +1,5 @@
 import pathlib
-from OAI.types.completions import CompletionResponse, CompletionRespChoice
+from OAI.types.completion import CompletionResponse, CompletionRespChoice
 from OAI.types.common import UsageStats
 from OAI.types.model import ModelList, ModelCard
 from typing import Optional
