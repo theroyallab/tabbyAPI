@@ -177,3 +177,4 @@ pyrightconfig.json
 
 # User configuration
 config.yml
+api_tokens.yml
