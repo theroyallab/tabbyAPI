@@ -1,7 +1,7 @@
 import pathlib
 from OAI.types.completions import CompletionResponse, CompletionRespChoice
 from OAI.types.common import UsageStats
-from OAI.types.models import ModelList, ModelCard
+from OAI.types.model import ModelList, ModelCard
 from typing import Optional
 
 def create_completion_response(text: str, index: int, model_name: Optional[str]):
