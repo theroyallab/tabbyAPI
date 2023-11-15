@@ -94,7 +94,7 @@ curl -X POST \
 
 {
   "model": "airoboros-mistral2.2-7b-exl2",
-  "prompt": ["Hello there! My name is", "Brian", "and I am", "an AI"],
+  "prompt": ["A tabby","is"],
   "stream": true,
   "top_p": 0.73,
   "stop": "[",
