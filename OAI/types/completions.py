@@ -54,6 +54,8 @@ class CompletionRequest(BaseModel):
     mirostat_mode: Optional[int] = 0
     mirostat_tau: Optional[float] = 1.5
     mirostat_eta: Optional[float] = 0.1
+    add_bos_token: Optional[bool] = True
+    ban_eos_token: Optional[bool] = False
 
     # Converts to internal generation parameters
     def to_gen_params(self):
@@ -73,6 +75,8 @@ class CompletionRequest(BaseModel):
             "prompt": self.prompt,
             "stop": self.stop,
             "max_tokens": self.max_tokens,
+            "add_bos_token": self.add_bos_token,
+            "ban_eos_token": self.ban_eos_token,
             "token_healing": self.token_healing,
             "temperature": self.temperature,
             "top_k": self.top_k,
