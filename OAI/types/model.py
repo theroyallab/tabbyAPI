@@ -15,7 +15,8 @@ class ModelList(BaseModel):
 class ModelLoadRequest(BaseModel):
     name: str
     max_seq_len: Optional[int] = 4096
-    gpu_split: Optional[str] = "auto"
+    gpu_split_auto: Optional[bool] = True
+    gpu_split: Optional[List[float]] = Field(default_factory=list)
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
     no_flash_attention: Optional[bool] = False

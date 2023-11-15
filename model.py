@@ -55,7 +55,7 @@ class ModelContainer:
                     By default, the draft model's alpha value is calculated automatically to scale to the size of the
                     full model.
                 'gpu_split_auto' (bool): Automatically split model across available devices (default: True)
-                'gpu_split' (list): Allocation for weights and (some) tensors, per device
+                'gpu_split' (list[float]): Allocation for weights and (some) tensors, per device
                 'no_flash_attn' (bool): Turns off flash attention (increases vram usage)
         """
 
@@ -63,7 +63,7 @@ class ModelContainer:
 
         self.cache_fp8 = "cache_mode" in kwargs and kwargs["cache_mode"] == "FP8"
         self.gpu_split = kwargs.get("gpu_split", None)
-        self.gpu_split_auto = self.gpu_split == "auto"
+        self.gpu_split_auto = kwargs.get("gpu_split_auto", True)
 
         self.config = ExLlamaV2Config()
         self.config.model_dir = str(model_directory.resolve())
@@ -176,6 +176,8 @@ class ModelContainer:
         # Create generator
 
         self.generator = ExLlamaV2StreamingGenerator(self.model, self.cache, self.tokenizer, self.draft_model, self.draft_cache)
+
+        print("Model successfully loaded.")
 
 
     def unload(self):

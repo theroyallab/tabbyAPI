@@ -139,8 +139,6 @@ if __name__ == "__main__":
                 loading_bar.finish()
             else:
                 loading_bar.next()
-    
-        print("Model successfully loaded.")
 
     network_config = config["network"]
     uvicorn.run(app, host=network_config["host"] or "127.0.0.1", port=network_config["port"] or 8012, log_level="debug")
