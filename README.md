@@ -51,17 +51,10 @@ To start the tabbyAPI application, follow these steps:
 
 1. Ensure you are in the project directory and the virtual environment is activated (if used).
 
-2. Run the tabbyAPI application using Uvicorn:
+2. Run the tabbyAPI application:
 
 
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-
-
-- `main` refers to the Python file containing your tabbyAPI app instance.
-- `app` is the FastAPI instance defined in your Python script.
-- `--host 0.0.0.0` allows access from external devices. Change this to `localhost` if you want to restrict access to the local machine.
-- `--port 8000` specifies the port on which your application will run.
-- `--reload` enables auto-reloading for development.
+python main.py
 
 3. The tabbyAPI application should now be running. You can access it by opening a web browser and navigating to `http://localhost:8000` (if running locally).
 
@@ -69,24 +62,30 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
 The tabbyAPI application provides the following endpoint:
 
-- `/generate-text` (HTTP POST): Use this endpoint to generate text based on the provided input data.
+- '/v1/model' Retrieves information about the currently loaded model.
+- '/v1/model/load' Loads a new model based on provided data and model configuration.
+- '/v1/model/unload' Unloads the currently loaded model from the system.
+- '/v1/completions' Use this endpoint to generate text based on the provided input data.
 
 ### Example Request (using `curl`)
 
-
-curl http://127.0.0.1:8000/generate-text \
+curl -X POST \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer 2261702e8a220c6c4671a264cd1236ce" \
   -d '{
-    "model": "Your_Model_Path",
-    "prompt": "A tabby is a",
-    "max_tokens": 200,
-    "temperature": 1,
-    "top_p": 0.9,
-    "seed": 10,
+    "model": "airoboros-mistral2.2-7b-exl2",
+    "prompt": ["Hello there! My name is", "Brian", "and I am", "an AI"],
     "stream": true,
-    "token_repetition_penalty": 0.5,
-    "stop": ["###"]
-  }'
+    "top_p": 0.73,
+    "stop": "[",
+    "max_tokens": 360,
+    "temperature": 0.8,
+    "mirostat_mode": 2,
+    "mirostat_tau": 5,
+    "mirostat_eta": 0.1
+  }' \
+  http://127.0.0.1:8012/v1/completions
+
 
 
 ### Parameter Guide
@@ -94,28 +93,41 @@ curl http://127.0.0.1:8000/generate-text \
 *note* This stuff still needs to be expanded and updated
 
 {
-  "prompt": "A tabby is a",
-  "max_tokens": 200,
-  "temperature": 1,
-  "top_p": 0.9,
-  "seed": 10,
+  "model": "airoboros-mistral2.2-7b-exl2",
+  "prompt": ["Hello there! My name is", "Brian", "and I am", "an AI"],
   "stream": true,
-  "token_repetition_penalty": 0.5,
-  "stop": ["###"]
+  "top_p": 0.73,
+  "stop": "[",
+  "max_tokens": 360,
+  "temperature": 0.8,
+  "mirostat_mode": 2,
+  "mirostat_tau": 5,
+  "mirostat_eta": 0.1
 }
 
-prompt: This is the initial text or message that sets the context for the generated completions.
+Model: "airoboros-mistral2.2-7b-exl2"
+    This specifies the specific language model being used. It's essential for the API to know which model to employ for generating responses.
 
-max_tokens: It defines the maximum number of tokens (words or characters) you want in the generated text.
+Prompt: ["Hello there! My name is", "Brian", "and I am", "an AI"]
+    The prompt *QUESTION* why is it a list of strings instead of a single string? 
+Stream: true
+    Whether the response should be streamed back or not.
 
-temperature: The temperature parameter controls the randomness of the output.
+Top_p: 0.73
+    cumulative probability threshold
 
-top_p: The top_p parameter controls the diversity of the output.
+Stop: "["
+    The stop parameter defines a string that stops the generation.
 
-seed: This parameter is set to 10. It is a seed value that helps to reproduce the same results if provided with the same seed.
+Max_tokens: 360
+    This parameter determines the maximum number of tokens.
 
-stream: A boolean value set to true. It enables Server-Sent Events (SSE) streaming.
+Temperature: 0.8
+    Temperature controls the randomness of the generated text.
 
-token_repetition_penalty: This parameter controls the penalty for token repetitions in the generated text.
-
-stop: An array of strings that, if present in the generated text, will signal the model to stop generating.
+Mirostat_mode: 2
+   ?
+Mirostat_tau: 5
+   ?
+Mirostat_eta: 0.1
+   ?
