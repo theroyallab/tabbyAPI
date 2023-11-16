@@ -178,3 +178,7 @@ pyrightconfig.json
 # User configuration
 config.yml
 api_tokens.yml
+
+# Models folder
+models/*
+!models/place_your_models_here.txt

@@ -1,133 +1,97 @@
+# TabbyAPI
 
-# tabbyAPI
+A FastAPI based application that allows for generating text using an LLM (large language model) using the [exllamav2 backend](https://github.com/turboderp/exllamav2).
 
-tabbyAPI is a FastAPI-based application that provides an API for generating text using a language model. This README provides instructions on how to launch and use the tabbyAPI.
+## Disclaimer
+
+This API is still in the alpha phase. There may be bugs and changes down the line. Please be aware that you might need to reinstall dependencies if needed.
 
 ## Prerequisites
 
-Before you get started, ensure you have the following prerequisites installed on your system:
+To get started, make sure you have the following installed on your system:
 
-- Python 3.x (with pip)
-- Dependencies listed in `requirements.txt`
+- Python 3.x (preferably 3.11) with pip
 
-## Installation
+- CUDA 12.1 or 11.8
 
-1. Clone the repository to your local machine:
+NOTE: For Flash Attention 2 to work on Windows, CUDA 12.1 **must** be installed!
 
-git clone https://github.com/Splice86/tabbyAPI.git
+## Installing
 
+1. Clone this repository to your machine: `git clone https://github.com/theroyallab/tabbyAPI`
 
-2. Navigate to the project directory:
+2. Navigate to the project directory: `cd tabbyAPI`
 
-cd tabbyAPI
+3. Create a virtual environment:
+   
+   1. `python -m venv venv`
+   
+   2. On Windows: `.\venv\Scripts\activate`. On Linux: `source venv/bin/activate`
 
+4. Install torch using the instructions found [here](https://pytorch.org/get-started/locally/)
 
-3. Create a virtual environment (optional but recommended):
+5. Install an exllamav2 wheel from [here](https://github.com/turboderp/exllamav2/releases):
+   
+   1. Find the version that corresponds with your cuda and python version. For example, a wheel with `cu121` and `cp311` corresponds to CUDA 12.1 and python 3.11
 
-python -m venv venv
-source venv/bin/activate
+6. Install the other requirements via: `pip install -r requirements.txt`
 
+## Configuration
 
-4. Install project dependencies using pip:
+Copy over `config_sample.yml` to `config.yml`. All the fields are commented, so make sure to read the descriptions and comment out or remove fields that you don't need.
 
-pip install -r requirements.txt
+## Launching the Application
 
+1. Make sure you are in the project directory and entered into the venv
 
-5. Install exllamav2 to your venv
+2. Run the tabbyAPI application: `python main.py`
 
-git clone https://github.com/turboderp/exllamav2.git
+## API Documentation
 
-cd exllamav2
+Docs can be accessed once you launch the API at `http://<your-IP>:<your-port>/docs`
 
-pip install -r requirements.txt
+If you use the default YAML config, it's accessible at `http://localhost:5000/docs` 
 
-python setup.py install
+## Authentication
 
+TabbyAPI uses an API key and admin key to authenticate a user's request. On first launch of the API, a file called `api_tokens.yml` will be generated with fields for the admin and API keys.
 
+If you feel that the keys have been compromised, delete `api_tokens.yml` and the API will generate new keys for you.
 
-## Launch the tabbyAPI Application
+API keys and admin keys can be provided via:
 
-To start the tabbyAPI application, follow these steps:
+- `x-api-key` and `x-admin-key` respectively
 
-1. Ensure you are in the project directory and the virtual environment is activated (if used).
+- `Authorization` with the `Bearer ` prefix
 
-2. Run the tabbyAPI application:
+DO NOT share your admin key unless you want someone else to load/unload a model from your system!
 
+#### Authentication Requrirements
 
-python main.py
+All routes require an API key except for the following which require an **admin** key
 
-3. The tabbyAPI application should now be running. You can access it by opening a web browser and navigating to `http://localhost:8000` (if running locally).
+- `/v1/model/load`
 
-## Usage
+- `/v1/model/unload`
 
-The tabbyAPI application provides the following endpoint:
+## Contributing
 
-- '/v1/model' Retrieves information about the currently loaded model.
-- '/v1/model/load' Loads a new model based on provided data and model configuration.
-- '/v1/model/unload' Unloads the currently loaded model from the system.
-- '/v1/completions' Use this endpoint to generate text based on the provided input data.
+If you have issues with the project:
 
-### Example Request (using `curl`)
+- Describe the issues in detail
 
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer 2261702e8a220c6c4671a264cd1236ce" \
-  -d '{
-    "model": "airoboros-mistral2.2-7b-exl2",
-    "prompt": ["A tabby","is"],
-    "stream": true,
-    "top_p": 0.73,
-    "stop": "[",
-    "max_tokens": 360,
-    "temperature": 0.8,
-    "mirostat_mode": 2,
-    "mirostat_tau": 5,
-    "mirostat_eta": 0.1
-  }' \
-  http://127.0.0.1:8012/v1/completions
+- If you have a feature request, please indicate it as such.
 
+If you have a Pull Request
 
+- Describe the pull request in detail, what, and why you are changing something
 
-### Parameter Guide
+## Developers and Permissions
 
-*note* This stuff still needs to be expanded and updated
+Creators/Developers:
 
-{
-  "model": "airoboros-mistral2.2-7b-exl2",
-  "prompt": ["A tabby","is"],
-  "stream": true,
-  "top_p": 0.73,
-  "stop": "[",
-  "max_tokens": 360,
-  "temperature": 0.8,
-  "mirostat_mode": 2,
-  "mirostat_tau": 5,
-  "mirostat_eta": 0.1
-}
+- kingbri
 
-Model: "airoboros-mistral2.2-7b-exl2"
-    This specifies the specific language model being used. It's essential for the API to know which model to employ for generating responses.
+- Splice86
 
-Prompt: ["Hello there! My name is", "Brian", "and I am", "an AI"]
-    The prompt *QUESTION* why is it a list of strings instead of a single string? 
-Stream: true
-    Whether the response should be streamed back or not.
-
-Top_p: 0.73
-    cumulative probability threshold
-
-Stop: "["
-    The stop parameter defines a string that stops the generation.
-
-Max_tokens: 360
-    This parameter determines the maximum number of tokens.
-
-Temperature: 0.8
-    Temperature controls the randomness of the generated text.
-
-Mirostat_mode: 2
-   ?
-Mirostat_tau: 5
-   ?
-Mirostat_eta: 0.1
-   ?
+- Turboderp

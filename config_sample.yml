@@ -1,14 +1,39 @@
-# Network options
+# Options for networking
 network:
-  host: "0.0.0.0"
-  port: 8012
-# Only used if you want to initially load a model
+  # The IP to host on (default: 127.0.0.1).
+  # Use 0.0.0.0 to expose on all network adapters
+  host: "127.0.0.1"
+
+  # The port to host on (default: 5000)
+  port: 5000
+
+# Options for model overrides and loading
 model:
-  model_dir: "D:/models"
-  model_name: "airoboros-mistral2.2-7b-exl2"
+  # Overrides the directory to look for models (default: "models")
+  # Make sure to use forward slashes, even on Windows (or escape your backslashes).
+  # model_dir: "your model directory path"
+
+  # An initial model to load. Make sure the model is located in the model directory!
+  # A model can be loaded later via the API. This does not have to be specified
+  # model_name: "A model name"
+
+  # The below parameters apply only if model_name is set
+
+  # Maximum model context length (default: 4096)
   max_seq_len: 4096
-  gpu_split: "auto"
+
+  # Automatically allocate resources to GPUs (default: True)
+  gpu_split_auto: True
+
+  # An integer array of GBs of vram to split between GPUs (default: [])
+  # gpu_split: [20.6, 24]
+
+  # Rope scaling parameters (default: 1.0)
   rope_scale: 1.0
   rope_alpha: 1.0
+
+  # Disable Flash-attention 2. Recommended for GPUs lower than Nvidia's 3000 series. (default: False)
   no_flash_attention: False
+
+  # Enable low vram optimizations in exllamav2 (default: False)
   low_mem: False
