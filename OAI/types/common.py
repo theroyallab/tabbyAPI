@@ -79,7 +79,7 @@ class CommonCompletionRequest(BaseModel):
             "repetition_penalty": self.repetition_penalty,
             "repetition_penalty_range": self.repetition_penalty_range,
             "repetition_decay": self.repetition_decay,
-            "mirostat": True if self.mirostat_mode == 2 else False,
+            "mirostat": self.mirostat_mode == 2,
             "mirostat_tau": self.mirostat_tau,
             "mirostat_eta": self.mirostat_eta
         }
