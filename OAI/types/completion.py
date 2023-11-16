@@ -1,7 +1,7 @@
 from uuid import uuid4
 from time import time
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Union
+from typing import List, Optional, Union
 from OAI.types.common import LogProbs, UsageStats, CommonCompletionRequest
 
 class CompletionRespChoice(BaseModel):
