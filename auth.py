@@ -1,7 +1,7 @@
 import secrets
 import yaml
 from fastapi import Header, HTTPException
-from typing import Optional, Dict
+from typing import Optional
 
 """
 This method of authorization is pretty insecure, but since TabbyAPI is a local
@@ -16,10 +16,6 @@ class AuthKeys:
         self.api_key = api_key
         self.admin_key = admin_key
 
-    def __init__(self, d: Dict[str, str] = None):
-        for key, value in d.items():
-            setattr(self, key, value)
-
 auth_keys: Optional[AuthKeys] = None
 
 def load_auth_keys():
@@ -27,7 +23,10 @@ def load_auth_keys():
     try:
         with open("api_tokens.yml", "r") as auth_file:
             auth_keys_dict = yaml.safe_load(auth_file)
-            auth_keys = AuthKeys(d = auth_keys_dict)
+            auth_keys = AuthKeys(
+                api_key = auth_keys_dict["api_key"],
+                admin_key = auth_keys_dict["admin_key"]
+            )
     except:
         new_auth_keys = AuthKeys(
             api_key = secrets.token_hex(16),
