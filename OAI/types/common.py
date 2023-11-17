@@ -29,7 +29,7 @@ class CommonCompletionRequest(BaseModel):
     # Generation info
     seed: Optional[int] = -1
     stream: Optional[bool] = False
-    stop: Optional[Union[str, List[str]]] = None
+    stop: Optional[Union[str, List[str]]] = []
 
     # Default to 150 as 16 makes no sense as a default
     max_tokens: Optional[int] = 150

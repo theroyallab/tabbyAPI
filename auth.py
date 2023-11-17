@@ -45,7 +45,10 @@ def check_api_key(x_api_key: str = Header(None), authorization: str = Header(Non
             raise HTTPException(401, "Invalid API key")
     elif authorization:
         split_key = authorization.split(" ")
-        if split_key[0].lower() == "bearer" and split_key[1] in auth_keys.api_key:
+
+        if len(split_key) < 2:
+            raise HTTPException(401, "Invalid API key")
+        elif split_key[0].lower() == "bearer" and split_key[1] in auth_keys.api_key:
             return authorization
         else:
             raise HTTPException(401, "Invalid API key")
@@ -60,7 +63,10 @@ def check_admin_key(x_admin_key: str = Header(None), authorization: str = Header
             raise HTTPException(401, "Invalid admin key")
     elif authorization:
         split_key = authorization.split(" ")
-        if split_key[0].lower() == "bearer" and split_key[1] in auth_keys.admin_key:
+
+        if len(split_key) < 2:
+            raise HTTPException(401, "Invalid admin key")
+        elif split_key[0].lower() == "bearer" and split_key[1] in auth_keys.admin_key:
             return authorization
         else:
             raise HTTPException(401, "Invalid admin key")
