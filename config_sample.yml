@@ -20,6 +20,10 @@ model:
   # A model can be loaded later via the API. This does not have to be specified
   # model_name: A model name
 
+  # Set the following to enable speculative decoding
+  # draft_model_dir: your model directory path to use as draft model (path is independent from model_dir)
+  # draft_rope_alpha: 1.0 (default: the draft model's alpha value is calculated automatically to scale to the size of the full model.)
+  
   # The below parameters apply only if model_name is set
 
   # Maximum model context length (default: 4096)
@@ -40,3 +44,6 @@ model:
 
   # Enable low vram optimizations in exllamav2 (default: False)
   low_mem: False
+
+  # Enable 8 bit cache mode for VRAM savings (slight performance hit). Possible values FP16, FP8. (default: FP16)
+  # cache_mode: "FP8"
