@@ -1,5 +1,6 @@
 import gc, time, pathlib
 import torch
+from datetime import datetime
 from exllamav2 import(
     ExLlamaV2,
     ExLlamaV2Config,
@@ -305,7 +306,8 @@ class ModelContainer:
 
         generated_tokens = 0
         full_response = ""
-        last_chunk_time = time.time()
+        start_time = time.time()
+        last_chunk_time = start_time
 
         save_tokens = torch.empty((1, 0), dtype = torch.bool)
         chunk_buffer = ""
@@ -351,3 +353,6 @@ class ModelContainer:
                 last_chunk_time = now
 
             if eos or generated_tokens == max_tokens: break
+
+        elapsed_time = last_chunk_time - start_time
+        print(f"Response generated in {round(elapsed_time, 2)} seconds ({round(generated_tokens / elapsed_time, 2)} T/s)")
