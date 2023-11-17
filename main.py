@@ -47,8 +47,8 @@ app.add_middleware(
 )
 
 # Model list endpoint
-@app.get("/v1/models")
-@app.get("/v1/model/list")
+@app.get("/v1/models", dependencies=[Depends(check_api_key)])
+@app.get("/v1/model/list", dependencies=[Depends(check_api_key)])
 async def list_models():
     model_config = config.get("model", {})
     if "model_dir" in model_config:
