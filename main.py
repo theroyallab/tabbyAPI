@@ -3,6 +3,7 @@ import yaml
 import pathlib
 from auth import check_admin_key, check_api_key, load_auth_keys
 from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
 from model import ModelContainer
 from progress.bar import IncrementalBar
 from sse_starlette import EventSourceResponse
@@ -36,9 +37,18 @@ def _check_model_container():
     if model_container is None or model_container.model is None:
         raise HTTPException(400, "No models are loaded.")
 
+# ALlow CORS requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Model list endpoint
-@app.get("/v1/models", dependencies=[Depends(check_api_key)])
-@app.get("/v1/model/list", dependencies=[Depends(check_api_key)])
+@app.get("/v1/models")
+@app.get("/v1/model/list")
 async def list_models():
     model_config = config.get("model", {})
     if "model_dir" in model_config:
