@@ -1,21 +1,24 @@
+# Unless specified in the comments, DO NOT put these options in quotes!
+# You can use https://www.yamllint.com/ if you want to check your YAML formatting.
+
 # Options for networking
 network:
   # The IP to host on (default: 127.0.0.1).
   # Use 0.0.0.0 to expose on all network adapters
-  host: "127.0.0.1"
+  host: 127.0.0.1
 
   # The port to host on (default: 5000)
   port: 5000
 
 # Options for model overrides and loading
 model:
-  # Overrides the directory to look for models (default: "models")
-  # Make sure to use forward slashes, even on Windows (or escape your backslashes).
-  # model_dir: "your model directory path"
+  # Overrides the directory to look for models (default: models)
+  # Windows users: DO NOT put this path in quotes! This directory will be invalid otherwise.
+  # model_dir: your model directory path
 
   # An initial model to load. Make sure the model is located in the model directory!
   # A model can be loaded later via the API. This does not have to be specified
-  # model_name: "A model name"
+  # model_name: A model name
 
   # The below parameters apply only if model_name is set
 
@@ -32,7 +35,7 @@ model:
   rope_scale: 1.0
   rope_alpha: 1.0
 
-  # Disable Flash-attention 2. Recommended for GPUs lower than Nvidia's 3000 series. (default: False)
+  # Disable Flash-attention 2. Set to True for GPUs lower than Nvidia's 3000 series. (default: False)
   no_flash_attention: False
 
   # Enable low vram optimizations in exllamav2 (default: False)

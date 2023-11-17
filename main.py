@@ -194,7 +194,12 @@ if __name__ == "__main__":
     try:
         with open('config.yml', 'r') as config_file:
             config = yaml.safe_load(config_file) or {}
-    except:
+    except Exception as e:
+        print(
+            "The YAML config couldn't load because of the following error:",
+            f"\n\n{e}",
+            "\n\nTabbyAPI will start anyway and not parse this config file."
+        )
         config = {}
 
     # If an initial model name is specified, create a container and load the model
