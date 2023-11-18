@@ -18,7 +18,7 @@ To get started, make sure you have the following installed on your system:
 
 - Python 3.x (preferably 3.11) with pip
 
-- CUDA 12.1 or 11.8
+- CUDA 12.1 or 11.8 (or ROCm 5.6)
 
 NOTE: For Flash Attention 2 to work on Windows, CUDA 12.1 **must** be installed!
 
@@ -91,6 +91,12 @@ All routes require an API key except for the following which require an **admin*
 - `/v1/model/load`
 
 - `/v1/model/unload`
+
+## Common Issues
+
+- AMD cards will error out with flash attention installed, even if the config option is set to False. Run `pip uninstall flash_attn` to remove the wheel from your system.
+
+   - See [#5](https://github.com/theroyallab/tabbyAPI/issues/5)
 
 ## Contributing
 
