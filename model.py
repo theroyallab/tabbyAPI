@@ -82,17 +82,29 @@ class ModelContainer:
         self.config.max_input_len = chunk_size
         self.config.max_attn_size = chunk_size ** 2
 
-        self.draft_enabled = "draft_model_dir" in kwargs
+        draft_config =  kwargs.get("draft") or {}
+        draft_model_name = draft_config.get("draft_model_name")
+        enable_draft = bool(draft_config) and draft_model_name is not None
+
+        if bool(draft_config) and draft_model_name is None:
+            print("A draft config was found but a model name was not given. Please check your config.yml! Skipping draft load.")
+            self.draft_enabled = False
+        else:
+            self.draft_enabled = enable_draft
+
         if self.draft_enabled:
 
             self.draft_config = ExLlamaV2Config()
-            self.draft_config.model_dir = kwargs["draft_model_dir"]
+            draft_model_path = pathlib.Path(kwargs.get("draft_model_dir") or "models")
+            draft_model_path = draft_model_path / draft_model_name
+
+            self.draft_config.model_dir = str(draft_model_path.resolve())
             self.draft_config.prepare()
 
             self.draft_config.max_seq_len = self.config.max_seq_len
 
             if "draft_rope_alpha" in kwargs:
-                self.draft_config.scale_alpha_value = kwargs["draft_rope_alpha"]
+                self.draft_config.scale_alpha_value = kwargs.get("draft_rope_alpha") or 1
             else:
                 ratio = self.config.max_seq_len / self.draft_config.max_seq_len
                 alpha = -0.13436 + 0.80541 * ratio + 0.28833 * ratio ** 2
