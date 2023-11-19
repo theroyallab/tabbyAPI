@@ -101,14 +101,14 @@ class ModelContainer:
             self.draft_config.model_dir = str(draft_model_path.resolve())
             self.draft_config.prepare()
 
-            self.draft_config.max_seq_len = self.config.max_seq_len
-
             if "draft_rope_alpha" in kwargs:
                 self.draft_config.scale_alpha_value = kwargs.get("draft_rope_alpha") or 1
             else:
                 ratio = self.config.max_seq_len / self.draft_config.max_seq_len
                 alpha = -0.13436 + 0.80541 * ratio + 0.28833 * ratio ** 2
                 self.draft_config.scale_alpha_value = alpha
+
+            self.draft_config.max_seq_len = self.config.max_seq_len            
 
             if "chunk_size" in kwargs:
                 self.draft_config.max_input_len = kwargs["chunk_size"]
