@@ -1,3 +1,6 @@
+# Sample YAML file for configuration.
+# Comment out values as needed. Every value has a default within the application.
+
 # Unless specified in the comments, DO NOT put these options in quotes!
 # You can use https://www.yamllint.com/ if you want to check your YAML formatting.
 
@@ -14,15 +17,15 @@ network:
 model:
   # Overrides the directory to look for models (default: models)
   # Windows users, DO NOT put this path in quotes! This directory will be invalid otherwise.
-  # model_dir: your model directory path
+  model_dir: your model directory path
 
   # An initial model to load. Make sure the model is located in the model directory!
   # A model can be loaded later via the API.
-  # model_name: A model name
+  model_name: A model name
 
   # Set the following to enable speculative decoding
   # draft_model_dir: your model directory path to use as draft model (path is independent from model_dir)
-  # draft_rope_alpha: 1.0 (default: the draft model's alpha value is calculated automatically to scale to the size of the full model.)
+  draft_rope_alpha: 1.0 (default: the draft model's alpha value is calculated automatically to scale to the size of the full model.)
   
   # The below parameters apply only if model_name is set
 
@@ -33,7 +36,7 @@ model:
   gpu_split_auto: True
 
   # An integer array of GBs of vram to split between GPUs (default: [])
-  # gpu_split: [20.6, 24]
+  gpu_split: [20.6, 24]
 
   # Rope scaling parameters (default: 1.0)
   rope_scale: 1.0
@@ -46,16 +49,16 @@ model:
   low_mem: False
 
   # Enable 8 bit cache mode for VRAM savings (slight performance hit). Possible values FP16, FP8. (default: FP16)
-  # cache_mode: FP16
+  cache_mode: FP16
 
   # Options for draft models (speculative decoding). This will use more VRAM!
-  # draft:
+  draft:
     # Overrides the directory to look for draft (default: models)
-    # draft_model_dir: Your draft model directory path
+    draft_model_dir: Your draft model directory path
 
     # An initial draft model to load. Make sure this model is located in the model directory!
     # A draft model can be loaded later via the API.
-    # draft_model_name: A model name
+    draft_model_name: A model name
   
     # Rope parameters for draft models (default: 1.0)
-    # draft_rope_alpha: 1.0
+    draft_rope_alpha: 1.0
