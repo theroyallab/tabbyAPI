@@ -12,6 +12,10 @@ class ModelList(BaseModel):
     object: str = "list"
     data: List[ModelCard] = Field(default_factory=list)
 
+class DraftModelLoadRequest(BaseModel):
+    draft_model_name: str
+    draft_rope_alpha: float = 1.0
+
 class ModelLoadRequest(BaseModel):
     name: str
     max_seq_len: Optional[int] = 4096
@@ -21,8 +25,10 @@ class ModelLoadRequest(BaseModel):
     rope_alpha: Optional[float] = 1.0
     no_flash_attention: Optional[bool] = False
     low_mem: Optional[bool] = False
+    draft: Optional[DraftModelLoadRequest] = None
 
 class ModelLoadResponse(BaseModel):
+    model_type: str = "model"
     module: int
     modules: int
     status: str
