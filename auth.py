@@ -37,6 +37,12 @@ def load_auth_keys():
         with open("api_tokens.yml", "w") as auth_file:
             yaml.safe_dump(vars(auth_keys), auth_file, default_flow_style=False)
 
+    print(
+        f"Your API key is: {auth_keys.api_key}\n"
+        f"Your admin key is: {auth_keys.admin_key}\n\n"
+        "If these keys get compromised, make sure to delete api_tokens.yml and restart the server. Have fun!"
+    )
+
 def check_api_key(x_api_key: str = Header(None), authorization: str = Header(None)):
     if x_api_key:
         if x_api_key in auth_keys.api_key:
