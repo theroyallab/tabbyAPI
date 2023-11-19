@@ -28,11 +28,19 @@ NOTE: For Flash Attention 2 to work on Windows, CUDA 12.1 **must** be installed!
 
 2. Navigate to the project directory: `cd tabbyAPI`
 
-3. Create a virtual environment:
-   
-   1. `python -m venv venv`
-   
-   2. On Windows: `.\venv\Scripts\activate`. On Linux: `source venv/bin/activate`
+3. Create a python environment:
+
+   1. Through venv (recommended)
+
+      1. `python -m venv venv`
+
+      2. On Windows (Using powershell or Windows terminal): `.\venv\Scripts\activate`. On Linux: `source venv/bin/activate`
+
+   2. Through conda
+
+      1. `conda create -n tabbyAPI python=3.11`
+
+      2. `conda activate tabbyAPI`
 
 4. Install torch using the instructions found [here](https://pytorch.org/get-started/locally/)
 
