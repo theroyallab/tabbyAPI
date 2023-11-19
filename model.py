@@ -367,4 +367,13 @@ class ModelContainer:
             if eos or generated_tokens == max_tokens: break
 
         elapsed_time = last_chunk_time - start_time
-        print(f"Response: {round(generated_tokens, 2)} tokens generated in {round(elapsed_time, 2)} seconds ({round(generated_tokens / elapsed_time, 2)} T/s)")
+
+        initial_response = f"Response: {round(generated_tokens, 2)} tokens generated in {round(elapsed_time, 2)} seconds"
+        extra_responses = []
+
+        # Add tokens per second
+        extra_responses.append(f"{'Indeterminate' if elapsed_time == 0 else round(generated_tokens / elapsed_time, 2)} T/s")
+        extra_responses.append(f"{generated_tokens} tokens")
+
+        # Print output
+        print(initial_response + " (" + ", ".join(extra_responses) + ")")
