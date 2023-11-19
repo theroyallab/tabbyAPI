@@ -1,0 +1,13 @@
+version: '3.8'
+services:
+  tabbyapi:
+    build: .
+    ports:
+      - "5000:5000"
+    runtime: nvidia
+    environment:
+      - NAME=TabbyAPI
+      - NVIDIA_VISIBLE_DEVICES=all
+#    volumes:
+#      - /path/to/models:/usr/src/app/models
+#      - /path/to/config:/usr/src/app/config.yml
