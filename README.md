@@ -76,7 +76,7 @@ TabbyAPI uses an API key and admin key to authenticate a user's request. On firs
 
 If you feel that the keys have been compromised, delete `api_tokens.yml` and the API will generate new keys for you.
 
-API keys and admin keys can be provided via:
+API keys and admin keys can be provided via the following request headers:
 
 - `x-api-key` and `x-admin-key` respectively
 
@@ -97,6 +97,20 @@ All routes require an API key except for the following which require an **admin*
 - AMD cards will error out with flash attention installed, even if the config option is set to False. Run `pip uninstall flash_attn` to remove the wheel from your system.
 
    - See [#5](https://github.com/theroyallab/tabbyAPI/issues/5)
+
+- Exllamav2 may error with the following exception: `ImportError: DLL load failed while importing exllamav2_ext: The specified module could not be found.`
+
+   - First, make sure to check if the wheel is equivalent to your python version and CUDA version. Also make sure you're in a venv or conda environment.
+
+   - If those prerequisites are correct, the torch cache may need to be cleared. This is due to a mismatching exllamav2_ext.
+
+      - In Windows: Find the cache at `C:\Users\<User>\AppData\Local\torch_extensions\torch_extensions\Cache` where `<User>` is your Windows username
+
+      - In Linux: Find the cache at `~/.cache/torch_extensions`
+
+      - look for any folder named `exllamav2_ext` in the python subdirectories and delete them.
+
+      - Restart TabbyAPI and launching should work again.
 
 ## Contributing
 
