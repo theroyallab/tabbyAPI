@@ -20,7 +20,7 @@ WORKDIR /usr/src/app
 COPY . .
 
 # Install torch with CUDA support and exllamav2
-RUN pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu121
+RUN pip install torch --extra-index-url https://download.pytorch.org/whl/cu121
 RUN pip install exllamav2
 
 # Install any other needed packages specified in requirements.txt
