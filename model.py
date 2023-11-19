@@ -373,7 +373,10 @@ class ModelContainer:
 
         # Add tokens per second
         extra_responses.append(f"{'Indeterminate' if elapsed_time == 0 else round(generated_tokens / elapsed_time, 2)} T/s")
-        extra_responses.append(f"{generated_tokens} tokens")
+
+        # Add context (original token count)
+        if ids is not None:
+            extra_responses.append(f"context {len(ids[0])} tokens")
 
         # Print output
         print(initial_response + " (" + ", ".join(extra_responses) + ")")
