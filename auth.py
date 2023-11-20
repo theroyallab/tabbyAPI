@@ -16,6 +16,16 @@ class AuthKeys:
         self.api_key = api_key
         self.admin_key = admin_key
 
+    def verify_key(self, test_key: str, key_type: str):
+        # Match statements are only available in python 3.10 and up
+        if key_type == "admin_key":
+            return test_key == self.admin_key
+        elif key_type == "api_key":
+            # Admin keys are valid for all API calls
+            return test_key == self.api_key or test_key == self.admin_key
+        else:
+            return False
+
 auth_keys: Optional[AuthKeys] = None
 
 def load_auth_keys():
@@ -45,7 +55,7 @@ def load_auth_keys():
 
 def check_api_key(x_api_key: str = Header(None), authorization: str = Header(None)):
     if x_api_key:
-        if x_api_key in auth_keys.api_key:
+        if auth_keys.verify_key(split_key[1], "api_key"):
             return x_api_key
         else:
             raise HTTPException(401, "Invalid API key")
@@ -54,7 +64,7 @@ def check_api_key(x_api_key: str = Header(None), authorization: str = Header(Non
 
         if len(split_key) < 2:
             raise HTTPException(401, "Invalid API key")
-        elif split_key[0].lower() == "bearer" and split_key[1] == auth_keys.api_key:
+        elif split_key[0].lower() == "bearer" and auth_keys.verify_key(split_key[1], "api_key"):
             return authorization
         else:
             raise HTTPException(401, "Invalid API key")
@@ -63,7 +73,7 @@ def check_api_key(x_api_key: str = Header(None), authorization: str = Header(Non
 
 def check_admin_key(x_admin_key: str = Header(None), authorization: str = Header(None)):
     if x_admin_key:
-        if x_admin_key == auth_keys.admin_key:
+        if auth_keys.verify_key(split_key[1], "api_key"):
             return x_admin_key
         else:
             raise HTTPException(401, "Invalid admin key")
@@ -72,7 +82,7 @@ def check_admin_key(x_admin_key: str = Header(None), authorization: str = Header
 
         if len(split_key) < 2:
             raise HTTPException(401, "Invalid admin key")
-        elif split_key[0].lower() == "bearer" and split_key[1] == auth_keys.admin_key:
+        elif split_key[0].lower() == "bearer" and auth_keys.verify_key(split_key[1], "admin_key"):
             return authorization
         else:
             raise HTTPException(401, "Invalid admin key")
