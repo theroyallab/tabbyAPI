@@ -55,7 +55,7 @@ def load_auth_keys():
 
 def check_api_key(x_api_key: str = Header(None), authorization: str = Header(None)):
     if x_api_key:
-        if auth_keys.verify_key(split_key[1], "api_key"):
+        if auth_keys.verify_key(x_api_key, "api_key"):
             return x_api_key
         else:
             raise HTTPException(401, "Invalid API key")
@@ -73,7 +73,7 @@ def check_api_key(x_api_key: str = Header(None), authorization: str = Header(Non
 
 def check_admin_key(x_admin_key: str = Header(None), authorization: str = Header(None)):
     if x_admin_key:
-        if auth_keys.verify_key(split_key[1], "api_key"):
+        if auth_keys.verify_key(x_admin_key, "admin_key"):
             return x_admin_key
         else:
             raise HTTPException(401, "Invalid admin key")
