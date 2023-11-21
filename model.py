@@ -239,6 +239,7 @@ class ModelContainer:
             **kwargs:
                 'token_healing' (bool): Use token healing (default: False)
                 'temperature' (float): Sampling temperature (default: 1.0)
+                'temperature_last' (bool): Apply temperature after all other samplers (default: False)
                 'top_k' (int): Sampling top-K (default: 0)
                 'top_p' (float): Sampling top-P (default: 1.0)
                 'min_p' (float): Sampling min-P (default: 0.0)
@@ -270,6 +271,7 @@ class ModelContainer:
 
         gen_settings = ExLlamaV2Sampler.Settings()
         gen_settings.temperature = kwargs.get("temperature", 1.0)
+        gen_settings.temperature_last = kwargs.get("temperature_last", False)
         gen_settings.top_k = kwargs.get("top_k", 1)
         gen_settings.top_p = kwargs.get("top_p", 1.0)
         gen_settings.min_p = kwargs.get("min_p", 0.0)

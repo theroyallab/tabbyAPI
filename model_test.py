@@ -2,20 +2,21 @@
 from model import ModelContainer
 
 def progress(module, modules):
-    print(f"Loaded {module}/{modules} modules")
-    yield
+    yield module, modules
 
-mc = ModelContainer("/mnt/str/models/_exl2/mistral-7b-instruct-exl2/4.0bpw/", max_seq_len = 100)
-mc.load(progress)
+container = ModelContainer("/mnt/str/models/_exl2/mistral-7b-instruct-exl2/4.0bpw/")
+loader = container.load_gen(progress)
+for (module, modules) in loader:
+    print(module, modules)
 
-gen = mc.generate_gen("Once upon a tim", generate_window = 16, token_healing = True)
-for g in gen: print(g, end = "")
+generator = container.generate_gen("Once upon a tim", token_healing = True)
+for g in generator: print(g, end = "")
 
-mc.unload()
-del mc
+container.unload()
+del container
 
 mc = ModelContainer("/mnt/str/models/_exl2/mistral-7b-instruct-exl2/4.65bpw/")
 mc.load(progress)
 
-response = mc.generate("All work and no play makes turbo a derpy cat.\nAll work and no play makes turbo a derpy cat.\nAll", top_k = 1)
+response = mc.generate("All work and no play makes turbo a derpy cat.\nAll work and no play makes turbo a derpy cat.\nAll", top_k = 1, max_new_tokens = 1000, stream_interval = 0.5)
 print (response)
