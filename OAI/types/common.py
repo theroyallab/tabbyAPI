@@ -40,6 +40,7 @@ class CommonCompletionRequest(BaseModel):
     # Sampling params
     token_healing: Optional[bool] = False
     temperature: Optional[float] = 1.0
+    temperature_last: Optional[bool] = False
     top_k: Optional[int] = 0
     top_p: Optional[float] = 1.0
     typical: Optional[float] = 0.0
@@ -71,6 +72,7 @@ class CommonCompletionRequest(BaseModel):
             "ban_eos_token": self.ban_eos_token,
             "token_healing": self.token_healing,
             "temperature": self.temperature,
+            "temperature_last": self.temperature_last,
             "top_k": self.top_k,
             "top_p": self.top_p,
             "typical": self.typical,
@@ -81,5 +83,5 @@ class CommonCompletionRequest(BaseModel):
             "repetition_decay": self.repetition_decay,
             "mirostat": self.mirostat_mode == 2,
             "mirostat_tau": self.mirostat_tau,
-            "mirostat_eta": self.mirostat_eta
+            "mirostat_eta": self.mirostat_eta,
         }

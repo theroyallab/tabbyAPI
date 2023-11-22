@@ -271,9 +271,9 @@ class ModelContainer:
 
         gen_settings = ExLlamaV2Sampler.Settings()
 
-        # Warn if unsupported settings supplied
+        # Warn of unsupported settings if the setting is enabled
 
-        if "mirostat" in kwargs and not hasattr(gen_settings, "mirostat"):
+        if kwargs.get("mirostat", False) and not hasattr(gen_settings, "mirostat"):
             print(" !! Warning: Currently installed ExLlamaV2 does not support Mirostat sampling")
 
         if kwargs.get("min_p", 0.0) not in [0.0, 1.0] and not hasattr(gen_settings, "min_p"):
@@ -282,7 +282,7 @@ class ModelContainer:
         if kwargs.get("tfs", 0.0) not in [0.0, 1.0] and not hasattr(gen_settings, "tfs"):
             print(" !! Warning: Currently installed ExLlamaV2 does not support tail-free sampling (TFS)")
 
-        if "temperature_last" in kwargs and not hasattr(gen_settings, "temperature_last"):
+        if kwargs.get("temperature_last", False) and not hasattr(gen_settings, "temperature_last"):
             print(" !! Warning: Currently installed ExLlamaV2 does not support temperature_last")
 
         #Apply settings
