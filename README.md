@@ -44,8 +44,10 @@ NOTE: For Flash Attention 2 to work on Windows, CUDA 12.1 **must** be installed!
 
 4. Install torch using the instructions found [here](https://pytorch.org/get-started/locally/)
 
-5. Install exllamav2 (must be v0.0.8 or greater!)
+5. Install exllamav2 (must be v0.0.9 or greater!)
    
+   NOTE: TabbyAPI will give you a warning if a sampler isn't found due to the exllamav2 version being too low.
+
    1. From a [wheel/release](https://github.com/turboderp/exllamav2#method-2-install-from-release-with-prebuilt-extension) (Recommended)
       
       1. Find the version that corresponds with your cuda and python version. For example, a wheel with `cu121` and `cp311` corresponds to CUDA 12.1 and python 3.11
