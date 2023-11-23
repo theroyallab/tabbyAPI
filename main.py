@@ -50,13 +50,16 @@ app.add_middleware(
 @app.get("/v1/models", dependencies=[Depends(check_api_key)])
 @app.get("/v1/model/list", dependencies=[Depends(check_api_key)])
 async def list_models():
-    model_config = config.get("model", {})
+    model_config = config.get("model") or {}
     if "model_dir" in model_config:
         model_path = pathlib.Path(model_config["model_dir"])
     else:
         model_path = pathlib.Path("models")
 
-    models = get_model_list(model_path.resolve())
+    draft_config = model_config.get("draft") or {}
+    draft_model_dir = draft_config.get("draft_model_dir")
+
+    models = get_model_list(model_path.resolve(), draft_model_dir)
 
     return models
 
@@ -64,7 +67,9 @@ async def list_models():
 @app.get("/v1/model", dependencies=[Depends(check_api_key), Depends(_check_model_container)])
 @app.get("/v1/internal/model/info", dependencies=[Depends(check_api_key), Depends(_check_model_container)])
 async def get_current_model():
-    model_card = ModelCard(id=model_container.get_model_path().name)
+    model_name = model_container.get_model_path().name
+    model_card = ModelCard(id = model_name)
+
     return model_card
 
 # Load model endpoint

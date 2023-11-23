@@ -82,7 +82,7 @@ class ModelContainer:
         self.config.max_input_len = chunk_size
         self.config.max_attn_size = chunk_size ** 2
 
-        draft_config =  kwargs.get("draft") or {}
+        draft_config = kwargs.get("draft") or {}
         draft_model_name = draft_config.get("draft_model_name")
         enable_draft = bool(draft_config) and draft_model_name is not None
 

@@ -1,4 +1,4 @@
-import pathlib
+import os, pathlib
 from OAI.types.completion import CompletionResponse, CompletionRespChoice
 from OAI.types.chat_completion import (
     ChatCompletionMessage,
@@ -76,10 +76,17 @@ def create_chat_completion_stream_chunk(const_id: str, text: str, model_name: Op
 
     return chunk
 
-def get_model_list(model_path: pathlib.Path):
+def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str]):
+
+    # Convert the draft model path to a pathlib path for equality comparisons
+    if draft_model_path:
+        draft_model_path = pathlib.Path(draft_model_path).resolve()
+
     model_card_list = ModelList()
     for path in model_path.iterdir():
-        if path.is_dir():
+
+        # Don't include the draft models path
+        if path.is_dir() and path != draft_model_path:
             model_card = ModelCard(id = path.name)
             model_card_list.data.append(model_card)
 
