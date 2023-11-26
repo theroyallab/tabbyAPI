@@ -134,12 +134,16 @@ If you have a Pull Request
 
 - Describe the pull request in detail, what, and why you are changing something
 
+## Support
+
+Need help? Join the [Discord Server](https://discord.gg/sYQxnuD7Fj) and get the `Tabby` role. Please be nice when asking questions.
+
 ## Developers and Permissions
 
 Creators/Developers:
 
-- kingbri
+- [kingbri](https://github.com/bdashore3)
 
-- Splice86
+- [Splice86](https://github.com/Splice86)
 
-- Turboderp
+- [Turboderp](https://github.com/turboderp)
