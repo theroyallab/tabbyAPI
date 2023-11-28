@@ -32,6 +32,8 @@ class ModelContainer:
     draft_enabled: bool = False
     gpu_split_auto: bool = True
     gpu_split: list or None = None
+    prompt_token_size: int = 0
+    completion_token_size: int = 0
 
     def __init__(self, model_directory: pathlib.Path, quiet = False, **kwargs):
         """
@@ -333,9 +335,11 @@ class ModelContainer:
             encode_special_tokens = True
         )
 
+        self.prompt_token_size = ids.shape[-1]
+
         # Begin
 
-        generated_tokens = 0
+        self.completion_token_size = 0
         full_response = ""
         start_time = time.time()
         last_chunk_time = start_time
@@ -369,7 +373,7 @@ class ModelContainer:
             save_tokens = torch.cat((save_tokens, tokens), dim=-1)
             chunk_buffer += chunk
 
-            generated_tokens += 1
+            self.completion_token_size += 1
             chunk_tokens -= 1
 
             # Yield output
@@ -377,21 +381,21 @@ class ModelContainer:
             now = time.time()
             elapsed = now - last_chunk_time
 
-            if chunk_buffer != "" and (elapsed > stream_interval or eos or generated_tokens == max_tokens):
+            if chunk_buffer != "" and (elapsed > stream_interval or eos or self.completion_token_size == max_tokens):
                 yield chunk_buffer
                 full_response += chunk_buffer
                 chunk_buffer = ""
                 last_chunk_time = now
 
-            if eos or generated_tokens == max_tokens: break
+            if eos or self.completion_token_size == max_tokens: break
 
         elapsed_time = last_chunk_time - start_time
 
-        initial_response = f"Response: {round(generated_tokens, 2)} tokens generated in {round(elapsed_time, 2)} seconds"
+        initial_response = f"Response: {round(self.completion_token_size)} tokens generated in {round(elapsed_time, 2)} seconds"
         extra_responses = []
 
         # Add tokens per second
-        extra_responses.append(f"{'Indeterminate' if elapsed_time == 0 else round(generated_tokens / elapsed_time, 2)} T/s")
+        extra_responses.append(f"{'Indeterminate' if elapsed_time == 0 else round(self.completion_token_size / elapsed_time, 2)} T/s")
 
         # Add context (original token count)
         if ids is not None:

@@ -179,14 +179,20 @@ async def generate_completion(request: Request, data: CompletionRequest):
                 if await request.is_disconnected():
                     break
 
-                response = create_completion_response(part, model_path.name)
+                response = create_completion_response(part,
+                                                      model_container.prompt_token_size,
+                                                      model_container.completion_token_size,
+                                                      model_path.name)
 
                 yield response.json(ensure_ascii=False)
 
         return EventSourceResponse(generator())
     else:
         response_text = model_container.generate(data.prompt, **data.to_gen_params())
-        response = create_completion_response(response_text, model_path.name)
+        response = create_completion_response(response_text,
+                                              model_container.prompt_token_size,
+                                              model_container.completion_token_size,
+                                              model_path.name)
 
         return response
 
@@ -219,7 +225,10 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
         return EventSourceResponse(generator())
     else:
         response_text = model_container.generate(prompt, **data.to_gen_params())
-        response = create_chat_completion_response(response_text, model_path.name)
+        response = create_chat_completion_response(response_text,
+                                                   model_container.prompt_token_size,
+                                                   model_container.completion_token_size,
+                                                   model_path.name)
 
         return response
 

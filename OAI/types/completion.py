@@ -22,6 +22,4 @@ class CompletionResponse(BaseModel):
     created: int = Field(default_factory=lambda: int(time()))
     model: str
     object: str = "text_completion"
-
-    # TODO: Add usage stats
     usage: Optional[UsageStats] = None
