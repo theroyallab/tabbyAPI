@@ -32,8 +32,6 @@ class ModelContainer:
     draft_enabled: bool = False
     gpu_split_auto: bool = True
     gpu_split: list or None = None
-    prompt_token_size: int = 0
-    completion_token_size: int = 0
 
     def __init__(self, model_directory: pathlib.Path, quiet = False, **kwargs):
         """
@@ -228,9 +226,9 @@ class ModelContainer:
 
 
     def generate(self, prompt: str, **kwargs):
-        gen = self.generate_gen(prompt, **kwargs)
-        reponse = "".join(gen)
-        return reponse
+        gen = list(self.generate_gen(prompt, **kwargs))
+        reponse = "".join(map(lambda o: o[0], gen))
+        return reponse, gen[-1][1], gen[-1][2]
 
     def generate_gen(self, prompt: str, **kwargs):
         """
@@ -335,11 +333,11 @@ class ModelContainer:
             encode_special_tokens = True
         )
 
-        self.prompt_token_size = ids.shape[-1]
+        prompt_tokens = ids.shape[-1]
 
         # Begin
 
-        self.completion_token_size = 0
+        generated_tokens = 0
         full_response = ""
         start_time = time.time()
         last_chunk_time = start_time
@@ -373,7 +371,7 @@ class ModelContainer:
             save_tokens = torch.cat((save_tokens, tokens), dim=-1)
             chunk_buffer += chunk
 
-            self.completion_token_size += 1
+            generated_tokens += 1
             chunk_tokens -= 1
 
             # Yield output
@@ -381,21 +379,21 @@ class ModelContainer:
             now = time.time()
             elapsed = now - last_chunk_time
 
-            if chunk_buffer != "" and (elapsed > stream_interval or eos or self.completion_token_size == max_tokens):
-                yield chunk_buffer
+            if chunk_buffer != "" and (elapsed > stream_interval or eos or generated_tokens == max_tokens):
+                yield chunk_buffer, prompt_tokens, generated_tokens
                 full_response += chunk_buffer
                 chunk_buffer = ""
                 last_chunk_time = now
 
-            if eos or self.completion_token_size == max_tokens: break
+            if eos or generated_tokens == max_tokens: break
 
         elapsed_time = last_chunk_time - start_time
 
-        initial_response = f"Response: {round(self.completion_token_size)} tokens generated in {round(elapsed_time, 2)} seconds"
+        initial_response = f"Response: {round(generated_tokens)} tokens generated in {round(elapsed_time, 2)} seconds"
         extra_responses = []
 
         # Add tokens per second
-        extra_responses.append(f"{'Indeterminate' if elapsed_time == 0 else round(self.completion_token_size / elapsed_time, 2)} T/s")
+        extra_responses.append(f"{'Indeterminate' if elapsed_time == 0 else round(generated_tokens / elapsed_time, 2)} T/s")
 
         # Add context (original token count)
         if ids is not None:
