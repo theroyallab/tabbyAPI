@@ -250,7 +250,7 @@ class ModelContainer:
                 'mirostat_eta' (float) Mirostat eta parameter (default: 0.1)
                 'repetition_penalty' (float): Token repetition/presence penalty (default: 1.15)
                 'repetition_range' (int): Repetition penalty range (default: whole context)
-                'repetition_decay' (int): Repetition penalty range (default: same as range)
+                'repetition_slope' (int): Repetition penalty range (default: same as range)
                 'stop' (List[Union[str, int]]): List of stop strings/tokens to end response (default: [EOS])
                 'max_tokens' (int): Max no. tokens in response (default: 150)
                 'add_bos_token' (bool): Adds the BOS token to the start of the prompt (default: True)
@@ -301,7 +301,11 @@ class ModelContainer:
         gen_settings.mirostat_eta = kwargs.get("mirostat_eta", 0.1)
         gen_settings.token_repetition_penalty = kwargs.get("repetition_penalty", 1.0)
         gen_settings.token_repetition_range = kwargs.get("repetition_range", self.config.max_seq_len)
-        gen_settings.token_repetition_decay = kwargs.get("repetition_decay", gen_settings.token_repetition_range)
+
+        # Always make sure the fallback is 0 if range < 0
+        # It's technically fine to use -1, but this just validates the passed fallback
+        fallback_slope = 0 if gen_settings.token_repetition_penalty <= 0 else gen_settings.token_repetition_range
+        gen_settings.token_repetition_decay = kwargs.get("repetition_slope", fallback_slope or 0)
 
         stop_conditions: List[Union[str, int]] = kwargs.get("stop", [])
         ban_eos_token = kwargs.get("ban_eos_token", False)

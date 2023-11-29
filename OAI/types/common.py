@@ -48,7 +48,7 @@ class CommonCompletionRequest(BaseModel):
     tfs: Optional[float] = 1.0
     repetition_penalty: Optional[float] = 1.0
     repetition_penalty_range: Optional[int] = 0
-    repetition_decay: Optional[int] = 0
+    repetition_slope: Optional[int] = 0
     mirostat_mode: Optional[int] = 0
     mirostat_tau: Optional[float] = 1.5
     mirostat_eta: Optional[float] = 0.1
@@ -85,7 +85,7 @@ class CommonCompletionRequest(BaseModel):
             "tfs": self.tfs,
             "repetition_penalty": self.repetition_penalty,
             "repetition_range": self.repetition_range or self.repetition_penalty_range or -1,
-            "repetition_decay": self.repetition_decay,
+            "repetition_slope": self.repetition_slope,
             "mirostat": self.mirostat_mode == 2,
             "mirostat_tau": self.mirostat_tau,
             "mirostat_eta": self.mirostat_eta,
