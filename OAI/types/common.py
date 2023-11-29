@@ -55,6 +55,11 @@ class CommonCompletionRequest(BaseModel):
     add_bos_token: Optional[bool] = True
     ban_eos_token: Optional[bool] = False
 
+    # Aliased variables
+    # TODO: Add a function to iterate through aliases and return a default value if all are None
+    repetition_range: Optional[int] = None
+    repetition_penalty_range: Optional[int] = None
+
     # Converts to internal generation parameters
     def to_gen_params(self):
         # Convert stop to an array of strings
@@ -79,7 +84,7 @@ class CommonCompletionRequest(BaseModel):
             "min_p": self.min_p,
             "tfs": self.tfs,
             "repetition_penalty": self.repetition_penalty,
-            "repetition_penalty_range": self.repetition_penalty_range,
+            "repetition_range": self.repetition_range or self.repetition_penalty_range or -1,
             "repetition_decay": self.repetition_decay,
             "mirostat": self.mirostat_mode == 2,
             "mirostat_tau": self.mirostat_tau,
