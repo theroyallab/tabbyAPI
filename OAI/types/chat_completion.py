@@ -32,8 +32,6 @@ class ChatCompletionResponse(BaseModel):
     created: int = Field(default_factory=lambda: int(time()))
     model: str
     object: str = "chat.completion"
-
-    # TODO: Add usage stats
     usage: Optional[UsageStats] = None
 
 class ChatCompletionStreamChunk(BaseModel):

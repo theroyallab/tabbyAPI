@@ -226,9 +226,9 @@ class ModelContainer:
 
 
     def generate(self, prompt: str, **kwargs):
-        gen = self.generate_gen(prompt, **kwargs)
-        reponse = "".join(gen)
-        return reponse
+        gen = list(self.generate_gen(prompt, **kwargs))
+        reponse = "".join(map(lambda o: o[0], gen))
+        return reponse, gen[-1][1], gen[-1][2]
 
     def generate_gen(self, prompt: str, **kwargs):
         """
@@ -345,6 +345,8 @@ class ModelContainer:
                 "Generation is truncated and metrics may not be accurate."
             )
 
+        prompt_tokens = ids.shape[-1]
+
         # Begin
 
         generated_tokens = 0
@@ -390,7 +392,7 @@ class ModelContainer:
             elapsed = now - last_chunk_time
 
             if chunk_buffer != "" and (elapsed > stream_interval or eos or generated_tokens == max_tokens):
-                yield chunk_buffer
+                yield chunk_buffer, prompt_tokens, generated_tokens
                 full_response += chunk_buffer
                 chunk_buffer = ""
                 last_chunk_time = now
