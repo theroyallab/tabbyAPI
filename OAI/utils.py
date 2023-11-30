@@ -1,5 +1,5 @@
 import os, pathlib
-from OAI.types.completion import CompletionResponse, CompletionRespChoice
+from OAI.types.completion import CompletionResponse, CompletionRespChoice, UsageStats
 from OAI.types.chat_completion import (
     ChatCompletionMessage,
     ChatCompletionRespChoice,
@@ -20,9 +20,7 @@ try:
 except ImportError:
     _fastchat_available = False
 
-def create_completion_response(text: str, model_name: Optional[str]):
-    # TODO: Add method to get token amounts in model for UsageStats
-
+def create_completion_response(text: str, prompt_tokens: int, completion_tokens: int, model_name: Optional[str]):
     choice = CompletionRespChoice(
         finish_reason = "Generated",
         text = text
@@ -30,14 +28,15 @@ def create_completion_response(text: str, model_name: Optional[str]):
 
     response = CompletionResponse(
         choices = [choice],
-        model = model_name or ""
+        model = model_name or "",
+        usage = UsageStats(prompt_tokens = prompt_tokens,
+                           completion_tokens = completion_tokens,
+                           total_tokens = prompt_tokens + completion_tokens)
     )
 
     return response
 
-def create_chat_completion_response(text: str, model_name: Optional[str]):
-    # TODO: Add method to get token amounts in model for UsageStats
-
+def create_chat_completion_response(text: str, prompt_tokens: int, completion_tokens: int, model_name: Optional[str]):
     message = ChatCompletionMessage(
         role = "assistant",
         content = text
@@ -50,7 +49,10 @@ def create_chat_completion_response(text: str, model_name: Optional[str]):
 
     response = ChatCompletionResponse(
         choices = [choice],
-        model = model_name or ""
+        model = model_name or "",
+        usage = UsageStats(prompt_tokens = prompt_tokens,
+                           completion_tokens = completion_tokens,
+                           total_tokens = prompt_tokens + completion_tokens)
     )
 
     return response

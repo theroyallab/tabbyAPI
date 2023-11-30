@@ -188,11 +188,14 @@ async def generate_completion(request: Request, data: CompletionRequest):
         async def generator():
             try:
                 new_generation = model_container.generate_gen(data.prompt, **data.to_gen_params())
-                for part in new_generation:
+                for (part, prompt_tokens, completion_tokens) in new_generation:
                     if await request.is_disconnected():
                         break
 
-                    response = create_completion_response(part, model_path.name)
+                    response = create_completion_response(part,
+                                                          prompt_tokens,
+                                                          completion_tokens,
+                                                          model_path.name)
 
                     yield response.json(ensure_ascii=False)
             except Exception as e:
@@ -200,8 +203,11 @@ async def generate_completion(request: Request, data: CompletionRequest):
 
         return EventSourceResponse(generator())
     else:
-        response_text = model_container.generate(data.prompt, **data.to_gen_params())
-        response = create_completion_response(response_text, model_path.name)
+        response_text, prompt_tokens, completion_tokens = model_container.generate(data.prompt, **data.to_gen_params())
+        response = create_completion_response(response_text,
+                                              prompt_tokens,
+                                              completion_tokens,
+                                              model_path.name)
 
         return response
 
@@ -219,7 +225,7 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
         const_id = f"chatcmpl-{uuid4().hex}"
         async def generator():
             try:
-                new_generation = model_container.generate_gen(prompt, **data.to_gen_params())
+                new_generation, prompt_tokens, completion_tokens = model_container.generate_gen(prompt, **data.to_gen_params())
                 for part in new_generation:
                     if await request.is_disconnected():
                         break
@@ -236,8 +242,11 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
 
         return EventSourceResponse(generator())
     else:
-        response_text = model_container.generate(prompt, **data.to_gen_params())
-        response = create_chat_completion_response(response_text, model_path.name)
+        response_text, prompt_tokens, completion_tokens = model_container.generate(prompt, **data.to_gen_params())
+        response = create_chat_completion_response(response_text,
+                                                   prompt_tokens,
+                                                   completion_tokens,
+                                                   model_path.name)
 
         return response
 

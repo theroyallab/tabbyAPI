@@ -8,8 +8,8 @@ class LogProbs(BaseModel):
     top_logprobs: List[Dict[str, float]] = Field(default_factory=list)
 
 class UsageStats(BaseModel):
-    completion_tokens: int
     prompt_tokens: int
+    completion_tokens: int
     total_tokens: int
 
 class CommonCompletionRequest(BaseModel):
