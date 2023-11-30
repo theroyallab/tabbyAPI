@@ -401,7 +401,7 @@ class ModelContainer:
 
         elapsed_time = last_chunk_time - start_time
 
-        initial_response = f"Response: {round(generated_tokens, 2)} tokens generated in {round(elapsed_time, 2)} seconds"
+        initial_response = f"Response: {generated_tokens} tokens generated in {round(elapsed_time, 2)} seconds"
         itemization = []
         extra_parts = []
 
