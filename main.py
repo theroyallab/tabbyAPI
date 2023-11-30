@@ -229,7 +229,7 @@ if __name__ == "__main__":
 
     # Load from YAML config. Possibly add a config -> kwargs conversion function
     try:
-        with open('config.yml', 'r') as config_file:
+        with open('config.yml', 'r', encoding = "utf8") as config_file:
             config = yaml.safe_load(config_file) or {}
     except Exception as e:
         print(

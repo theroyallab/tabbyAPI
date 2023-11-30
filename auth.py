@@ -31,7 +31,7 @@ auth_keys: Optional[AuthKeys] = None
 def load_auth_keys():
     global auth_keys
     try:
-        with open("api_tokens.yml", "r") as auth_file:
+        with open("api_tokens.yml", "r", encoding = 'utf8') as auth_file:
             auth_keys_dict = yaml.safe_load(auth_file)
             auth_keys = AuthKeys(
                 api_key = auth_keys_dict["api_key"],
@@ -44,7 +44,7 @@ def load_auth_keys():
         )
         auth_keys = new_auth_keys
 
-        with open("api_tokens.yml", "w") as auth_file:
+        with open("api_tokens.yml", "w", encoding = "utf8") as auth_file:
             yaml.safe_dump(vars(auth_keys), auth_file, default_flow_style=False)
 
     print(
