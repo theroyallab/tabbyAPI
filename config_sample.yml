@@ -23,6 +23,10 @@ model:
   # A model can be loaded later via the API.
   model_name: A model name
 
+  # Sends dummy model names when the models endpoint is queried
+  # Enable this if the program is looking for a specific OAI model
+  use_dummy_models: False
+
   # The below parameters apply only if model_name is set
 
   # Maximum model context length (default: 4096)

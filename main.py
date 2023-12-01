@@ -60,6 +60,8 @@ async def list_models():
     draft_model_dir = draft_config.get("draft_model_dir")
 
     models = get_model_list(model_path.resolve(), draft_model_dir)
+    if model_config.get("use_dummy_models") or False:
+        models.data.insert(0, ModelCard(id = "gpt-3.5-turbo"))
 
     return models
 
