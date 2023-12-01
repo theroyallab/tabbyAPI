@@ -26,4 +26,7 @@ def get_generator_error(exception: Exception):
 
     # Log and send the exception
     print(f"\n{generator_error.error.trace}")
-    return generator_error.json()
+    return get_sse_packet(generator_error.json(ensure_ascii = False))
+
+def get_sse_packet(json_data: str):
+    return f"data: {json_data}\n\n"

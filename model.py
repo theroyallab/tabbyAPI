@@ -311,6 +311,7 @@ class ModelContainer:
         stop_conditions: List[Union[str, int]] = kwargs.get("stop", [])
         ban_eos_token = kwargs.get("ban_eos_token", False)
 
+
         # Ban the EOS token if specified. If not, append to stop conditions as well.
 
         if ban_eos_token:

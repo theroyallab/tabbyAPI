@@ -2,7 +2,6 @@
 pydantic < 2,>= 1
 PyYAML
 progress
-sse_starlette
 uvicorn
 
 # Wheels
