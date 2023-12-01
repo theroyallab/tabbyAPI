@@ -57,16 +57,21 @@ def create_chat_completion_response(text: str, prompt_tokens: int, completion_to
 
     return response
 
-def create_chat_completion_stream_chunk(const_id: str, text: str, model_name: Optional[str]):
-    # TODO: Add method to get token amounts in model for UsageStats
+def create_chat_completion_stream_chunk(const_id: str,
+                                        text: Optional[str] = None,
+                                        model_name: Optional[str] = None,
+                                        finish_reason: Optional[str] = None):
+    if finish_reason:
+        message = {}
+    else:
+        message = ChatCompletionMessage(
+            role = "assistant",
+            content = text
+        )
 
-    message = ChatCompletionMessage(
-        role = "assistant",
-        content = text
-    )
-
+    # The finish reason can be None
     choice = ChatCompletionStreamChoice(
-        finish_reason = "Generated",
+        finish_reason = finish_reason,
         delta = message
     )
 
@@ -95,8 +100,8 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str]):
     return model_card_list
 
 def get_chat_completion_prompt(model_path: str, messages: List[ChatCompletionMessage]):
-    # Check if fastchat is available
 
+    # Check if fastchat is available
     if not _fastchat_available:
         raise ModuleNotFoundError(
             "Fastchat must be installed to parse these chat completion messages.\n"
@@ -114,7 +119,7 @@ def get_chat_completion_prompt(model_path: str, messages: List[ChatCompletionMes
     for message in messages:
         msg_role = message.role
         if msg_role == "system":
-            conv.system_message = message.content
+            conv.set_system_message(message.content)
         elif msg_role == "user":
             conv.append_message(conv.roles[0], message.content)
         elif msg_role == "assistant":

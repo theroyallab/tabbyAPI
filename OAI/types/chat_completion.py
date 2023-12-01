@@ -5,8 +5,8 @@ from typing import Union, List, Optional
 from OAI.types.common import UsageStats, CommonCompletionRequest
 
 class ChatCompletionMessage(BaseModel):
-    role: str
-    content: str
+    role: Optional[str] = None
+    content: Optional[str] = None
 
 class ChatCompletionRespChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
@@ -17,8 +17,8 @@ class ChatCompletionRespChoice(BaseModel):
 class ChatCompletionStreamChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
-    finish_reason: str
-    delta: ChatCompletionMessage
+    finish_reason: Optional[str]
+    delta: Union[ChatCompletionRespChoice, dict] = {}
 
 # Inherited from common request
 class ChatCompletionRequest(CommonCompletionRequest):
