@@ -45,9 +45,6 @@ model:
   # Disable Flash-attention 2. Set to True for GPUs lower than Nvidia's 3000 series. (default: False)
   no_flash_attention: False
 
-  # Enable low vram optimizations in exllamav2 (default: False)
-  low_mem: False
-
   # Enable 8 bit cache mode for VRAM savings (slight performance hit). Possible values FP16, FP8. (default: FP16)
   cache_mode: FP16
 

@@ -81,8 +81,12 @@ class ModelContainer:
         self.config.scale_alpha_value = kwargs.get("rope_alpha") or self.calculate_rope_alpha(base_seq_len)
 
         if "no_flash_attn" in kwargs: self.config.no_flash_attn = kwargs["no_flash_attn"]
+
+        # low_mem is currently broken in exllamav2. Don't use it until it's fixed.
+        """
         if "low_mem" in kwargs and kwargs["low_mem"]:
             self.config.set_low_mem()
+        """
 
         chunk_size = min(kwargs.get("chunk_size", 2048), self.config.max_seq_len)
         self.config.max_input_len = chunk_size
