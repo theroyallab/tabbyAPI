@@ -79,6 +79,7 @@ class ModelContainer:
         else:
             ratio = self.config.max_seq_len / base_seq_len
             alpha = -0.13436 + 0.80541 * ratio + 0.28833 * ratio ** 2
+            if ratio == 1: alpha = 1.0
             self.config.scale_alpha_value = alpha
         if "no_flash_attn" in kwargs: self.config.no_flash_attn = kwargs["no_flash_attn"]
 
@@ -113,6 +114,7 @@ class ModelContainer:
             else:
                 ratio = self.config.max_seq_len / self.draft_config.max_seq_len
                 alpha = -0.13436 + 0.80541 * ratio + 0.28833 * ratio ** 2
+                if ratio == 1: alpha = 1.0
                 self.draft_config.scale_alpha_value = alpha
 
             self.draft_config.max_seq_len = self.config.max_seq_len            
