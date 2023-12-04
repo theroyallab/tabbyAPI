@@ -231,7 +231,6 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
         const_id = f"chatcmpl-{uuid4().hex}"
         async def generator():
             try:
-                raise ValueError("Error!")
                 new_generation = model_container.generate_gen(prompt, **data.to_gen_params())
                 for (part, _, _) in new_generation:
                     if await request.is_disconnected():
