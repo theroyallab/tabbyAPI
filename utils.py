@@ -14,9 +14,9 @@ class TabbyGeneratorErrorMessage(BaseModel):
 class TabbyGeneratorError(BaseModel):
     error: TabbyGeneratorErrorMessage
 
-def get_generator_error(exception: Exception):
+def get_generator_error(message: str):
     error_message = TabbyGeneratorErrorMessage(
-        message = str(exception),
+        message = message,
         trace = traceback.format_exc()
     )
 
