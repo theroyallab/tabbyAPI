@@ -18,9 +18,9 @@ To get started, make sure you have the following installed on your system:
 
 - Python 3.x (preferably 3.11) with pip
 
-- CUDA 12.1 or 11.8 (or ROCm 5.6)
+- CUDA 12.x (you can also use CUDA 11.8 or ROCm 5.6, but there will be more work required to install dependencies such as Flash Attention 2)
 
-NOTE: For Flash Attention 2 to work on Windows, CUDA 12.1 **must** be installed!
+NOTE: For Flash Attention 2 to work on Windows, CUDA 12.x **must** be installed!
 
 ## Installing
 

@@ -6,8 +6,6 @@ uvicorn
 
 # Wheels
 
-# Flash Attention 2. If the wheels don't work, comment these out, uncomment the old wheels, and run `pip install -r requirements.txt`
-
 # Windows FA2 from https://github.com/jllllll/flash-attention/releases
 https://github.com/jllllll/flash-attention/releases/download/v2.3.6/flash_attn-2.3.6+cu121torch2.1cxx11abiFALSE-cp311-cp311-win_amd64.whl; platform_system == "Windows" and python_version == "3.11"
 https://github.com/jllllll/flash-attention/releases/download/v2.3.6/flash_attn-2.3.6+cu121torch2.1cxx11abiFALSE-cp310-cp310-win_amd64.whl; platform_system == "Windows" and python_version == "3.10"
