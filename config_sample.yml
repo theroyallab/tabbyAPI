@@ -58,4 +58,5 @@ model:
     draft_model_name: A model name
   
     # Rope parameters for draft models (default: 1.0)
+    draft_rope_scale: 1.0
     draft_rope_alpha: 1.0
