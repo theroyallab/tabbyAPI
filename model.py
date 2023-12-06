@@ -57,6 +57,8 @@ class ModelContainer:
                 'draft_rope_alpha' (float): RoPE alpha (NTK) factor for draft model.
                     By default, the draft model's alpha value is calculated automatically to scale to the size of the
                     full model.
+                'lora_dir' (str): Lora directory
+                'loras' (list[dict]): List of loras to be loaded, consisting of 'name' and 'scaling'
                 'gpu_split_auto' (bool): Automatically split model across available devices (default: True)
                 'gpu_split' (list[float]): Allocation for weights and (some) tensors, per device
                 'no_flash_attn' (bool): Turns off flash attention (increases vram usage) (default: False)
@@ -168,6 +170,11 @@ class ModelContainer:
                 lora_path = lora_dir / lora["name"]
                 self.active_loras.append(ExLlamaV2Lora.from_directory(self.model, lora_path, lora.get("scaling") or 1.0))
                 print("Lora successfully loaded.")
+
+            # Test VRAM allocation with a full-length forward pass
+
+            input_ids = torch.zeros((1, self.config.max_input_len), dtype = torch.long)
+            self.model.forward(input_ids, cache = self.cache, preprocess_only = True)
 
     def load_gen(self, progress_callback = None):
         """
