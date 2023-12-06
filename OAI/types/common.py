@@ -43,11 +43,10 @@ class CommonCompletionRequest(BaseModel):
     temperature_last: Optional[bool] = False
     top_k: Optional[int] = 0
     top_p: Optional[float] = 1.0
-    typical: Optional[float] = 0.0
+    typical: Optional[float] = 1.0
     min_p: Optional[float] = 0.0
     tfs: Optional[float] = 1.0
     repetition_penalty: Optional[float] = 1.0
-    repetition_penalty_range: Optional[int] = 0
     repetition_decay: Optional[int] = 0
     mirostat_mode: Optional[int] = 0
     mirostat_tau: Optional[float] = 1.5
