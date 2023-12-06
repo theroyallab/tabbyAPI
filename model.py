@@ -6,6 +6,7 @@ from exllamav2 import(
     ExLlamaV2Cache,
     ExLlamaV2Cache_8bit,
     ExLlamaV2Tokenizer,
+    ExLlamaV2Lora
 )
 from exllamav2.generator import(
     ExLlamaV2StreamingGenerator,
@@ -30,6 +31,8 @@ class ModelContainer:
     cache_fp8: bool = False
     gpu_split_auto: bool = True
     gpu_split: list or None = None
+    
+    active_loras: List[ExLlamaV2Lora] = []
 
     def __init__(self, model_directory: pathlib.Path, quiet = False, **kwargs):
         """
@@ -141,6 +144,30 @@ class ModelContainer:
         """
         for _ in self.load_gen(progress_callback): pass
 
+    def load_loras(self, **kwargs):
+        """
+        Load loras
+        
+        """
+        lora_config = kwargs.get("lora") or {}
+        loras = lora_config.get("loras") or []
+        
+        for lora in loras:
+            if lora.get("name") is None:
+                print("A lora config was found but a lora name was not given. Please check your config.yml! Skipping lora load.")
+                enable_lora = False
+                break
+            else:
+                enable_lora = True
+        
+        if enable_lora:
+        
+            lora_dir = pathlib.Path(lora_config.get("lora_dir") or "loras")
+            for lora in loras:
+                print(f"Loading lora: {lora.get('name')} at scaling {lora.get('scaling') or 1.0}")
+                lora_path = lora_dir / lora["name"]
+                self.active_loras.append(ExLlamaV2Lora.from_directory(self.model, lora_path, lora.get("scaling") or 1.0))
+                print("Lora successfully loaded.")
 
     def load_gen(self, progress_callback = None):
         """
@@ -217,9 +244,21 @@ class ModelContainer:
         self.cache = None
         self.tokenizer = None
         self.generator = None
+        for lora in self.active_loras:
+            lora.unload()
+        self.active_loras = []
         gc.collect()
         torch.cuda.empty_cache()
 
+    def unload_loras(self):
+        """
+        Unload all loras
+        """
+        for lora in self.active_loras:
+            lora.unload()
+        self.active_loras = []
+        gc.collect()
+        torch.cuda.empty_cache()
 
     # Common function for token operations
     def get_tokens(self, text: Optional[str], ids: Optional[List[int]], **kwargs):
@@ -382,7 +421,7 @@ class ModelContainer:
                 active_ids = ids[:, max(0, overflow):]
                 chunk_tokens = self.config.max_seq_len - active_ids.shape[-1]
 
-                self.generator.begin_stream(active_ids, gen_settings, token_healing = token_healing)
+                self.generator.begin_stream(active_ids, gen_settings, token_healing = token_healing, loras = self.active_loras)
 
             # Generate
 

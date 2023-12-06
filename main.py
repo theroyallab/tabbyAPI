@@ -303,6 +303,9 @@ if __name__ == "__main__":
                 loading_bar.finish()
             else:
                 loading_bar.next()
+                
+    # Load loras
+    model_container.load_loras(**model_config)
 
     network_config = config.get("network") or {}
     uvicorn.run(
