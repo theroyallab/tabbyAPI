@@ -182,3 +182,7 @@ api_tokens.yml
 # Models folder
 models/*
 !models/place_your_models_here.txt
+
+# Loras folder
+loras/*
+!loras/place_your_loras_here.txt
