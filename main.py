@@ -11,7 +11,7 @@ from progress.bar import IncrementalBar
 from generators import generate_with_semaphore
 from OAI.types.completion import CompletionRequest
 from OAI.types.chat_completion import ChatCompletionRequest
-from OAI.types.model import ModelCard, LoraCard, LoraList, ModelLoadRequest, ModelLoadResponse, LoraLoadRequest
+from OAI.types.model import ModelCard, ModelLoadRequest, ModelLoadResponse
 from OAI.types.token import (
     TokenEncodeRequest,
     TokenEncodeResponse,
@@ -21,7 +21,6 @@ from OAI.types.token import (
 from OAI.utils import (
     create_completion_response,
     get_model_list,
-    get_lora_list,
     get_chat_completion_prompt,
     create_chat_completion_response, 
     create_chat_completion_stream_chunk
@@ -68,17 +67,6 @@ async def list_models():
 
     return models
 
-# Lora list endpoint
-@app.get("/v1/loras", dependencies=[Depends(check_api_key)])
-async def list_loras():
-    model_config = config.get("model") or {}
-    lora_config =  model_config.get("lora") or {}
-    lora_path = pathlib.Path(lora_config.get("lora_dir") or "loras")
-
-    loras = get_lora_list(lora_path.resolve())
-
-    return loras
-
 # Currently loaded model endpoint
 @app.get("/v1/model", dependencies=[Depends(check_api_key), Depends(_check_model_container)])
 @app.get("/v1/internal/model/info", dependencies=[Depends(check_api_key), Depends(_check_model_container)])
@@ -87,18 +75,6 @@ async def get_current_model():
     model_card = ModelCard(id = model_name)
 
     return model_card
-
-# Currently loaded loras endpoint
-@app.get("/v1/model/lora", dependencies=[Depends(check_api_key), Depends(_check_model_container)])
-async def get_active_loras():
-    active_loras = LoraList()
-    for lora in model_container.active_loras:
-        lora_card = LoraCard()
-        lora_card.id = pathlib.Path(lora.lora_path).parent.name
-        lora_card.scaling = lora.lora_scaling * lora.lora_r / lora.lora_alpha
-        active_loras.data.append(lora_card)
-    
-    return active_loras
 
 # Load model endpoint
 @app.post("/v1/model/load", dependencies=[Depends(check_admin_key)])
@@ -178,31 +154,6 @@ async def load_model(request: Request, data: ModelLoadRequest):
 
     return StreamingResponse(generator(), media_type = "text/event-stream")
 
-# Load lora endpoint
-@app.post("/v1/model/lora/load", dependencies=[Depends(check_admin_key), Depends(_check_model_container)])
-async def load_model(request: Request, data: LoraLoadRequest):
-    global model_container
-    
-    if not data.loras:
-        raise HTTPException(400, "List of loras to load not found.")
-
-    model_config = config.get("model") or {}
-    lora_config =  model_config.get("lora") or {}
-    lora_dir = pathlib.Path(lora_config.get("lora_dir") or "loras")
-
-    for lora in data.loras:
-        if lora.get("name") is None:
-            raise HTTPException(400, "A lora list was found but a lora name is missing. Please check your request!")
-        lora_path = lora_dir / lora.get("name")
-        if not lora_path.exists():
-            raise HTTPException(400, "lora_path does not exist. Check lora_name?")
-
-    # Clean-up existing loras if present
-    if len(model_container.active_loras) > 0:
-        model_container.unload_loras()
-
-    model_container.load_loras(lora_dir, data.loras)
-
 # Unload model endpoint
 @app.get("/v1/model/unload", dependencies=[Depends(check_admin_key), Depends(_check_model_container)])
 async def unload_model():
@@ -210,13 +161,6 @@ async def unload_model():
 
     model_container.unload()
     model_container = None
-
-# Unload lora endpoint
-@app.get("/v1/model/lora/unload", dependencies=[Depends(check_admin_key), Depends(_check_model_container)])
-async def unload_loras():
-    global model_container
-
-    model_container.unload_loras()
 
 # Encode tokens endpoint
 @app.post("/v1/token/encode", dependencies=[Depends(check_api_key), Depends(_check_model_container)])
@@ -365,21 +309,7 @@ if __name__ == "__main__":
                 loading_bar.next()
                 
     # Load loras
-    lora_config =  model_config.get("lora") or {}
-    loras = lora_config.get("loras") or []
-    lora_dir = pathlib.Path(lora_config.get("lora_dir") or "loras")
-    enable_lora = False
-
-    for lora in loras:
-            if lora.get("name") is None:
-                print("A lora config was found but a lora name is missing. Please check your config.yml! Skipping lora load.")
-                enable_lora = False
-                break
-            else:
-                enable_lora = True
-
-    if enable_lora:
-        model_container.load_loras(lora_dir, loras)
+    model_container.load_loras(**model_config)
 
     network_config = config.get("network") or {}
     uvicorn.run(

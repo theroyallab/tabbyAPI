@@ -146,16 +146,35 @@ class ModelContainer:
         """
         for _ in self.load_gen(progress_callback): pass
 
-    def load_loras(self, lora_dir, loras):
+    def load_loras(self, **kwargs):
         """
         Load loras
         
         """
+        lora_config = kwargs.get("lora") or {}
+        loras = lora_config.get("loras") or []
+        
         for lora in loras:
-            print(f"Loading lora: {lora.get('name')} at scaling {lora.get('scaling') or 1.0}")
-            lora_path = lora_dir / lora["name"]
-            self.active_loras.append(ExLlamaV2Lora.from_directory(self.model, lora_path, lora.get("scaling") or 1.0))
-            print("Lora successfully loaded.")
+            if lora.get("name") is None:
+                print("A lora config was found but a lora name was not given. Please check your config.yml! Skipping lora load.")
+                enable_lora = False
+                break
+            else:
+                enable_lora = True
+        
+        if enable_lora:
+        
+            lora_dir = pathlib.Path(lora_config.get("lora_dir") or "loras")
+            for lora in loras:
+                print(f"Loading lora: {lora.get('name')} at scaling {lora.get('scaling') or 1.0}")
+                lora_path = lora_dir / lora["name"]
+                self.active_loras.append(ExLlamaV2Lora.from_directory(self.model, lora_path, lora.get("scaling") or 1.0))
+                print("Lora successfully loaded.")
+
+            # Test VRAM allocation with a full-length forward pass
+
+            input_ids = torch.zeros((1, self.config.max_input_len), dtype = torch.long)
+            self.model.forward(input_ids, cache = self.cache, preprocess_only = True)
 
     def load_gen(self, progress_callback = None):
         """
