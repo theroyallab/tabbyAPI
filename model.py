@@ -224,6 +224,9 @@ class ModelContainer:
         Free all VRAM resources used by this model
         """
 
+        for lora in self.active_loras:
+            lora.unload()
+        self.active_loras = []
         if self.model: self.model.unload()
         self.model = None
         if self.draft_model: self.draft_model.unload()
@@ -232,9 +235,6 @@ class ModelContainer:
         self.cache = None
         self.tokenizer = None
         self.generator = None
-        for lora in self.active_loras:
-            lora.unload()
-        self.active_loras = []
         gc.collect()
         torch.cuda.empty_cache()
 
