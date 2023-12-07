@@ -8,9 +8,20 @@ class ModelCard(BaseModel):
     created: int = Field(default_factory=lambda: int(time()))
     owned_by: str = "tabbyAPI"
 
+class LoraCard(BaseModel):
+    id: str = "test"
+    object: str = "lora"
+    created: int = Field(default_factory=lambda: int(time()))
+    owned_by: str = "tabbyAPI"
+    scaling: Optional[float] = None
+
 class ModelList(BaseModel):
     object: str = "list"
     data: List[ModelCard] = Field(default_factory=list)
+
+class LoraList(BaseModel):
+    object: str = "list"
+    data: List[LoraCard] = Field(default_factory=list)
 
 class DraftModelLoadRequest(BaseModel):
     draft_model_name: str
@@ -27,6 +38,9 @@ class ModelLoadRequest(BaseModel):
     no_flash_attention: Optional[bool] = False
     low_mem: Optional[bool] = False
     draft: Optional[DraftModelLoadRequest] = None
+
+class LoraLoadRequest(BaseModel):
+    loras: List[dict]
 
 class ModelLoadResponse(BaseModel):
     model_type: str = "model"
