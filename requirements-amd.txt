@@ -1,5 +1,6 @@
 # Torch
-torch --index-url https://download.pytorch.org/whl/rocm5.6
+--extra-index-url https://download.pytorch.org/whl/rocm5.6
+torch
 
 # Exllamav2
 https://github.com/turboderp/exllamav2/releases/download/v0.0.10/exllamav2-0.0.10+rocm5.6-cp311-cp311-linux_x86_64.whl

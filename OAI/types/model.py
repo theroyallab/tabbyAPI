@@ -15,6 +15,7 @@ class ModelList(BaseModel):
 class DraftModelLoadRequest(BaseModel):
     draft_model_name: str
     draft_rope_alpha: float = 1.0
+    draft_rope_scale: float = 1.0
 
 class ModelLoadRequest(BaseModel):
     name: str
