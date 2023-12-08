@@ -146,14 +146,20 @@ class ModelContainer:
         """
         for _ in self.load_gen(progress_callback): pass
 
-    def load_loras(self, lora_dir, loras):
+    def load_loras(self, lora_directory: pathlib.Path, **kwargs):
         """
         Load loras
-        
         """
+
+        loras = kwargs.get("loras") or []
+
         for lora in loras:
+            if lora.get("name") is None:
+                print("One of your loras does not have a name. Please check your config.yml! Skipping lora load.")
+                continue
+
             print(f"Loading lora: {lora.get('name')} at scaling {lora.get('scaling') or 1.0}")
-            lora_path = lora_dir / lora["name"]
+            lora_path = lora_directory / lora["name"]
             self.active_loras.append(ExLlamaV2Lora.from_directory(self.model, lora_path, lora.get("scaling") or 1.0))
             print("Lora successfully loaded.")
 
@@ -219,32 +225,27 @@ class ModelContainer:
         print("Model successfully loaded.")
 
 
-    def unload(self):
+    def unload(self, loras_only: bool = False):
         """
         Free all VRAM resources used by this model
         """
 
         for lora in self.active_loras:
             lora.unload()
-        self.active_loras = []
-        if self.model: self.model.unload()
-        self.model = None
-        if self.draft_model: self.draft_model.unload()
-        self.draft_model = None
-        self.config = None
-        self.cache = None
-        self.tokenizer = None
-        self.generator = None
-        gc.collect()
-        torch.cuda.empty_cache()
 
-    def unload_loras(self):
-        """
-        Unload all loras
-        """
-        for lora in self.active_loras:
-            lora.unload()
         self.active_loras = []
+
+        # Unload the entire model if not just unloading loras
+        if not loras_only:
+            if self.model: self.model.unload()
+            self.model = None
+            if self.draft_model: self.draft_model.unload()
+            self.draft_model = None
+            self.config = None
+            self.cache = None
+            self.tokenizer = None
+            self.generator = None
+
         gc.collect()
         torch.cuda.empty_cache()
 

@@ -8,9 +8,10 @@ from OAI.types.chat_completion import (
     ChatCompletionStreamChoice
 )
 from OAI.types.common import UsageStats
-from OAI.types.model import ModelList, ModelCard, LoraList, LoraCard
+from OAI.types.lora import LoraList, LoraCard
+from OAI.types.model import ModelList, ModelCard
 from packaging import version
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 # Check fastchat
 try:
@@ -101,10 +102,8 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str]):
     return model_card_list
 
 def get_lora_list(lora_path: pathlib.Path):
-
     lora_list = LoraList()
     for path in lora_path.iterdir():
-
         if path.is_dir():
             lora_card = LoraCard(id = path.name)
             lora_list.data.append(lora_card)
