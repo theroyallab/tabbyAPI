@@ -33,7 +33,7 @@ except:
 
 try:
     import fastchat
-    print(f"Fastchat on version {version('fastchat')} successfully imported")
+    print(f"Fastchat on version {version('fschat')} successfully imported")
     successful_packages.append("fastchat")
 except:
     print("Fastchat is only needed for chat completions with message arrays. Ignore this error if this isn't your usecase.")
