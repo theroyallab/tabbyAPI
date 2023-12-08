@@ -340,7 +340,6 @@ class ModelContainer:
         gen_settings.mirostat_eta = kwargs.get("mirostat_eta") or 0.1
         gen_settings.token_repetition_penalty = kwargs.get("repetition_penalty") or 1.0
         gen_settings.token_repetition_range = kwargs.get("repetition_range") or self.config.max_seq_len
-        print(gen_settings.token_repetition_range)
 
         # Always make sure the fallback is 0 if range < 0
         # It's technically fine to use -1, but this just validates the passed fallback
