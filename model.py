@@ -6,6 +6,7 @@ from exllamav2 import(
     ExLlamaV2Cache,
     ExLlamaV2Cache_8bit,
     ExLlamaV2Tokenizer,
+    ExLlamaV2Lora
 )
 from exllamav2.generator import(
     ExLlamaV2StreamingGenerator,
@@ -30,6 +31,8 @@ class ModelContainer:
     cache_fp8: bool = False
     gpu_split_auto: bool = True
     gpu_split: list or None = None
+    
+    active_loras: List[ExLlamaV2Lora] = []
 
     def __init__(self, model_directory: pathlib.Path, quiet = False, **kwargs):
         """
@@ -54,6 +57,8 @@ class ModelContainer:
                 'draft_rope_alpha' (float): RoPE alpha (NTK) factor for draft model.
                     By default, the draft model's alpha value is calculated automatically to scale to the size of the
                     full model.
+                'lora_dir' (str): Lora directory
+                'loras' (list[dict]): List of loras to be loaded, consisting of 'name' and 'scaling'
                 'gpu_split_auto' (bool): Automatically split model across available devices (default: True)
                 'gpu_split' (list[float]): Allocation for weights and (some) tensors, per device
                 'no_flash_attn' (bool): Turns off flash attention (increases vram usage) (default: False)
@@ -141,6 +146,32 @@ class ModelContainer:
         """
         for _ in self.load_gen(progress_callback): pass
 
+    def load_loras(self, lora_directory: pathlib.Path, **kwargs):
+        """
+        Load loras
+        """
+
+        loras = kwargs.get("loras") or []
+        success: List[str] = []
+        failure: List[str] = []
+
+        for lora in loras:
+            lora_name = lora.get("name") or None
+            lora_scaling = lora.get("scaling") or 1.0
+
+            if lora_name is None:
+                print("One of your loras does not have a name. Please check your config.yml! Skipping lora load.")
+                failure.append(lora_name)
+                continue
+
+            print(f"Loading lora: {lora_name} at scaling {lora_scaling}")
+            lora_path = lora_directory / lora_name
+            self.active_loras.append(ExLlamaV2Lora.from_directory(self.model, lora_path, lora_scaling))
+            print("Lora successfully loaded.")
+            success.append(lora_name)
+
+        # Return success and failure names
+        return { 'success': success, 'failure': failure }
 
     def load_gen(self, progress_callback = None):
         """
@@ -204,22 +235,29 @@ class ModelContainer:
         print("Model successfully loaded.")
 
 
-    def unload(self):
+    def unload(self, loras_only: bool = False):
         """
         Free all VRAM resources used by this model
         """
 
-        if self.model: self.model.unload()
-        self.model = None
-        if self.draft_model: self.draft_model.unload()
-        self.draft_model = None
-        self.config = None
-        self.cache = None
-        self.tokenizer = None
-        self.generator = None
+        for lora in self.active_loras:
+            lora.unload()
+
+        self.active_loras = []
+
+        # Unload the entire model if not just unloading loras
+        if not loras_only:
+            if self.model: self.model.unload()
+            self.model = None
+            if self.draft_model: self.draft_model.unload()
+            self.draft_model = None
+            self.config = None
+            self.cache = None
+            self.tokenizer = None
+            self.generator = None
+
         gc.collect()
         torch.cuda.empty_cache()
-
 
     # Common function for token operations
     def get_tokens(self, text: Optional[str], ids: Optional[List[int]], **kwargs):
@@ -381,7 +419,7 @@ class ModelContainer:
                 active_ids = ids[:, max(0, overflow):]
                 chunk_tokens = self.config.max_seq_len - active_ids.shape[-1]
 
-                self.generator.begin_stream(active_ids, gen_settings, token_healing = token_healing)
+                self.generator.begin_stream(active_ids, gen_settings, token_healing = token_healing, loras = self.active_loras)
 
             # Generate
 

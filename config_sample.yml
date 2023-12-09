@@ -60,3 +60,17 @@ model:
     # Rope parameters for draft models (default: 1.0)
     draft_rope_scale: 1.0
     draft_rope_alpha: 1.0
+  
+  # Options for loras
+  lora:
+    # Overrides the directory to look for loras (default: loras)
+    lora_dir: Your lora directory path
+    
+    # List of loras to load and associated scaling factors (default: 1.0). Comment out unused entries or add more rows as needed.
+    loras:
+    - name: lora1
+      scaling: 1.0
+    - name: lora2
+      scaling: 0.9
+    - name: lora3
+      scaling: 0.5
