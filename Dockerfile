@@ -16,12 +16,12 @@ ENV INSTALL_FSCHAT=$INSTALL_FSCHAT
 # Set the working directory in the container
 WORKDIR /usr/src/app
 
-# Copy the current directory contents into the container at /usr/src/app
-COPY . .
-
 # Install torch with CUDA support and exllamav2
 RUN pip install torch --extra-index-url https://download.pytorch.org/whl/cu121
 RUN pip install exllamav2
+
+# Copy the current directory contents into the container at /usr/src/app
+COPY requirements.txt ./
 
 # Install any other needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
@@ -29,8 +29,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Conditional installation of fschat[model_worker]
 RUN if [ "$INSTALL_FSCHAT" = "true" ] ; then pip install fschat[model_worker] ; fi
 
-# Copy the sample config file to the main config
-RUN cp config_sample.yml config.yml
+# Copy the current directory contents into the container at /usr/src/app
+COPY . .
 
 # Make port 5000 available to the world outside this container
 EXPOSE 5000
