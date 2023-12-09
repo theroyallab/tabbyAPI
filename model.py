@@ -68,7 +68,7 @@ class ModelContainer:
 
         self.cache_fp8 = "cache_mode" in kwargs and kwargs["cache_mode"] == "FP8"
         self.gpu_split = kwargs.get("gpu_split")
-        self.gpu_split_auto = kwargs.get("gpu_split_auto") or True
+        self.gpu_split_auto = kwargs.get("gpu_split_auto", True)
 
         self.config = ExLlamaV2Config()
         self.config.model_dir = str(model_directory.resolve())
