@@ -11,7 +11,7 @@ from progress.bar import IncrementalBar
 from generators import generate_with_semaphore
 from OAI.types.completion import CompletionRequest
 from OAI.types.chat_completion import ChatCompletionRequest
-from OAI.types.lora import LoraCard, LoraList, LoraLoadRequest
+from OAI.types.lora import LoraCard, LoraList, LoraLoadRequest, LoraLoadResponse
 from OAI.types.model import ModelCard, ModelLoadRequest, ModelLoadResponse
 from OAI.types.token import (
     TokenEncodeRequest,
@@ -202,20 +202,15 @@ async def load_model(data: LoraLoadRequest):
     if not lora_dir.exists():
         raise HTTPException(400, "A parent lora directory does not exist. Check your config.yml?")
 
-    for lora in data.loras:
-        if lora.get("name") is None:
-            raise HTTPException(400, "A lora list was found but a lora name is missing. Please check your request!")
-
-        lora_path = lora_dir / lora.get("name")
-
-        if not lora_path.exists():
-            raise HTTPException(400, "lora_path does not exist. Check lora_name?")
-
     # Clean-up existing loras if present
     if len(model_container.active_loras) > 0:
         model_container.unload(True)
 
-    model_container.load_loras(lora_dir, data.loras)
+    result = model_container.load_loras(lora_dir, **data.dict())
+    return LoraLoadResponse(
+        success = result.get("success") or [],
+        failure = result.get("failure") or []
+    )
 
 # Unload lora endpoint
 @app.get("/v1/lora/unload", dependencies=[Depends(check_admin_key), Depends(_check_model_container)])

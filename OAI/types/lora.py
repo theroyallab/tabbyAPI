@@ -19,3 +19,7 @@ class LoraLoadInfo(BaseModel):
 
 class LoraLoadRequest(BaseModel):
     loras: List[LoraLoadInfo]
+
+class LoraLoadResponse(BaseModel):
+    success: List[str] = Field(default_factory=list)
+    failure: List[str] = Field(default_factory=list)

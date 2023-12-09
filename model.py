@@ -152,16 +152,26 @@ class ModelContainer:
         """
 
         loras = kwargs.get("loras") or []
+        success: List[str] = []
+        failure: List[str] = []
 
         for lora in loras:
-            if lora.get("name") is None:
+            lora_name = lora.get("name") or None
+            lora_scaling = lora.get("scaling") or 1.0
+
+            if lora_name is None:
                 print("One of your loras does not have a name. Please check your config.yml! Skipping lora load.")
+                failure.append(lora_name)
                 continue
 
-            print(f"Loading lora: {lora.get('name')} at scaling {lora.get('scaling') or 1.0}")
-            lora_path = lora_directory / lora["name"]
-            self.active_loras.append(ExLlamaV2Lora.from_directory(self.model, lora_path, lora.get("scaling") or 1.0))
+            print(f"Loading lora: {lora_name} at scaling {lora_scaling}")
+            lora_path = lora_directory / lora_name
+            self.active_loras.append(ExLlamaV2Lora.from_directory(self.model, lora_path, lora_scaling))
             print("Lora successfully loaded.")
+            success.append(lora_name)
+
+        # Return success and failure names
+        return { 'success': success, 'failure': failure }
 
     def load_gen(self, progress_callback = None):
         """
