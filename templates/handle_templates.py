@@ -5,7 +5,7 @@
 import yaml
 import re
 
-from fastchat.conversation import (
+from .fsport_conversation import (
     get_conv_template,
     conv_templates,
     register_conv_template,
@@ -22,7 +22,7 @@ def get_conversatiom_template_name(
     model_name: str, template: str, system_message: str = None
 ):
     if template == "ChatML":
-        # todo: load stop_token_ids from config
+        # TODO: load stop_token_ids from config
         conversation_settings = {
             "system_template": "<|im_start|>system\n{system_message}",
             "system_message": (
@@ -48,7 +48,7 @@ def get_conversatiom_template_name(
     if template == "Llama-v2":
         return "llama-2"
 
-    # Todo: add more templates
+    # TODO: add more templates
 
 
 # not needed for now --likely will deprecate

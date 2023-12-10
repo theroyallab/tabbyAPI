@@ -10,19 +10,10 @@ from OAI.types.chat_completion import (
 from OAI.types.common import UsageStats
 from OAI.types.lora import LoraList, LoraCard
 from OAI.types.model import ModelList, ModelCard
-from packaging import version
-from typing import Optional, List, Dict
+from typing import Optional, List
 from utils import unwrap
 
-# Check fastchat
-try:
-    import fastchat
-    from fastchat.conversation import SeparatorStyle
-    from templates.handle_templates import get_conversation_template
-
-    _fastchat_available = True
-except ImportError:
-    _fastchat_available = False
+from templates.handle_templates import get_conversation_template
 
 
 def create_completion_response(
@@ -110,23 +101,7 @@ def get_lora_list(lora_path: pathlib.Path):
 
 
 def get_chat_completion_prompt(model_name: str, messages: List[ChatCompletionMessage]):
-    # Check if fastchat is available
-    if not _fastchat_available:
-        raise ModuleNotFoundError(
-            "Fastchat must be installed to parse these chat completion messages.\n"
-            "Please run the following command: pip install fschat[model_worker]"
-        )
-    if version.parse(fastchat.__version__) < version.parse("0.2.23"):
-        raise ImportError(
-            "Parsing these chat completion messages requires fastchat 0.2.23 or greater. "
-            f"Current version: {fastchat.__version__}\n"
-            "Please upgrade fastchat by running the following command: "
-            "pip install -U fschat[model_worker]"
-        )
-
     conv = get_conversation_template(model_name)
-    if conv.sep_style is None:
-        conv.sep_style = SeparatorStyle.LLAMA2
 
     for message in messages:
         msg_role = message.role

@@ -26,8 +26,8 @@ COPY requirements.txt ./
 # Install any other needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Conditional installation of fschat[model_worker]
-RUN if [ "$INSTALL_FSCHAT" = "true" ] ; then pip install fschat[model_worker] ; fi
+# # Conditional installation of fschat[model_worker]
+# RUN if [ "$INSTALL_FSCHAT" = "true" ] ; then pip install fschat[model_worker] ; fi
 
 # Copy the current directory contents into the container at /usr/src/app
 COPY . .
