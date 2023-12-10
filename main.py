@@ -120,7 +120,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
                     break
 
                 if module == 0:
-                    loading_bar: IncrementalBar = IncrementalBar("Modules", max = modules)  
+                    loading_bar: IncrementalBar = IncrementalBar("Modules", max = modules)
                 elif module == modules:
                     loading_bar.next()
                     loading_bar.finish()
@@ -215,8 +215,6 @@ async def load_model(data: LoraLoadRequest):
 # Unload lora endpoint
 @app.get("/v1/lora/unload", dependencies=[Depends(check_admin_key), Depends(_check_model_container)])
 async def unload_loras():
-    global model_container
-
     model_container.unload(True)
 
 # Encode tokens endpoint

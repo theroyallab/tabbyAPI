@@ -19,7 +19,6 @@ from utils import coalesce, unwrap
 auto_split_reserve_bytes = 96 * 1024**2
 
 class ModelContainer:
-
     config: Optional[ExLlamaV2Config] = None
     draft_config: Optional[ExLlamaV2Config] = None
     model: Optional[ExLlamaV2] = None
@@ -32,7 +31,7 @@ class ModelContainer:
     cache_fp8: bool = False
     gpu_split_auto: bool = True
     gpu_split: Optional[list] = None
-    
+
     active_loras: List[ExLlamaV2Lora] = []
 
     def __init__(self, model_directory: pathlib.Path, quiet = False, **kwargs):
@@ -108,7 +107,6 @@ class ModelContainer:
             enable_draft = False
 
         if enable_draft:
-
             self.draft_config = ExLlamaV2Config()
             draft_model_path = pathlib.Path(unwrap(draft_args.get("draft_model_dir"), "models"))
             draft_model_path = draft_model_path / draft_model_name
@@ -124,7 +122,6 @@ class ModelContainer:
                 self.draft_config.max_input_len = kwargs["chunk_size"]
                 self.draft_config.max_attn_size = kwargs["chunk_size"] ** 2
 
-
     def calculate_rope_alpha(self, base_seq_len):
         ratio = self.config.max_seq_len / base_seq_len
 
@@ -135,7 +132,6 @@ class ModelContainer:
     def get_model_path(self):
         model_path = pathlib.Path(self.config.model_dir)
         return model_path
-
 
     def load(self, progress_callback = None):
         """
@@ -184,13 +180,10 @@ class ModelContainer:
         """
 
         # Load tokenizer
-
         self.tokenizer = ExLlamaV2Tokenizer(self.config)
 
         # Load draft model if a config is present
-
         if self.draft_config:
-
             self.draft_model = ExLlamaV2(self.draft_config)
             if not self.quiet:
                 print("Loading draft model: " + self.draft_config.model_dir)
@@ -200,12 +193,10 @@ class ModelContainer:
             yield from self.draft_model.load_autosplit_gen(self.draft_cache, reserve_vram = reserve, last_id_only = True, callback_gen = progress_callback)
 
             # Test VRAM allocation with a full-length forward pass
-
             input_ids = torch.zeros((1, self.config.max_input_len), dtype = torch.long)
             self.draft_model.forward(input_ids, cache = self.cache, preprocess_only = True)
 
         # Load model
-
         self.model = ExLlamaV2(self.config)
         if not self.quiet:
             print("Loading model: " + self.config.model_dir)
@@ -225,12 +216,10 @@ class ModelContainer:
             yield from self.model.load_autosplit_gen(self.cache, reserve_vram = reserve, last_id_only = True, callback_gen = progress_callback)
 
         # Test VRAM allocation with a full-length forward pass
-
         input_ids = torch.zeros((1, self.config.max_input_len), dtype = torch.long)
         self.model.forward(input_ids, cache = self.cache, preprocess_only = True)
 
         # Create generator
-
         self.generator = ExLlamaV2StreamingGenerator(self.model, self.cache, self.tokenizer, self.draft_model, self.draft_cache)
 
         print("Model successfully loaded.")
@@ -273,7 +262,6 @@ class ModelContainer:
             # Assume token decoding
             ids = torch.tensor([ids])
             return self.tokenizer.decode(ids, decode_special_tokens = unwrap(kwargs.get("decode_special_tokens"), True))[0]
-
 
     def generate(self, prompt: str, **kwargs):
         gen = list(self.generate_gen(prompt, **kwargs))
@@ -318,11 +306,9 @@ class ModelContainer:
         generate_window = min(unwrap(kwargs.get("generate_window"), 512), max_tokens)
 
         # Sampler settings
-
         gen_settings = ExLlamaV2Sampler.Settings()
 
         # Warn of unsupported settings if the setting is enabled
-
         if (unwrap(kwargs.get("mirostat"), False)) and not hasattr(gen_settings, "mirostat"):
             print(" !! Warning: Currently installed ExLlamaV2 does not support Mirostat sampling")
 
@@ -335,8 +321,7 @@ class ModelContainer:
         if (unwrap(kwargs.get("temperature_last"), False)) and not hasattr(gen_settings, "temperature_last"):
             print(" !! Warning: Currently installed ExLlamaV2 does not support temperature_last")
 
-        #Apply settings
-
+        # Apply settings
         gen_settings.temperature = unwrap(kwargs.get("temperature"), 1.0)
         gen_settings.temperature_last = unwrap(kwargs.get("temperature_last"), False)
         gen_settings.top_k = unwrap(kwargs.get("top_k"), 0)
@@ -363,14 +348,12 @@ class ModelContainer:
 
 
         # Ban the EOS token if specified. If not, append to stop conditions as well.
-
         if ban_eos_token:
             gen_settings.disallow_tokens(self.tokenizer, [self.tokenizer.eos_token_id])
         else:
             stop_conditions.append(self.tokenizer.eos_token_id)
 
         # Override sampler settings for temp = 0
-
         if gen_settings.temperature == 0:
             gen_settings.temperature = 1.0
             gen_settings.top_k = 1
@@ -378,11 +361,9 @@ class ModelContainer:
             gen_settings.typical = 0
 
         # Stop conditions           
-
         self.generator.set_stop_conditions(stop_conditions)
 
         # Tokenized context
-
         ids = self.tokenizer.encode(
             prompt,
             add_bos = unwrap(kwargs.get("add_bos_token"), True),
@@ -399,7 +380,6 @@ class ModelContainer:
         prompt_tokens = ids.shape[-1]
 
         # Begin
-
         generated_tokens = 0
         full_response = ""
         start_time = time.time()
@@ -410,11 +390,8 @@ class ModelContainer:
         chunk_tokens = 0
 
         while True:
-
             # Ingest prompt
-
             if chunk_tokens == 0:
-
                 ids = torch.cat((ids, save_tokens), dim = - 1)
                 save_tokens = torch.empty((1, 0), dtype = torch.bool)
                 overflow = ids.shape[-1] + generate_window - self.config.max_seq_len
@@ -424,7 +401,6 @@ class ModelContainer:
                 self.generator.begin_stream(active_ids, gen_settings, token_healing = token_healing, loras = self.active_loras)
 
             # Generate
-
             chunk, eos, tokens = self.generator.stream()
 
             if token_healing:
@@ -438,7 +414,6 @@ class ModelContainer:
             chunk_tokens -= 1
 
             # Yield output
-
             now = time.time()
             elapsed = now - last_chunk_time
 
