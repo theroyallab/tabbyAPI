@@ -18,10 +18,10 @@ TEMPLATES = yaml.safe_load(open("./templates/available_templates.yaml", "r").rea
 memo = {}
 
 
-def gen_convo_settings(model_name: str, template: str, system_message: str = None):
+def get_conversatiom_template_(model_name: str, template: str, system_message: str = None):
     if template == "ChatML":
         # todo: load stop_token_ids from config
-        return {
+        conversation_settings= {
             "system_template": "<|im_start|>system\n{system_message}",
             "system_message": (
                 system_message
@@ -32,6 +32,20 @@ def gen_convo_settings(model_name: str, template: str, system_message: str = Non
             "sep": "<|im_end|>",
             "stop_token_ids": [32000, 32001],
         }
+        register_conv_template(
+            Conversation(
+                name=model_name,
+                **conversation_settings,
+            )
+        )
+        return get_conv_template(model_name)
+    if template == 'Mistral':
+        return get_conv_template('mistral')
+    if template == 'Alpaca':
+        return get_conv_template('alpaca')
+    if template == 'Llama-v2':
+        return get_conv_template('llama-2')        
+    
     # Todo: add more templates
 
 
@@ -63,16 +77,10 @@ def get_conversation_template(model_path: str):
 
     # registration
     template_name: str = metadata["instruction_template"]
-    conversation_settings = gen_convo_settings(model_path, template_name)
-    if conversation_settings:
-        register_conv_template(
-            Conversation(
-                name=model_path,
-                **conversation_settings,
-            )
-        )
-        # save memoized value
-        memo[model_path] = get_conv_template(model_path)
+    conversation = get_conversatiom_template_(model_path, template_name)
+    
+    if conversation:
+        memo[model_path] = conversation
         return memo[model_path]
 
     # return default template if registration fails
