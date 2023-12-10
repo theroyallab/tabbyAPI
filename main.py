@@ -166,7 +166,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
                     )
 
                     yield get_sse_packet(response.json(ensure_ascii=False))
-        except CancelledError as e:
+        except CancelledError:
             print("\nError: Model load cancelled by user. Please make sure to run unload to free up resources.")
         except Exception as e:
             yield get_generator_error(str(e))
@@ -210,7 +210,7 @@ async def get_active_loras():
 
 # Load lora endpoint
 @app.post("/v1/lora/load", dependencies=[Depends(check_admin_key), Depends(_check_model_container)])
-async def load_model(data: LoraLoadRequest):
+async def load_lora(data: LoraLoadRequest):
     if not data.loras:
         raise HTTPException(400, "List of loras to load is not found.")
 
