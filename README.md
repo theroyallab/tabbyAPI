@@ -146,6 +146,26 @@ All routes require an API key except for the following which require an **admin*
     
     - Restart TabbyAPI and launching should work again.
 
+## Supported Model Types
+
+TabbyAPI uses Exllamav2 as a powerful and fast backend for model inference, loading, etc. Therefore, the following types of models are supported:
+
+- Exl2 (Highly recommended)
+
+- GPTQ
+
+- FP16 (using Exllamav2's loader)
+
+#### Alternative Loaders/Backends
+
+If you want to use a different model type than the ones listed above, here are some alternative backends with their own APIs:
+
+- GGUF + GGML - [KoboldCPP](https://github.com/lostruins/KoboldCPP)
+
+- AWQ - [Aphrodite Engine](https://github.com/PygmalionAI/Aphrodite-engine)
+
+- [Text Generation WebUI](https://github.com/oobabooga/text-generation-webui)
+
 ## Contributing
 
 If you have issues with the project:
