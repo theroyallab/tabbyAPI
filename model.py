@@ -129,8 +129,8 @@ class ModelContainer:
         alpha = 1 if ratio <= 1.0 else -0.13436 + 0.80541 * ratio + 0.28833 * ratio ** 2
         return alpha
 
-    def get_model_path(self):
-        model_path = pathlib.Path(self.config.model_dir)
+    def get_model_path(self, is_draft: bool = False):
+        model_path = pathlib.Path(self.draft_config.model_dir if is_draft else self.config.model_dir)
         return model_path
 
     def load(self, progress_callback = None):
