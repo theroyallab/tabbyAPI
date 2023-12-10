@@ -18,7 +18,7 @@ TEMPLATES = yaml.safe_load(open("./templates/available_templates.yaml", "r").rea
 memo = {}
 
 
-def get_conversatiom_template_(model_name: str, template: str, system_message: str = None):
+def get_conversatiom_template_name(model_name: str, template: str, system_message: str = None):
     if template == "ChatML":
         # todo: load stop_token_ids from config
         conversation_settings= {
@@ -38,13 +38,13 @@ def get_conversatiom_template_(model_name: str, template: str, system_message: s
                 **conversation_settings,
             )
         )
-        return get_conv_template(model_name)
+        return model_name
     if template == 'Mistral':
-        return get_conv_template('mistral')
+        return 'mistral'
     if template == 'Alpaca':
-        return get_conv_template('alpaca')
+        return 'alpaca'
     if template == 'Llama-v2':
-        return get_conv_template('llama-2')        
+        return 'llama-2'
     
     # Todo: add more templates
 
@@ -56,7 +56,8 @@ def get_instructions_template(template: str) -> dict[str, str]:
 def get_conversation_template(model_path: str):
     # return memoized value if available
     if model_path in memo:
-        return memo[model_path]
+        conversation_template_name = memo[model_path]
+        return get_conv_template(conversation_template_name)
 
     # return default template if available
     if model_path in conv_templates:
@@ -77,11 +78,11 @@ def get_conversation_template(model_path: str):
 
     # registration
     template_name: str = metadata["instruction_template"]
-    conversation = get_conversatiom_template_(model_path, template_name)
+    conversation_template_name = get_conversatiom_template_name(model_path, template_name)
     
-    if conversation:
-        memo[model_path] = conversation
-        return memo[model_path]
+    if conversation_template_name:
+        memo[model_path] = conversation_template_name
+        return get_conv_template(conversation_template_name)
 
     # return default template if registration fails
     return get_conv_template("one_shot")
