@@ -80,6 +80,7 @@ async def get_current_model():
             rope_scale = model_container.config.scale_pos_emb,
             rope_alpha = model_container.config.scale_alpha_value,
             max_seq_len = model_container.config.max_seq_len,
+            prompt_template = unwrap(model_container.prompt_template, "auto")
         )
     )
 
@@ -302,7 +303,14 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
     if isinstance(data.messages, str):
         prompt = data.messages
     else:
-        prompt = get_chat_completion_prompt(model_path.name, data.messages)
+        # If the request specified prompt template isn't found, use the one from model container
+        # Otherwise, let fastchat figure it out
+        prompt_template = unwrap(data.prompt_template, model_container.prompt_template)
+
+        try:
+            prompt = get_chat_completion_prompt(model_path.name, data.messages, prompt_template)
+        except KeyError:
+            return HTTPException(400, f"Could not find a Conversation from prompt template '{prompt_template}'. Check your spelling?")
 
     if data.stream:
         const_id = f"chatcmpl-{uuid4().hex}"

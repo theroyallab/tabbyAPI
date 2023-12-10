@@ -27,6 +27,7 @@ class ModelContainer:
     draft_cache: Optional[ExLlamaV2Cache] = None
     tokenizer: Optional[ExLlamaV2Tokenizer] = None
     generator: Optional[ExLlamaV2StreamingGenerator] = None
+    prompt_template: Optional[str] = None
 
     cache_fp8: bool = False
     gpu_split_auto: bool = True
@@ -48,6 +49,7 @@ class ModelContainer:
                 'max_seq_len' (int): Override model's default max sequence length (default: 4096)
                 'rope_scale' (float): Set RoPE scaling factor for model (default: 1.0)
                 'rope_alpha' (float): Set RoPE alpha (NTK) factor for model (default: 1.0)
+                'prompt_template' (str): Manually sets the prompt template for this model (default: None)
                 'chunk_size' (int): Sets the maximum chunk size for the model (default: 2048)
                     Inferencing in chunks reduces overall VRAM overhead by processing very long sequences in smaller
                     batches. This limits the size of temporary buffers needed for the hidden state and attention
@@ -92,6 +94,9 @@ class ModelContainer:
         if "low_mem" in kwargs and kwargs["low_mem"]:
             self.config.set_low_mem()
         """
+
+        # Set prompt template override if provided
+        self.prompt_template = kwargs.get("prompt_template")
 
         chunk_size = min(unwrap(kwargs.get("chunk_size"), 2048), self.config.max_seq_len)
         self.config.max_input_len = chunk_size

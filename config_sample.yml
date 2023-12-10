@@ -48,6 +48,10 @@ model:
   # Enable 8 bit cache mode for VRAM savings (slight performance hit). Possible values FP16, FP8. (default: FP16)
   cache_mode: FP16
 
+  # Set the prompt template for this model. If empty, fastchat will automatically find the best template to use (default: None)
+  # NOTE: Only works with chat completion message lists!
+  prompt_template:
+
   # Options for draft models (speculative decoding). This will use more VRAM!
   draft:
     # Overrides the directory to look for draft (default: models)

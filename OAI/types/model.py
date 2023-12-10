@@ -6,6 +6,7 @@ class ModelCardParameters(BaseModel):
     max_seq_len: Optional[int] = 4096
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
+    prompt_template: Optional[str] = None
     draft: Optional['ModelCard'] = None
 
 class ModelCard(BaseModel):
@@ -34,6 +35,7 @@ class ModelLoadRequest(BaseModel):
     rope_alpha: Optional[float] = 1.0
     no_flash_attention: Optional[bool] = False
     low_mem: Optional[bool] = False
+    prompt_template: Optional[str] = None
     draft: Optional[DraftModelLoadRequest] = None
 
 class ModelLoadResponse(BaseModel):

@@ -25,6 +25,7 @@ class ChatCompletionRequest(CommonCompletionRequest):
     # Messages
     # Take in a string as well even though it's not part of the OAI spec
     messages: Union[str, List[ChatCompletionMessage]]
+    prompt_template: Optional[str] = None
 
 class ChatCompletionResponse(BaseModel):
     id: str = Field(default_factory=lambda: f"chatcmpl-{uuid4().hex}")
