@@ -18,10 +18,12 @@ TEMPLATES = yaml.safe_load(open("./templates/available_templates.yaml", "r").rea
 memo = {}
 
 
-def get_conversatiom_template_name(model_name: str, template: str, system_message: str = None):
+def get_conversatiom_template_name(
+    model_name: str, template: str, system_message: str = None
+):
     if template == "ChatML":
         # todo: load stop_token_ids from config
-        conversation_settings= {
+        conversation_settings = {
             "system_template": "<|im_start|>system\n{system_message}",
             "system_message": (
                 system_message
@@ -39,49 +41,52 @@ def get_conversatiom_template_name(model_name: str, template: str, system_messag
             )
         )
         return model_name
-    if template == 'Mistral':
-        return 'mistral'
-    if template == 'Alpaca':
-        return 'alpaca'
-    if template == 'Llama-v2':
-        return 'llama-2'
-    
+    if template == "Mistral":
+        return "mistral"
+    if template == "Alpaca":
+        return "alpaca"
+    if template == "Llama-v2":
+        return "llama-2"
+
     # Todo: add more templates
 
 
-def get_instructions_template(template: str) -> dict[str, str]:
-    return yaml.safe_load(open(f"./templates/instructions/{template}.yaml", "r").read())
+# not needed for now --likely will deprecate
+# def get_instructions_template(template: str) -> dict[str, str]:
+#     return yaml.safe_load(open(f"./templates/instructions/{template}.yaml", "r").read())
 
 
-def get_conversation_template(model_path: str):
+def get_conversation_template(model_name: str):
     # return memoized value if available
-    if model_path in memo:
-        conversation_template_name = memo[model_path]
+    if model_name in memo:
+        conversation_template_name = memo[model_name]
         return get_conv_template(conversation_template_name)
 
     # return default template if available
-    if model_path in conv_templates:
-        return get_conv_template(model_path)
+    if model_name in conv_templates:
+        return get_conv_template(model_name)
 
     # -- attempt to register new template
     # metadata
     metadata = {
         k: v
         for pat in TEMPLATES
-        if re.match(pat.lower(), model_path.lower())
+        if re.match(pat.lower(), model_name.lower())
         for k, v in TEMPLATES[pat].items()
     }
 
-    # return default template if no metadata is available
+    # return default template if instructions_template is not found in metadata
     if "instruction_template" not in metadata:
         return get_conv_template("one_shot")
 
     # registration
     template_name: str = metadata["instruction_template"]
-    conversation_template_name = get_conversatiom_template_name(model_path, template_name)
-    
+    conversation_template_name = get_conversatiom_template_name(
+        model_name, template_name
+    )
+
     if conversation_template_name:
-        memo[model_path] = conversation_template_name
+        memo[model_name] = conversation_template_name
         return get_conv_template(conversation_template_name)
 
     # return default template if registration fails
