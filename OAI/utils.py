@@ -12,6 +12,7 @@ from OAI.types.lora import LoraList, LoraCard
 from OAI.types.model import ModelList, ModelCard
 from packaging import version
 from typing import Optional, List, Dict
+from utils import unwrap
 
 # Check fastchat
 try:
@@ -30,13 +31,11 @@ def create_completion_response(
     choice = CompletionRespChoice(finish_reason="Generated", text=text)
 
     response = CompletionResponse(
-        choices=[choice],
-        model=model_name or "",
-        usage=UsageStats(
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=prompt_tokens + completion_tokens,
-        ),
+        choices = [choice],
+        model = unwrap(model_name, ""),
+        usage = UsageStats(prompt_tokens = prompt_tokens,
+                           completion_tokens = completion_tokens,
+                           total_tokens = prompt_tokens + completion_tokens)
     )
 
     return response
@@ -50,13 +49,11 @@ def create_chat_completion_response(
     choice = ChatCompletionRespChoice(finish_reason="Generated", message=message)
 
     response = ChatCompletionResponse(
-        choices=[choice],
-        model=model_name or "",
-        usage=UsageStats(
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=prompt_tokens + completion_tokens,
-        ),
+        choices = [choice],
+        model = unwrap(model_name, ""),
+        usage = UsageStats(prompt_tokens = prompt_tokens,
+                           completion_tokens = completion_tokens,
+                           total_tokens = prompt_tokens + completion_tokens)
     )
 
     return response
@@ -77,7 +74,9 @@ def create_chat_completion_stream_chunk(
     choice = ChatCompletionStreamChoice(finish_reason=finish_reason, delta=message)
 
     chunk = ChatCompletionStreamChunk(
-        id=const_id, choices=[choice], model=model_name or ""
+        id = const_id,
+        choices = [choice],
+        model = unwrap(model_name, "")
     )
 
     return chunk
