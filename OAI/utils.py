@@ -31,11 +31,13 @@ def create_completion_response(
     choice = CompletionRespChoice(finish_reason="Generated", text=text)
 
     response = CompletionResponse(
-        choices = [choice],
-        model = unwrap(model_name, ""),
-        usage = UsageStats(prompt_tokens = prompt_tokens,
-                           completion_tokens = completion_tokens,
-                           total_tokens = prompt_tokens + completion_tokens)
+        choices=[choice],
+        model=unwrap(model_name, ""),
+        usage=UsageStats(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+        ),
     )
 
     return response
@@ -49,11 +51,13 @@ def create_chat_completion_response(
     choice = ChatCompletionRespChoice(finish_reason="Generated", message=message)
 
     response = ChatCompletionResponse(
-        choices = [choice],
-        model = unwrap(model_name, ""),
-        usage = UsageStats(prompt_tokens = prompt_tokens,
-                           completion_tokens = completion_tokens,
-                           total_tokens = prompt_tokens + completion_tokens)
+        choices=[choice],
+        model=unwrap(model_name, ""),
+        usage=UsageStats(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+        ),
     )
 
     return response
@@ -74,9 +78,7 @@ def create_chat_completion_stream_chunk(
     choice = ChatCompletionStreamChoice(finish_reason=finish_reason, delta=message)
 
     chunk = ChatCompletionStreamChunk(
-        id = const_id,
-        choices = [choice],
-        model = unwrap(model_name, "")
+        id=const_id, choices=[choice], model=unwrap(model_name, "")
     )
 
     return chunk
@@ -107,7 +109,7 @@ def get_lora_list(lora_path: pathlib.Path):
     return lora_list
 
 
-def get_chat_completion_prompt(model_path: str, messages: List[ChatCompletionMessage]):
+def get_chat_completion_prompt(model_name: str, messages: List[ChatCompletionMessage]):
     # Check if fastchat is available
     if not _fastchat_available:
         raise ModuleNotFoundError(
@@ -122,7 +124,7 @@ def get_chat_completion_prompt(model_path: str, messages: List[ChatCompletionMes
             "pip install -U fschat[model_worker]"
         )
 
-    conv = get_conversation_template(model_path)
+    conv = get_conversation_template(model_name)
     if conv.sep_style is None:
         conv.sep_style = SeparatorStyle.LLAMA2
 
