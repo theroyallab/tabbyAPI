@@ -12,6 +12,7 @@ from OAI.types.lora import LoraList, LoraCard
 from OAI.types.model import ModelList, ModelCard
 from packaging import version
 from typing import Optional, List, Dict
+from utils import unwrap
 
 # Check fastchat
 try:
@@ -30,7 +31,7 @@ def create_completion_response(text: str, prompt_tokens: int, completion_tokens:
 
     response = CompletionResponse(
         choices = [choice],
-        model = model_name or "",
+        model = unwrap(model_name, ""),
         usage = UsageStats(prompt_tokens = prompt_tokens,
                            completion_tokens = completion_tokens,
                            total_tokens = prompt_tokens + completion_tokens)
@@ -51,7 +52,7 @@ def create_chat_completion_response(text: str, prompt_tokens: int, completion_to
 
     response = ChatCompletionResponse(
         choices = [choice],
-        model = model_name or "",
+        model = unwrap(model_name, ""),
         usage = UsageStats(prompt_tokens = prompt_tokens,
                            completion_tokens = completion_tokens,
                            total_tokens = prompt_tokens + completion_tokens)
@@ -80,7 +81,7 @@ def create_chat_completion_stream_chunk(const_id: str,
     chunk = ChatCompletionStreamChunk(
         id = const_id,
         choices = [choice],
-        model = model_name or ""
+        model = unwrap(model_name, "")
     )
 
     return chunk
