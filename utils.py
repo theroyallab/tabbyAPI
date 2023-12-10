@@ -30,3 +30,14 @@ def get_generator_error(message: str):
 
 def get_sse_packet(json_data: str):
     return f"data: {json_data}\n\n"
+
+# Unwrap function for Optionals
+def unwrap(wrapped, default = None):
+    if wrapped is None:
+        return default
+    else:
+        return wrapped
+
+# Coalesce function for multiple unwraps
+def coalesce(*args):
+    return next((arg for arg in args if arg is not None), None)

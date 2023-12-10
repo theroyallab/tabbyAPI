@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Union
+from utils import coalesce
 
 class LogProbs(BaseModel):
     text_offset: List[int] = Field(default_factory=list)
@@ -83,7 +84,7 @@ class CommonCompletionRequest(BaseModel):
             "min_p": self.min_p,
             "tfs": self.tfs,
             "repetition_penalty": self.repetition_penalty,
-            "repetition_range": self.repetition_range or self.repetition_penalty_range or -1,
+            "repetition_range": coalesce(self.repetition_range, self.repetition_penalty_range, -1),
             "repetition_decay": self.repetition_decay,
             "mirostat": self.mirostat_mode == 2,
             "mirostat_tau": self.mirostat_tau,
