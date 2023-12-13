@@ -14,6 +14,7 @@ from exllamav2.generator import(
 )
 from typing import List, Optional, Union
 from utils import coalesce, unwrap
+from gen_logging import log_generation_params, log_prompt, log_response
 
 # Bytes to reserve on first device when loading with auto split
 auto_split_reserve_bytes = 96 * 1024**2
@@ -351,13 +352,6 @@ class ModelContainer:
         stop_conditions: List[Union[str, int]] = unwrap(kwargs.get("stop"), [])
         ban_eos_token = unwrap(kwargs.get("ban_eos_token"), False)
 
-
-        # Ban the EOS token if specified. If not, append to stop conditions as well.
-        if ban_eos_token:
-            gen_settings.disallow_tokens(self.tokenizer, [self.tokenizer.eos_token_id])
-        else:
-            stop_conditions.append(self.tokenizer.eos_token_id)
-
         # Override sampler settings for temp = 0
         if gen_settings.temperature == 0:
             gen_settings.temperature = 1.0
@@ -365,7 +359,25 @@ class ModelContainer:
             gen_settings.top_p = 0
             gen_settings.typical = 0
 
-        # Stop conditions           
+        # Log generation options to console
+        log_generation_params(
+            **vars(gen_settings),
+            token_healing = token_healing,
+            max_tokens = max_tokens,
+            stop_conditions = stop_conditions
+        )
+
+        # Log prompt to console
+        log_prompt(prompt)
+
+        # Ban the EOS token if specified. If not, append to stop conditions as well.
+        # Set this below logging to avoid polluting the stop strings array
+        if ban_eos_token:
+            gen_settings.disallow_tokens(self.tokenizer, [self.tokenizer.eos_token_id])
+        else:
+            stop_conditions.append(self.tokenizer.eos_token_id)
+
+        # Stop conditions
         self.generator.set_stop_conditions(stop_conditions)
 
         # Tokenized context
@@ -430,9 +442,12 @@ class ModelContainer:
 
             if eos or generated_tokens == max_tokens: break
 
+        # Print response
+        log_response(full_response)
+
         elapsed_time = last_chunk_time - start_time
 
-        initial_response = f"Response: {generated_tokens} tokens generated in {round(elapsed_time, 2)} seconds"
+        initial_response = f"Metrics: {generated_tokens} tokens generated in {round(elapsed_time, 2)} seconds"
         itemization = []
         extra_parts = []
 

@@ -13,6 +13,14 @@ network:
   # The port to host on (default: 5000)
   port: 5000
 
+# Options for logging
+logging:
+  # Enable prompt logging (default: False)
+  prompt: False
+
+  # Enable generation parameter logging (default: False)
+  generation_params: False
+
 # Options for model overrides and loading
 model:
   # Overrides the directory to look for models (default: models)

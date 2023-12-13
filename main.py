@@ -1,6 +1,7 @@
 import uvicorn
 import yaml
 import pathlib
+import gen_logging
 from asyncio import CancelledError
 from auth import check_admin_key, check_api_key, load_auth_keys
 from fastapi import FastAPI, Request, HTTPException, Depends
@@ -81,7 +82,8 @@ async def get_current_model():
             rope_alpha = model_container.config.scale_alpha_value,
             max_seq_len = model_container.config.max_seq_len,
             prompt_template = unwrap(model_container.prompt_template, "auto")
-        )
+        ),
+        logging = gen_logging.config
     )
 
     if model_container.draft_config:
@@ -369,6 +371,13 @@ if __name__ == "__main__":
             "\n\nTabbyAPI will start anyway and not parse this config file."
         )
         config = {}
+
+    # Override the generation log options if given
+    log_config = unwrap(config.get("logging"), {})
+    if log_config:
+        gen_logging.update_from_dict(log_config)
+
+    gen_logging.broadcast_status()
 
     # If an initial model name is specified, create a container and load the model
     model_config = unwrap(config.get("model"), {})

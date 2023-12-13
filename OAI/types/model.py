@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from time import time
 from typing import List, Optional
+from gen_logging import LogConfig
 
 class ModelCardParameters(BaseModel):
     max_seq_len: Optional[int] = 4096
@@ -14,6 +15,7 @@ class ModelCard(BaseModel):
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time()))
     owned_by: str = "tabbyAPI"
+    logging: Optional[LogConfig] = None
     parameters: Optional[ModelCardParameters] = None
 
 class ModelList(BaseModel):
