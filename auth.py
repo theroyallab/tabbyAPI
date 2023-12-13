@@ -1,6 +1,7 @@
 import secrets
 import yaml
 from fastapi import Header, HTTPException
+from pydantic import BaseModel
 from typing import Optional
 
 """
@@ -8,13 +9,9 @@ This method of authorization is pretty insecure, but since TabbyAPI is a local
 application, it should be fine.
 """
 
-class AuthKeys:
+class AuthKeys(BaseModel):
     api_key: str
     admin_key: str
-
-    def __init__(self, api_key: str, admin_key: str):
-        self.api_key = api_key
-        self.admin_key = admin_key
 
     def verify_key(self, test_key: str, key_type: str):
         # Match statements are only available in python 3.10 and up
@@ -33,10 +30,7 @@ def load_auth_keys():
     try:
         with open("api_tokens.yml", "r", encoding = 'utf8') as auth_file:
             auth_keys_dict = yaml.safe_load(auth_file)
-            auth_keys = AuthKeys(
-                api_key = auth_keys_dict["api_key"],
-                admin_key = auth_keys_dict["admin_key"]
-            )
+            auth_keys = AuthKeys.parse_obj(auth_keys_dict)
     except Exception as _:
         new_auth_keys = AuthKeys(
             api_key = secrets.token_hex(16),
@@ -45,7 +39,7 @@ def load_auth_keys():
         auth_keys = new_auth_keys
 
         with open("api_tokens.yml", "w", encoding = "utf8") as auth_file:
-            yaml.safe_dump(vars(auth_keys), auth_file, default_flow_style=False)
+            yaml.safe_dump(auth_keys.dict(), auth_file, default_flow_style=False)
 
     print(
         f"Your API key is: {auth_keys.api_key}\n"
