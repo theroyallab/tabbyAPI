@@ -1,4 +1,6 @@
-import gc, time, pathlib
+import gc
+import pathlib
+import time
 import torch
 from exllamav2 import(
     ExLlamaV2,
@@ -12,9 +14,10 @@ from exllamav2.generator import(
     ExLlamaV2StreamingGenerator,
     ExLlamaV2Sampler
 )
+
+from gen_logging import log_generation_params, log_prompt, log_response
 from typing import List, Optional, Union
 from utils import coalesce, unwrap
-from gen_logging import log_generation_params, log_prompt, log_response
 
 # Bytes to reserve on first device when loading with auto split
 auto_split_reserve_bytes = 96 * 1024**2
@@ -147,7 +150,8 @@ class ModelContainer:
             progress_callback (function, optional): A function to call for each module loaded. Prototype:
                 def progress(loaded_modules: int, total_modules: int)
         """
-        for _ in self.load_gen(progress_callback): pass
+        for _ in self.load_gen(progress_callback):
+            pass
 
     def load_loras(self, lora_directory: pathlib.Path, **kwargs):
         """
@@ -243,10 +247,14 @@ class ModelContainer:
 
         # Unload the entire model if not just unloading loras
         if not loras_only:
-            if self.model: self.model.unload()
+            if self.model:
+                self.model.unload()
             self.model = None
-            if self.draft_model: self.draft_model.unload()
+
+            if self.draft_model:
+                self.draft_model.unload()
             self.draft_model = None
+
             self.config = None
             self.cache = None
             self.tokenizer = None
@@ -440,7 +448,8 @@ class ModelContainer:
                 chunk_buffer = ""
                 last_chunk_time = now
 
-            if eos or generated_tokens == max_tokens: break
+            if eos or generated_tokens == max_tokens:
+                break
 
         # Print response
         log_response(full_response)

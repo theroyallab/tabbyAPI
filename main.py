@@ -1,15 +1,18 @@
 import uvicorn
 import yaml
 import pathlib
-import gen_logging
 from asyncio import CancelledError
-from auth import check_admin_key, check_api_key, load_auth_keys
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from model import ModelContainer
 from progress.bar import IncrementalBar
+from typing import Optional
+from uuid import uuid4
+
+import gen_logging
+from auth import check_admin_key, check_api_key, load_auth_keys
 from generators import generate_with_semaphore
+from model import ModelContainer
 from OAI.types.completion import CompletionRequest
 from OAI.types.chat_completion import ChatCompletionRequest
 from OAI.types.lora import LoraCard, LoraList, LoraLoadRequest, LoraLoadResponse
@@ -28,9 +31,7 @@ from OAI.utils import (
     create_chat_completion_response, 
     create_chat_completion_stream_chunk
 )
-from typing import Optional
 from utils import get_generator_error, get_sse_packet, load_progress, unwrap
-from uuid import uuid4
 
 app = FastAPI()
 

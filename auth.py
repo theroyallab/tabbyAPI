@@ -37,7 +37,7 @@ def load_auth_keys():
                 api_key = auth_keys_dict["api_key"],
                 admin_key = auth_keys_dict["admin_key"]
             )
-    except:
+    except Exception as _:
         new_auth_keys = AuthKeys(
             api_key = secrets.token_hex(16),
             admin_key = secrets.token_hex(16)
