@@ -9,7 +9,8 @@ for (module, modules) in loader:
     print(module, modules)
 
 generator = container.generate_gen("Once upon a tim", token_healing = True)
-for g in generator: print(g, end = "")
+for g in generator:
+    print(g, end = "")
 
 container.unload()
 del container
