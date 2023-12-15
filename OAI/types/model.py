@@ -36,7 +36,7 @@ class ModelLoadRequest(BaseModel):
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
     no_flash_attention: Optional[bool] = False
-    low_mem: Optional[bool] = False
+    # low_mem: Optional[bool] = False
     prompt_template: Optional[str] = None
     draft: Optional[DraftModelLoadRequest] = None
 

@@ -28,7 +28,7 @@ class CommonCompletionRequest(BaseModel):
     user: Optional[str] = None
 
     # Generation info
-    seed: Optional[int] = -1
+    # seed: Optional[int] = -1
     stream: Optional[bool] = False
     stop: Optional[Union[str, List[str]]] = []
 
