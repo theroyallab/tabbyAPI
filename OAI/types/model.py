@@ -8,6 +8,7 @@ class ModelCardParameters(BaseModel):
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
     prompt_template: Optional[str] = None
+    cache_mode: Optional[str] = "FP16"
     draft: Optional['ModelCard'] = None
 
 class ModelCard(BaseModel):
@@ -37,6 +38,7 @@ class ModelLoadRequest(BaseModel):
     rope_alpha: Optional[float] = 1.0
     no_flash_attention: Optional[bool] = False
     # low_mem: Optional[bool] = False
+    cache_mode: Optional[str] = "FP16"
     prompt_template: Optional[str] = None
     draft: Optional[DraftModelLoadRequest] = None
 

@@ -82,6 +82,7 @@ async def get_current_model():
             rope_scale = model_container.config.scale_pos_emb,
             rope_alpha = model_container.config.scale_alpha_value,
             max_seq_len = model_container.config.max_seq_len,
+            cache_mode = "FP8" if model_container.cache_fp8 else "FP16",
             prompt_template = unwrap(model_container.prompt_template, "auto")
         ),
         logging = gen_logging.config
