@@ -54,8 +54,6 @@ NOTE: For Flash Attention 2 to work on Windows, CUDA 12.x **must** be installed!
    
    3. ROCm 5.6: `pip install -r requirements-amd.txt`
 
-5. If you want the `/v1/chat/completions` endpoint to work with a list of messages, install fastchat by running `pip install fschat[model_worker]`
-
 ## Configuration
 
 A config.yml file is required for overriding project defaults. If you are okay with the defaults, you don't need a config file!
@@ -125,6 +123,12 @@ All routes require an API key except for the following which require an **admin*
 - `/v1/model/load`
 
 - `/v1/model/unload`
+
+## Chat Completions
+
+`/v1/chat/completions` now uses Jinja2 for templating. Please read [Huggingface's documentation](https://huggingface.co/docs/transformers/main/chat_templating) for more information of how chat templates work.
+
+Also make sure to set the template name in `config.yml` to the template's filename.
 
 ## Common Issues
 

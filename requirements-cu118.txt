@@ -18,6 +18,7 @@ pydantic < 2,>= 1
 PyYAML
 progress
 uvicorn
+jinja2
 
 # Linux FA2 from https://github.com/Dao-AILab/flash-attention/releases
 https://github.com/Dao-AILab/flash-attention/releases/download/v2.3.6/flash_attn-2.3.6+cu118torch2.1cxx11abiFALSE-cp310-cp310-linux_x86_64.whl; platform_system == "Linux" and platform_machine == "x86_64" and python_version == "3.10"

@@ -18,6 +18,7 @@ pydantic < 2,>= 1
 PyYAML
 progress
 uvicorn
+jinja2
 
 # Flash attention v2
 
