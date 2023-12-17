@@ -19,13 +19,13 @@ class CommonCompletionRequest(BaseModel):
     model: Optional[str] = None
 
     # Extra OAI request stuff
-    best_of: Optional[int] = None
-    echo: Optional[bool] = False
-    logit_bias: Optional[Dict[str, float]] = None
-    logprobs: Optional[int] = None
-    n: Optional[int] = 1
-    suffix: Optional[str] = None
-    user: Optional[str] = None
+    best_of: Optional[int] = Field(description = "Not parsed. Only used for OAI compliance.", default = None)
+    echo: Optional[bool] = Field(description = "Not parsed. Only used for OAI compliance.", default = False)
+    logit_bias: Optional[Dict[str, float]] = Field(description = "Not parsed. Only used for OAI compliance.", default = None)
+    logprobs: Optional[int] = Field(description = "Not parsed. Only used for OAI compliance.", default = None)
+    n: Optional[int] = Field(description = "Not parsed. Only used for OAI compliance.", default = 1)
+    suffix: Optional[str] = Field(description = "Not parsed. Only used for OAI compliance.", default = None)
+    user: Optional[str] = Field(description = "Not parsed. Only used for OAI compliance.", default = None)
 
     # Generation info
     # seed: Optional[int] = -1
@@ -36,7 +36,7 @@ class CommonCompletionRequest(BaseModel):
     max_tokens: Optional[int] = 150
 
     # Aliased to repetition_penalty
-    frequency_penalty: Optional[float] = 0.0
+    frequency_penalty: Optional[float] = Field(description = "Aliased to Repetition Penalty", default = 0.0)
 
     # Sampling params
     token_healing: Optional[bool] = False
