@@ -1,7 +1,8 @@
+import pathlib
 from functools import lru_cache
 from importlib.metadata import version as package_version
-from packaging import version
 from jinja2.sandbox import ImmutableSandboxedEnvironment
+from packaging import version
 from pydantic import BaseModel
 
 # Small replication of AutoTokenizer's chat template system for efficiency
@@ -28,3 +29,10 @@ def _compile_template(template: str):
     jinja_env = ImmutableSandboxedEnvironment(trim_blocks = True, lstrip_blocks = True)
     jinja_template = jinja_env.from_string(template)
     return jinja_template
+
+def get_template_from_file(prompt_template_name):
+    with open(pathlib.Path(f"templates/{prompt_template_name}.jinja"), "r") as raw_template:
+        return PromptTemplate(
+            name = prompt_template_name,
+            template = raw_template.read()
+        )
