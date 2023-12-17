@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Optional
 from gen_logging import LogConfig
@@ -45,6 +45,9 @@ class ModelLoadRequest(BaseModel):
     draft: Optional[DraftModelLoadRequest] = None
 
 class ModelLoadResponse(BaseModel):
+    # Avoids pydantic namespace warning
+    model_config = ConfigDict(protected_namespaces = [])
+
     model_type: str = "model"
     module: int
     modules: int

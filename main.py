@@ -117,7 +117,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
     model_path = pathlib.Path(unwrap(model_config.get("model_dir"), "models"))
     model_path = model_path / data.name
 
-    load_data = data.dict()
+    load_data = data.model_dump()
 
     # TODO: Add API exception if draft directory isn't found
     draft_config = unwrap(model_config.get("draft"), {})
@@ -156,7 +156,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
                         status="finished"
                     )
 
-                    yield get_sse_packet(response.json(ensure_ascii = False))
+                    yield get_sse_packet(response.model_dump_json())
 
                     # Switch to model progress if the draft model is loaded
                     if model_container.draft_config:
@@ -171,7 +171,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
                         status="processing"
                     )
 
-                    yield get_sse_packet(response.json(ensure_ascii=False))
+                    yield get_sse_packet(response.model_dump_json())
         except CancelledError:
             print("\nError: Model load cancelled by user. Please make sure to run unload to free up resources.")
         except Exception as e:
@@ -230,7 +230,7 @@ async def load_lora(data: LoraLoadRequest):
     if len(model_container.active_loras) > 0:
         model_container.unload(True)
 
-    result = model_container.load_loras(lora_dir, **data.dict())
+    result = model_container.load_loras(lora_dir, **data.model_dump())
     return LoraLoadResponse(
         success = unwrap(result.get("success"), []),
         failure = unwrap(result.get("failure"), [])
@@ -281,7 +281,7 @@ async def generate_completion(request: Request, data: CompletionRequest):
                                                           completion_tokens,
                                                           model_path.name)
 
-                    yield get_sse_packet(response.json(ensure_ascii=False))
+                    yield get_sse_packet(response.model_dump_json())
             except CancelledError:
                 print("Error: Completion request cancelled by user.")
             except Exception as e:
@@ -334,7 +334,7 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
                         model_path.name
                     )
 
-                    yield get_sse_packet(response.json(ensure_ascii=False))
+                    yield get_sse_packet(response.model_dump_json())
 
                 # Yield a finish response on successful generation
                 finish_response = create_chat_completion_stream_chunk(
@@ -342,7 +342,7 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
                     finish_reason = "stop"
                 )
 
-                yield get_sse_packet(finish_response.json(ensure_ascii=False))
+                yield get_sse_packet(finish_response.model_dump_json())
             except CancelledError:
                 print("Error: Chat completion cancelled by user.")
             except Exception as e:

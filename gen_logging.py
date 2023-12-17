@@ -18,7 +18,7 @@ def update_from_dict(options_dict: Dict[str, bool]):
         if value is None:
             value = False
 
-    config = LogConfig.parse_obj(options_dict)
+    config = LogConfig.model_validate(options_dict)
 
 def broadcast_status():
     enabled = []
