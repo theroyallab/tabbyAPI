@@ -6,7 +6,7 @@ from gen_logging import LogConfig
 class ModelCardParameters(BaseModel):
     max_seq_len: Optional[int] = 4096
     rope_scale: Optional[float] = 1.0
-    rope_alpha: Optional[float] = None
+    rope_alpha: Optional[float] = 1.0
     prompt_template: Optional[str] = None
     cache_mode: Optional[str] = "FP16"
     draft: Optional['ModelCard'] = None
@@ -35,7 +35,7 @@ class ModelLoadRequest(BaseModel):
     gpu_split_auto: Optional[bool] = True
     gpu_split: Optional[List[float]] = Field(default_factory=list)
     rope_scale: Optional[float] = 1.0
-    rope_alpha: Optional[float] = 1.0
+    rope_alpha: Optional[float] = None
     no_flash_attention: Optional[bool] = False
     # low_mem: Optional[bool] = False
     cache_mode: Optional[str] = "FP16"
