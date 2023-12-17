@@ -6,7 +6,7 @@ from gen_logging import LogConfig
 class ModelCardParameters(BaseModel):
     max_seq_len: Optional[int] = 4096
     rope_scale: Optional[float] = 1.0
-    rope_alpha: Optional[float] = 1.0
+    rope_alpha: Optional[float] = None
     prompt_template: Optional[str] = None
     cache_mode: Optional[str] = "FP16"
     draft: Optional['ModelCard'] = None
@@ -25,8 +25,8 @@ class ModelList(BaseModel):
 
 class DraftModelLoadRequest(BaseModel):
     draft_model_name: str
+    draft_rope_scale: Optional[float] = 1.0
     draft_rope_alpha: Optional[float] = None
-    draft_rope_scale: Optional[float] = None
 
 # TODO: Unify this with ModelCardParams
 class ModelLoadRequest(BaseModel):

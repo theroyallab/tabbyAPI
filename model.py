@@ -88,7 +88,10 @@ class ModelContainer:
         self.config.scale_pos_emb = unwrap(kwargs.get("rope_scale"), 1.0)
 
         # Automatically calculate rope alpha
-        self.config.scale_alpha_value = unwrap(kwargs.get("rope_alpha"), self.calculate_rope_alpha(base_seq_len))
+        self.config.scale_alpha_value = unwrap(
+            kwargs.get("rope_alpha"),
+            self.calculate_rope_alpha(base_seq_len)
+        )
 
         # Turn off flash attention?
         self.config.no_flash_attn = unwrap(kwargs.get("no_flash_attn"), False)
@@ -124,7 +127,12 @@ class ModelContainer:
             self.draft_config.prepare()
 
             self.draft_config.scale_pos_emb = unwrap(draft_args.get("draft_rope_scale"), 1.0)
-            self.draft_config.scale_alpha_value = unwrap(draft_args.get("draft_rope_alpha"), self.calculate_rope_alpha(self.draft_config.max_seq_len))
+
+            # Automatically calculate draft rope alpha
+            self.draft_config.scale_alpha_value = unwrap(
+                draft_args.get("draft_rope_alpha"),
+                self.calculate_rope_alpha(self.draft_config.max_seq_len)
+            )
             self.draft_config.max_seq_len = self.config.max_seq_len            
 
             if "chunk_size" in kwargs:
