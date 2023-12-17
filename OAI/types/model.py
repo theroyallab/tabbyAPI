@@ -27,7 +27,7 @@ class ModelList(BaseModel):
 class DraftModelLoadRequest(BaseModel):
     draft_model_name: str
     draft_rope_scale: Optional[float] = 1.0
-    draft_rope_alpha: Optional[float] = None
+    draft_rope_alpha: Optional[float] = Field(description = "Automatically calculated if not present", default = None)
 
 # TODO: Unify this with ModelCardParams
 class ModelLoadRequest(BaseModel):
@@ -36,7 +36,7 @@ class ModelLoadRequest(BaseModel):
     gpu_split_auto: Optional[bool] = True
     gpu_split: Optional[List[float]] = Field(default_factory=list)
     rope_scale: Optional[float] = 1.0
-    rope_alpha: Optional[float] = None
+    rope_alpha: Optional[float] = Field(description = "Automatically calculated if not present", default = None)
     no_flash_attention: Optional[bool] = False
     # low_mem: Optional[bool] = False
     cache_mode: Optional[str] = "FP16"
