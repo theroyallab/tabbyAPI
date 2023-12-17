@@ -7,8 +7,9 @@ class ModelCardParameters(BaseModel):
     max_seq_len: Optional[int] = 4096
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
-    prompt_template: Optional[str] = None
     cache_mode: Optional[str] = "FP16"
+    prompt_template: Optional[str] = None
+    num_experts_per_token: Optional[int] = None
     draft: Optional['ModelCard'] = None
 
 class ModelCard(BaseModel):
@@ -40,6 +41,7 @@ class ModelLoadRequest(BaseModel):
     # low_mem: Optional[bool] = False
     cache_mode: Optional[str] = "FP16"
     prompt_template: Optional[str] = None
+    num_experts_per_token: Optional[int] = None
     draft: Optional[DraftModelLoadRequest] = None
 
 class ModelLoadResponse(BaseModel):

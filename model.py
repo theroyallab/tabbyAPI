@@ -105,6 +105,14 @@ class ModelContainer:
         # Set prompt template override if provided
         self.prompt_template = kwargs.get("prompt_template")
 
+        # Set num of experts per token if provided
+        num_experts_override = kwargs.get("num_experts_per_token")
+        if num_experts_override:
+            if hasattr(self.config, "num_experts_per_token"):
+                self.config.num_experts_per_token = num_experts_override
+            else:
+                print(" !! Warning: Currently installed ExLlamaV2 does not support overriding MoE experts")
+
         chunk_size = min(unwrap(kwargs.get("chunk_size"), 2048), self.config.max_seq_len)
         self.config.max_input_len = chunk_size
         self.config.max_attn_size = chunk_size ** 2

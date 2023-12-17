@@ -60,6 +60,11 @@ model:
   # NOTE: Only works with chat completion message lists!
   prompt_template:
 
+  # Number of experts to use per token. Loads from the model's config.json if not specified (default: None)
+  # WARNING: Don't set this unless you know what you're doing!
+  # NOTE: For MoE models (ex. Mixtral) only!
+  num_experts_per_token:
+
   # Options for draft models (speculative decoding). This will use more VRAM!
   draft:
     # Overrides the directory to look for draft (default: models)
