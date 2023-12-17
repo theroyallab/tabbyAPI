@@ -1,7 +1,7 @@
 from uuid import uuid4
 from time import time
 from pydantic import BaseModel, Field
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Dict
 from OAI.types.common import UsageStats, CommonCompletionRequest
 
 class ChatCompletionMessage(BaseModel):
@@ -24,7 +24,7 @@ class ChatCompletionStreamChoice(BaseModel):
 class ChatCompletionRequest(CommonCompletionRequest):
     # Messages
     # Take in a string as well even though it's not part of the OAI spec
-    messages: Union[str, List[ChatCompletionMessage]]
+    messages: Union[str, List[Dict[str, str]]]
     prompt_template: Optional[str] = None
 
 class ChatCompletionResponse(BaseModel):

@@ -25,12 +25,12 @@ else:
     print("Torch is not found in your environment.")
     errored_packages.append("torch")
 
-if find_spec("fastchat") is not None:
-    print(f"Fastchat on version {version('fschat')} successfully imported")
-    successful_packages.append("fastchat")
+if find_spec("jinja2") is not None:
+    print(f"Jinja2 on version {version('jinja2')} successfully imported")
+    successful_packages.append("jinja2")
 else:
-    print("Fastchat is not found in your environment. It isn't needed unless you're using chat completions with message arrays.")
-    errored_packages.append("fastchat")
+    print("Jinja2 is not found in your environment.")
+    errored_packages.append("jinja2")
 
 print(
     f"\nSuccessful imports: {', '.join(successful_packages)}",

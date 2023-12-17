@@ -56,9 +56,9 @@ model:
   # Enable 8 bit cache mode for VRAM savings (slight performance hit). Possible values FP16, FP8. (default: FP16)
   cache_mode: FP16
 
-  # Set the prompt template for this model. If empty, fastchat will automatically find the best template to use (default: None)
+  # Set the prompt template for this model. If empty, chat completions will be disabled. (default: alpaca)
   # NOTE: Only works with chat completion message lists!
-  prompt_template:
+  prompt_template: alpaca
 
   # Number of experts to use per token. Loads from the model's config.json if not specified (default: None)
   # WARNING: Don't set this unless you know what you're doing!
