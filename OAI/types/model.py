@@ -25,8 +25,8 @@ class ModelList(BaseModel):
 
 class DraftModelLoadRequest(BaseModel):
     draft_model_name: str
-    draft_rope_alpha: Optional[float] = 1.0
-    draft_rope_scale: Optional[float] = 1.0
+    draft_rope_alpha: Optional[float] = None
+    draft_rope_scale: Optional[float] = None
 
 # TODO: Unify this with ModelCardParams
 class ModelLoadRequest(BaseModel):
