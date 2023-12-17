@@ -30,7 +30,7 @@ def load_auth_keys():
     try:
         with open("api_tokens.yml", "r", encoding = 'utf8') as auth_file:
             auth_keys_dict = yaml.safe_load(auth_file)
-            auth_keys = AuthKeys.parse_obj(auth_keys_dict)
+            auth_keys = AuthKeys.model_validate(auth_keys_dict)
     except Exception as _:
         new_auth_keys = AuthKeys(
             api_key = secrets.token_hex(16),
@@ -39,7 +39,7 @@ def load_auth_keys():
         auth_keys = new_auth_keys
 
         with open("api_tokens.yml", "w", encoding = "utf8") as auth_file:
-            yaml.safe_dump(auth_keys.dict(), auth_file, default_flow_style=False)
+            yaml.safe_dump(auth_keys.model_dump(), auth_file, default_flow_style=False)
 
     print(
         f"Your API key is: {auth_keys.api_key}\n"

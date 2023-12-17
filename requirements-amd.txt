@@ -8,7 +8,7 @@ https://github.com/turboderp/exllamav2/releases/download/v0.0.11/exllamav2-0.0.1
 
 # Pip dependencies
 fastapi
-pydantic < 2,>= 1
+pydantic
 PyYAML
 progress
 uvicorn
