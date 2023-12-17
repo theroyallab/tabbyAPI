@@ -31,7 +31,7 @@ def load_auth_keys():
         with open("api_tokens.yml", "r", encoding = 'utf8') as auth_file:
             auth_keys_dict = yaml.safe_load(auth_file)
             auth_keys = AuthKeys.model_validate(auth_keys_dict)
-    except Exception as _:
+    except OSError:
         new_auth_keys = AuthKeys(
             api_key = secrets.token_hex(16),
             admin_key = secrets.token_hex(16)
