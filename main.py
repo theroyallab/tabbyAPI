@@ -312,7 +312,11 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
         prompt = data.messages
     else:
         try:
-            prompt = get_prompt_from_template(data.messages, model_container.prompt_template)
+            prompt = get_prompt_from_template(
+                data.messages,
+                model_container.prompt_template,
+                data.add_generation_prompt
+            )
         except KeyError:
             return HTTPException(
                 400,
