@@ -1,0 +1,7 @@
+# Pip dependencies
+fastapi
+pydantic
+PyYAML
+progress
+uvicorn
+jinja2
