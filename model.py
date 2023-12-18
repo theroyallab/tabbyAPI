@@ -94,7 +94,7 @@ class ModelContainer:
         )
 
         # Turn off flash attention?
-        self.config.no_flash_attn = unwrap(kwargs.get("no_flash_attn"), False)
+        self.config.no_flash_attn = unwrap(kwargs.get("no_flash_attention"), False)
 
         # low_mem is currently broken in exllamav2. Don't use it until it's fixed.
         """
