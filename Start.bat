@@ -21,5 +21,5 @@ for %%A in (%*) do (
 
 call "%VENV_DIR%\Scripts\activate.bat"
 call pip -V
-if defined IGNORE_UPGRADE call pip install --upgrade -r %REQUIREMENTS_FILE%
+if not defined IGNORE_UPGRADE call pip install --upgrade -r %REQUIREMENTS_FILE%
 call python main.py
