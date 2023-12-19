@@ -14,10 +14,10 @@ class PromptTemplate(BaseModel):
 def get_prompt_from_template(messages, prompt_template: PromptTemplate, add_generation_prompt: bool):
     if version.parse(package_version("jinja2")) < version.parse("3.0.0"):
         raise ImportError(
-            "Parsing these chat completion messages requires fastchat 0.2.23 or greater. "
+            "Parsing these chat completion messages requires jinja2 3.0.0 or greater. "
             f"Current version: {version('jinja2')}\n"
-            "Please upgrade fastchat by running the following command: "
-            "pip install -U fschat[model_worker]"
+            "Please upgrade jinja by running the following command: "
+            "pip install --upgrade jinja2"
         )
 
     compiled_template = _compile_template(prompt_template.template)

@@ -120,11 +120,14 @@ class ModelContainer:
                         self.prompt_template = get_template_from_file(template_name)
                         break
         except OSError:
-            # Silently set the prompt template to none on a file lookup error
+            # The template couldn't be found in the user's filesystem
+            print(f"Could not find template file with name {prompt_template_name}.jinja")
             self.prompt_template = None
 
         # Catch all for template lookup errors
-        if self.prompt_template is None:
+        if self.prompt_template:
+            print(f"Using template {self.prompt_template.name} for chat completions.")
+        else:
             print("Chat completions are disabled because a prompt template wasn't provided or auto-detected.")
 
         # Set num of experts per token if provided
