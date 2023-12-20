@@ -34,8 +34,9 @@ class DraftModelLoadRequest(BaseModel):
 class ModelLoadRequest(BaseModel):
     name: str
 
-    # Max seq len is defaulted when loading the model itself
-    max_seq_len: Optional[int] = None
+    # Max seq len is fetched from config.json of the model by default
+    max_seq_len: Optional[int] = Field(description = "Leave this blank to use the model's base sequence length", default = None)
+    override_base_seq_len: Optional[int] = Field(description = "Overrides the model's base sequence length. Leave blank if unsure", default = None)
     gpu_split_auto: Optional[bool] = True
     gpu_split: Optional[List[float]] = Field(default_factory=list)
     rope_scale: Optional[float] = 1.0

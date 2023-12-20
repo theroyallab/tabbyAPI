@@ -37,8 +37,14 @@ model:
 
   # The below parameters apply only if model_name is set
 
-  # Override maximum model context length (default: None)
+  # Max sequence length (default: None)
+  # Fetched from the model's base sequence length in config.json by default
   max_seq_len:
+
+  # Overrides base model context length (default: None)
+  # WARNING: Don't set this unless you know what you're doing!
+  # Only use this if the model's base sequence length in config.json is incorrect (ex. Mistral/Mixtral models)
+  override_base_seq_len:
 
   # Automatically allocate resources to GPUs (default: True)
   gpu_split_auto: True

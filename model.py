@@ -85,13 +85,18 @@ class ModelContainer:
         self.config.max_seq_len = 4096
         self.config.prepare()
 
-        # Then override the max_seq_len if present
-        override_max_seq_len = kwargs.get("max_seq_len")
-        if override_max_seq_len:
-            self.config.max_seq_len = kwargs.get("max_seq_len")
+        # Then override the base_seq_len if present
+        override_base_seq_len = kwargs.get("override_base_seq_len")
+        if override_base_seq_len:
+            self.config.max_seq_len = override_base_seq_len
 
         # Grab the base model's sequence length before overrides for rope calculations
         base_seq_len = self.config.max_seq_len
+
+        # Set the target seq len if present
+        target_max_seq_len = kwargs.get("max_seq_len")
+        if target_max_seq_len:
+            self.config.max_seq_len = target_max_seq_len
 
         # Set the rope scale
         self.config.scale_pos_emb = unwrap(kwargs.get("rope_scale"), 1.0)
