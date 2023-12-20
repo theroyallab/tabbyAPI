@@ -77,9 +77,9 @@ def create_chat_completion_stream_chunk(const_id: str,
 
     return chunk
 
-def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str]):
+def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = None):
 
-    # Convert the draft model path to a pathlib path for equality comparisons
+    # Convert the provided draft model path to a pathlib path for equality comparisons
     if draft_model_path:
         draft_model_path = pathlib.Path(draft_model_path).resolve()
 
