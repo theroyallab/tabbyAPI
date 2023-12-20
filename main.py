@@ -192,7 +192,7 @@ async def unload_model():
 @app.get("/v1/lora/list", dependencies=[Depends(check_api_key)])
 async def get_all_loras():
     model_config = unwrap(config.get("model"), {})
-    lora_config =  unwrap(model_config.get("lora"), {})
+    lora_config = unwrap(model_config.get("lora"), {})
     lora_path = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
 
     loras = get_lora_list(lora_path.resolve())

@@ -1,7 +1,7 @@
 # Pip dependencies
 fastapi
-pydantic
+pydantic >= 2.0.0
 PyYAML
 progress
 uvicorn
-jinja2
+jinja2 >= 3.0.0
