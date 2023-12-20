@@ -188,8 +188,8 @@ async def unload_model():
     model_container = None 
 
 # Lora list endpoint
-@app.get("/v1/loras", dependencies=[Depends(check_api_key), Depends(_check_model_container)])
-@app.get("/v1/lora/list", dependencies=[Depends(check_api_key), Depends(_check_model_container)])
+@app.get("/v1/loras", dependencies=[Depends(check_api_key)])
+@app.get("/v1/lora/list", dependencies=[Depends(check_api_key)])
 async def get_all_loras():
     model_config = unwrap(config.get("model"), {})
     lora_config =  unwrap(model_config.get("lora"), {})
