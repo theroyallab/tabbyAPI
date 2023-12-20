@@ -37,8 +37,8 @@ model:
 
   # The below parameters apply only if model_name is set
 
-  # Maximum model context length (default: 4096)
-  max_seq_len: 4096
+  # Override maximum model context length (default: None)
+  max_seq_len:
 
   # Automatically allocate resources to GPUs (default: True)
   gpu_split_auto: True

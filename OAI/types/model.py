@@ -4,7 +4,8 @@ from typing import List, Optional
 from gen_logging import LogConfig
 
 class ModelCardParameters(BaseModel):
-    max_seq_len: Optional[int] = 4096
+    # Safe to do this since it's guaranteed to fetch a max seq len from model_container
+    max_seq_len: Optional[int] = None
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
     cache_mode: Optional[str] = "FP16"
@@ -32,7 +33,9 @@ class DraftModelLoadRequest(BaseModel):
 # TODO: Unify this with ModelCardParams
 class ModelLoadRequest(BaseModel):
     name: str
-    max_seq_len: Optional[int] = 4096
+
+    # Max seq len is defaulted when loading the model itself
+    max_seq_len: Optional[int] = None
     gpu_split_auto: Optional[bool] = True
     gpu_split: Optional[List[float]] = Field(default_factory=list)
     rope_scale: Optional[float] = 1.0
