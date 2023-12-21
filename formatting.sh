@@ -91,7 +91,7 @@ echo 'tabbyAPI yapf: Done'
 
 # Run Pylint
 echo 'tabbyAPI Pylint:'
-pylint *.py
+find . -name "*.py" | xargs pylint
 
 if ! git diff --quiet &>/dev/null; then
     echo 'Reformatted files. Please review and stage the changes.'
