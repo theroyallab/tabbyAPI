@@ -42,3 +42,12 @@ format_and_lint() {
 # Call format command
 format_and_lint
 echo 'tabbyAPI ruff lint and format: Done'
+
+if ! git diff --quiet &>/dev/null; then
+    echo 'Reformatted files. Please review and stage the changes.'
+    echo 'Changes not staged for commit:'
+    echo
+    git --no-pager diff --name-only
+
+    exit 1
+fi

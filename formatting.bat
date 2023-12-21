@@ -14,6 +14,8 @@ call :tool_version_check "ruff" %RUFF_VERSION% "0.1.9"
 call ruff format
 call ruff check
 
+echo tabbyAPI ruff lint and format: Done
+
 ::Check if any files were changed
 git diff --quiet
 if errorlevel 1 (
