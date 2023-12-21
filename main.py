@@ -85,16 +85,14 @@ async def get_current_model():
     model_name = MODEL_CONTAINER.get_model_path().name
     prompt_template = MODEL_CONTAINER.prompt_template
     model_card = ModelCard(
-        id = model_name,
-        parameters = ModelCardParameters(
-            rope_scale = MODEL_CONTAINER.config.scale_pos_emb,
-            rope_alpha = MODEL_CONTAINER.config.scale_alpha_value,
-            max_seq_len = MODEL_CONTAINER.config.max_seq_len,
-            cache_mode = "FP8" if MODEL_CONTAINER.cache_fp8 else "FP16",
-            prompt_template = prompt_template.name if prompt_template else None
-        ),
-        logging = gen_logging.CONFIG
-    )
+        id=model_name,
+        parameters=ModelCardParameters(
+            rope_scale=MODEL_CONTAINER.config.scale_pos_emb,
+            rope_alpha=MODEL_CONTAINER.config.scale_alpha_value,
+            max_seq_len=MODEL_CONTAINER.config.max_seq_len,
+            cache_mode="FP8" if MODEL_CONTAINER.cache_fp8 else "FP16",
+            prompt_template=prompt_template.name if prompt_template else None),
+        logging=gen_logging.CONFIG)
 
     if MODEL_CONTAINER.draft_config:
         draft_card = ModelCard(
