@@ -8,14 +8,15 @@ from gen_logging import LogConfig
 
 class ModelCardParameters(BaseModel):
     """ Represents model card parameters. """
-    # Safe to do this since it's guaranteed to fetch a max seq len from model_container
+    # Safe to do this since it's guaranteed to fetch a max seq len
+    # from model_container
     max_seq_len: Optional[int] = None
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
     cache_mode: Optional[str] = "FP16"
     prompt_template: Optional[str] = None
     num_experts_per_token: Optional[int] = None
-    draft: Optional['ModelCard'] = None
+    draft: Optional["ModelCard"] = None
 
 class ModelCard(BaseModel):
     """ Represents a single model card. """

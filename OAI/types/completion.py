@@ -19,7 +19,8 @@ class CompletionRespChoice(BaseModel):
 # Inherited from common request
 class CompletionRequest(CommonCompletionRequest):
     """ Represents a completion request. """
-    # Prompt can also contain token ids, but that's out of scope for this project.
+    # Prompt can also contain token ids, but that's out of scope
+    # for this project.
     prompt: Union[str, List[str]]
 
 class CompletionResponse(BaseModel):

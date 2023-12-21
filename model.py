@@ -105,7 +105,8 @@ class ModelContainer:
         if override_base_seq_len:
             self.config.max_seq_len = override_base_seq_len
 
-        # Grab the base model's sequence length before overrides for rope calculations
+        # Grab the base model's sequence length before overrides for
+        # rope calculations
         base_seq_len = self.config.max_seq_len
 
         # Set the target seq len if present
@@ -124,7 +125,8 @@ class ModelContainer:
         self.config.no_flash_attn = unwrap(kwargs.get("no_flash_attention"),
                                            False)
 
-        # low_mem is currently broken in exllamav2. Don't use it until it's fixed.
+        # low_mem is currently broken in exllamav2. Don't use it until it's
+        # fixed.
         """
         if "low_mem" in kwargs and kwargs["low_mem"]:
             self.config.set_low_mem()
@@ -149,17 +151,16 @@ class ModelContainer:
                         self.prompt_template = get_template_from_file(
                             template_match)
         except OSError:
-            # The template or config.json couldn't be found in the user's filesystem
-            print(
-                f"Could not find template file with name {prompt_template_name}.jinja"
-            )
+            # The template or config.json couldn't be found in the user's
+            # filesystem
+            print("Could not find template file with name "
+                  f"{prompt_template_name}.jinja")
             self.prompt_template = None
 
         # Catch all for template lookup errors
         if self.prompt_template:
-            print(
-                f"Using template {self.prompt_template.name} for chat completions."
-            )
+            print(f"Using template {self.prompt_template.name} for chat "
+                  "completions.")
         else:
             print("Chat completions are disabled because a prompt template "
                   "wasn't provided or auto-detected.")
@@ -274,7 +275,7 @@ class ModelContainer:
             success.append(lora_name)
 
         # Return success and failure names
-        return {'success': success, 'failure': failure}
+        return {"success": success, "failure": failure}
 
     def load_gen(self, progress_callback=None):
         """
@@ -461,8 +462,8 @@ class ModelContainer:
         if (unwrap(kwargs.get("mirostat"),
                    False)) and not hasattr(gen_settings, "mirostat"):
             print(
-                " !! Warning: Currently installed ExLlamaV2 does not support Mirostat sampling"
-            )
+                " !! Warning: Currently installed ExLlamaV2 does not support "
+                "Mirostat sampling")
 
         if (unwrap(kwargs.get("min_p"), 0.0)) not in [
                 0.0, 1.0
@@ -641,7 +642,7 @@ class ModelContainer:
         extra_parts = []
 
         # Add tokens per second
-        tokens_per_second = ('Indeterminate' if elapsed_time == 0 else round(
+        tokens_per_second = ("Indeterminate" if elapsed_time == 0 else round(
             generated_tokens / elapsed_time, 2))
         itemization.append(f"{tokens_per_second} T/s")
 

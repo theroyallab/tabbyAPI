@@ -7,7 +7,8 @@ errored_packages = []
 
 if find_spec("flash_attn") is not None:
     print(
-        f"Flash attention on version {version('flash_attn')} successfully imported"
+        f"Flash attention on version {version('flash_attn')} "
+        "successfully imported"
     )
     successful_packages.append("flash_attn")
 else:
@@ -41,5 +42,5 @@ print(f"\nSuccessful imports: {', '.join(successful_packages)}",
 if len(errored_packages) > 0:
     print(
         "\nIf packages are installed, but not found on this test, please "
-        "check the wheel versions for the correct python version and CUDA version "
-        "(if applicable).")
+        "check the wheel versions for the correct python version and CUDA "
+        "version (if applicable).")

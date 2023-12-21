@@ -293,7 +293,8 @@ async def encode_tokens(data: TokenEncodeRequest):
     raw_tokens = MODEL_CONTAINER.get_tokens(data.text, None,
                                             **data.get_params())
 
-    # Have to use this if check otherwise Torch's tensors error out with a boolean issue
+    # Have to use this if check otherwise Torch's tensors error out
+    # with a boolean issue
     tokens = raw_tokens[0].tolist() if raw_tokens is not None else []
     response = TokenEncodeResponse(tokens=tokens, length=len(tokens))
 
@@ -431,7 +432,7 @@ if __name__ == "__main__":
 
     # Load from YAML config. Possibly add a config -> kwargs conversion function
     try:
-        with open('config.yml', 'r', encoding="utf8") as config_file:
+        with open("config.yml", "r", encoding="utf8") as config_file:
             config = unwrap(yaml.safe_load(config_file), {})
     except Exception as exc:  # pylint: disable=broad-except
         print(
@@ -447,7 +448,8 @@ if __name__ == "__main__":
 
     gen_logging.broadcast_status()
 
-    # If an initial model name is specified, create a container and load the model
+    # If an initial model name is specified, create a container
+    # and load the model
     model_config = unwrap(config.get("model"), {})
     if "model_name" in model_config:
         model_path = pathlib.Path(

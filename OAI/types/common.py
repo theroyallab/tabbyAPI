@@ -78,8 +78,8 @@ class CommonCompletionRequest(BaseModel):
     # Aliased variables
     repetition_range: Optional[int] = Field(
         default = None,
-        validation_alias = AliasChoices('repetition_range',
-                                        'repetition_penalty_range')
+        validation_alias = AliasChoices("repetition_range",
+                                        "repetition_penalty_range")
     )
 
     def to_gen_params(self):

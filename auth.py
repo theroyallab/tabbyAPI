@@ -39,7 +39,7 @@ def load_auth_keys():
     exist, generate new keys and save them to api_tokens.yml."""
     global AUTH_KEYS  # pylint: disable=global-statement
     try:
-        with open("api_tokens.yml", "r", encoding='utf8') as auth_file:
+        with open("api_tokens.yml", "r", encoding="utf8") as auth_file:
             auth_keys_dict = yaml.safe_load(auth_file)
             AUTH_KEYS = AuthKeys.model_validate(auth_keys_dict)
     except OSError:
