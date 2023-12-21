@@ -1,0 +1,111 @@
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".git",
+    ".git-rewrite",
+    ".mypy_cache",
+    ".pyenv",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+# Same as Black.
+line-length = 80
+indent-width = 4
+
+# Assume Python 3.10
+target-version = "py310"
+
+[lint]
+# Enable preview
+preview = true
+
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`)  codes by default.
+# Unlike Flake8, Ruff doesn't enable pycodestyle warnings (`W`) or
+# McCabe complexity (`C901`) by default.
+# Enable flake8-bugbear (`B`) rules, in addition to the defaults.
+select = ["E4", "E7", "E9", "F", "B"]
+extend-select = [
+    "D419",  # empty-docstring
+    "PLC2401",  # non-ascii-name
+    "E501",  # line-too-long
+    "W291",  # trailing-whitespace
+    "PLC0414",  # useless-import-alias
+    "E999",  # syntax-error
+    "PLE0101",  # return-in-init
+    "F706",  # return-outside-function
+    "F704",  # yield-outside-function
+    "PLE0116",  # continue-in-finally
+    "PLE0117",  # nonlocal-without-binding
+    "PLE0241",  # duplicate-bases
+    "PLE0302",  # unexpected-special-method-signature
+    "PLE0604",  # invalid-all-object
+    "PLE0704",  # misplaced-bare-raise
+    "PLE1205",  # logging-too-many-args
+    "PLE1206",  # logging-too-few-args
+    "PLE1307",  # bad-string-format-type
+    "PLE1310",  # bad-str-strip-call
+    "PLE1507",  # invalid-envvar-value
+    "PLR0124",  # comparison-with-itself
+    "PLR0202",  # no-classmethod-decorator
+    "PLR0203",  # no-staticmethod-decorator
+    "PLR0206",  # property-with-parameters
+    "PLR1704",  # redefined-argument-from-local
+    "PLR1711",  # useless-return
+    "C416",  # unnecessary-comprehension
+    "PLW0108",  # unnecessary-lambda
+    "PLW0127",  # self-assigning-variable
+    "PLW0129",  # assert-on-string-literal
+    "PLW0602",  # global-variable-not-assigned
+    "PLW0604",  # global-at-module-level
+    "F401",  # unused-import
+    "F841",  # unused-variable
+    "E722",  # bare-except
+    "PLW0711",  # binary-op-exception
+    "PLW1501",  # bad-open-mode
+    "PLW1508",  # invalid-envvar-default
+    "PLW1509",  # subprocess-popen-preexec-fn
+]
+ignore = [
+    "PLR6301",  # no-self-use
+    "UP004",  # useless-object-inheritance
+    "PLR0904",  # too-many-public-methods
+    "PLR0911",  # too-many-return-statements
+    "PLR0912",  # too-many-branches
+    "PLR0913",  # too-many-arguments
+    "PLR0914",  # too-many-locals
+    "PLR0915",  # too-many-statements
+    "PLR0916",  # too-many-boolean-expressions
+    "PLW0120",  # useless-else-on-loop
+    "PLW0406",  # import-self
+    "PLW0603",  # global-statement
+    "PLW1641",  # eq-without-hash
+]
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = ["B"]
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
