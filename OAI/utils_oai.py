@@ -1,3 +1,4 @@
+""" Utility functions for the OpenAI server. """
 import pathlib
 from typing import Optional
 
@@ -15,7 +16,10 @@ from OAI.types.model import ModelList, ModelCard
 
 from utils import unwrap
 
-def create_completion_response(text: str, prompt_tokens: int, completion_tokens: int, model_name: Optional[str]):
+def create_completion_response(text: str, prompt_tokens: int,
+                               completion_tokens: int,
+                               model_name: Optional[str]):
+    """ Create a completion response from the provided text. """
     choice = CompletionRespChoice(
         finish_reason = "Generated",
         text = text
@@ -31,7 +35,10 @@ def create_completion_response(text: str, prompt_tokens: int, completion_tokens:
 
     return response
 
-def create_chat_completion_response(text: str, prompt_tokens: int, completion_tokens: int, model_name: Optional[str]):
+def create_chat_completion_response(text: str, prompt_tokens: int,
+                                    completion_tokens: int,
+                                    model_name: Optional[str]):
+    """ Create a chat completion response from the provided text. """
     message = ChatCompletionMessage(
         role = "assistant",
         content = text
@@ -56,6 +63,7 @@ def create_chat_completion_stream_chunk(const_id: str,
                                         text: Optional[str] = None,
                                         model_name: Optional[str] = None,
                                         finish_reason: Optional[str] = None):
+    """ Create a chat completion stream chunk from the provided text. """
     if finish_reason:
         message = {}
     else:
@@ -78,9 +86,12 @@ def create_chat_completion_stream_chunk(const_id: str,
 
     return chunk
 
-def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = None):
+def get_model_list(model_path: pathlib.Path,
+                   draft_model_path: Optional[str] = None):
+    """ Get the list of models from the provided path. """
 
-    # Convert the provided draft model path to a pathlib path for equality comparisons
+    # Convert the provided draft model path to a pathlib path for
+    # equality comparisons
     if draft_model_path:
         draft_model_path = pathlib.Path(draft_model_path).resolve()
 
@@ -90,15 +101,16 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = N
         # Don't include the draft models path
         if path.is_dir() and path != draft_model_path:
             model_card = ModelCard(id = path.name)
-            model_card_list.data.append(model_card)
+            model_card_list.data.append(model_card)  # pylint: disable=no-member
 
     return model_card_list
 
 def get_lora_list(lora_path: pathlib.Path):
+    """ Get the list of Lora cards from the provided path. """
     lora_list = LoraList()
     for path in lora_path.iterdir():
         if path.is_dir():
             lora_card = LoraCard(id = path.name)
-            lora_list.data.append(lora_card)
+            lora_list.data.append(lora_card)  # pylint: disable=no-member
 
     return lora_list

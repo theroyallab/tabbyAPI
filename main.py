@@ -24,8 +24,8 @@ from OAI.types.model import (ModelCard, ModelLoadRequest, ModelLoadResponse,
 from OAI.types.token import (TokenEncodeRequest, TokenEncodeResponse,
                              TokenDecodeRequest, TokenDecodeResponse)
 from OAI.utils_oai import (create_completion_response, get_model_list,
-                       get_lora_list, create_chat_completion_response,
-                       create_chat_completion_stream_chunk)
+                           get_lora_list, create_chat_completion_response,
+                           create_chat_completion_stream_chunk)
 from templating import get_prompt_from_template
 from utils import get_generator_error, get_sse_packet, load_progress, unwrap
 
