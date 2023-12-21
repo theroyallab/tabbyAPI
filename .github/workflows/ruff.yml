@@ -23,7 +23,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install ruff==0.1.5
-    - name: Analysing the code with ruff
+        pip install -r requirements-dev.txt
+    - name: Format and show diff with ruff
       run: |
-        ruff *.py
+        ruff format --diff
+    - name: Lint code with ruff
+      run: |
+        ruff check
