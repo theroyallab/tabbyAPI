@@ -52,8 +52,14 @@ model:
   # An integer array of GBs of vram to split between GPUs (default: [])
   gpu_split: [20.6, 24]
 
-  # Rope scaling parameters (default: 1.0)
+  # Rope scale (default: 1.0)
+  # Same thing as compress_pos_emb
+  # Only use if your model was trained on long context with rope (check config.json)
   rope_scale: 1.0
+
+  # Rope alpha (default: 1.0)
+  # Same thing as alpha_value
+  # Leave blank to automatically calculate alpha
   rope_alpha: 1.0
 
   # Disable Flash-attention 2. Set to True for GPUs lower than Nvidia's 3000 series. (default: False)
@@ -80,8 +86,14 @@ model:
     # A draft model can be loaded later via the API.
     draft_model_name: A model name
   
-    # Rope parameters for draft models (default: 1.0)
+    # Rope scale for draft models (default: 1.0)
+    # Same thing as compress_pos_emb
+    # Only use if your draft model was trained on long context with rope (check config.json)
     draft_rope_scale: 1.0
+
+    # Rope alpha for draft model (default: 1.0)
+    # Same thing as alpha_value
+    # Leave blank to automatically calculate alpha value
     draft_rope_alpha: 1.0
   
   # Options for loras
