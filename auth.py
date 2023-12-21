@@ -2,12 +2,12 @@
 This method of authorization is pretty insecure, but since TabbyAPI is a local
 application, it should be fine.
 """
-
 import secrets
-import yaml
+from typing import Optional
+
 from fastapi import Header, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+import yaml
 
 
 class AuthKeys(BaseModel):
@@ -60,41 +60,39 @@ def load_auth_keys():
 
 def check_api_key(x_api_key: str = Header(None),
                   authorization: str = Header(None)):
+    """Check if the API key is valid."""
     if x_api_key:
-        if AUTH_KEYS.verify_key(x_api_key, "api_key"):
-            return x_api_key
-        else:
+        if not AUTH_KEYS.verify_key(x_api_key, "api_key"):
             raise HTTPException(401, "Invalid API key")
-    elif authorization:
-        split_key = authorization.split(" ")
+        return x_api_key
 
+    if authorization:
+        split_key = authorization.split(" ")
         if len(split_key) < 2:
             raise HTTPException(401, "Invalid API key")
-        elif split_key[0].lower() == "bearer" and AUTH_KEYS.verify_key(
+        if split_key[0].lower() != "bearer" or not AUTH_KEYS.verify_key(
                 split_key[1], "api_key"):
-            return authorization
-        else:
             raise HTTPException(401, "Invalid API key")
-    else:
-        raise HTTPException(401, "Please provide an API key")
+        return authorization
+
+    raise HTTPException(401, "Please provide an API key")
 
 
 def check_admin_key(x_admin_key: str = Header(None),
                     authorization: str = Header(None)):
+    """Check if the admin key is valid."""
     if x_admin_key:
-        if AUTH_KEYS.verify_key(x_admin_key, "admin_key"):
-            return x_admin_key
-        else:
+        if not AUTH_KEYS.verify_key(x_admin_key, "admin_key"):
             raise HTTPException(401, "Invalid admin key")
-    elif authorization:
-        split_key = authorization.split(" ")
+        return x_admin_key
 
+    if authorization:
+        split_key = authorization.split(" ")
         if len(split_key) < 2:
             raise HTTPException(401, "Invalid admin key")
-        elif split_key[0].lower() == "bearer" and AUTH_KEYS.verify_key(
+        if split_key[0].lower() != "bearer" or not AUTH_KEYS.verify_key(
                 split_key[1], "admin_key"):
-            return authorization
-        else:
             raise HTTPException(401, "Invalid admin key")
-    else:
-        raise HTTPException(401, "Please provide an admin key")
+        return authorization
+
+    raise HTTPException(401, "Please provide an admin key")
