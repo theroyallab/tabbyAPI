@@ -156,7 +156,6 @@ async def load_model(request: Request, data: ModelLoadRequest):
 
     async def generator():
         """Generator for the loading process."""
-        global MODEL_CONTAINER  # pylint: disable=global-statement
 
         model_type = "draft" if MODEL_CONTAINER.draft_config else "model"
         load_status = MODEL_CONTAINER.load_gen(load_progress)  # pylint: disable=redefined-outer-name
