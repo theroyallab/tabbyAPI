@@ -18,6 +18,7 @@ class AuthKeys(BaseModel):
     is used for administrative tasks. The class also provides a method
     to verify if a given key matches the stored 'api_key' or 'admin_key'.
     """
+
     api_key: str
     admin_key: str
 
@@ -43,23 +44,27 @@ def load_auth_keys():
             auth_keys_dict = yaml.safe_load(auth_file)
             AUTH_KEYS = AuthKeys.model_validate(auth_keys_dict)
     except OSError:
-        new_auth_keys = AuthKeys(api_key=secrets.token_hex(16),
-                                 admin_key=secrets.token_hex(16))
+        new_auth_keys = AuthKeys(
+            api_key=secrets.token_hex(16), admin_key=secrets.token_hex(16)
+        )
         AUTH_KEYS = new_auth_keys
 
         with open("api_tokens.yml", "w", encoding="utf8") as auth_file:
-            yaml.safe_dump(AUTH_KEYS.model_dump(),
-                           auth_file,
-                           default_flow_style=False)
+            yaml.safe_dump(
+                AUTH_KEYS.model_dump(), auth_file, default_flow_style=False
+            )
 
-    print(f"Your API key is: {AUTH_KEYS.api_key}\n"
-          f"Your admin key is: {AUTH_KEYS.admin_key}\n\n"
-          "If these keys get compromised, make sure to delete api_tokens.yml "
-          "and restart the server. Have fun!")
+    print(
+        f"Your API key is: {AUTH_KEYS.api_key}\n"
+        f"Your admin key is: {AUTH_KEYS.admin_key}\n\n"
+        "If these keys get compromised, make sure to delete api_tokens.yml "
+        "and restart the server. Have fun!"
+    )
 
 
-def check_api_key(x_api_key: str = Header(None),
-                  authorization: str = Header(None)):
+def check_api_key(
+    x_api_key: str = Header(None), authorization: str = Header(None)
+):
     """Check if the API key is valid."""
     if x_api_key:
         if not AUTH_KEYS.verify_key(x_api_key, "api_key"):
@@ -71,15 +76,17 @@ def check_api_key(x_api_key: str = Header(None),
         if len(split_key) < 2:
             raise HTTPException(401, "Invalid API key")
         if split_key[0].lower() != "bearer" or not AUTH_KEYS.verify_key(
-                split_key[1], "api_key"):
+            split_key[1], "api_key"
+        ):
             raise HTTPException(401, "Invalid API key")
         return authorization
 
     raise HTTPException(401, "Please provide an API key")
 
 
-def check_admin_key(x_admin_key: str = Header(None),
-                    authorization: str = Header(None)):
+def check_admin_key(
+    x_admin_key: str = Header(None), authorization: str = Header(None)
+):
     """Check if the admin key is valid."""
     if x_admin_key:
         if not AUTH_KEYS.verify_key(x_admin_key, "admin_key"):
@@ -91,7 +98,8 @@ def check_admin_key(x_admin_key: str = Header(None),
         if len(split_key) < 2:
             raise HTTPException(401, "Invalid admin key")
         if split_key[0].lower() != "bearer" or not AUTH_KEYS.verify_key(
-                split_key[1], "admin_key"):
+            split_key[1], "admin_key"
+        ):
             raise HTTPException(401, "Invalid admin key")
         return authorization
 

@@ -12,19 +12,22 @@ def load_progress(module, modules):
 
 class TabbyGeneratorErrorMessage(BaseModel):
     """Common error types."""
+
     message: str
     trace: Optional[str] = None
 
 
 class TabbyGeneratorError(BaseModel):
     """Common error types."""
+
     error: TabbyGeneratorErrorMessage
 
 
 def get_generator_error(message: str):
     """Get a generator error."""
-    error_message = TabbyGeneratorErrorMessage(message=message,
-                                               trace=traceback.format_exc())
+    error_message = TabbyGeneratorErrorMessage(
+        message=message, trace=traceback.format_exc()
+    )
 
     generator_error = TabbyGeneratorError(error=error_message)
 

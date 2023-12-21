@@ -3,37 +3,49 @@ from typing import List
 
 from pydantic import BaseModel
 
+
 class CommonTokenRequest(BaseModel):
-    """ Represents a common tokenization request. """
+    """Represents a common tokenization request."""
+
     add_bos_token: bool = True
     encode_special_tokens: bool = True
     decode_special_tokens: bool = True
 
     def get_params(self):
-        """ Get the parameters for tokenization. """
+        """Get the parameters for tokenization."""
         return {
             "add_bos_token": self.add_bos_token,
             "encode_special_tokens": self.encode_special_tokens,
-            "decode_special_tokens": self.decode_special_tokens
+            "decode_special_tokens": self.decode_special_tokens,
         }
 
+
 class TokenEncodeRequest(CommonTokenRequest):
-    """ Represents a tokenization request. """
+    """Represents a tokenization request."""
+
     text: str
 
+
 class TokenEncodeResponse(BaseModel):
-    """ Represents a tokenization response. """
+    """Represents a tokenization response."""
+
     tokens: List[int]
     length: int
 
+
 class TokenDecodeRequest(CommonTokenRequest):
-    """" Represents a detokenization request. """
+    """ " Represents a detokenization request."""
+
     tokens: List[int]
 
+
 class TokenDecodeResponse(BaseModel):
-    """ Represents a detokenization response. """
+    """Represents a detokenization response."""
+
     text: str
 
+
 class TokenCountResponse(BaseModel):
-    """ Represents a token count response. """
+    """Represents a token count response."""
+
     length: int

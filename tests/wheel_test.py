@@ -36,11 +36,14 @@ else:
     print("Jinja2 is not found in your environment.")
     errored_packages.append("jinja2")
 
-print(f"\nSuccessful imports: {', '.join(successful_packages)}",
-      f"\nErrored imports: {''.join(errored_packages)}")
+print(
+    f"\nSuccessful imports: {', '.join(successful_packages)}",
+    f"\nErrored imports: {''.join(errored_packages)}",
+)
 
 if len(errored_packages) > 0:
     print(
         "\nIf packages are installed, but not found on this test, please "
         "check the wheel versions for the correct python version and CUDA "
-        "version (if applicable).")
+        "version (if applicable)."
+    )

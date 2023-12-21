@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 class LogConfig(BaseModel):
     """Logging preference config."""
+
     prompt: bool = False
     generation_params: bool = False
 
