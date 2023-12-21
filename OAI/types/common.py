@@ -1,30 +1,48 @@
-from pydantic import BaseModel, Field, AliasChoices
+""" Common types for OAI. """
 from typing import List, Dict, Optional, Union
+
+from pydantic import BaseModel, Field, AliasChoices
+
 from utils import unwrap
 
 class LogProbs(BaseModel):
+    """ Represents log probabilities. """
     text_offset: List[int] = Field(default_factory=list)
     token_logprobs: List[float] = Field(default_factory=list)
     tokens: List[str] = Field(default_factory=list)
     top_logprobs: List[Dict[str, float]] = Field(default_factory=list)
 
 class UsageStats(BaseModel):
+    """ Represents usage stats. """
     prompt_tokens: int
     completion_tokens: int
     total_tokens: int
 
 class CommonCompletionRequest(BaseModel):
+    """ Represents a common completion request. """
     # Model information
     # This parameter is not used, the loaded model is used instead
     model: Optional[str] = None
 
     # Extra OAI request stuff
-    best_of: Optional[int] = Field(description = "Not parsed. Only used for OAI compliance.", default = None)
-    echo: Optional[bool] = Field(description = "Not parsed. Only used for OAI compliance.", default = False)
-    logprobs: Optional[int] = Field(description = "Not parsed. Only used for OAI compliance.", default = None)
-    n: Optional[int] = Field(description = "Not parsed. Only used for OAI compliance.", default = 1)
-    suffix: Optional[str] = Field(description = "Not parsed. Only used for OAI compliance.", default = None)
-    user: Optional[str] = Field(description = "Not parsed. Only used for OAI compliance.", default = None)
+    best_of: Optional[int] = Field(
+        description="Not parsed. Only used for OAI compliance.",
+        default=None)
+    echo: Optional[bool] = Field(
+        description="Not parsed. Only used for OAI compliance.",
+        default=False)
+    logprobs: Optional[int] = Field(
+        description="Not parsed. Only used for OAI compliance.",
+        default=None)
+    n: Optional[int] = Field(
+        description="Not parsed. Only used for OAI compliance.",
+        default=1)
+    suffix: Optional[str] = Field(
+        description="Not parsed. Only used for OAI compliance.",
+        default=None)
+    user: Optional[str] = Field(
+        description="Not parsed. Only used for OAI compliance.",
+        default=None)
 
     # Generation info
     # seed: Optional[int] = -1
@@ -35,8 +53,9 @@ class CommonCompletionRequest(BaseModel):
     max_tokens: Optional[int] = 150
 
     # Aliased to repetition_penalty
-    # TODO: Maybe make this an alias to rep pen
-    frequency_penalty: Optional[float] = Field(description = "Aliased to Repetition Penalty", default = 0.0)
+    frequency_penalty: Optional[float] = Field(
+        description = "Aliased to Repetition Penalty",
+        default = 0.0)
 
     # Sampling params
     token_healing: Optional[bool] = False
@@ -59,17 +78,20 @@ class CommonCompletionRequest(BaseModel):
     # Aliased variables
     repetition_range: Optional[int] = Field(
         default = None,
-        validation_alias = AliasChoices('repetition_range', 'repetition_penalty_range')
+        validation_alias = AliasChoices('repetition_range',
+                                        'repetition_penalty_range')
     )
 
-    # Converts to internal generation parameters
     def to_gen_params(self):
+        """ Converts to internal generation parameters. """
         # Convert stop to an array of strings
         if isinstance(self.stop, str):
             self.stop = [self.stop]
 
-        # Set repetition_penalty to frequency_penalty if repetition_penalty isn't already defined
-        if (self.repetition_penalty is None or self.repetition_penalty == 1.0) and self.frequency_penalty:
+        # Set repetition_penalty to frequency_penalty if repetition_penalty
+        # isn't already defined
+        if (self.repetition_penalty is None or
+                self.repetition_penalty == 1.0) and self.frequency_penalty:
             self.repetition_penalty = self.frequency_penalty
 
         return {
