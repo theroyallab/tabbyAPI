@@ -1,24 +1,28 @@
+"""Common utilities for the tabbyAPI"""
 import traceback
-from pydantic import BaseModel
 from typing import Optional
 
+from pydantic import BaseModel
 
-# Wrapper callback for load progress
+
 def load_progress(module, modules):
+    """Wrapper callback for load progress."""
     yield module, modules
 
 
-# Common error types
 class TabbyGeneratorErrorMessage(BaseModel):
+    """Common error types."""
     message: str
     trace: Optional[str] = None
 
 
 class TabbyGeneratorError(BaseModel):
+    """Common error types."""
     error: TabbyGeneratorErrorMessage
 
 
 def get_generator_error(message: str):
+    """Get a generator error."""
     error_message = TabbyGeneratorErrorMessage(message=message,
                                                trace=traceback.format_exc())
 
@@ -30,17 +34,18 @@ def get_generator_error(message: str):
 
 
 def get_sse_packet(json_data: str):
+    """Get an SSE packet."""
     return f"data: {json_data}\n\n"
 
 
-# Unwrap function for Optionals
 def unwrap(wrapped, default=None):
+    """Unwrap function for Optionals."""
     if wrapped is None:
         return default
-    else:
-        return wrapped
+
+    return wrapped
 
 
-# Coalesce function for multiple unwraps
 def coalesce(*args):
+    """Coalesce function for multiple unwraps."""
     return next((arg for arg in args if arg is not None), None)
