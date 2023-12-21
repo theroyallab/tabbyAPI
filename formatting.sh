@@ -7,7 +7,7 @@
 #    # Format files that differ from origin/main.
 #    bash formatting.sh
 
-#    # Commit changed files with message 'Run yapf and pylint'
+#    # Commit changed files with message 'Run yapf and ruff'
 #
 #
 # YAPF + Clang formatter (if installed). This script formats all changed files from the last mergebase.
@@ -22,7 +22,7 @@ ROOT="$(git rev-parse --show-toplevel)"
 builtin cd "$ROOT" || exit 1
 
 YAPF_VERSION=$(yapf --version | awk '{print $2}')
-PYLINT_VERSION=$(pylint --version | head -n 1 | awk '{print $2}')
+RUFF_VERSION=$(ruff --version | head -n 1 | awk '{print $2}')
 MYPY_VERSION=$(mypy --version | awk '{print $2}')
 
 # # params: tool name, tool version, required version
@@ -34,7 +34,7 @@ tool_version_check() {
 }
 
 tool_version_check "yapf" $YAPF_VERSION "$(grep yapf requirements-dev.txt | cut -d'=' -f3)"
-tool_version_check "pylint" $PYLINT_VERSION "$(grep "pylint==" requirements-dev.txt | cut -d'=' -f3)"
+tool_version_check "ruff" $RUFF_VERSION "$(grep "ruff==" requirements-dev.txt | cut -d'=' -f3)"
 tool_version_check "mypy" "$MYPY_VERSION" "$(grep mypy requirements-dev.txt | cut -d'=' -f3)"
 
 YAPF_FLAGS=(
@@ -91,7 +91,7 @@ echo 'tabbyAPI yapf: Done'
 
 # Run Pylint
 echo 'tabbyAPI Pylint:'
-find . -name "*.py" | xargs pylint
+find . -name "*.py" | xargs ruff
 
 if ! git diff --quiet &>/dev/null; then
     echo 'Reformatted files. Please review and stage the changes.'
