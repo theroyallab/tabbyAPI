@@ -44,9 +44,7 @@ def get_prompt_from_template(
 # https://github.com/huggingface/transformers/blob/main/src/transformers/tokenization_utils_base.py#L1761
 @lru_cache
 def _compile_template(template: str):
-    jinja_env = ImmutableSandboxedEnvironment(
-        trim_blocks=True, lstrip_blocks=True
-    )
+    jinja_env = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)
     jinja_template = jinja_env.from_string(template)
     return jinja_template
 

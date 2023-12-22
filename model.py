@@ -96,9 +96,7 @@ class ModelContainer:
 
         self.quiet = quiet
 
-        self.cache_fp8 = (
-            "cache_mode" in kwargs and kwargs["cache_mode"] == "FP8"
-        )
+        self.cache_fp8 = "cache_mode" in kwargs and kwargs["cache_mode"] == "FP8"
         self.gpu_split = kwargs.get("gpu_split")
         self.gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
 
@@ -133,9 +131,7 @@ class ModelContainer:
         )
 
         # Turn off flash attention?
-        self.config.no_flash_attn = unwrap(
-            kwargs.get("no_flash_attention"), False
-        )
+        self.config.no_flash_attn = unwrap(kwargs.get("no_flash_attention"), False)
 
         # low_mem is currently broken in exllamav2. Don't use it until it's
         # fixed.
@@ -175,15 +171,12 @@ class ModelContainer:
             if self.prompt_template is None:
                 template_match = find_template_from_model(model_directory)
                 if template_match:
-                    self.prompt_template = get_template_from_file(
-                        template_match
-                    )
+                    self.prompt_template = get_template_from_file(template_match)
 
         # Catch all for template lookup errors
         if self.prompt_template:
             print(
-                f"Using template {self.prompt_template.name} for chat "
-                "completions."
+                f"Using template {self.prompt_template.name} for chat " "completions."
             )
         else:
             print(
@@ -301,9 +294,7 @@ class ModelContainer:
             lora_path = lora_directory / lora_name
             # FIXME(alpin): Does self.model need to be passed here?
             self.active_loras.append(
-                ExLlamaV2Lora.from_directory(
-                    self.model, lora_path, lora_scaling
-                )
+                ExLlamaV2Lora.from_directory(self.model, lora_path, lora_scaling)
             )
             print("Lora successfully loaded.")
             success.append(lora_name)
@@ -340,12 +331,8 @@ class ModelContainer:
             )
 
             # Test VRAM allocation with a full-length forward pass
-            input_ids = torch.zeros(
-                (1, self.config.max_input_len), dtype=torch.long
-            )
-            self.draft_model.forward(
-                input_ids, cache=self.cache, preprocess_only=True
-            )
+            input_ids = torch.zeros((1, self.config.max_input_len), dtype=torch.long)
+            self.draft_model.forward(input_ids, cache=self.cache, preprocess_only=True)
 
         # Load model
         self.model = ExLlamaV2(self.config)
@@ -360,9 +347,7 @@ class ModelContainer:
                     yield value
 
         if self.cache_fp8:
-            self.cache = ExLlamaV2Cache_8bit(
-                self.model, lazy=self.gpu_split_auto
-            )
+            self.cache = ExLlamaV2Cache_8bit(self.model, lazy=self.gpu_split_auto)
         else:
             self.cache = ExLlamaV2Cache(self.model, lazy=self.gpu_split_auto)
 
@@ -376,9 +361,7 @@ class ModelContainer:
             )
 
         # Test VRAM allocation with a full-length forward pass
-        input_ids = torch.zeros(
-            (1, self.config.max_input_len), dtype=torch.long
-        )
+        input_ids = torch.zeros((1, self.config.max_input_len), dtype=torch.long)
         self.model.forward(input_ids, cache=self.cache, preprocess_only=True)
 
         # Create generator
@@ -420,27 +403,21 @@ class ModelContainer:
         gc.collect()
         torch.cuda.empty_cache()
 
-    def get_tokens(
-        self, text: Optional[str], ids: Optional[List[int]], **kwargs
-    ):
+    def get_tokens(self, text: Optional[str], ids: Optional[List[int]], **kwargs):
         """Common function for token operations"""
         if text:
             # Assume token encoding
             return self.tokenizer.encode(
                 text,
                 add_bos=unwrap(kwargs.get("add_bos_token"), True),
-                encode_special_tokens=unwrap(
-                    kwargs.get("encode_special_tokens"), True
-                ),
+                encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
             )
         if ids:
             # Assume token decoding
             ids = torch.tensor([ids])
             return self.tokenizer.decode(
                 ids,
-                decode_special_tokens=unwrap(
-                    kwargs.get("decode_special_tokens"), True
-                ),
+                decode_special_tokens=unwrap(kwargs.get("decode_special_tokens"), True),
             )[0]
 
         return None
@@ -508,9 +485,7 @@ class ModelContainer:
         token_healing = unwrap(kwargs.get("token_healing"), False)
         max_tokens = unwrap(kwargs.get("max_tokens"), 150)
         stream_interval = unwrap(kwargs.get("stream_interval"), 0)
-        generate_window = min(
-            unwrap(kwargs.get("generate_window"), 512), max_tokens
-        )
+        generate_window = min(unwrap(kwargs.get("generate_window"), 512), max_tokens)
 
         # Sampler settings
         gen_settings = ExLlamaV2Sampler.Settings()
@@ -550,9 +525,7 @@ class ModelContainer:
 
         # Apply settings
         gen_settings.temperature = unwrap(kwargs.get("temperature"), 1.0)
-        gen_settings.temperature_last = unwrap(
-            kwargs.get("temperature_last"), False
-        )
+        gen_settings.temperature_last = unwrap(kwargs.get("temperature_last"), False)
         gen_settings.top_k = unwrap(kwargs.get("top_k"), 0)
         gen_settings.top_p = unwrap(kwargs.get("top_p"), 1.0)
         gen_settings.min_p = unwrap(kwargs.get("min_p"), 0.0)
@@ -627,9 +600,7 @@ class ModelContainer:
         # as well.
         # Set this below logging to avoid polluting the stop strings array
         if ban_eos_token:
-            gen_settings.disallow_tokens(
-                self.tokenizer, [self.tokenizer.eos_token_id]
-            )
+            gen_settings.disallow_tokens(self.tokenizer, [self.tokenizer.eos_token_id])
         else:
             stop_conditions.append(self.tokenizer.eos_token_id)
 
@@ -666,9 +637,7 @@ class ModelContainer:
             if chunk_tokens == 0:
                 ids = torch.cat((ids, save_tokens), dim=-1)
                 save_tokens = torch.empty((1, 0), dtype=torch.bool)
-                overflow = (
-                    ids.shape[-1] + generate_window - self.config.max_seq_len
-                )
+                overflow = ids.shape[-1] + generate_window - self.config.max_seq_len
                 active_ids = ids[:, max(0, overflow) :]
                 chunk_tokens = self.config.max_seq_len - active_ids.shape[-1]
 
@@ -698,9 +667,7 @@ class ModelContainer:
             elapsed = now - last_chunk_time
 
             if chunk_buffer != "" and (
-                elapsed > stream_interval
-                or eos
-                or generated_tokens == max_tokens
+                elapsed > stream_interval or eos or generated_tokens == max_tokens
             ):
                 yield chunk_buffer, prompt_tokens, generated_tokens
                 full_response += chunk_buffer

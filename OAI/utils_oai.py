@@ -48,9 +48,7 @@ def create_chat_completion_response(
     """Create a chat completion response from the provided text."""
     message = ChatCompletionMessage(role="assistant", content=text)
 
-    choice = ChatCompletionRespChoice(
-        finish_reason="Generated", message=message
-    )
+    choice = ChatCompletionRespChoice(finish_reason="Generated", message=message)
 
     response = ChatCompletionResponse(
         choices=[choice],
@@ -78,9 +76,7 @@ def create_chat_completion_stream_chunk(
         message = ChatCompletionMessage(role="assistant", content=text)
 
     # The finish reason can be None
-    choice = ChatCompletionStreamChoice(
-        finish_reason=finish_reason, delta=message
-    )
+    choice = ChatCompletionStreamChoice(finish_reason=finish_reason, delta=message)
 
     chunk = ChatCompletionStreamChunk(
         id=const_id, choices=[choice], model=unwrap(model_name, "")
@@ -89,9 +85,7 @@ def create_chat_completion_stream_chunk(
     return chunk
 
 
-def get_model_list(
-    model_path: pathlib.Path, draft_model_path: Optional[str] = None
-):
+def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = None):
     """Get the list of models from the provided path."""
 
     # Convert the provided draft model path to a pathlib path for

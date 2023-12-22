@@ -64,9 +64,7 @@ def load_auth_keys(disable_from_config: bool):
         AUTH_KEYS = new_auth_keys
 
         with open("api_tokens.yml", "w", encoding="utf8") as auth_file:
-            yaml.safe_dump(
-                AUTH_KEYS.model_dump(), auth_file, default_flow_style=False
-            )
+            yaml.safe_dump(AUTH_KEYS.model_dump(), auth_file, default_flow_style=False)
 
     print(
         f"Your API key is: {AUTH_KEYS.api_key}\n"
@@ -76,9 +74,7 @@ def load_auth_keys(disable_from_config: bool):
     )
 
 
-def check_api_key(
-    x_api_key: str = Header(None), authorization: str = Header(None)
-):
+def check_api_key(x_api_key: str = Header(None), authorization: str = Header(None)):
     """Check if the API key is valid."""
 
     # Allow request if auth is disabled
@@ -104,9 +100,7 @@ def check_api_key(
     raise HTTPException(401, "Please provide an API key")
 
 
-def check_admin_key(
-    x_admin_key: str = Header(None), authorization: str = Header(None)
-):
+def check_admin_key(x_admin_key: str = Header(None), authorization: str = Header(None)):
     """Check if the admin key is valid."""
 
     # Allow request if auth is disabled

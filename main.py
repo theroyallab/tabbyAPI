@@ -141,9 +141,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
     global MODEL_CONTAINER
 
     if MODEL_CONTAINER and MODEL_CONTAINER.model:
-        raise HTTPException(
-            400, "A model is already loaded! Please unload it first."
-        )
+        raise HTTPException(400, "A model is already loaded! Please unload it first.")
 
     if not data.name:
         raise HTTPException(400, "model_name not found.")
@@ -182,9 +180,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
                     break
 
                 if module == 0:
-                    loading_bar: IncrementalBar = IncrementalBar(
-                        "Modules", max=modules
-                    )
+                    loading_bar: IncrementalBar = IncrementalBar("Modules", max=modules)
                 elif module == modules:
                     loading_bar.next()
                     loading_bar.finish()
@@ -319,9 +315,7 @@ async def unload_loras():
 )
 async def encode_tokens(data: TokenEncodeRequest):
     """Encodes a string into tokens."""
-    raw_tokens = MODEL_CONTAINER.get_tokens(
-        data.text, None, **data.get_params()
-    )
+    raw_tokens = MODEL_CONTAINER.get_tokens(data.text, None, **data.get_params())
 
     # Have to use this if check otherwise Torch's tensors error out
     # with a boolean issue
@@ -398,9 +392,7 @@ async def generate_completion(request: Request, data: CompletionRequest):
     "/v1/chat/completions",
     dependencies=[Depends(check_api_key), Depends(_check_model_container)],
 )
-async def generate_chat_completion(
-    request: Request, data: ChatCompletionRequest
-):
+async def generate_chat_completion(request: Request, data: ChatCompletionRequest):
     """Generates a chat completion from a prompt."""
     if MODEL_CONTAINER.prompt_template is None:
         return HTTPException(
@@ -506,20 +498,14 @@ if __name__ == "__main__":
     # and load the model
     model_config = unwrap(config.get("model"), {})
     if "model_name" in model_config:
-        model_path = pathlib.Path(
-            unwrap(model_config.get("model_dir"), "models")
-        )
+        model_path = pathlib.Path(unwrap(model_config.get("model_dir"), "models"))
         model_path = model_path / model_config.get("model_name")
 
-        MODEL_CONTAINER = ModelContainer(
-            model_path.resolve(), False, **model_config
-        )
+        MODEL_CONTAINER = ModelContainer(model_path.resolve(), False, **model_config)
         load_status = MODEL_CONTAINER.load_gen(load_progress)
         for module, modules in load_status:
             if module == 0:
-                loading_bar: IncrementalBar = IncrementalBar(
-                    "Modules", max=modules
-                )
+                loading_bar: IncrementalBar = IncrementalBar("Modules", max=modules)
             elif module == modules:
                 loading_bar.next()
                 loading_bar.finish()
