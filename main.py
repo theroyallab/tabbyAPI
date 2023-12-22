@@ -101,7 +101,7 @@ async def get_current_model():
 
     return model_card
 
-@app.get("/v1/model/draft/list")
+@app.get("/v1/model/draft/list", dependencies=[Depends(check_api_key)])
 async def list_draft_models():
     model_config = unwrap(config.get("model"), {})
     draft_config = unwrap(model_config.get("draft"), {})
