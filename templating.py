@@ -61,7 +61,7 @@ def get_template_from_file(prompt_template_name: str):
 # Get a template from a JSON file
 # Requires a key and template name
 def get_template_from_model_json(json_path: pathlib.Path, key: str, name: str):
-    if json_path.exists:
+    if json_path.exists():
         with open(json_path, "r", encoding = "utf8") as config_file:
             model_config = json.load(config_file)
             chat_template = model_config.get(key)
