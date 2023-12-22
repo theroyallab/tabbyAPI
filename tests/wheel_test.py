@@ -1,3 +1,4 @@
+""" Test if the wheels are installed correctly. """
 from importlib.metadata import version
 from importlib.util import find_spec
 
@@ -34,8 +35,12 @@ else:
 
 print(
     f"\nSuccessful imports: {', '.join(successful_packages)}",
-    f"\nErrored imports: {''.join(errored_packages)}"
+    f"\nErrored imports: {''.join(errored_packages)}",
 )
 
 if len(errored_packages) > 0:
-    print("\nIf packages are installed, but not found on this test, please check the wheel versions for the correct python version and CUDA version (if applicable).")
+    print(
+        "\nIf packages are installed, but not found on this test, please "
+        "check the wheel versions for the correct python version and CUDA "
+        "version (if applicable)."
+    )

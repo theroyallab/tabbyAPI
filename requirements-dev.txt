@@ -1,0 +1,15 @@
+# formatting
+ruff==0.1.9
+
+## Implement below dependencies when support is added
+
+# type checking
+# mypy==0.991
+# types-PyYAML
+# types-requests
+# types-setuptools
+
+# testing
+# pytest
+# pytest-forked
+# pytest-asyncio
