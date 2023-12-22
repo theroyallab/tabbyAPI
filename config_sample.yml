@@ -13,6 +13,11 @@ network:
   # The port to host on (default: 5000)
   port: 5000
 
+  # Disable HTTP token authenticaion with requests
+  # WARNING: This will make your instance vulnerable!
+  # Turn on this option if you are ONLY connecting from localhost
+  disable_auth: False
+
 # Options for logging
 logging:
   # Enable prompt logging (default: False)
@@ -25,7 +30,7 @@ logging:
 model:
   # Overrides the directory to look for models (default: models)
   # Windows users, DO NOT put this path in quotes! This directory will be invalid otherwise.
-  model_dir: your model directory path
+  model_dir: models
 
   # An initial model to load. Make sure the model is located in the model directory!
   # A model can be loaded later via the API.
@@ -80,7 +85,7 @@ model:
   # Options for draft models (speculative decoding). This will use more VRAM!
   draft:
     # Overrides the directory to look for draft (default: models)
-    draft_model_dir: Your draft model directory path
+    draft_model_dir: models
 
     # An initial draft model to load. Make sure this model is located in the model directory!
     # A draft model can be loaded later via the API.
@@ -99,7 +104,7 @@ model:
   # Options for loras
   lora:
     # Overrides the directory to look for loras (default: loras)
-    lora_dir: Your lora directory path
+    lora_dir: loras
     
     # List of loras to load and associated scaling factors (default: 1.0). Comment out unused entries or add more rows as needed.
     loras:

@@ -28,17 +28,31 @@ class AuthKeys(BaseModel):
             return test_key == self.admin_key
         if key_type == "api_key":
             # Admin keys are valid for all API calls
-            return test_key in (self.api_key, self.admin_key)
+            return test_key == self.api_key or test_key == self.admin_key
         return False
 
 
 AUTH_KEYS: Optional[AuthKeys] = None
+DISABLE_AUTH: bool = False
 
 
-def load_auth_keys():
+def load_auth_keys(disable_from_config: bool):
     """Load the authentication keys from api_tokens.yml. If the file does not
     exist, generate new keys and save them to api_tokens.yml."""
     global AUTH_KEYS
+    global DISABLE_AUTH
+
+    DISABLE_AUTH = disable_from_config
+    if disable_from_config:
+        print(
+            "!! Warning: Disabling authentication",
+            "makes your instance vulnerable.",
+            "Set the 'disable_auth' flag to False in config.yml",
+            "if you want to share this instance with others.",
+        )
+
+        return
+
     try:
         with open("api_tokens.yml", "r", encoding="utf8") as auth_file:
             auth_keys_dict = yaml.safe_load(auth_file)
@@ -66,6 +80,11 @@ def check_api_key(
     x_api_key: str = Header(None), authorization: str = Header(None)
 ):
     """Check if the API key is valid."""
+
+    # Allow request if auth is disabled
+    if DISABLE_AUTH:
+        return
+
     if x_api_key:
         if not AUTH_KEYS.verify_key(x_api_key, "api_key"):
             raise HTTPException(401, "Invalid API key")
@@ -79,6 +98,7 @@ def check_api_key(
             split_key[1], "api_key"
         ):
             raise HTTPException(401, "Invalid API key")
+
         return authorization
 
     raise HTTPException(401, "Please provide an API key")
@@ -88,6 +108,11 @@ def check_admin_key(
     x_admin_key: str = Header(None), authorization: str = Header(None)
 ):
     """Check if the admin key is valid."""
+
+    # Allow request if auth is disabled
+    if DISABLE_AUTH:
+        return
+
     if x_admin_key:
         if not AUTH_KEYS.verify_key(x_admin_key, "admin_key"):
             raise HTTPException(401, "Invalid admin key")

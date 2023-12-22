@@ -121,7 +121,7 @@ async def get_current_model():
     return model_card
 
 
-@app.get("/v1/model/draft/list")
+@app.get("/v1/model/draft/list", dependencies=[Depends(check_api_key)])
 async def list_draft_models():
     """Lists all draft models in the model directory."""
     model_config = unwrap(config.get("model"), {})
@@ -414,10 +414,15 @@ async def generate_chat_completion(
         prompt = data.messages
     else:
         try:
+            special_tokens_dict = MODEL_CONTAINER.get_special_tokens(
+                unwrap(data.add_bos_token, True),
+                unwrap(data.ban_eos_token, False),
+            )
             prompt = get_prompt_from_template(
                 data.messages,
                 MODEL_CONTAINER.prompt_template,
                 data.add_generation_prompt,
+                special_tokens_dict,
             )
         except KeyError:
             return HTTPException(
@@ -473,9 +478,6 @@ async def generate_chat_completion(
 
 
 if __name__ == "__main__":
-    # Initialize auth keys
-    load_auth_keys()
-
     # Load from YAML config. Possibly add a config -> kwargs conversion function
     try:
         with open("config.yml", "r", encoding="utf8") as config_file:
@@ -487,6 +489,11 @@ if __name__ == "__main__":
             "\n\nTabbyAPI will start anyway and not parse this config file.",
         )
         config = {}
+
+    network_config = unwrap(config.get("network"), {})
+
+    # Initialize auth keys
+    load_auth_keys(unwrap(network_config.get("disable_auth"), False))
 
     # Override the generation log options if given
     log_config = unwrap(config.get("logging"), {})
@@ -525,7 +532,6 @@ if __name__ == "__main__":
         lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
         MODEL_CONTAINER.load_loras(lora_dir.resolve(), **lora_config)
 
-    network_config = unwrap(config.get("network"), {})
     uvicorn.run(
         app,
         host=network_config.get("host", "127.0.0.1"),

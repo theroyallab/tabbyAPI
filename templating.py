@@ -7,6 +7,7 @@ from importlib.metadata import version as package_version
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from packaging import version
 from pydantic import BaseModel
+from typing import Optional, Dict
 
 
 class PromptTemplate(BaseModel):
@@ -17,7 +18,10 @@ class PromptTemplate(BaseModel):
 
 
 def get_prompt_from_template(
-    messages, prompt_template: PromptTemplate, add_generation_prompt: bool
+    messages,
+    prompt_template: PromptTemplate,
+    add_generation_prompt: bool,
+    special_tokens: Optional[Dict[str, str]] = None,
 ):
     """Get a prompt from a template and a list of messages."""
     if version.parse(package_version("jinja2")) < version.parse("3.0.0"):
@@ -30,7 +34,9 @@ def get_prompt_from_template(
 
     compiled_template = _compile_template(prompt_template.template)
     return compiled_template.render(
-        messages=messages, add_generation_prompt=add_generation_prompt
+        messages=messages,
+        add_generation_prompt=add_generation_prompt,
+        **special_tokens,
     )
 
 
@@ -61,24 +67,25 @@ def find_template_from_model(model_path: pathlib.Path):
 
 def get_template_from_file(prompt_template_name: str):
     """Get a template from a jinja file."""
-    with open(
-        pathlib.Path(f"templates/{prompt_template_name}.jinja"),
-        "r",
-        encoding="utf8",
-    ) as raw_template:
-        return PromptTemplate(
-            name=prompt_template_name, template=raw_template.read()
-        )
-
-
-def get_template_from_config(model_config_path: pathlib.Path):
-    """Get a template from model config."""
-    with open(model_config_path, "r", encoding="utf8") as model_config_file:
-        model_config = json.load(model_config_file)
-        chat_template = model_config.get("chat_template")
-        if chat_template:
+    template_path = pathlib.Path(f"templates/{prompt_template_name}.jinja")
+    if template_path.exists():
+        with open(template_path, "r", encoding="utf8") as raw_template:
             return PromptTemplate(
-                name="from_model_config", template=chat_template
+                name=prompt_template_name, template=raw_template.read()
             )
+
+    return None
+
+
+# Get a template from a JSON file
+# Requires a key and template name
+def get_template_from_model_json(json_path: pathlib.Path, key: str, name: str):
+    """Get a template from a JSON file. Requires a key and template name"""
+    if json_path.exists():
+        with open(json_path, "r", encoding="utf8") as config_file:
+            model_config = json.load(config_file)
+            chat_template = model_config.get(key)
+            if chat_template:
+                return PromptTemplate(name=name, template=chat_template)
 
     return None
