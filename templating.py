@@ -3,7 +3,7 @@ import json
 import pathlib
 from functools import lru_cache
 from importlib.metadata import version as package_version
-
+from jinja2 import TemplateError
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from packaging import version
 from pydantic import BaseModel
@@ -44,7 +44,15 @@ def get_prompt_from_template(
 # https://github.com/huggingface/transformers/blob/main/src/transformers/tokenization_utils_base.py#L1761
 @lru_cache
 def _compile_template(template: str):
+    """Compiles a Jinja2 template"""
+
+    # Exception handler
+    def raise_exception(message):
+        raise TemplateError(message)
+
     jinja_env = ImmutableSandboxedEnvironment(trim_blocks=True, lstrip_blocks=True)
+    jinja_env.globals["raise_exception"] = raise_exception
+
     jinja_template = jinja_env.from_string(template)
     return jinja_template
 

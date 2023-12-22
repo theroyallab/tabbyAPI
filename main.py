@@ -3,6 +3,7 @@ import pathlib
 from asyncio import CancelledError
 from typing import Optional
 from uuid import uuid4
+from jinja2 import TemplateError
 
 import uvicorn
 import yaml
@@ -395,7 +396,7 @@ async def generate_completion(request: Request, data: CompletionRequest):
 async def generate_chat_completion(request: Request, data: ChatCompletionRequest):
     """Generates a chat completion from a prompt."""
     if MODEL_CONTAINER.prompt_template is None:
-        return HTTPException(
+        raise HTTPException(
             422,
             "This endpoint is disabled because a prompt template is not set.",
         )
@@ -416,13 +417,18 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
                 data.add_generation_prompt,
                 special_tokens_dict,
             )
-        except KeyError:
-            return HTTPException(
+        except KeyError as exc:
+            raise HTTPException(
                 400,
                 "Could not find a Conversation from prompt template "
                 f"'{MODEL_CONTAINER.prompt_template.name}'. "
                 "Check your spelling?",
-            )
+            ) from exc
+        except TemplateError as exc:
+            raise HTTPException(
+                400,
+                f"TemplateError: {str(exc)}",
+            ) from exc
 
     if data.stream:
         const_id = f"chatcmpl-{uuid4().hex}"
