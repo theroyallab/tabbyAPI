@@ -324,10 +324,15 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
         prompt = data.messages
     else:
         try:
+            special_tokens_dict = model_container.get_special_tokens(
+                unwrap(data.add_bos_token, True),
+                unwrap(data.ban_eos_token, False)
+            )
             prompt = get_prompt_from_template(
                 data.messages,
                 model_container.prompt_template,
-                data.add_generation_prompt
+                data.add_generation_prompt,
+                special_tokens_dict,
             )
         except KeyError:
             return HTTPException(

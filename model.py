@@ -341,6 +341,14 @@ class ModelContainer:
             ids = torch.tensor([ids])
             return self.tokenizer.decode(ids, decode_special_tokens = unwrap(kwargs.get("decode_special_tokens"), True))[0]
 
+    def get_special_tokens(self, add_bos_token: bool, ban_eos_token: bool):
+        return {
+            "bos_token": self.tokenizer.bos_token if add_bos_token else "",
+            "eos_token": self.tokenizer.eos_token if not ban_eos_token else "",
+            "pad_token": self.tokenizer.pad_token,
+            "unk_token": self.tokenizer.unk_token,
+        }
+
     def generate(self, prompt: str, **kwargs):
         generation = list(self.generate_gen(prompt, **kwargs))
         if generation:

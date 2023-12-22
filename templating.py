@@ -5,6 +5,7 @@ from importlib.metadata import version as package_version
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from packaging import version
 from pydantic import BaseModel
+from typing import Optional, Dict
 
 # Small replication of AutoTokenizer's chat template system for efficiency
 
@@ -12,7 +13,10 @@ class PromptTemplate(BaseModel):
     name: str
     template: str
 
-def get_prompt_from_template(messages, prompt_template: PromptTemplate, add_generation_prompt: bool):
+def get_prompt_from_template(messages, 
+                             prompt_template: PromptTemplate, 
+                             add_generation_prompt: bool,
+                             special_tokens: Optional[Dict[str, str]] = None):
     if version.parse(package_version("jinja2")) < version.parse("3.0.0"):
         raise ImportError(
             "Parsing these chat completion messages requires jinja2 3.0.0 or greater. "
@@ -24,7 +28,8 @@ def get_prompt_from_template(messages, prompt_template: PromptTemplate, add_gene
     compiled_template = _compile_template(prompt_template.template)
     return compiled_template.render(
         messages = messages,
-        add_generation_prompt = add_generation_prompt
+        add_generation_prompt = add_generation_prompt,
+        **special_tokens,
     )
 
 # Inspired from https://github.com/huggingface/transformers/blob/main/src/transformers/tokenization_utils_base.py#L1761
