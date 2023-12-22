@@ -54,7 +54,7 @@ def get_template_from_file(prompt_template_name: str):
         )
 
 # Get a template from model config
-def get_template_from_config(model_config_path: pathlib.Path):
+def get_template_from_model_config(model_config_path: pathlib.Path):
     with open(model_config_path, "r", encoding = "utf8") as model_config_file:
         model_config = json.load(model_config_file)
         chat_template = model_config.get("chat_template")
@@ -65,3 +65,18 @@ def get_template_from_config(model_config_path: pathlib.Path):
             )
         else:
             return None
+
+# Get a template from tokenizer config
+def get_template_from_tokenizer_config(model_dir_path: pathlib.Path):
+    tokenizer_config_path=model_dir_path / "tokenizer_config.json"
+    if tokenizer_config_path.exists():
+        with open(tokenizer_config_path, "r", encoding = "utf8") as tokenizer_config_file:
+            tokenizer_config = json.load(tokenizer_config_file)
+            chat_template = tokenizer_config.get("chat_template")
+            if chat_template:
+                return PromptTemplate(
+                    name = "from_tokenizer_config",
+                    template = chat_template
+                )
+
+    return None

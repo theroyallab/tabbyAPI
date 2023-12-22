@@ -17,7 +17,7 @@ from exllamav2.generator import(
 
 from gen_logging import log_generation_params, log_prompt, log_response
 from typing import List, Optional, Union
-from templating import PromptTemplate, find_template_from_model, get_template_from_config, get_template_from_file
+from templating import PromptTemplate, find_template_from_model, get_template_from_model_config, get_template_from_tokenizer_config, get_template_from_file
 from utils import coalesce, unwrap
 
 # Bytes to reserve on first device when loading with auto split
@@ -124,9 +124,13 @@ class ModelContainer:
                 self.prompt_template = get_template_from_file(prompt_template_name)
             else:
                 # Try finding the chat template from the model's config.json
-                self.prompt_template = get_template_from_config(
+                self.prompt_template = get_template_from_model_config(
                     pathlib.Path(self.config.model_config)
                 )
+                if self.prompt_template == None:
+                    self.prompt_template = get_template_from_tokenizer_config(
+                        model_directory
+                    )
 
                 # If that fails, attempt fetching from model name
                 if self.prompt_template is None:
