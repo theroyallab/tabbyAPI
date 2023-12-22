@@ -38,7 +38,7 @@ AUTH_KEYS: Optional[AuthKeys] = None
 def load_auth_keys():
     """Load the authentication keys from api_tokens.yml. If the file does not
     exist, generate new keys and save them to api_tokens.yml."""
-    global AUTH_KEYS  # pylint: disable=global-statement
+    global AUTH_KEYS
     try:
         with open("api_tokens.yml", "r", encoding="utf8") as auth_file:
             auth_keys_dict = yaml.safe_load(auth_file)

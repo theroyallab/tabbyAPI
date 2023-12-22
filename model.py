@@ -31,7 +31,6 @@ AUTO_SPLIT_RESERVE_BYTES = 96 * 1024**2
 class ModelContainer:
     """The model container class for ExLlamaV2 models."""
 
-    # pylint: disable=too-many-instance-attributes
     config: Optional[ExLlamaV2Config] = None
     draft_config: Optional[ExLlamaV2Config] = None
     model: Optional[ExLlamaV2] = None
@@ -48,7 +47,6 @@ class ModelContainer:
 
     active_loras: List[ExLlamaV2Lora] = []
 
-    # pylint: disable=too-many-branches,too-many-statements
     def __init__(self, model_directory: pathlib.Path, quiet=False, **kwargs):
         """
         Create model container
@@ -242,8 +240,6 @@ class ModelContainer:
                 self.draft_config.max_input_len = kwargs["chunk_size"]
                 self.draft_config.max_attn_size = kwargs["chunk_size"] ** 2
 
-    # pylint: enable=too-many-branches,too-many-statements
-
     def calculate_rope_alpha(self, base_seq_len):
         """Calculate the rope alpha value for a given sequence length."""
         ratio = self.config.max_seq_len / base_seq_len
@@ -298,9 +294,7 @@ class ModelContainer:
 
             print(f"Loading lora: {lora_name} at scaling {lora_scaling}")
             lora_path = lora_directory / lora_name
-            # pylint: disable=fixme
             # FIXME(alpin): Does self.model need to be passed here?
-            # pylint: disable=too-many-function-args
             self.active_loras.append(
                 ExLlamaV2Lora.from_directory(
                     self.model, lora_path, lora_scaling

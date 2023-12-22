@@ -18,7 +18,7 @@ CONFIG = LogConfig()
 
 def update_from_dict(options_dict: Dict[str, bool]):
     """Wrapper to set the logging config for generations"""
-    global CONFIG  # pylint: disable=global-statement
+    global CONFIG
 
     # Force bools on the dict
     for value in options_dict.values():

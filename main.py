@@ -67,16 +67,15 @@ app.add_middleware(
 @app.get("/v1/model/list", dependencies=[Depends(check_api_key)])
 async def list_models():
     """Lists all models in the model directory."""
-    model_config = unwrap(config.get("model"), {})  # pylint: disable=redefined-outer-name
+    model_config = unwrap(config.get("model"), {})
     model_dir = unwrap(model_config.get("model_dir"), "models")
-    model_path = pathlib.Path(model_dir)  # pylint: disable=redefined-outer-name
+    model_path = pathlib.Path(model_dir)
 
     draft_config = unwrap(model_config.get("draft"), {})
     draft_model_dir = draft_config.get("draft_model_dir")
 
     models = get_model_list(model_path.resolve(), draft_model_dir)
     if unwrap(model_config.get("use_dummy_models"), False):
-        # pylint: disable=no-member
         models.data.insert(0, ModelCard(id="gpt-3.5-turbo"))
 
     return models
@@ -124,7 +123,7 @@ async def get_current_model():
 @app.get("/v1/model/draft/list")
 async def list_draft_models():
     """Lists all draft models in the model directory."""
-    model_config = unwrap(config.get("model"), {})  # pylint: disable=redefined-outer-name
+    model_config = unwrap(config.get("model"), {})
     draft_config = unwrap(model_config.get("draft"), {})
     draft_model_dir = unwrap(draft_config.get("draft_model_dir"), "models")
     draft_model_path = pathlib.Path(draft_model_dir)
@@ -139,7 +138,7 @@ async def list_draft_models():
 @app.post("/v1/model/load", dependencies=[Depends(check_admin_key)])
 async def load_model(request: Request, data: ModelLoadRequest):
     """Loads a model into the model container."""
-    global MODEL_CONTAINER  # pylint: disable=global-statement
+    global MODEL_CONTAINER
 
     if MODEL_CONTAINER and MODEL_CONTAINER.model:
         raise HTTPException(
@@ -149,8 +148,8 @@ async def load_model(request: Request, data: ModelLoadRequest):
     if not data.name:
         raise HTTPException(400, "model_name not found.")
 
-    model_config = unwrap(config.get("model"), {})  # pylint: disable=redefined-outer-name
-    model_path = pathlib.Path(unwrap(model_config.get("model_dir"), "models"))  # pylint: disable=redefined-outer-name
+    model_config = unwrap(config.get("model"), {})
+    model_path = pathlib.Path(unwrap(model_config.get("model_dir"), "models"))
     model_path = model_path / data.name
 
     load_data = data.model_dump()
@@ -175,15 +174,15 @@ async def load_model(request: Request, data: ModelLoadRequest):
         """Generator for the loading process."""
 
         model_type = "draft" if MODEL_CONTAINER.draft_config else "model"
-        load_status = MODEL_CONTAINER.load_gen(load_progress)  # pylint: disable=redefined-outer-name
+        load_status = MODEL_CONTAINER.load_gen(load_progress)
 
         try:
-            for module, modules in load_status:  # pylint: disable=redefined-outer-name
+            for module, modules in load_status:
                 if await request.is_disconnected():
                     break
 
                 if module == 0:
-                    loading_bar: IncrementalBar = IncrementalBar(  # pylint: disable=redefined-outer-name
+                    loading_bar: IncrementalBar = IncrementalBar(
                         "Modules", max=modules
                     )
                 elif module == modules:
@@ -218,7 +217,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
                 "\nError: Model load cancelled by user. "
                 "Please make sure to run unload to free up resources."
             )
-        except Exception as exc:  # pylint: disable=broad-except
+        except Exception as exc:
             yield get_generator_error(str(exc))
 
     return StreamingResponse(generator(), media_type="text/event-stream")
@@ -231,7 +230,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
 )
 async def unload_model():
     """Unloads the currently loaded model."""
-    global MODEL_CONTAINER  # pylint: disable=global-statement
+    global MODEL_CONTAINER
 
     MODEL_CONTAINER.unload()
     MODEL_CONTAINER = None
@@ -242,8 +241,8 @@ async def unload_model():
 @app.get("/v1/lora/list", dependencies=[Depends(check_api_key)])
 async def get_all_loras():
     """Lists all LoRAs in the lora directory."""
-    model_config = unwrap(config.get("model"), {})  # pylint: disable=redefined-outer-name
-    lora_config = unwrap(model_config.get("lora"), {})  # pylint: disable=redefined-outer-name
+    model_config = unwrap(config.get("model"), {})
+    lora_config = unwrap(model_config.get("lora"), {})
     lora_path = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
 
     loras = get_lora_list(lora_path.resolve())
@@ -283,9 +282,9 @@ async def load_lora(data: LoraLoadRequest):
     if not data.loras:
         raise HTTPException(400, "List of loras to load is not found.")
 
-    model_config = unwrap(config.get("model"), {})  # pylint: disable=redefined-outer-name
-    lora_config = unwrap(model_config.get("lora"), {})  # pylint: disable=redefined-outer-name
-    lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))  # pylint: disable=redefined-outer-name
+    model_config = unwrap(config.get("model"), {})
+    lora_config = unwrap(model_config.get("lora"), {})
+    lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
     if not lora_dir.exists():
         raise HTTPException(
             400,
@@ -352,7 +351,7 @@ async def decode_tokens(data: TokenDecodeRequest):
 )
 async def generate_completion(request: Request, data: CompletionRequest):
     """Generates a completion from a prompt."""
-    model_path = MODEL_CONTAINER.get_model_path()  # pylint: disable=redefined-outer-name
+    model_path = MODEL_CONTAINER.get_model_path()
 
     if isinstance(data.prompt, list):
         data.prompt = "\n".join(data.prompt)
@@ -376,7 +375,7 @@ async def generate_completion(request: Request, data: CompletionRequest):
                     yield get_sse_packet(response.model_dump_json())
             except CancelledError:
                 print("Error: Completion request cancelled by user.")
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 yield get_generator_error(str(exc))
 
         return StreamingResponse(
@@ -408,7 +407,7 @@ async def generate_chat_completion(
             "This endpoint is disabled because a prompt template is not set.",
         )
 
-    model_path = MODEL_CONTAINER.get_model_path()  # pylint: disable=redefined-outer-name
+    model_path = MODEL_CONTAINER.get_model_path()
 
     if isinstance(data.messages, str):
         prompt = data.messages
@@ -454,7 +453,7 @@ async def generate_chat_completion(
                 yield get_sse_packet(finish_response.model_dump_json())
             except CancelledError:
                 print("Error: Chat completion cancelled by user.")
-            except Exception as exc:  # pylint: disable=broad-except
+            except Exception as exc:
                 yield get_generator_error(str(exc))
 
         return StreamingResponse(
@@ -479,7 +478,7 @@ if __name__ == "__main__":
     try:
         with open("config.yml", "r", encoding="utf8") as config_file:
             config = unwrap(yaml.safe_load(config_file), {})
-    except Exception as exc:  # pylint: disable=broad-except
+    except Exception as exc:
         print(
             "The YAML config couldn't load because of the following error:",
             f"\n\n{exc}",
