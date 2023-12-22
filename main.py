@@ -9,11 +9,12 @@ import yaml
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from functools import partial
 from progress.bar import IncrementalBar
 
 import gen_logging
 from auth import check_admin_key, check_api_key, load_auth_keys
-from generators import generate_with_semaphore
+from generators import call_with_semaphore, generate_with_semaphore
 from model import ModelContainer
 from OAI.types.completion import CompletionRequest
 from OAI.types.chat_completion import ChatCompletionRequest
@@ -129,7 +130,6 @@ async def list_draft_models():
     draft_model_path = pathlib.Path(draft_model_dir)
 
     models = get_model_list(draft_model_path.resolve())
-    print(models)
 
     return models
 
@@ -382,12 +382,14 @@ async def generate_completion(request: Request, data: CompletionRequest):
             generate_with_semaphore(generator), media_type="text/event-stream"
         )
 
-    response_text, prompt_tokens, completion_tokens = MODEL_CONTAINER.generate(
-        data.prompt, **data.to_gen_params()
+    response_text, prompt_tokens, completion_tokens = await call_with_semaphore(
+        partial(MODEL_CONTAINER.generate, data.prompt, **data.to_gen_params())
     )
-    response = create_completion_response(
-        response_text, prompt_tokens, completion_tokens, model_path.name
-    )
+
+    response = create_completion_response(response_text,
+                                            prompt_tokens,
+                                            completion_tokens,
+                                            model_path.name)
 
     return response
 
@@ -460,12 +462,14 @@ async def generate_chat_completion(
             generate_with_semaphore(generator), media_type="text/event-stream"
         )
 
-    response_text, prompt_tokens, completion_tokens = MODEL_CONTAINER.generate(
-        prompt, **data.to_gen_params()
+    response_text, prompt_tokens, completion_tokens = await call_with_semaphore(
+        partial(MODEL_CONTAINER.generate, prompt, **data.to_gen_params())
     )
-    response = create_chat_completion_response(
-        response_text, prompt_tokens, completion_tokens, model_path.name
-    )
+
+    response = create_chat_completion_response(response_text,
+                                                prompt_tokens,
+                                                completion_tokens,
+                                                model_path.name)
 
     return response
 
