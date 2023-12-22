@@ -380,9 +380,6 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
         return response
 
 if __name__ == "__main__":
-    # Initialize auth keys
-    load_auth_keys()
-
     # Load from YAML config. Possibly add a config -> kwargs conversion function
     try:
         with open('config.yml', 'r', encoding = "utf8") as config_file:
@@ -394,6 +391,11 @@ if __name__ == "__main__":
             "\n\nTabbyAPI will start anyway and not parse this config file."
         )
         config = {}
+
+    network_config = unwrap(config.get("network"), {})
+
+    # Initialize auth keys
+    load_auth_keys(unwrap(network_config.get("disable_auth"), False))
 
     # Override the generation log options if given
     log_config = unwrap(config.get("logging"), {})
@@ -426,7 +428,6 @@ if __name__ == "__main__":
         lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
         model_container.load_loras(lora_dir.resolve(), **lora_config)
 
-    network_config = unwrap(config.get("network"), {})
     uvicorn.run(
         app,
         host=network_config.get("host", "127.0.0.1"),

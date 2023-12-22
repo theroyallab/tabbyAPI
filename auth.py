@@ -24,9 +24,22 @@ class AuthKeys(BaseModel):
             return False
 
 auth_keys: Optional[AuthKeys] = None
+disable_auth: bool = False
 
-def load_auth_keys():
+def load_auth_keys(disable_from_config: bool):
     global auth_keys
+    global disable_auth
+
+    disable_auth = disable_from_config
+    if disable_from_config:
+        print(
+            "!! Warning: Disabling authentication makes your instance vulnerable.",
+            "Set the \"disable_auth\" flag to False in config.yml if you want to share this",
+            "instance with others."
+        )
+
+        return
+
     try:
         with open("api_tokens.yml", "r", encoding = 'utf8') as auth_file:
             auth_keys_dict = yaml.safe_load(auth_file)
@@ -48,6 +61,10 @@ def load_auth_keys():
     )
 
 def check_api_key(x_api_key: str = Header(None), authorization: str = Header(None)):
+    # Allow request if auth is disabled
+    if disable_auth:
+        return
+
     if x_api_key:
         if auth_keys.verify_key(x_api_key, "api_key"):
             return x_api_key
@@ -66,6 +83,10 @@ def check_api_key(x_api_key: str = Header(None), authorization: str = Header(Non
         raise HTTPException(401, "Please provide an API key")
 
 def check_admin_key(x_admin_key: str = Header(None), authorization: str = Header(None)):
+    # Allow request if auth is disabled
+    if disable_auth:
+        return
+
     if x_admin_key:
         if auth_keys.verify_key(x_admin_key, "admin_key"):
             return x_admin_key

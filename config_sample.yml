@@ -13,6 +13,11 @@ network:
   # The port to host on (default: 5000)
   port: 5000
 
+  # Disable HTTP token authenticaion with requests
+  # WARNING: This will make your instance vulnerable!
+  # Turn on this option if you are ONLY connecting from localhost
+  disable_auth: False
+
 # Options for logging
 logging:
   # Enable prompt logging (default: False)
