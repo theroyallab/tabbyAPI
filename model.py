@@ -17,7 +17,7 @@ from exllamav2.generator import(
 
 from gen_logging import log_generation_params, log_prompt, log_response
 from typing import List, Optional, Union
-from templating import PromptTemplate, find_template_from_model, get_template_from_model_config, get_template_from_tokenizer_config, get_template_from_file
+from templating import PromptTemplate, find_template_from_model, get_template_from_model_json, get_template_from_file
 from utils import coalesce, unwrap
 
 # Bytes to reserve on first device when loading with auto split
@@ -118,35 +118,40 @@ class ModelContainer:
 
         # Set prompt template override if provided
         prompt_template_name = kwargs.get("prompt_template")
-        try:
-            if prompt_template_name:
-                # Read the template
-                self.prompt_template = get_template_from_file(prompt_template_name)
-            else:
-                # Try finding the chat template from the model's config.json
-                self.prompt_template = get_template_from_model_config(
-                    pathlib.Path(self.config.model_config)
-                )
-                if self.prompt_template == None:
-                    self.prompt_template = get_template_from_tokenizer_config(
-                        model_directory
-                    )
+        if prompt_template_name:
+            print(f"Attempting to load prompt template with name {prompt_template_name}")
+            # Read the template
+            self.prompt_template = get_template_from_file(prompt_template_name)
+        else:
+            # Then try finding the template from the tokenizer_config.json
+            self.prompt_template = get_template_from_model_json(
+                pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
+                "chat_template",
+                "from_tokenizer_config"
+            )
 
-                # If that fails, attempt fetching from model name
-                if self.prompt_template is None:
-                    template_match = find_template_from_model(model_directory)
-                    if template_match:
-                        self.prompt_template = get_template_from_file(template_match)
-        except OSError:
-            # The template or config.json couldn't be found in the user's filesystem
-            print(f"Could not find template file with name {prompt_template_name}.jinja")
-            self.prompt_template = None
+            # Try finding the chat template from the model's config.json
+            # TODO: This may not even be used with huggingface models, mark for removal.
+            if self.prompt_template is None:
+                self.prompt_template = get_template_from_model_json(
+                    pathlib.Path(self.config.model_config),
+                    "chat_template",
+                    "from_model_config"
+                )
+
+            # If that fails, attempt fetching from model name
+            if self.prompt_template is None:
+                template_match = find_template_from_model(model_directory)
+                if template_match:
+                    self.prompt_template = get_template_from_file(template_match)
 
         # Catch all for template lookup errors
         if self.prompt_template:
             print(f"Using template {self.prompt_template.name} for chat completions.")
         else:
-            print("Chat completions are disabled because a prompt template wasn't provided or auto-detected.")
+            print(
+                "Chat completions are disabled because a prompt template wasn't provided or auto-detected."
+            )
 
         # Set num of experts per token if provided
         num_experts_override = kwargs.get("num_experts_per_token")
