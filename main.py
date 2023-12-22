@@ -5,13 +5,14 @@ from asyncio import CancelledError
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from functools import partial
 from progress.bar import IncrementalBar
 from typing import Optional
 from uuid import uuid4
 
 import gen_logging
 from auth import check_admin_key, check_api_key, load_auth_keys
-from generators import generate_with_semaphore
+from generators import call_with_semaphore, generate_with_semaphore
 from model import ModelContainer
 from OAI.types.completion import CompletionRequest
 from OAI.types.chat_completion import ChatCompletionRequest
@@ -108,7 +109,6 @@ async def list_draft_models():
     draft_model_path = pathlib.Path(draft_model_dir)
 
     models = get_model_list(draft_model_path.resolve())
-    print(models)
 
     return models
 
@@ -302,7 +302,9 @@ async def generate_completion(request: Request, data: CompletionRequest):
             media_type = "text/event-stream"
         )
     else:
-        response_text, prompt_tokens, completion_tokens = model_container.generate(data.prompt, **data.to_gen_params())
+        response_text, prompt_tokens, completion_tokens = await call_with_semaphore(
+            partial(model_container.generate, data.prompt, **data.to_gen_params())
+        )
         response = create_completion_response(response_text,
                                               prompt_tokens,
                                               completion_tokens,
@@ -367,7 +369,9 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
             media_type = "text/event-stream"
         )
     else:
-        response_text, prompt_tokens, completion_tokens = model_container.generate(prompt, **data.to_gen_params())
+        response_text, prompt_tokens, completion_tokens = await call_with_semaphore(
+            partial(model_container.generate, prompt, **data.to_gen_params())
+        )
         response = create_chat_completion_response(response_text,
                                                    prompt_tokens,
                                                    completion_tokens,

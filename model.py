@@ -129,7 +129,7 @@ class ModelContainer:
                 )
 
                 # If that fails, attempt fetching from model name
-                if self.prompt_template == None:
+                if self.prompt_template is None:
                     template_match = find_template_from_model(model_directory)
                     if template_match:
                         self.prompt_template = get_template_from_file(template_match)
