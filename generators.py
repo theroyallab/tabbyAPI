@@ -18,6 +18,7 @@ async def generate_with_semaphore(generator: AsyncGenerator):
             for result in generator():
                 yield result
 
+
 # Block a function with semaphore
 async def call_with_semaphore(callback: partialmethod):
     if inspect.iscoroutinefunction(callback):

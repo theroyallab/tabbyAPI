@@ -386,10 +386,9 @@ async def generate_completion(request: Request, data: CompletionRequest):
         partial(MODEL_CONTAINER.generate, data.prompt, **data.to_gen_params())
     )
 
-    response = create_completion_response(response_text,
-                                            prompt_tokens,
-                                            completion_tokens,
-                                            model_path.name)
+    response = create_completion_response(
+        response_text, prompt_tokens, completion_tokens, model_path.name
+    )
 
     return response
 
@@ -466,10 +465,9 @@ async def generate_chat_completion(
         partial(MODEL_CONTAINER.generate, prompt, **data.to_gen_params())
     )
 
-    response = create_chat_completion_response(response_text,
-                                                prompt_tokens,
-                                                completion_tokens,
-                                                model_path.name)
+    response = create_chat_completion_response(
+        response_text, prompt_tokens, completion_tokens, model_path.name
+    )
 
     return response
 
