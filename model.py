@@ -705,7 +705,7 @@ class ModelContainer:
             extra_parts.append("<-- Not accurate (truncated)")
 
         # Print output
-        print(
+        logger.info(
             initial_response
             + " ("
             + ", ".join(itemization)
