@@ -13,7 +13,7 @@ network:
   # The port to host on (default: 5000)
   port: 5000
 
-  # Disable HTTP token authenticaion with requests
+  # Disable HTTP token authentication with requests
   # WARNING: This will make your instance vulnerable!
   # Turn on this option if you are ONLY connecting from localhost
   disable_auth: False
@@ -34,7 +34,7 @@ model:
 
   # An initial model to load. Make sure the model is located in the model directory!
   # A model can be loaded later via the API.
-  model_name: A model name
+  model_name:
 
   # Sends dummy model names when the models endpoint is queried
   # Enable this if the program is looking for a specific OAI model
@@ -89,7 +89,7 @@ model:
 
     # An initial draft model to load. Make sure this model is located in the model directory!
     # A draft model can be loaded later via the API.
-    draft_model_name: A model name
+    draft_model_name:
   
     # Rope scale for draft models (default: 1.0)
     # Same thing as compress_pos_emb
@@ -108,9 +108,9 @@ model:
     
     # List of loras to load and associated scaling factors (default: 1.0). Comment out unused entries or add more rows as needed.
     loras:
-    - name: lora1
-      scaling: 1.0
-    - name: lora2
-      scaling: 0.9
-    - name: lora3
-      scaling: 0.5
+    - name:
+      scaling:
+    - name:
+      scaling:
+    - name:
+      scaling:
