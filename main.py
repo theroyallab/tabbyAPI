@@ -487,7 +487,8 @@ if __name__ == "__main__":
         logger.error(
             "The YAML config couldn't load because of the following error: "
             f"\n\n{exc}"
-            "\n\nTabbyAPI will start anyway and not parse this config file.")
+            "\n\nTabbyAPI will start anyway and not parse this config file."
+        )
         config = {}
 
     network_config = unwrap(config.get("network"), {})

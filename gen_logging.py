@@ -8,6 +8,7 @@ from logger import init_logger
 
 logger = init_logger(__name__)
 
+
 class LogConfig(BaseModel):
     """Logging preference config."""
 

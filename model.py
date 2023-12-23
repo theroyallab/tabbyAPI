@@ -146,8 +146,7 @@ class ModelContainer:
         # Set prompt template override if provided
         prompt_template_name = kwargs.get("prompt_template")
         if prompt_template_name:
-            logger.info("Loading prompt template with name "
-                        f"{prompt_template_name}")
+            logger.info("Loading prompt template with name " f"{prompt_template_name}")
             # Read the template
             self.prompt_template = get_template_from_file(prompt_template_name)
         else:
@@ -176,11 +175,14 @@ class ModelContainer:
 
         # Catch all for template lookup errors
         if self.prompt_template:
-            logger.info(f"Using template {self.prompt_template.name} "
-                        "for chat completions.")
+            logger.info(
+                f"Using template {self.prompt_template.name} " "for chat completions."
+            )
         else:
-            logger.warning("Chat completions are disabled because a prompt "
-                           "template wasn't provided or auto-detected.")
+            logger.warning(
+                "Chat completions are disabled because a prompt "
+                "template wasn't provided or auto-detected."
+            )
 
         # Set num of experts per token if provided
         num_experts_override = kwargs.get("num_experts_per_token")
@@ -188,8 +190,10 @@ class ModelContainer:
             if hasattr(self.config, "num_experts_per_token"):
                 self.config.num_experts_per_token = num_experts_override
             else:
-                logger.warning("MoE experts per token override is not "
-                               "supported by the current ExLlamaV2 version.")
+                logger.warning(
+                    "MoE experts per token override is not "
+                    "supported by the current ExLlamaV2 version."
+                )
 
         chunk_size = min(
             unwrap(kwargs.get("chunk_size"), 2048), self.config.max_seq_len
@@ -203,8 +207,10 @@ class ModelContainer:
 
         # Always disable draft if params are incorrectly configured
         if draft_args and draft_model_name is None:
-            logger.warning("Draft model is disabled because a model name "
-                            "wasn't provided. Please check your config.yml!")
+            logger.warning(
+                "Draft model is disabled because a model name "
+                "wasn't provided. Please check your config.yml!"
+            )
             enable_draft = False
 
         if enable_draft:
@@ -313,8 +319,7 @@ class ModelContainer:
         if self.draft_config:
             self.draft_model = ExLlamaV2(self.draft_config)
             if not self.quiet:
-                logger.info(
-                    "Loading draft model: " + self.draft_config.model_dir)
+                logger.info("Loading draft model: " + self.draft_config.model_dir)
 
             self.draft_cache = ExLlamaV2Cache(self.draft_model, lazy=True)
             reserve = [AUTO_SPLIT_RESERVE_BYTES] + [0] * 16

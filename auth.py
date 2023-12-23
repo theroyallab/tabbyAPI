@@ -13,6 +13,7 @@ from logger import init_logger
 
 logger = init_logger(__name__)
 
+
 class AuthKeys(BaseModel):
     """
     This class represents the authentication keys for the application.
@@ -52,7 +53,6 @@ def load_auth_keys(disable_from_config: bool):
             "Set the `disable_auth` flag to False in config.yml if you "
             "want to share this instance with others."
         )
-        
 
         return
 
