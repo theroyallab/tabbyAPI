@@ -4,6 +4,10 @@ Functions for logging generation events.
 from typing import Dict
 from pydantic import BaseModel
 
+from logger import init_logger
+
+logger = init_logger(__name__)
+
 
 class LogConfig(BaseModel):
     """Logging preference config."""
@@ -38,24 +42,24 @@ def broadcast_status():
         enabled.append("generation params")
 
     if len(enabled) > 0:
-        print("Generation logging is enabled for: " + ", ".join(enabled))
+        logger.info("Generation logging is enabled for: " + ", ".join(enabled))
     else:
-        print("Generation logging is disabled")
+        logger.info("Generation logging is disabled")
 
 
 def log_generation_params(**kwargs):
     """Logs generation parameters to console."""
     if CONFIG.generation_params:
-        print(f"Generation options: {kwargs}\n")
+        logger.info(f"Generation options: {kwargs}\n")
 
 
 def log_prompt(prompt: str):
     """Logs the prompt to console."""
     if CONFIG.prompt:
-        print(f"Prompt: {prompt if prompt else 'Empty'}\n")
+        logger.info(f"Prompt: {prompt if prompt else 'Empty'}\n")
 
 
 def log_response(response: str):
     """Logs the response to console."""
     if CONFIG.prompt:
-        print(f"Response: {response if response else 'Empty'}\n")
+        logger.info(f"Response: {response if response else 'Empty'}\n")

@@ -4,6 +4,10 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+from logger import init_logger
+
+logger = init_logger(__name__)
+
 
 def load_progress(module, modules):
     """Wrapper callback for load progress."""
@@ -32,7 +36,7 @@ def get_generator_error(message: str):
     generator_error = TabbyGeneratorError(error=error_message)
 
     # Log and send the exception
-    print(f"\n{generator_error.error.trace}")
+    logger.error(generator_error.error.message)
     return get_sse_packet(generator_error.model_dump_json())
 
 

@@ -19,6 +19,7 @@ PyYAML
 progress
 uvicorn
 jinja2 >= 3.0.0
+colorlog
 
 # Flash attention v2
 

@@ -41,6 +41,9 @@ from OAI.utils_oai import (
 )
 from templating import get_prompt_from_template
 from utils import get_generator_error, get_sse_packet, load_progress, unwrap
+from logger import init_logger
+
+logger = init_logger(__name__)
 
 app = FastAPI()
 
@@ -210,8 +213,8 @@ async def load_model(request: Request, data: ModelLoadRequest):
 
                     yield get_sse_packet(response.model_dump_json())
         except CancelledError:
-            print(
-                "\nError: Model load cancelled by user. "
+            logger.error(
+                "Model load cancelled by user. "
                 "Please make sure to run unload to free up resources."
             )
         except Exception as exc:
@@ -369,7 +372,7 @@ async def generate_completion(request: Request, data: CompletionRequest):
 
                     yield get_sse_packet(response.model_dump_json())
             except CancelledError:
-                print("Error: Completion request cancelled by user.")
+                logger.error("Completion request cancelled by user.")
             except Exception as exc:
                 yield get_generator_error(str(exc))
 
@@ -456,7 +459,7 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
 
                 yield get_sse_packet(finish_response.model_dump_json())
             except CancelledError:
-                print("Error: Chat completion cancelled by user.")
+                logger.error("Chat completion cancelled by user.")
             except Exception as exc:
                 yield get_generator_error(str(exc))
 
@@ -481,10 +484,10 @@ if __name__ == "__main__":
         with open("config.yml", "r", encoding="utf8") as config_file:
             config = unwrap(yaml.safe_load(config_file), {})
     except Exception as exc:
-        print(
-            "The YAML config couldn't load because of the following error:",
-            f"\n\n{exc}",
-            "\n\nTabbyAPI will start anyway and not parse this config file.",
+        logger.error(
+            "The YAML config couldn't load because of the following error: "
+            f"\n\n{exc}"
+            "\n\nTabbyAPI will start anyway and not parse this config file."
         )
         config = {}
 

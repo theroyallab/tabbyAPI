@@ -9,6 +9,10 @@ from fastapi import Header, HTTPException
 from pydantic import BaseModel
 import yaml
 
+from logger import init_logger
+
+logger = init_logger(__name__)
+
 
 class AuthKeys(BaseModel):
     """
@@ -44,11 +48,10 @@ def load_auth_keys(disable_from_config: bool):
 
     DISABLE_AUTH = disable_from_config
     if disable_from_config:
-        print(
-            "!! Warning: Disabling authentication",
-            "makes your instance vulnerable.",
-            "Set the 'disable_auth' flag to False in config.yml",
-            "if you want to share this instance with others.",
+        logger.warning(
+            "Disabling authentication makes your instance vulnerable. "
+            "Set the `disable_auth` flag to False in config.yml if you "
+            "want to share this instance with others."
         )
 
         return
@@ -66,7 +69,7 @@ def load_auth_keys(disable_from_config: bool):
         with open("api_tokens.yml", "w", encoding="utf8") as auth_file:
             yaml.safe_dump(AUTH_KEYS.model_dump(), auth_file, default_flow_style=False)
 
-    print(
+    logger.info(
         f"Your API key is: {AUTH_KEYS.api_key}\n"
         f"Your admin key is: {AUTH_KEYS.admin_key}\n\n"
         "If these keys get compromised, make sure to delete api_tokens.yml "
