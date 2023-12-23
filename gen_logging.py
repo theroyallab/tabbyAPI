@@ -56,10 +56,12 @@ def log_generation_params(**kwargs):
 def log_prompt(prompt: str):
     """Logs the prompt to console."""
     if CONFIG.prompt:
-        logger.info(f"Prompt: {prompt if prompt else 'Empty'}\n")
+        formatted_prompt = "\n" + prompt
+        logger.info(f"Prompt: {formatted_prompt if prompt else 'Empty'}\n")
 
 
 def log_response(response: str):
     """Logs the response to console."""
     if CONFIG.prompt:
-        logger.info(f"Response: {response if response else 'Empty'}\n")
+        formatted_response = "\n" + response
+        logger.info(f"Response: {formatted_response if response else 'Empty'}\n")
