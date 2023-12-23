@@ -23,6 +23,9 @@ from templating import (
     get_template_from_file,
 )
 from utils import coalesce, unwrap
+from logger import init_logger
+
+logger = init_logger(__name__)
 
 # Bytes to reserve on first device when loading with auto split
 AUTO_SPLIT_RESERVE_BYTES = 96 * 1024**2
@@ -143,10 +146,8 @@ class ModelContainer:
         # Set prompt template override if provided
         prompt_template_name = kwargs.get("prompt_template")
         if prompt_template_name:
-            print(
-                "Attempting to load prompt template with name",
-                {prompt_template_name},
-            )
+            logger.info("Loading prompt template with name "
+                        f"{prompt_template_name}")
             # Read the template
             self.prompt_template = get_template_from_file(prompt_template_name)
         else:
@@ -175,14 +176,11 @@ class ModelContainer:
 
         # Catch all for template lookup errors
         if self.prompt_template:
-            print(
-                f"Using template {self.prompt_template.name} for chat " "completions."
-            )
+            logger.info(f"Using template {self.prompt_template.name} "
+                        "for chat completions.")
         else:
-            print(
-                "Chat completions are disabled because a prompt template",
-                "wasn't provided or auto-detected.",
-            )
+            logger.warning("Chat completions are disabled because a prompt "
+                           "template wasn't provided or auto-detected.")
 
         # Set num of experts per token if provided
         num_experts_override = kwargs.get("num_experts_per_token")
@@ -190,10 +188,8 @@ class ModelContainer:
             if hasattr(self.config, "num_experts_per_token"):
                 self.config.num_experts_per_token = num_experts_override
             else:
-                print(
-                    " !! Warning: Currently installed ExLlamaV2 does not "
-                    "support overriding MoE experts"
-                )
+                logger.warning("MoE experts per token override is not "
+                               "supported by the current ExLlamaV2 version.")
 
         chunk_size = min(
             unwrap(kwargs.get("chunk_size"), 2048), self.config.max_seq_len
@@ -207,10 +203,8 @@ class ModelContainer:
 
         # Always disable draft if params are incorrectly configured
         if draft_args and draft_model_name is None:
-            print(
-                "A draft config was found but a model name was not given. "
-                "Please check your config.yml! Skipping draft load."
-            )
+            logger.warning("Draft model is disabled because a model name "
+                            "wasn't provided. Please check your config.yml!")
             enable_draft = False
 
         if enable_draft:
@@ -283,20 +277,20 @@ class ModelContainer:
             lora_scaling = unwrap(lora.get("scaling"), 1.0)
 
             if lora_name is None:
-                print(
+                logger.warning(
                     "One of your loras does not have a name. Please check your "
                     "config.yml! Skipping lora load."
                 )
                 failure.append(lora_name)
                 continue
 
-            print(f"Loading lora: {lora_name} at scaling {lora_scaling}")
+            logger.info(f"Loading lora: {lora_name} at scaling {lora_scaling}")
             lora_path = lora_directory / lora_name
             # FIXME(alpin): Does self.model need to be passed here?
             self.active_loras.append(
                 ExLlamaV2Lora.from_directory(self.model, lora_path, lora_scaling)
             )
-            print("Lora successfully loaded.")
+            logger.info(f"Lora successfully loaded: {lora_name}")
             success.append(lora_name)
 
         # Return success and failure names
@@ -319,7 +313,8 @@ class ModelContainer:
         if self.draft_config:
             self.draft_model = ExLlamaV2(self.draft_config)
             if not self.quiet:
-                print("Loading draft model: " + self.draft_config.model_dir)
+                logger.info(
+                    "Loading draft model: " + self.draft_config.model_dir)
 
             self.draft_cache = ExLlamaV2Cache(self.draft_model, lazy=True)
             reserve = [AUTO_SPLIT_RESERVE_BYTES] + [0] * 16
@@ -337,7 +332,7 @@ class ModelContainer:
         # Load model
         self.model = ExLlamaV2(self.config)
         if not self.quiet:
-            print("Loading model: " + self.config.model_dir)
+            logger.info("Loading model: " + self.config.model_dir)
 
         if not self.gpu_split_auto:
             for value in self.model.load_gen(
@@ -373,7 +368,7 @@ class ModelContainer:
             self.draft_cache,
         )
 
-        print("Model successfully loaded.")
+        logger.info("Model successfully loaded.")
 
     def unload(self, loras_only: bool = False):
         """
@@ -494,33 +489,33 @@ class ModelContainer:
         if (unwrap(kwargs.get("mirostat"), False)) and not hasattr(
             gen_settings, "mirostat"
         ):
-            print(
-                " !! Warning: Currently installed ExLlamaV2 does not support "
-                "Mirostat sampling"
+            logger.warning(
+                "Mirostat sampling is not supported by the currently "
+                "installed ExLlamaV2 version."
             )
 
         if (unwrap(kwargs.get("min_p"), 0.0)) not in [0.0, 1.0] and not hasattr(
             gen_settings, "min_p"
         ):
-            print(
-                " !! Warning: Currently installed ExLlamaV2 does not "
-                "support min-P sampling"
+            logger.warning(
+                "Min-P sampling is not supported by the currently "
+                "installed ExLlamaV2 version."
             )
 
         if (unwrap(kwargs.get("tfs"), 0.0)) not in [0.0, 1.0] and not hasattr(
             gen_settings, "tfs"
         ):
-            print(
-                " !! Warning: Currently installed ExLlamaV2 does not support "
-                "tail-free sampling (TFS)"
+            logger.warning(
+                "Tail-free sampling (TFS) is not supported by the currently "
+                "installed ExLlamaV2 version."
             )
 
         if (unwrap(kwargs.get("temperature_last"), False)) and not hasattr(
             gen_settings, "temperature_last"
         ):
-            print(
-                " !! Warning: Currently installed ExLlamaV2 does not support "
-                "temperature_last"
+            logger.warning(
+                "Temperature last is not supported by the currently "
+                "installed ExLlamaV2 version."
             )
 
         # Apply settings
@@ -614,10 +609,10 @@ class ModelContainer:
         context_len = len(ids[0])
 
         if context_len > self.config.max_seq_len:
-            print(
-                f"WARNING: The context length {context_len} is greater than "
-                f"the max_seq_len {self.config.max_seq_len}.",
-                "Generation is truncated and metrics may not be accurate.",
+            logger.warning(
+                f"Context length {context_len} is greater than max_seq_len "
+                f"{self.config.max_seq_len}. Generation is truncated and "
+                "metrics may not be accurate."
             )
 
         prompt_tokens = ids.shape[-1]
