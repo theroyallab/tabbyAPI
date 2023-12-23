@@ -43,8 +43,11 @@ logger.info(f"\nSuccessful imports: {', '.join(successful_packages)}")
 logger.error(f"Errored imports: {''.join(errored_packages)}")
 
 if len(errored_packages) > 0:
-    print(
-        "\nIf packages are installed, but not found on this test, please "
-        "check the wheel versions for the correct python version and CUDA "
-        "version (if applicable)."
+    logger.warning(
+        "If all packages are installed, but not found "
+        "on this test, please check the wheel versions for the "
+        "correct python version and CUDA version (if "
+        "applicable)."
     )
+else:
+    logger.info("All wheels are installed correctly.")
