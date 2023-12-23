@@ -8,7 +8,7 @@ import sys
 import colorlog
 
 # pylint: disable=line-too-long
-_FORMAT = "%(log_color)s%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s"
+_FORMAT = "%(log_color)s%(levelname)s] %(message)s"
 _DATE_FORMAT = "%m-%d %H:%M:%S"
 
 
