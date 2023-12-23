@@ -7,7 +7,7 @@ import logging
 import sys
 import colorlog
 
-_FORMAT = "%(log_color)s%(levelname)s] %(message)s"
+_FORMAT = "%(log_color)s%(levelname)s: %(message)s"
 _DATE_FORMAT = "%m-%d %H:%M:%S"
 
 
