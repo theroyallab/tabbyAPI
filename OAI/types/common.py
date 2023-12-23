@@ -69,6 +69,7 @@ class CommonCompletionRequest(BaseModel):
     temperature_last: Optional[bool] = False
     top_k: Optional[int] = 0
     top_p: Optional[float] = 1.0
+    top_a: Optional[float] = 0.0
     typical: Optional[float] = 1.0
     min_p: Optional[float] = 0.0
     tfs: Optional[float] = 1.0
@@ -111,6 +112,7 @@ class CommonCompletionRequest(BaseModel):
             "temperature_last": self.temperature_last,
             "top_k": self.top_k,
             "top_p": self.top_p,
+            "top_a": self.top_a,
             "typical": self.typical,
             "min_p": self.min_p,
             "tfs": self.tfs,

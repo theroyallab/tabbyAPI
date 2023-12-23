@@ -523,11 +523,20 @@ class ModelContainer:
                 "installed ExLlamaV2 version."
             )
 
+        if (unwrap(kwargs.get("top_a"), False)) and not hasattr (
+            gen_settings, "top_a"
+        ):
+            logger.warning(
+                "Top-A is not supported by the currently "
+                "installed ExLlamaV2 version."
+            )
+
         # Apply settings
         gen_settings.temperature = unwrap(kwargs.get("temperature"), 1.0)
         gen_settings.temperature_last = unwrap(kwargs.get("temperature_last"), False)
         gen_settings.top_k = unwrap(kwargs.get("top_k"), 0)
         gen_settings.top_p = unwrap(kwargs.get("top_p"), 1.0)
+        gen_settings.top_a = unwrap(kwargs.get("top_a"), 0.0)
         gen_settings.min_p = unwrap(kwargs.get("min_p"), 0.0)
         gen_settings.tfs = unwrap(kwargs.get("tfs"), 1.0)
         gen_settings.typical = unwrap(kwargs.get("typical"), 1.0)
