@@ -14,7 +14,7 @@ def read_config_from_file(config_path: pathlib.Path):
     global GLOBAL_CONFIG
 
     try:
-        with open(str(config_path), "r", encoding="utf8") as config_file:
+        with open(str(config_path.resolve()), "r", encoding="utf8") as config_file:
             GLOBAL_CONFIG = unwrap(yaml.safe_load(config_file), {})
     except Exception as exc:
         logger.error(
