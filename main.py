@@ -19,7 +19,7 @@ from config import (
     get_model_config,
     get_draft_model_config,
     get_lora_config,
-    get_network_config
+    get_network_config,
 )
 from generators import call_with_semaphore, generate_with_semaphore
 from model import ModelContainer

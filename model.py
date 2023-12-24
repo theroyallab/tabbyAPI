@@ -523,9 +523,7 @@ class ModelContainer:
                 "installed ExLlamaV2 version."
             )
 
-        if (unwrap(kwargs.get("top_a"), False)) and not hasattr (
-            gen_settings, "top_a"
-        ):
+        if (unwrap(kwargs.get("top_a"), False)) and not hasattr(gen_settings, "top_a"):
             logger.warning(
                 "Top-A is not supported by the currently "
                 "installed ExLlamaV2 version."
