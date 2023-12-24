@@ -9,7 +9,7 @@ from logger import init_logger
 logger = init_logger(__name__)
 
 
-class LogConfig(BaseModel):
+class LogPreferences(BaseModel):
     """Logging preference config."""
 
     prompt: bool = False
@@ -17,28 +17,28 @@ class LogConfig(BaseModel):
 
 
 # Global reference to logging preferences
-CONFIG = LogConfig()
+PREFERENCES = LogPreferences()
 
 
 def update_from_dict(options_dict: Dict[str, bool]):
     """Wrapper to set the logging config for generations"""
-    global CONFIG
+    global PREFERENCES
 
     # Force bools on the dict
     for value in options_dict.values():
         if value is None:
             value = False
 
-    CONFIG = LogConfig.model_validate(options_dict)
+    PREFERENCES = LogPreferences.model_validate(options_dict)
 
 
 def broadcast_status():
     """Broadcasts the current logging status"""
     enabled = []
-    if CONFIG.prompt:
+    if PREFERENCES.prompt:
         enabled.append("prompts")
 
-    if CONFIG.generation_params:
+    if PREFERENCES.generation_params:
         enabled.append("generation params")
 
     if len(enabled) > 0:
@@ -49,19 +49,19 @@ def broadcast_status():
 
 def log_generation_params(**kwargs):
     """Logs generation parameters to console."""
-    if CONFIG.generation_params:
+    if PREFERENCES.generation_params:
         logger.info(f"Generation options: {kwargs}\n")
 
 
 def log_prompt(prompt: str):
     """Logs the prompt to console."""
-    if CONFIG.prompt:
+    if PREFERENCES.prompt:
         formatted_prompt = "\n" + prompt
         logger.info(f"Prompt: {formatted_prompt if prompt else 'Empty'}\n")
 
 
 def log_response(response: str):
     """Logs the response to console."""
-    if CONFIG.prompt:
+    if PREFERENCES.prompt:
         formatted_response = "\n" + response
         logger.info(f"Response: {formatted_response if response else 'Empty'}\n")

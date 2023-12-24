@@ -108,7 +108,7 @@ async def get_current_model():
             cache_mode="FP8" if MODEL_CONTAINER.cache_fp8 else "FP16",
             prompt_template=prompt_template.name if prompt_template else None,
         ),
-        logging=gen_logging.CONFIG,
+        logging=gen_logging.PREFERENCES,
     )
 
     if MODEL_CONTAINER.draft_config:

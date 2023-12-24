@@ -4,7 +4,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from gen_logging import LogConfig
+from gen_logging import LogPreferences
 
 
 class ModelCardParameters(BaseModel):
@@ -28,7 +28,7 @@ class ModelCard(BaseModel):
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time()))
     owned_by: str = "tabbyAPI"
-    logging: Optional[LogConfig] = None
+    logging: Optional[LogPreferences] = None
     parameters: Optional[ModelCardParameters] = None
 
 
