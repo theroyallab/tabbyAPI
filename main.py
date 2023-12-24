@@ -1,12 +1,11 @@
 """The main tabbyAPI module. Contains the FastAPI server and endpoints."""
 import pathlib
+import uvicorn
+import yaml
 from asyncio import CancelledError
 from typing import Optional
 from uuid import uuid4
 from jinja2 import TemplateError
-
-import uvicorn
-import yaml
 from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
