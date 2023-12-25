@@ -1,6 +1,7 @@
 # Arg parsing
 param(
     [switch]$ignore_upgrade = $false,
+    [switch]$nowheel = $false,
     [switch]$activate_venv = $false
 )
 
@@ -10,6 +11,12 @@ function GetRequirementsFile {
     if ($GpuInfo.Contains("AMD")) {
         Write-Output "AMD/ROCm isn't supported on Windows. Please switch to linux."
         exit
+    }
+
+    # Install nowheel if specified
+    if ($nowheel) {
+        Write-Output "Not installing wheels due to user request."
+        return "requirements-nowheel"
     }
 
     $CudaPath = $env:CUDA_PATH
