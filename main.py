@@ -366,6 +366,9 @@ async def generate_completion(request: Request, data: CompletionRequest):
                     )
 
                     yield get_sse_packet(response.model_dump_json())
+
+                # Yield a finish response on successful generation
+                yield get_sse_packet("[DONE]")
             except CancelledError:
                 logger.error("Completion request cancelled by user.")
             except Exception as exc:
