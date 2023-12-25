@@ -1,9 +1,6 @@
 """ Common types for OAI. """
-from typing import List, Dict, Optional, Union
-
 from pydantic import BaseModel, Field, AliasChoices
-
-from utils import unwrap
+from typing import List, Dict, Optional, Union
 
 
 class LogProbs(BaseModel):
@@ -81,7 +78,7 @@ class CommonCompletionRequest(BaseModel):
 
     # Aliased variables
     repetition_range: Optional[int] = Field(
-        default=None,
+        default=-1,
         validation_alias=AliasChoices("repetition_range", "repetition_penalty_range"),
     )
 
@@ -109,7 +106,7 @@ class CommonCompletionRequest(BaseModel):
             "frequency_penalty": self.frequency_penalty,
             "presence_penalty": self.presence_penalty,
             "repetition_penalty": self.repetition_penalty,
-            "repetition_range": unwrap(self.repetition_range, -1),
+            "repetition_range": self.repetition_range,
             "repetition_decay": self.repetition_decay,
             "mirostat": self.mirostat_mode == 2,
             "mirostat_tau": self.mirostat_tau,
