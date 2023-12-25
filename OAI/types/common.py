@@ -58,11 +58,6 @@ class CommonCompletionRequest(BaseModel):
     # Default to 150 as 16 makes no sense as a default
     max_tokens: Optional[int] = 150
 
-    # Aliased to repetition_penalty
-    frequency_penalty: Optional[float] = Field(
-        description="Aliased to Repetition Penalty", default=0.0
-    )
-
     # Sampling params
     token_healing: Optional[bool] = False
     temperature: Optional[float] = 1.0
@@ -73,6 +68,8 @@ class CommonCompletionRequest(BaseModel):
     typical: Optional[float] = 1.0
     min_p: Optional[float] = 0.0
     tfs: Optional[float] = 1.0
+    frequency_penalty: Optional[float] = 0.0
+    presence_penalty: Optional[float] = 0.0
     repetition_penalty: Optional[float] = 1.0
     repetition_decay: Optional[int] = 0
     mirostat_mode: Optional[int] = 0
@@ -94,13 +91,6 @@ class CommonCompletionRequest(BaseModel):
         if isinstance(self.stop, str):
             self.stop = [self.stop]
 
-        # Set repetition_penalty to frequency_penalty if repetition_penalty
-        # isn't already defined
-        if (
-            self.repetition_penalty is None or self.repetition_penalty == 1.0
-        ) and self.frequency_penalty:
-            self.repetition_penalty = self.frequency_penalty
-
         return {
             "stop": self.stop,
             "max_tokens": self.max_tokens,
@@ -116,6 +106,8 @@ class CommonCompletionRequest(BaseModel):
             "typical": self.typical,
             "min_p": self.min_p,
             "tfs": self.tfs,
+            "frequency_penalty": self.frequency_penalty,
+            "presence_penalty": self.presence_penalty,
             "repetition_penalty": self.repetition_penalty,
             "repetition_range": unwrap(self.repetition_range, -1),
             "repetition_decay": self.repetition_decay,

@@ -459,7 +459,9 @@ class ModelContainer:
                 'mirostat' (bool): Use Mirostat (default: False)
                 'mirostat_tau' (float) Mirostat tau parameter (default: 1.5)
                 'mirostat_eta' (float) Mirostat eta parameter (default: 0.1)
-                'repetition_penalty' (float): Token repetition/presence penalty
+                'frequency_penalty' (float): Token frequency penalty (default: 0.0)
+                'presence_penalty' (float): Token presence penalty (default: 0.0)
+                'repetition_penalty' (float): Token repetition penalty
                     (default: 1.15)
                 'repetition_range' (int): Repetition penalty range
                     (default: whole context)
@@ -529,6 +531,22 @@ class ModelContainer:
                 "installed ExLlamaV2 version."
             )
 
+        if (unwrap(kwargs.get("frequency_penalty"), 0.0)) != 0.0 and not hasattr(
+            gen_settings, "token_frequency_penalty"
+        ):
+            logger.warning(
+                "Frequency penalty is not supported by the currently "
+                "installed ExLlamaV2 version."
+            )
+
+        if (unwrap(kwargs.get("presence_penalty"), 0.0)) != 0.0 and not hasattr(
+            gen_settings, "token_presence_penalty"
+        ):
+            logger.warning(
+                "Presence penalty is not supported by the currently "
+                "installed ExLlamaV2 version."
+            )
+
         # Apply settings
         gen_settings.temperature = unwrap(kwargs.get("temperature"), 1.0)
         gen_settings.temperature_last = unwrap(kwargs.get("temperature_last"), False)
@@ -543,6 +561,12 @@ class ModelContainer:
         # Default tau and eta fallbacks don't matter if mirostat is off
         gen_settings.mirostat_tau = unwrap(kwargs.get("mirostat_tau"), 1.5)
         gen_settings.mirostat_eta = unwrap(kwargs.get("mirostat_eta"), 0.1)
+        gen_settings.token_frequency_penalty = unwrap(
+            kwargs.get("frequency_penalty"), 0.0
+        )
+        gen_settings.token_presence_penalty = unwrap(
+            kwargs.get("presence_penalty"), 0.0
+        )
         gen_settings.token_repetition_penalty = unwrap(
             kwargs.get("repetition_penalty"), 1.0
         )
