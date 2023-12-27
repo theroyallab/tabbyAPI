@@ -526,5 +526,6 @@ def entrypoint():
         log_level="debug",
     )
 
+
 if __name__ == "__main__":
     entrypoint()

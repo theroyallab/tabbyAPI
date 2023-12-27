@@ -10,10 +10,11 @@ if exist "%CONDA_PREFIX%" (
     echo It looks like you're in a conda environment. Skipping venv check.
 ) else (
     if not exist "venv\" (
-        echo "Venv doesn't exist! Creating one for you."
+        echo Venv doesn't exist! Creating one for you.
         python -m venv venv
-        call .\venv\Scripts\activate.bat
     )
+
+    call .\venv\Scripts\activate.bat
 )
 
 :: Call the python script with batch args

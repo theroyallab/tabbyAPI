@@ -44,6 +44,8 @@ def get_argparser():
 
 
 if __name__ == "__main__":
+    subprocess.run("pip -V")
+
     parser = get_argparser()
     args = parser.parse_args()
 
