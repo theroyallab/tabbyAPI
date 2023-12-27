@@ -476,7 +476,10 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
     return response
 
 
-if __name__ == "__main__":
+def entrypoint():
+    """Entry function for program startup"""
+    global MODEL_CONTAINER
+
     # Load from YAML config
     read_config_from_file(pathlib.Path("config.yml"))
 
@@ -522,3 +525,6 @@ if __name__ == "__main__":
         port=network_config.get("port", 5000),
         log_level="debug",
     )
+
+if __name__ == "__main__":
+    entrypoint()
