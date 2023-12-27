@@ -1,11 +1,20 @@
-:: From https://github.com/jllllll/windows-venv-installers/blob/main/Powershell/run-ps-script.cmd
 @echo off
 
-set SCRIPT_NAME=start.ps1
+:: Creates a venv if it doesn't exist and runs the start script for requirements upgrades
+:: This is intended for users who want to start the API and have everything upgraded and installed
 
-:: This will run the Powershell script named above in the current directory
-:: This is intended for systems who have not changed the script execution policy from default
-:: These systems will be unable to directly execute Powershell scripts unless done through CMD.exe like below
+cd "%~dp0"
 
-if not exist "%~dp0\%SCRIPT_NAME%" ( echo %SCRIPT_NAME% not found! && pause && goto eof )
-call powershell.exe -executionpolicy Bypass ". '%~dp0\start.ps1' %*"
+:: Don't create a venv if a conda environment is active
+if exist "%CONDA_PREFIX%" (
+    echo It looks like you're in a conda environment. Skipping venv check.
+) else (
+    if not exist "venv\" (
+        echo "Venv doesn't exist! Creating one for you."
+        python -m venv venv
+        call .\venv\Scripts\activate.bat
+    )
+)
+
+:: Call the python script with batch args
+call python start.py %*
