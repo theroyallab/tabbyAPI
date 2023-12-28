@@ -58,4 +58,5 @@ if __name__ == "__main__":
 
     # Import entrypoint after installing all requirements
     from main import entrypoint
+
     entrypoint()
