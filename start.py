@@ -3,7 +3,6 @@ import argparse
 import os
 import pathlib
 import subprocess
-from main import entrypoint
 
 
 def get_requirements_file():
@@ -44,7 +43,7 @@ def get_argparser():
 
 
 if __name__ == "__main__":
-    subprocess.run("pip -V")
+    subprocess.run(["pip", "-V"])
 
     parser = get_argparser()
     args = parser.parse_args()
@@ -55,6 +54,8 @@ if __name__ == "__main__":
         requirements_file = (
             "requirements-nowheel" if args.nowheel else get_requirements_file()
         )
-        subprocess.run(f"pip install -U -r {requirements_file}.txt")
+        subprocess.run(["pip", "install", "-U", "-r", f"{requirements_file}.txt"])
 
+    # Import entrypoint after installing all requirements
+    from main import entrypoint
     entrypoint()
