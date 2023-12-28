@@ -7,9 +7,15 @@ services:
         INSTALL_FSCHAT: "true"  # Set this to "true" or "false" as needed
     ports:
       - "5000:5000"
-    runtime: nvidia
     environment:
       - NAME=TabbyAPI
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
-      - /mnt/nvme/models:/usr/src/app/models
+      - ./models:/usr/src/app/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
