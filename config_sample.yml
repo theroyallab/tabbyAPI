@@ -77,7 +77,7 @@ model:
   # NOTE: Only works with chat completion message lists!
   prompt_template:
 
-  # Number of experts to use per token. Loads from the model's config.json if not specified (default: None)
+  # Number of experts to use PER TOKEN. Fetched from the model's config.json if not specified (default: None)
   # WARNING: Don't set this unless you know what you're doing!
   # NOTE: For MoE models (ex. Mixtral) only!
   num_experts_per_token:

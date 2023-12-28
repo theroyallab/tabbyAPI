@@ -111,6 +111,7 @@ async def get_current_model():
             max_seq_len=MODEL_CONTAINER.config.max_seq_len,
             cache_mode="FP8" if MODEL_CONTAINER.cache_fp8 else "FP16",
             prompt_template=prompt_template.name if prompt_template else None,
+            num_experts_per_token=MODEL_CONTAINER.config.num_experts_per_token,
         ),
         logging=gen_logging.PREFERENCES,
     )
