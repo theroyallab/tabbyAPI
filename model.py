@@ -521,7 +521,7 @@ class ModelContainer:
                 'presence_penalty' (float): Token presence penalty (default: 0.0)
                 'repetition_penalty' (float): Token repetition penalty
                     (default: 1.15)
-                'repetition_range' (int): Repetition penalty range
+                'penalty_range' (int): Penalty range
                     (default: whole context)
                 'repetition_decay' (int): Repetition penalty range
                     (default: same as range)
@@ -575,15 +575,24 @@ class ModelContainer:
         gen_settings.token_repetition_penalty = unwrap(
             kwargs.get("repetition_penalty"), 1.0
         )
+
+        # Applies for all penalties despite being called token_repetition_range
         gen_settings.token_repetition_range = unwrap(
-            kwargs.get("repetition_range"), self.config.max_seq_len
+            kwargs.get("penalty_range"), self.config.max_seq_len
         )
+
+        # Dynamically scale penalty range to output tokens
+        # Only do this if freq/pres pen is enabled and the repetition range is -1
+        auto_scale_penalty_range = (
+            gen_settings.token_frequency_penalty != 0
+            or gen_settings.token_presence_penalty != 0
+        ) and gen_settings.token_repetition_range == -1
 
         # Always make sure the fallback is 0 if range < 0
         # It's technically fine to use -1, but this just validates the passed
         # fallback
         # Always default to 0 if something goes wrong
-        if gen_settings.token_repetition_range <= 0:
+        if gen_settings.token_repetition_range < 0:
             fallback_decay = 0
         else:
             fallback_decay = gen_settings.token_repetition_range
@@ -609,6 +618,7 @@ class ModelContainer:
             max_tokens=max_tokens,
             **vars(gen_settings),
             token_healing=token_healing,
+            auto_scale_penalty_range=auto_scale_penalty_range,
             add_bos_token=add_bos_token,
             ban_eos_token=ban_eos_token,
             stop_conditions=stop_conditions,
@@ -683,6 +693,9 @@ class ModelContainer:
                     token_healing=token_healing,
                     loras=self.active_loras,
                 )
+
+            if auto_scale_penalty_range:
+                gen_settings.token_repetition_range = generated_tokens
 
             # Generate
             chunk, eos, tokens = self.generator.stream()

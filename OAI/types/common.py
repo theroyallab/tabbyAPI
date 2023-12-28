@@ -77,9 +77,13 @@ class CommonCompletionRequest(BaseModel):
     logit_bias: Optional[Dict[int, float]] = None
 
     # Aliased variables
-    repetition_range: Optional[int] = Field(
+    penalty_range: Optional[int] = Field(
         default=-1,
-        validation_alias=AliasChoices("repetition_range", "repetition_penalty_range"),
+        validation_alias=AliasChoices(
+            "penalty_range",
+            "repetition_range",
+            "repetition_penalty_range",
+        ),
     )
 
     def to_gen_params(self):
@@ -106,7 +110,7 @@ class CommonCompletionRequest(BaseModel):
             "frequency_penalty": self.frequency_penalty,
             "presence_penalty": self.presence_penalty,
             "repetition_penalty": self.repetition_penalty,
-            "repetition_range": self.repetition_range,
+            "penalty_range": self.penalty_range,
             "repetition_decay": self.repetition_decay,
             "mirostat": self.mirostat_mode == 2,
             "mirostat_tau": self.mirostat_tau,
