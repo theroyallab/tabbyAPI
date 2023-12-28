@@ -513,11 +513,11 @@ def entrypoint():
             else:
                 loading_bar.next()
 
-    # Load loras
-    lora_config = get_lora_config()
-    if "loras" in lora_config:
-        lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
-        MODEL_CONTAINER.load_loras(lora_dir.resolve(), **lora_config)
+        # Load loras after loading the model
+        lora_config = get_lora_config()
+        if "loras" in lora_config:
+            lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
+            MODEL_CONTAINER.load_loras(lora_dir.resolve(), **lora_config)
 
     uvicorn.run(
         app,
