@@ -126,7 +126,9 @@ class ModelContainer:
             self.config.max_seq_len = target_max_seq_len
 
         # Set the rope scale
-        self.config.scale_pos_emb = unwrap(kwargs.get("rope_scale"), 1.0)
+        self.config.scale_pos_emb = unwrap(
+            kwargs.get("rope_scale"), self.config.scale_pos_emb
+        )
 
         # Automatically calculate rope alpha
         self.config.scale_alpha_value = unwrap(

@@ -60,6 +60,7 @@ model:
   # Rope scale (default: 1.0)
   # Same thing as compress_pos_emb
   # Only use if your model was trained on long context with rope (check config.json)
+  # Leave blank to pull the value from the model
   rope_scale: 1.0
 
   # Rope alpha (default: 1.0)
