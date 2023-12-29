@@ -1,5 +1,6 @@
 # Sample YAML file for configuration.
-# Comment out values as needed. Every value has a default within the application.
+# Comment and uncomment values as needed. Every value has a default within the application.
+# This file serves to be a drop in for config.yml
 
 # Unless specified in the comments, DO NOT put these options in quotes!
 # You can use https://www.yamllint.com/ if you want to check your YAML formatting.
@@ -34,84 +35,81 @@ model:
 
   # An initial model to load. Make sure the model is located in the model directory!
   # A model can be loaded later via the API.
-  model_name: A model name
+  # REQUIRED: This must be filled out to load a model on startup!
+  model_name:
 
   # Sends dummy model names when the models endpoint is queried
   # Enable this if the program is looking for a specific OAI model
-  use_dummy_models: False
+  #use_dummy_models: False
 
   # The below parameters apply only if model_name is set
 
   # Max sequence length (default: Empty)
   # Fetched from the model's base sequence length in config.json by default
-  max_seq_len:
+  #max_seq_len:
 
   # Overrides base model context length (default: Empty)
   # WARNING: Don't set this unless you know what you're doing!
   # Only use this if the model's base sequence length in config.json is incorrect (ex. Mistral/Mixtral models)
-  override_base_seq_len:
+  #override_base_seq_len:
 
   # Automatically allocate resources to GPUs (default: True)
-  gpu_split_auto: True
+  #gpu_split_auto: True
 
   # An integer array of GBs of vram to split between GPUs (default: [])
-  gpu_split: [20.6, 24]
+  #gpu_split: [20.6, 24]
 
   # Rope scale (default: 1.0)
   # Same thing as compress_pos_emb
   # Only use if your model was trained on long context with rope (check config.json)
   # Leave blank to pull the value from the model
-  rope_scale: 1.0
+  #rope_scale: 1.0
 
   # Rope alpha (default: 1.0)
   # Same thing as alpha_value
   # Leave blank to automatically calculate alpha
-  rope_alpha: 1.0
+  #rope_alpha: 1.0
 
   # Disable Flash-attention 2. Set to True for GPUs lower than Nvidia's 3000 series. (default: False)
-  no_flash_attention: False
+  #no_flash_attention: False
 
   # Enable 8 bit cache mode for VRAM savings (slight performance hit). Possible values FP16, FP8. (default: FP16)
-  cache_mode: FP16
+  #cache_mode: FP16
 
   # Set the prompt template for this model. If empty, chat completions will be disabled. (default: Empty)
   # NOTE: Only works with chat completion message lists!
-  prompt_template:
+  #prompt_template:
 
   # Number of experts to use PER TOKEN. Fetched from the model's config.json if not specified (default: Empty)
   # WARNING: Don't set this unless you know what you're doing!
   # NOTE: For MoE models (ex. Mixtral) only!
-  num_experts_per_token:
+  #num_experts_per_token:
 
   # Options for draft models (speculative decoding). This will use more VRAM!
-  draft:
+  #draft:
     # Overrides the directory to look for draft (default: models)
-    draft_model_dir: models
+    #draft_model_dir: models
 
     # An initial draft model to load. Make sure this model is located in the model directory!
     # A draft model can be loaded later via the API.
-    draft_model_name: A model name
+    #draft_model_name: A model name
   
     # Rope scale for draft models (default: 1.0)
     # Same thing as compress_pos_emb
     # Only use if your draft model was trained on long context with rope (check config.json)
-    draft_rope_scale: 1.0
+    #draft_rope_scale: 1.0
 
     # Rope alpha for draft model (default: 1.0)
     # Same thing as alpha_value
     # Leave blank to automatically calculate alpha value
-    draft_rope_alpha: 1.0
+    #draft_rope_alpha: 1.0
   
   # Options for loras
-  lora:
+  #lora:
     # Overrides the directory to look for loras (default: loras)
-    lora_dir: loras
+    #lora_dir: loras
     
     # List of loras to load and associated scaling factors (default: 1.0). Comment out unused entries or add more rows as needed.
-    loras:
-    - name: lora1
-      scaling: 1.0
-    - name: lora2
-      scaling: 0.9
-    - name: lora3
-      scaling: 0.5
+    #loras:
+    #- name: lora1
+    #  scaling: 1.0
