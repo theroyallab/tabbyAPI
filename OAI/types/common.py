@@ -74,7 +74,7 @@ class CommonCompletionRequest(BaseModel):
     mirostat_eta: Optional[float] = 0.1
     add_bos_token: Optional[bool] = True
     ban_eos_token: Optional[bool] = False
-    logit_bias: Optional[Dict[int, float]] = None
+    logit_bias: Optional[Dict[int, float]] = Field(default=None, examples=[[{"1": 10}]])
 
     # Aliased variables
     penalty_range: Optional[int] = Field(

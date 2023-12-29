@@ -68,9 +68,15 @@ class ModelLoadRequest(BaseModel):
     )
     gpu_split_auto: Optional[bool] = True
     gpu_split: Optional[List[float]] = Field(default_factory=list)
-    rope_scale: Optional[float] = 1.0
+    rope_scale: Optional[float] = Field(
+        description="Automatically pulled from the model's config if not present",
+        default=None,
+        examples=[1.0],
+    )
     rope_alpha: Optional[float] = Field(
-        description="Automatically calculated if not present", default=None
+        description="Automatically calculated if not present",
+        default=None,
+        examples=[1.0],
     )
     no_flash_attention: Optional[bool] = False
     # low_mem: Optional[bool] = False
