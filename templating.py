@@ -57,11 +57,18 @@ def _compile_template(template: str):
     return jinja_template
 
 
+def get_all_templates():
+    """Fetches all templates from the templates directory"""
+
+    template_directory = pathlib.Path("templates")
+    return template_directory.glob("*.jinja")
+
+
 def find_template_from_model(model_path: pathlib.Path):
     """Find a matching template name from a model path."""
     model_name = model_path.name
-    template_directory = pathlib.Path("templates")
-    for filepath in template_directory.glob("*.jinja"):
+    template_files = get_all_templates()
+    for filepath in template_files:
         template_name = filepath.stem.lower()
 
         # Check if the template name is present in the model name

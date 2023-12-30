@@ -32,6 +32,7 @@ from OAI.types.model import (
     ModelLoadResponse,
     ModelCardParameters,
 )
+from OAI.types.template import TemplateList
 from OAI.types.token import (
     TokenEncodeRequest,
     TokenEncodeResponse,
@@ -45,7 +46,7 @@ from OAI.utils_oai import (
     create_chat_completion_response,
     create_chat_completion_stream_chunk,
 )
-from templating import get_prompt_from_template
+from templating import get_all_templates, get_prompt_from_template
 from utils import get_generator_error, get_sse_packet, load_progress, unwrap
 from logger import init_logger
 
@@ -242,6 +243,14 @@ async def unload_model():
 
     MODEL_CONTAINER.unload()
     MODEL_CONTAINER = None
+
+
+@app.get("/v1/templates", dependencies=[Depends(check_api_key)])
+@app.get("/v1/template/list", dependencies=[Depends(check_api_key)])
+async def get_templates():
+    templates = get_all_templates()
+    template_strings = list(map(lambda template: template.stem, templates))
+    return TemplateList(data=template_strings)
 
 
 # Lora list endpoint
