@@ -597,7 +597,6 @@ class ModelContainer:
                 gen_settings.token_repetition_penalty = frequency_penalty
                 logger.warning("Setting this value to repetition penalty instead.")
 
-
         # Always make sure the fallback is 0 if range < 0
         # It's technically fine to use -1, but this just validates the passed
         # fallback
