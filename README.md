@@ -4,7 +4,7 @@
 > 
 >  Need help? Join the [Discord Server](https://discord.gg/sYQxnuD7Fj) and get the `Tabby` role. Please be nice when asking questions.
 
-A FastAPI based application that allows for generating text using an LLM (large language model) using the https://github.com/turboderp/exllamav2.
+A FastAPI based application that allows for generating text using an LLM (large language model) using the [Exllamav2 backend](https://github.com/turboderp/exllamav2)
 
 ## Disclaimer
 
