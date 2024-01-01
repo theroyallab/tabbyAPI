@@ -12,8 +12,10 @@ from functools import partial
 from progress.bar import IncrementalBar
 
 import gen_logging
+from args import convert_args_to_dict, init_argparser
 from auth import check_admin_key, check_api_key, load_auth_keys
 from config import (
+    override_config_from_args,
     read_config_from_file,
     get_gen_logging_config,
     get_model_config,
@@ -493,12 +495,19 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
     return response
 
 
-def entrypoint():
+def entrypoint(args: Optional[dict] = None):
     """Entry function for program startup"""
     global MODEL_CONTAINER
 
     # Load from YAML config
     read_config_from_file(pathlib.Path("config.yml"))
+
+    # Parse and override config from args
+    if args is None:
+        parser = init_argparser()
+        args = convert_args_to_dict(parser.parse_args(), parser)
+
+    override_config_from_args(args)
 
     network_config = get_network_config()
 

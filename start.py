@@ -3,6 +3,7 @@ import argparse
 import os
 import pathlib
 import subprocess
+from args import convert_args_to_dict, init_argparser
 
 
 def get_requirements_file():
@@ -24,28 +25,29 @@ def get_requirements_file():
     return requirements_name
 
 
-def get_argparser():
-    """Fetches the argparser for this script"""
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
+def add_start_args(parser: argparse.ArgumentParser):
+    """Add start script args to the provided parser"""
+    start_group = parser.add_argument_group("start")
+    start_group.add_argument(
         "-iu",
         "--ignore-upgrade",
         action="store_true",
         help="Ignore requirements upgrade",
     )
-    parser.add_argument(
+    start_group.add_argument(
         "-nw",
         "--nowheel",
         action="store_true",
         help="Don't upgrade wheel dependencies (exllamav2, torch)",
     )
-    return parser
 
 
 if __name__ == "__main__":
     subprocess.run(["pip", "-V"])
 
-    parser = get_argparser()
+    # Create an argparser and add extra startup script args
+    parser = init_argparser()
+    add_start_args(parser)
     args = parser.parse_args()
 
     if args.ignore_upgrade:
@@ -59,4 +61,4 @@ if __name__ == "__main__":
     # Import entrypoint after installing all requirements
     from main import entrypoint
 
-    entrypoint()
+    entrypoint(convert_args_to_dict(args, parser))

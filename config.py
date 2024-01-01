@@ -25,6 +25,37 @@ def read_config_from_file(config_path: pathlib.Path):
         GLOBAL_CONFIG = {}
 
 
+def override_config_from_args(args: dict):
+    """Overrides the config based on a dict representation of args"""
+
+    config_override = unwrap(args.get("options", {}).get("config"))
+    if config_override:
+        logger.info("Attempting to override config.yml from args.")
+        read_config_from_file(pathlib.Path(config_override))
+        return
+
+    # Network config
+    network_override = args.get("network")
+    if network_override:
+        network_config = get_network_config()
+        GLOBAL_CONFIG["network"] = {**network_config, **network_override}
+
+    # Model config
+    model_override = args.get("model")
+    if model_override:
+        model_config = get_model_config()
+        GLOBAL_CONFIG["model"] = {**model_config, **model_override}
+
+    # Logging config
+    logging_override = args.get("logging")
+    if logging_override:
+        logging_config = get_gen_logging_config()
+        GLOBAL_CONFIG["logging"] = {
+            **logging_config,
+            **{k.replace("log_", ""): logging_override[k] for k in logging_override},
+        }
+
+
 def get_model_config():
     """Returns the model config from the global config"""
     return unwrap(GLOBAL_CONFIG.get("model"), {})
