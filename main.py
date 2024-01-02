@@ -122,6 +122,7 @@ async def get_current_model():
             cache_mode="FP8" if MODEL_CONTAINER.cache_fp8 else "FP16",
             prompt_template=prompt_template.name if prompt_template else None,
             num_experts_per_token=MODEL_CONTAINER.config.num_experts_per_token,
+            use_cfg=MODEL_CONTAINER.use_cfg,
         ),
         logging=gen_logging.PREFERENCES,
     )

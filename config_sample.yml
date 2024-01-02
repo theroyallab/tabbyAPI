@@ -87,7 +87,7 @@ model:
 
   # Enables CFG support (default: False)
   # WARNING: This flag disables Flash Attention! (a stopgap fix until it's fixed in upstream)
-  use_cfg: False
+  #use_cfg: False
 
   # Options for draft models (speculative decoding). This will use more VRAM!
   #draft:
