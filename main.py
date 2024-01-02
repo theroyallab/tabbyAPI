@@ -525,9 +525,10 @@ def entrypoint(args: Optional[dict] = None):
     # If an initial model name is specified, create a container
     # and load the model
     model_config = get_model_config()
-    if "model_name" in model_config:
+    model_name = model_config.get("model_name")
+    if model_name:
         model_path = pathlib.Path(unwrap(model_config.get("model_dir"), "models"))
-        model_path = model_path / model_config.get("model_name")
+        model_path = model_path / model_name
 
         MODEL_CONTAINER = ModelContainer(model_path.resolve(), False, **model_config)
         load_status = MODEL_CONTAINER.load_gen(load_progress)
@@ -542,7 +543,7 @@ def entrypoint(args: Optional[dict] = None):
 
         # Load loras after loading the model
         lora_config = get_lora_config()
-        if "loras" in lora_config:
+        if lora_config.get("loras"):
             lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
             MODEL_CONTAINER.load_loras(lora_dir.resolve(), **lora_config)
 
