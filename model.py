@@ -585,7 +585,11 @@ class ModelContainer:
         if cfg_scale not in [None, 1.0]:
             if self.use_cfg:
                 gen_settings.cfg_scale = cfg_scale
-                negative_prompt = kwargs.get("negative_prompt")
+
+                # If the negative prompt is empty, use the BOS token
+                negative_prompt = unwrap(
+                    kwargs.get("negative_prompt"), self.tokenizer.bos_token
+                )
             else:
                 logger.warn(
                     "CFG is currently disabled. "
