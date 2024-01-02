@@ -75,6 +75,7 @@ class CommonCompletionRequest(BaseModel):
     add_bos_token: Optional[bool] = True
     ban_eos_token: Optional[bool] = False
     logit_bias: Optional[Dict[int, float]] = Field(default=None, examples=[[{"1": 10}]])
+    negative_prompt: Optional[str] = None
 
     # Aliased variables
     penalty_range: Optional[int] = Field(
@@ -84,6 +85,10 @@ class CommonCompletionRequest(BaseModel):
             "repetition_range",
             "repetition_penalty_range",
         ),
+    )
+
+    cfg_scale: Optional[float] = Field(
+        default=1.0, validation_alias=AliasChoices("cfg_scale", "guidance_scale")
     )
 
     def to_gen_params(self):
@@ -115,4 +120,6 @@ class CommonCompletionRequest(BaseModel):
             "mirostat": self.mirostat_mode == 2,
             "mirostat_tau": self.mirostat_tau,
             "mirostat_eta": self.mirostat_eta,
+            "cfg_scale": self.cfg_scale,
+            "negative_prompt": self.negative_prompt,
         }

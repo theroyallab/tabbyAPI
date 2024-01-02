@@ -85,6 +85,10 @@ model:
   # NOTE: For MoE models (ex. Mixtral) only!
   #num_experts_per_token:
 
+  # Enables CFG support (default: False)
+  # WARNING: This flag disables Flash Attention! (a stopgap fix until it's fixed in upstream)
+  use_cfg: False
+
   # Options for draft models (speculative decoding). This will use more VRAM!
   #draft:
     # Overrides the directory to look for draft (default: models)
