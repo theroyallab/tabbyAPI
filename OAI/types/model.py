@@ -83,6 +83,7 @@ class ModelLoadRequest(BaseModel):
     cache_mode: Optional[str] = "FP16"
     prompt_template: Optional[str] = None
     num_experts_per_token: Optional[int] = None
+    use_cfg: Optional[bool] = None
     draft: Optional[DraftModelLoadRequest] = None
 
 

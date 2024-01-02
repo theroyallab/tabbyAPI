@@ -1,8 +1,8 @@
 """
 Functions for logging generation events.
 """
-from typing import Dict
 from pydantic import BaseModel
+from typing import Dict, Optional
 
 from logger import init_logger
 
@@ -53,11 +53,15 @@ def log_generation_params(**kwargs):
         logger.info(f"Generation options: {kwargs}\n")
 
 
-def log_prompt(prompt: str):
+def log_prompt(prompt: str, negative_prompt: Optional[str]):
     """Logs the prompt to console."""
     if PREFERENCES.prompt:
         formatted_prompt = "\n" + prompt
         logger.info(f"Prompt: {formatted_prompt if prompt else 'Empty'}\n")
+
+        if negative_prompt:
+            formatted_negative_prompt = "\n" + negative_prompt
+            logger.info(f"Negative Prompt: {formatted_negative_prompt}\n")
 
 
 def log_response(response: str):

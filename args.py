@@ -106,6 +106,11 @@ def add_model_args(parser: argparse.ArgumentParser):
         type=int,
         help="Number of experts to use per token in MoE models",
     )
+    model_group.add_argument(
+        "--use-cfg",
+        type=str_to_bool,
+        help="Enables CFG support",
+    )
 
 
 def add_logging_args(parser: argparse.ArgumentParser):
