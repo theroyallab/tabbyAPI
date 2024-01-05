@@ -62,7 +62,6 @@ class CommonCompletionRequest(BaseModel):
     top_k: Optional[int] = 0
     top_p: Optional[float] = 1.0
     top_a: Optional[float] = 0.0
-    typical: Optional[float] = 1.0
     min_p: Optional[float] = 0.0
     tfs: Optional[float] = 1.0
     frequency_penalty: Optional[float] = 0.0
@@ -78,6 +77,10 @@ class CommonCompletionRequest(BaseModel):
     negative_prompt: Optional[str] = None
 
     # Aliased variables
+    typical: Optional[float] = Field(
+        default=1.0, validation_alias=AliasChoices(["typical", "typical_p"])
+    )
+
     penalty_range: Optional[int] = Field(
         default=-1,
         validation_alias=AliasChoices(
