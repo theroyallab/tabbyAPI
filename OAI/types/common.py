@@ -78,7 +78,7 @@ class CommonCompletionRequest(BaseModel):
 
     # Aliased variables
     typical: Optional[float] = Field(
-        default=1.0, validation_alias=AliasChoices(["typical", "typical_p"])
+        default=1.0, validation_alias=AliasChoices("typical", "typical_p")
     )
 
     penalty_range: Optional[int] = Field(
