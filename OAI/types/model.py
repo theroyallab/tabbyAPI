@@ -62,19 +62,18 @@ class ModelLoadRequest(BaseModel):
     max_seq_len: Optional[int] = Field(
         description="Leave this blank to use the model's base sequence length",
         default=None,
-        examples=[4096]
+        examples=[4096],
     )
     override_base_seq_len: Optional[int] = Field(
         description=(
             "Overrides the model's base sequence length. " "Leave blank if unsure"
         ),
         default=None,
-        examples=[4096]
+        examples=[4096],
     )
     gpu_split_auto: Optional[bool] = True
     gpu_split: Optional[List[float]] = Field(
-        default_factory=list,
-        examples=[[24.0, 20.0]]
+        default_factory=list, examples=[[24.0, 20.0]]
     )
     rope_scale: Optional[float] = Field(
         description="Automatically pulled from the model's config if not present",
