@@ -236,7 +236,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
 
 
 # Unload model endpoint
-@app.get(
+@app.post(
     "/v1/model/unload",
     dependencies=[Depends(check_admin_key), Depends(_check_model_container)],
 )
@@ -318,7 +318,7 @@ async def load_lora(data: LoraLoadRequest):
 
 
 # Unload lora endpoint
-@app.get(
+@app.post(
     "/v1/lora/unload",
     dependencies=[Depends(check_admin_key), Depends(_check_model_container)],
 )
