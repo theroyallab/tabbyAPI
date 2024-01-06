@@ -3,8 +3,6 @@ services:
   tabbyapi:
     build:
       context: .
-      args:
-        INSTALL_FSCHAT: "true"  # Set this to "true" or "false" as needed
     ports:
       - "5000:5000"
     environment:
