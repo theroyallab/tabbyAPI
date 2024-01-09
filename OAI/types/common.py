@@ -78,7 +78,9 @@ class CommonCompletionRequest(BaseModel):
 
     # Aliased variables
     typical: Optional[float] = Field(
-        default=1.0, validation_alias=AliasChoices("typical", "typical_p")
+        default=1.0,
+        validation_alias=AliasChoices("typical", "typical_p"),
+        description="Aliases: typical_p",
     )
 
     penalty_range: Optional[int] = Field(
@@ -88,10 +90,13 @@ class CommonCompletionRequest(BaseModel):
             "repetition_range",
             "repetition_penalty_range",
         ),
+        description="Aliases: repetition_range, repetition_penalty_range",
     )
 
     cfg_scale: Optional[float] = Field(
-        default=1.0, validation_alias=AliasChoices("cfg_scale", "guidance_scale")
+        default=1.0,
+        validation_alias=AliasChoices("cfg_scale", "guidance_scale"),
+        description="Aliases: guidance_scale",
     )
 
     def to_gen_params(self):
