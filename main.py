@@ -547,10 +547,17 @@ def entrypoint(args: Optional[dict] = None):
             lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
             MODEL_CONTAINER.load_loras(lora_dir.resolve(), **lora_config)
 
+    host = unwrap(network_config.get("host"), "127.0.0.1")
+    port = unwrap(network_config.get("port"), 5000)
+
+    logger.info(f"Developer documentation: http://{host}:{port}/docs")
+    logger.info(f"Completions: http://{host}:{port}/v1/completions")
+    logger.info(f"Chat completions: http://{host}:{port}/v1/chat/completions")
+
     uvicorn.run(
         app,
-        host=network_config.get("host", "127.0.0.1"),
-        port=network_config.get("port", 5000),
+        host=host,
+        port=port,
         log_level="debug",
     )
 
