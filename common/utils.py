@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from logger import init_logger
+from common.logger import init_logger
 
 logger = init_logger(__name__)
 

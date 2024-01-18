@@ -1,5 +1,5 @@
 """ Test the model container. """
-from model import ModelContainer
+from backends.exllamav2.model import ModelContainer
 
 
 def progress(module, modules):

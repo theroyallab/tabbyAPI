@@ -3,13 +3,12 @@ This method of authorization is pretty insecure, but since TabbyAPI is a local
 application, it should be fine.
 """
 import secrets
-from typing import Optional
-
+import yaml
 from fastapi import Header, HTTPException
 from pydantic import BaseModel
-import yaml
+from typing import Optional
 
-from logger import init_logger
+from common.logger import init_logger
 
 logger = init_logger(__name__)
 
