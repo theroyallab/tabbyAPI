@@ -13,17 +13,17 @@ from exllamav2 import (
     ExLlamaV2Lora,
 )
 from exllamav2.generator import ExLlamaV2StreamingGenerator, ExLlamaV2Sampler
-
-from gen_logging import log_generation_params, log_prompt, log_response
 from typing import List, Optional, Union
-from templating import (
+
+from common.gen_logging import log_generation_params, log_prompt, log_response
+from common.templating import (
     PromptTemplate,
     find_template_from_model,
     get_template_from_model_json,
     get_template_from_file,
 )
-from utils import coalesce, unwrap
-from logger import init_logger
+from common.utils import coalesce, unwrap
+from common.logger import init_logger
 
 logger = init_logger(__name__)
 
@@ -31,7 +31,7 @@ logger = init_logger(__name__)
 AUTO_SPLIT_RESERVE_BYTES = 96 * 1024**2
 
 
-class ModelContainer:
+class ExllamaV2Container:
     """The model container class for ExLlamaV2 models."""
 
     config: Optional[ExLlamaV2Config] = None

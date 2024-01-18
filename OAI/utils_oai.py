@@ -2,6 +2,7 @@
 import pathlib
 from typing import Optional
 
+from common.utils import unwrap
 from OAI.types.chat_completion import (
     ChatCompletionMessage,
     ChatCompletionRespChoice,
@@ -13,8 +14,6 @@ from OAI.types.completion import CompletionResponse, CompletionRespChoice
 from OAI.types.common import UsageStats
 from OAI.types.lora import LoraList, LoraCard
 from OAI.types.model import ModelList, ModelCard
-
-from utils import unwrap
 
 
 def create_completion_response(

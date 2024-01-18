@@ -2,7 +2,8 @@ version: '3.8'
 services:
   tabbyapi:
     build:
-      context: .
+      context: ..
+      dockerfile: ./docker/Dockerfile
     ports:
       - "5000:5000"
     environment:

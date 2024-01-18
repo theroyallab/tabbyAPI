@@ -4,7 +4,7 @@ Functions for logging generation events.
 from pydantic import BaseModel
 from typing import Dict, Optional
 
-from logger import init_logger
+from common.logger import init_logger
 
 logger = init_logger(__name__)
 

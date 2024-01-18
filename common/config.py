@@ -1,8 +1,8 @@
 import yaml
 import pathlib
 
-from logger import init_logger
-from utils import unwrap
+from common.logger import init_logger
+from common.utils import unwrap
 
 logger = init_logger(__name__)
 

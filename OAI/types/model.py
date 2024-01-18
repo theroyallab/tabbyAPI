@@ -1,10 +1,9 @@
 """ Contains model card types. """
+from pydantic import BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
-
-from gen_logging import LogPreferences
+from common.gen_logging import LogPreferences
 
 
 class ModelCardParameters(BaseModel):
