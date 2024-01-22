@@ -27,6 +27,14 @@ logging:
   # Enable generation parameter logging (default: False)
   generation_params: False
 
+# Options for sampling
+sampling:
+  # Override preset name. Find this in the sampler-overrides folder (default: None)
+  # This overrides default fallbacks for sampler values that are passed to the API
+  # Server-side overrides are NOT needed by default
+  # WARNING: Using this can result in a generation speed penalty
+  #override_preset: 
+
 # Options for model overrides and loading
 model:
   # Overrides the directory to look for models (default: models)
