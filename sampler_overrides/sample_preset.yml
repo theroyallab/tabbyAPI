@@ -1,0 +1,94 @@
+# Sample YAML file for override presets.
+# Each block corresponds to a sampler fallback override. Remove ones that you don't need.
+# "force" always overrides the sampler to the specified value.
+# For example, a top-p override of 1.5 with force = true will make every API request have a top_p value of 1.5
+
+# You can use https://www.yamllint.com/ if you want to check your YAML formatting.
+
+# TODO: Improve documentation for each field
+
+# MARK: Misc generation parameters
+max_tokens:
+  override: 150
+  force: false
+stop:
+  override: []
+  force: false
+token_healing:
+  override: false
+  force: false
+
+# MARK: Temperature
+temperature:
+  override: 1.0
+  force: false
+temperature_last:
+  override: false
+  force: false
+
+# MARK: Alphabet soup
+top_k:
+  override: 0
+  force: false
+top_p:
+  override: 1.0
+  force: false
+top_a:
+  override: 0.0
+  force: false
+min_p:
+  override: 0.0
+  force: false
+tfs:
+  override: 0.0
+  force: false
+typical:
+  override: 1.0
+  force: false
+
+# MARK: Penalty settings
+frequency_penalty:
+  override: 0.0
+  force: false
+presence_penalty:
+  override: 0.0
+  force: false
+repetition_penalty:
+  override: 1.0
+  force: false
+repetition_decay:
+  override: 0
+  force: false
+penalty_range:
+  override: -1
+  force: false
+
+# MARK: Mirostat
+mirostat_mode:
+  override: 0
+  force: false
+mirostat_tau:
+  override: 1.5
+  force: false
+mirostat_eta:
+  override: 0.3
+  force: false
+
+# MARK: Token options
+add_bos_token:
+  override: true
+  force: false
+ban_eos_token:
+  override: false
+  force: false
+logit_bias:
+  override:
+  force: false
+
+# MARK: CFG scale
+cfg_scale:
+  override: 1.0
+  force: false
+negative_prompt:
+  override:
+  force: false

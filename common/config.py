@@ -56,6 +56,11 @@ def override_config_from_args(args: dict):
         }
 
 
+def get_sampling_config():
+    """Returns the sampling parameter config from the global config"""
+    return unwrap(GLOBAL_CONFIG.get("sampling"), {})
+
+
 def get_model_config():
     """Returns the model config from the global config"""
     return unwrap(GLOBAL_CONFIG.get("model"), {})

@@ -192,3 +192,7 @@ templates/*
 !templates/place_your_templates_here.txt
 !templates/alpaca.jinja
 !templates/chatml.jinja
+
+# Sampler overrides folder
+sampler_overrides/*
+!sampler_overrides/sample_preset.yml

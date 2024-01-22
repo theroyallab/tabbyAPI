@@ -16,6 +16,7 @@ from backends.exllamav2.model import ExllamaV2Container
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import check_admin_key, check_api_key, load_auth_keys
 from common.config import (
+    get_sampling_config,
     override_config_from_args,
     read_config_from_file,
     get_gen_logging_config,
@@ -25,6 +26,7 @@ from common.config import (
     get_network_config,
 )
 from common.generators import call_with_semaphore, generate_with_semaphore
+from common.sampling import get_overrides_from_file
 from common.templating import get_all_templates, get_prompt_from_template
 from common.utils import get_generator_error, get_sse_packet, load_progress, unwrap
 from common.logger import init_logger
@@ -521,6 +523,12 @@ def entrypoint(args: Optional[dict] = None):
         gen_logging.update_from_dict(log_config)
 
     gen_logging.broadcast_status()
+
+    # Set sampler parameter overrides if provided
+    sampling_config = get_sampling_config()
+    sampling_override_preset = sampling_config.get("override_preset")
+    if sampling_override_preset:
+        get_overrides_from_file(sampling_override_preset)
 
     # If an initial model name is specified, create a container
     # and load the model
