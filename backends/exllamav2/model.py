@@ -163,30 +163,27 @@ class ExllamaV2Container:
         if prompt_template_name:
             logger.info("Loading prompt template with name " f"{prompt_template_name}")
             # Read the template
-            self.prompt_template = get_template_from_file(prompt_template_name)
-        else:
-            # Then try finding the template from the tokenizer_config.json
-            self.prompt_template = get_template_from_model_json(
-                pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
-                "chat_template",
-                "from_tokenizer_config",
-            )
+            try:
+                self.prompt_template = get_template_from_file(prompt_template_name)
+            except FileNotFoundError:
+                self.prompt_template = None
 
-            # Try finding the chat template from the model's config.json
-            # TODO: This may not even be used with huggingface models,
-            # mark for removal.
-            if self.prompt_template is None:
+            # Then try finding the template from the tokenizer_config.json
+            try:
                 self.prompt_template = get_template_from_model_json(
-                    pathlib.Path(self.config.model_config),
+                    pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
                     "chat_template",
-                    "from_model_config",
+                    "from_tokenizer_config",
                 )
+            except FileNotFoundError:
+                self.prompt_template = None
 
             # If that fails, attempt fetching from model name
-            if self.prompt_template is None:
+            try:
                 template_match = find_template_from_model(model_directory)
-                if template_match:
-                    self.prompt_template = get_template_from_file(template_match)
+                self.prompt_template = get_template_from_file(template_match)
+            except (LookupError, FileNotFoundError):
+                self.prompt_template = None
 
         # Catch all for template lookup errors
         if self.prompt_template:

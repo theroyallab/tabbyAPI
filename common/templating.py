@@ -68,26 +68,29 @@ def find_template_from_model(model_path: pathlib.Path):
     """Find a matching template name from a model path."""
     model_name = model_path.name
     template_files = get_all_templates()
+
     for filepath in template_files:
         template_name = filepath.stem.lower()
 
         # Check if the template name is present in the model name
         if template_name in model_name.lower():
             return template_name
-
-    return None
+        else:
+            raise LookupError("Could not find template from model name.")
 
 
 def get_template_from_file(prompt_template_name: str):
     """Get a template from a jinja file."""
+
     template_path = pathlib.Path(f"templates/{prompt_template_name}.jinja")
     if template_path.exists():
         with open(template_path, "r", encoding="utf8") as raw_template:
             return PromptTemplate(
                 name=prompt_template_name, template=raw_template.read()
             )
-
-    return None
+    else:
+        # Let the user know if the template file isn't found
+        raise FileNotFoundError(f'Template "{prompt_template_name}" not found.')
 
 
 # Get a template from a JSON file
@@ -100,5 +103,5 @@ def get_template_from_model_json(json_path: pathlib.Path, key: str, name: str):
             chat_template = model_config.get(key)
             if chat_template:
                 return PromptTemplate(name=name, template=chat_template)
-
-    return None
+    else:
+        raise FileNotFoundError(f'Model JSON path "{json_path}" not found.')

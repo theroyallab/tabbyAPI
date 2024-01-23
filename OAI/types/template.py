@@ -7,3 +7,9 @@ class TemplateList(BaseModel):
 
     object: str = "list"
     data: List[str] = Field(default_factory=list)
+
+
+class TemplateSwitchRequest(BaseModel):
+    """Request to switch a template."""
+
+    name: str
