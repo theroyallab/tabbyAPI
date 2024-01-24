@@ -554,7 +554,9 @@ class ExllamaV2Container:
         token_healing = unwrap(kwargs.get("token_healing"), False)
         max_tokens = unwrap(kwargs.get("max_tokens"), 150)
         stream_interval = unwrap(kwargs.get("stream_interval"), 0)
-        generate_window = min(unwrap(kwargs.get("generate_window"), 512), max_tokens)
+        generate_window = max(
+            unwrap(kwargs.get("generate_window"), 512), max_tokens // 8
+        )
 
         # Sampler settings
         gen_settings = ExLlamaV2Sampler.Settings()
