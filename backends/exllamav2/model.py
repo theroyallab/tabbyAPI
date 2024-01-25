@@ -243,7 +243,7 @@ class ExllamaV2Container:
     def find_prompt_template(self, prompt_template_name, model_directory):
         """Tries to find a prompt template using various methods"""
 
-        logger.info("Loading prompt template with name " f"{prompt_template_name}")
+        logger.info("Attempting to load a prompt template if present.")
 
         find_template_functions = [
             lambda: get_template_from_model_json(

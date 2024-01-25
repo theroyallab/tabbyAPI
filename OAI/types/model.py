@@ -90,6 +90,7 @@ class ModelLoadRequest(BaseModel):
     prompt_template: Optional[str] = None
     num_experts_per_token: Optional[int] = None
     use_cfg: Optional[bool] = None
+    fasttensors: Optional[bool] = False
     draft: Optional[DraftModelLoadRequest] = None
 
 
