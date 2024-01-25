@@ -138,11 +138,23 @@ class ExllamaV2Container:
             kwargs.get("rope_alpha"), self.calculate_rope_alpha(base_seq_len)
         )
 
+        # Enable CFG if present
+        use_cfg = unwrap(kwargs.get("use_cfg"), False)
         if hasattr(ExLlamaV2Sampler.Settings, "cfg_scale"):
-            self.use_cfg = unwrap(kwargs.get("use_cfg"), False)
-        else:
+            self.use_cfg = use_cfg
+        elif use_cfg:
             logger.warning(
                 "CFG is not supported by the currently installed ExLlamaV2 version."
+            )
+
+        # Enable fasttensors loading if present
+        use_fasttensors = unwrap(kwargs.get("fasttensors"), False)
+        if hasattr(ExLlamaV2Config, "fasttensors"):
+            self.config.fasttensors = use_fasttensors
+        elif use_fasttensors:
+            logger.warning(
+                "fasttensors is not supported by "
+                "the currently installed ExllamaV2 version."
             )
 
         # Turn off flash attention if CFG is on
@@ -668,6 +680,7 @@ class ExllamaV2Container:
             **vars(gen_settings),
             token_healing=token_healing,
             auto_scale_penalty_range=auto_scale_penalty_range,
+            generate_window=generate_window,
             add_bos_token=add_bos_token,
             ban_eos_token=ban_eos_token,
             stop_conditions=stop_conditions,

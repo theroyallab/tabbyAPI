@@ -18,6 +18,11 @@ token_healing:
   override: false
   force: false
 
+# Commented out because the default is dynamically scaled
+#generate_window:
+  #override: 512
+  #force: false
+
 # MARK: Temperature
 temperature:
   override: 1.0
