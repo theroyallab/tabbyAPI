@@ -1,6 +1,7 @@
 # Torch
+# Patch until torch 2.2 is supported
 --extra-index-url https://download.pytorch.org/whl/rocm5.6
-torch
+torch < 2.2, >= 2
 
 # Exllamav2
 https://github.com/turboderp/exllamav2/releases/download/v0.0.12/exllamav2-0.0.12+rocm5.6-cp311-cp311-linux_x86_64.whl; python_version == "3.11"

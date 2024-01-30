@@ -1,6 +1,7 @@
 ﻿# Torch
+# Patch until torch 2.2 is supported
 --extra-index-url https://download.pytorch.org/whl/cu121
-torch
+torch < 2.2, >= 2
 
 # Exllamav2
 
