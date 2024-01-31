@@ -43,6 +43,19 @@ class SamplerParams(BaseModel):
         default_factory=lambda: get_default_sampler_value("temperature_last", False)
     )
 
+    max_temp: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("max_temp", 0.0),
+    )
+
+    min_temp: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("min_temp", 0.0),
+    )
+
+    temp_exponent: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("temp_exponent", 1.0),
+        examples=[1.0],
+    )
+
     top_k: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("top_k", 0)
     )
@@ -157,6 +170,9 @@ class SamplerParams(BaseModel):
             "logit_bias": self.logit_bias,
             "temperature": self.temperature,
             "temperature_last": self.temperature_last,
+            "min_temp": self.min_temp,
+            "max_temp": self.max_temp,
+            "temp_exponent": self.temp_exponent,
             "top_k": self.top_k,
             "top_p": self.top_p,
             "top_a": self.top_a,

@@ -30,6 +30,15 @@ temperature:
 temperature_last:
   override: false
   force: false
+min_temp:
+  override: 0.0
+  force: false
+max_temp:
+  override: 0.0
+  force: false
+temp_exponent:
+  override: 0.0
+  force: false
 
 # MARK: Alphabet soup
 top_k:
