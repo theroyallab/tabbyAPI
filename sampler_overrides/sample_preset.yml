@@ -39,6 +39,9 @@ max_temp:
 temp_exponent:
   override: 0.0
   force: false
+smoothing_factor:
+  override: 0.0
+  force: false
 
 # MARK: Alphabet soup
 top_k:
