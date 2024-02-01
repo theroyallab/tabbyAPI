@@ -9,6 +9,8 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from functools import partial
+from packaging import version
+from importlib.metadata import version as package_version
 from progress.bar import IncrementalBar
 
 import common.gen_logging as gen_logging
@@ -577,6 +579,26 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
 def entrypoint(args: Optional[dict] = None):
     """Entry function for program startup"""
     global MODEL_CONTAINER
+
+    # Check exllamav2 version and give a descriptive error if it's too old
+    required_exl_version = "0.0.12"
+    current_exl_version = package_version("exllamav2").split("+")[0]
+
+    if version.parse(current_exl_version) < version.parse(required_exl_version):
+        raise SystemExit(
+            f"TabbyAPI requires ExLlamaV2 {required_exl_version} "
+            f"or greater. Your current version is {current_exl_version}.\n"
+            "Please upgrade your environment by running a start script "
+            "(start.bat or start.sh)\n\n"
+            "Or you can manually run a requirements update "
+            "using the following command:\n\n"
+            "For CUDA 12.1:\n"
+            "pip install --upgrade -r requirements.txt\n\n"
+            "For CUDA 11.8:\n"
+            "pip install --upgrade -r requirements-cu118.txt\n\n"
+            "For ROCm:\n"
+            "pip install --upgrade -r requirements-amd.txt\n\n"
+        )
 
     # Load from YAML config
     read_config_from_file(pathlib.Path("config.yml"))
