@@ -55,13 +55,13 @@ from OAI.types.token import (
     TokenDecodeRequest,
     TokenDecodeResponse,
 )
-from OAI.utils_oai import (
+from OAI.utils.completion import (
     create_completion_response,
-    get_model_list,
-    get_lora_list,
     create_chat_completion_response,
     create_chat_completion_stream_chunk,
 )
+from OAI.utils.model import get_model_list
+from OAI.utils.lora import get_lora_list
 
 logger = init_logger(__name__)
 

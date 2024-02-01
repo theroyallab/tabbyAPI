@@ -282,6 +282,7 @@ class ExllamaV2Container:
 
     def get_model_path(self, is_draft: bool = False):
         """Get the path for this model."""
+
         model_path = pathlib.Path(
             self.draft_config.model_dir if is_draft else self.config.model_dir
         )
@@ -296,6 +297,7 @@ class ExllamaV2Container:
                 module loaded. Prototype:
                 def progress(loaded_modules: int, total_modules: int)
         """
+
         for _ in self.load_gen(progress_callback):
             pass
 

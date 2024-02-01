@@ -1,5 +1,4 @@
 """ Utility functions for the OpenAI server. """
-import pathlib
 from typing import Optional
 
 from common.utils import unwrap
@@ -12,8 +11,6 @@ from OAI.types.chat_completion import (
 )
 from OAI.types.completion import CompletionResponse, CompletionRespChoice
 from OAI.types.common import UsageStats
-from OAI.types.lora import LoraList, LoraCard
-from OAI.types.model import ModelList, ModelCard
 
 
 def create_completion_response(
@@ -82,32 +79,3 @@ def create_chat_completion_stream_chunk(
     )
 
     return chunk
-
-
-def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = None):
-    """Get the list of models from the provided path."""
-
-    # Convert the provided draft model path to a pathlib path for
-    # equality comparisons
-    if draft_model_path:
-        draft_model_path = pathlib.Path(draft_model_path).resolve()
-
-    model_card_list = ModelList()
-    for path in model_path.iterdir():
-        # Don't include the draft models path
-        if path.is_dir() and path != draft_model_path:
-            model_card = ModelCard(id=path.name)
-            model_card_list.data.append(model_card)  # pylint: disable=no-member
-
-    return model_card_list
-
-
-def get_lora_list(lora_path: pathlib.Path):
-    """Get the list of Lora cards from the provided path."""
-    lora_list = LoraList()
-    for path in lora_path.iterdir():
-        if path.is_dir():
-            lora_card = LoraCard(id=path.name)
-            lora_list.data.append(lora_card)  # pylint: disable=no-member
-
-    return lora_list

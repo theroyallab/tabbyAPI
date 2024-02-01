@@ -2,7 +2,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 
-from common.sampling import SamplerParams
+from common.sampling import CommonSamplerRequest
 
 
 class LogProbs(BaseModel):
@@ -22,7 +22,7 @@ class UsageStats(BaseModel):
     total_tokens: int
 
 
-class CommonCompletionRequest(SamplerParams):
+class CommonCompletionRequest(BaseSamplerRequest):
     """Represents a common completion request."""
 
     # Model information
@@ -49,5 +49,5 @@ class CommonCompletionRequest(SamplerParams):
         description="Not parsed. Only used for OAI compliance.", default=None
     )
 
-    # Generation info (remainder is in SamplerParams superclass)
+    # Generation info (remainder is in CommonSamplerRequest superclass)
     stream: Optional[bool] = False
