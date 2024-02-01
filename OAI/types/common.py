@@ -2,7 +2,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional
 
-from common.sampling import CommonSamplerRequest
+from common.sampling import BaseSamplerRequest
 
 
 class LogProbs(BaseModel):
@@ -49,5 +49,5 @@ class CommonCompletionRequest(BaseSamplerRequest):
         description="Not parsed. Only used for OAI compliance.", default=None
     )
 
-    # Generation info (remainder is in CommonSamplerRequest superclass)
+    # Generation info (remainder is in BaseSamplerRequest superclass)
     stream: Optional[bool] = False

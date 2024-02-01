@@ -36,7 +36,7 @@ def get_generator_error(message: str):
     generator_error = TabbyGeneratorError(error=error_message)
 
     # Log and send the exception
-    logger.error(generator_error.error.message)
+    logger.error(generator_error.error.trace)
     return get_sse_packet(generator_error.model_dump_json())
 
 
@@ -56,3 +56,9 @@ def unwrap(wrapped, default=None):
 def coalesce(*args):
     """Coalesce function for multiple unwraps."""
     return next((arg for arg in args if arg is not None), None)
+
+
+def prune_dict(input_dict):
+    """Trim out instances of None from a dictionary"""
+
+    return {k: v for k, v in input_dict.items() if v is not None}
