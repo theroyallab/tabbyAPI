@@ -58,7 +58,6 @@ class SamplerParams(BaseModel):
 
     smoothing_factor: Optional[float] = Field(
         default_factor=lambda: get_default_sampler_value("smoothing_factor", 0.0),
-        examples=[0.0],
     )
 
     top_k: Optional[int] = Field(
