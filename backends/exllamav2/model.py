@@ -523,6 +523,14 @@ class ExllamaV2Container:
                 "installed ExLlamaV2 version."
             )
 
+        if (unwrap(kwargs.get("smoothing_factor"), 0.0)) > 0.0 and not hasattr(
+            ExLlamaV2Sampler.Settings, "smoothing_factor"
+        ):
+            logger.warning(
+                "Smoothing factor is not supported by the currently "
+                "installed ExLlamaV2 version."
+            )
+
     def generate(self, prompt: str, **kwargs):
         """Generate a response to a prompt"""
         generation = list(self.generate_gen(prompt, **kwargs))
@@ -593,6 +601,7 @@ class ExllamaV2Container:
         # Apply settings
         gen_settings.temperature = unwrap(kwargs.get("temperature"), 1.0)
         gen_settings.temperature_last = unwrap(kwargs.get("temperature_last"), False)
+        gen_settings.smoothing_factor = unwrap(kwargs.get("smoothing_factor"), 0.0)
         gen_settings.top_k = unwrap(kwargs.get("top_k"), 0)
         gen_settings.top_p = unwrap(kwargs.get("top_p"), 1.0)
         gen_settings.top_a = unwrap(kwargs.get("top_a"), 0.0)

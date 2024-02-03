@@ -56,6 +56,10 @@ class SamplerParams(BaseModel):
         examples=[1.0],
     )
 
+    smoothing_factor: Optional[float] = Field(
+        default_factor=lambda: get_default_sampler_value("smoothing_factor", 0.0),
+    )
+
     top_k: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("top_k", 0)
     )
@@ -173,6 +177,7 @@ class SamplerParams(BaseModel):
             "min_temp": self.min_temp,
             "max_temp": self.max_temp,
             "temp_exponent": self.temp_exponent,
+            "smoothing_factor": self.smoothing_factor,
             "top_k": self.top_k,
             "top_p": self.top_p,
             "top_a": self.top_a,
