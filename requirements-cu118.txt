@@ -1,17 +1,16 @@
 ﻿# Torch
-# Patch until torch 2.2 is supported
 --extra-index-url https://download.pytorch.org/whl/cu118
-torch < 2.2, >= 2
+torch ~= 2.2
 
 # Exllamav2
 
 # Windows
-https://github.com/turboderp/exllamav2/releases/download/v0.0.12/exllamav2-0.0.12+cu118-cp311-cp311-win_amd64.whl; platform_system == "Windows" and python_version == "3.11"
-https://github.com/turboderp/exllamav2/releases/download/v0.0.12/exllamav2-0.0.12+cu118-cp310-cp310-win_amd64.whl; platform_system == "Windows" and python_version == "3.10"
+https://github.com/turboderp/exllamav2/releases/download/v0.0.13/exllamav2-0.0.13+cu118-cp311-cp311-win_amd64.whl; platform_system == "Windows" and python_version == "3.11"
+https://github.com/turboderp/exllamav2/releases/download/v0.0.13/exllamav2-0.0.13+cu118-cp310-cp310-win_amd64.whl; platform_system == "Windows" and python_version == "3.10"
 
 # Linux
-https://github.com/turboderp/exllamav2/releases/download/v0.0.12/exllamav2-0.0.12+cu118-cp311-cp311-linux_x86_64.whl; platform_system == "Linux" and platform_machine == "x86_64" and python_version == "3.11"
-https://github.com/turboderp/exllamav2/releases/download/v0.0.12/exllamav2-0.0.12+cu118-cp310-cp310-linux_x86_64.whl; platform_system == "Linux" and platform_machine == "x86_64" and python_version == "3.10"
+https://github.com/turboderp/exllamav2/releases/download/v0.0.13/exllamav2-0.0.13+cu118-cp311-cp311-linux_x86_64.whl; platform_system == "Linux" and platform_machine == "x86_64" and python_version == "3.11"
+https://github.com/turboderp/exllamav2/releases/download/v0.0.13/exllamav2-0.0.13+cu118-cp310-cp310-linux_x86_64.whl; platform_system == "Linux" and platform_machine == "x86_64" and python_version == "3.10"
 
 # Pip dependencies
 fastapi
@@ -23,4 +22,5 @@ jinja2 >= 3.0.0
 colorlog
 
 # Linux FA2 from https://github.com/Dao-AILab/flash-attention/releases
-https://github.com/Dao-AILab/flash-attention/releases/download/v2.4.1/flash_attn-2.4.1+cu118torch2.1cxx11abiFALSE-cp310-cp310-linux_x86_64.whl; platform_system == "Linux" and platform_machine == "x86_64" and python_version == "3.10"
+https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu118torch2.2cxx11abiFALSE-cp311-cp311-linux_x86_64.whl; platform_system == "Linux" and platform_machine == "x86_64" and python_version == "3.11"
+https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu118torch2.2cxx11abiFALSE-cp310-cp310-linux_x86_64.whl; platform_system == "Linux" and platform_machine == "x86_64" and python_version == "3.10"
