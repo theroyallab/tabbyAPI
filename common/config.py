@@ -55,6 +55,11 @@ def override_config_from_args(args: dict):
             **{k.replace("log_", ""): logging_override[k] for k in logging_override},
         }
 
+    developer_override = args.get("developer")
+    if developer_override:
+        developer_config = get_developer_config()
+        GLOBAL_CONFIG["developer"] = {**developer_config, **developer_override}
+
 
 def get_sampling_config():
     """Returns the sampling parameter config from the global config"""
@@ -86,3 +91,8 @@ def get_network_config():
 def get_gen_logging_config():
     """Returns the generation logging config from the global config"""
     return unwrap(GLOBAL_CONFIG.get("logging"), {})
+
+
+def get_developer_config():
+    """Returns the developer specific config from the global config"""
+    return unwrap(GLOBAL_CONFIG.get("developer"), {})

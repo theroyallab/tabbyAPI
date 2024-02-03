@@ -35,6 +35,13 @@ sampling:
   # WARNING: Using this can result in a generation speed penalty
   #override_preset: 
 
+# Options for development
+developer:
+  # Skips exllamav2 version check (default: False)
+  # It's highly recommended to update your dependencies rather than enabling this flag
+  # WARNING: Don't set this unless you know what you're doing!
+  #unsafe_launch: False
+
 # Options for model overrides and loading
 model:
   # Overrides the directory to look for models (default: models)

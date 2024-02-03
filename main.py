@@ -9,15 +9,15 @@ from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from functools import partial
-from packaging import version
-from importlib.metadata import version as package_version
 from progress.bar import IncrementalBar
 
 import common.gen_logging as gen_logging
 from backends.exllamav2.model import ExllamaV2Container
+from backends.exllamav2.utils import check_exllama_version
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import check_admin_key, check_api_key, load_auth_keys
 from common.config import (
+    get_developer_config,
     get_sampling_config,
     override_config_from_args,
     read_config_from_file,
@@ -580,26 +580,6 @@ def entrypoint(args: Optional[dict] = None):
     """Entry function for program startup"""
     global MODEL_CONTAINER
 
-    # Check exllamav2 version and give a descriptive error if it's too old
-    required_exl_version = "0.0.12"
-    current_exl_version = package_version("exllamav2").split("+")[0]
-
-    if version.parse(current_exl_version) < version.parse(required_exl_version):
-        raise SystemExit(
-            f"TabbyAPI requires ExLlamaV2 {required_exl_version} "
-            f"or greater. Your current version is {current_exl_version}.\n"
-            "Please upgrade your environment by running a start script "
-            "(start.bat or start.sh)\n\n"
-            "Or you can manually run a requirements update "
-            "using the following command:\n\n"
-            "For CUDA 12.1:\n"
-            "pip install --upgrade -r requirements.txt\n\n"
-            "For CUDA 11.8:\n"
-            "pip install --upgrade -r requirements-cu118.txt\n\n"
-            "For ROCm:\n"
-            "pip install --upgrade -r requirements-amd.txt\n\n"
-        )
-
     # Load from YAML config
     read_config_from_file(pathlib.Path("config.yml"))
 
@@ -609,6 +589,19 @@ def entrypoint(args: Optional[dict] = None):
         args = convert_args_to_dict(parser.parse_args(), parser)
 
     override_config_from_args(args)
+
+    developer_config = get_developer_config()
+
+    # Check exllamav2 version and give a descriptive error if it's too old
+    # Skip if launching unsafely
+
+    if unwrap(developer_config.get("unsafe_launch"), False):
+        logger.warning(
+            "UNSAFE: Skipping ExllamaV2 version check.\n"
+            "If you aren't a developer, please keep this off!"
+        )
+    else:
+        check_exllama_version()
 
     network_config = get_network_config()
 

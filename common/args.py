@@ -125,3 +125,12 @@ def add_logging_args(parser: argparse.ArgumentParser):
         type=str_to_bool,
         help="Enable generation parameter logging",
     )
+
+
+def add_developer_args(parser: argparse.ArgumentParser):
+    """Adds developer-specific arguments"""
+
+    developer_group = parser.add_argument_group("developer")
+    developer_group.add_argument(
+        "--unsafe-launch", type=str_to_bool, help="Skip Exllamav2 version check"
+    )
