@@ -22,6 +22,7 @@ def init_argparser():
     add_network_args(parser)
     add_model_args(parser)
     add_logging_args(parser)
+    add_developer_args(parser)
     add_config_args(parser)
 
     return parser
