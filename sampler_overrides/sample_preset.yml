@@ -31,13 +31,13 @@ temperature_last:
   override: false
   force: false
 min_temp:
-  override: 0.0
+  override: 1.0
   force: false
 max_temp:
-  override: 0.0
+  override: 1.0
   force: false
 temp_exponent:
-  override: 0.0
+  override: 1.0
   force: false
 smoothing_factor:
   override: 0.0
@@ -57,7 +57,7 @@ min_p:
   override: 0.0
   force: false
 tfs:
-  override: 0.0
+  override: 1.0
   force: false
 typical:
   override: 1.0
