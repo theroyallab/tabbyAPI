@@ -59,7 +59,7 @@ def load_auth_keys(disable_from_config: bool):
         with open("api_tokens.yml", "r", encoding="utf8") as auth_file:
             auth_keys_dict = yaml.safe_load(auth_file)
             AUTH_KEYS = AuthKeys.model_validate(auth_keys_dict)
-    except OSError:
+    except FileNotFoundError:
         new_auth_keys = AuthKeys(
             api_key=secrets.token_hex(16), admin_key=secrets.token_hex(16)
         )
