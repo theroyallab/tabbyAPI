@@ -43,11 +43,6 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("temperature_last", False)
     )
 
-    temp_exponent: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("temp_exponent", 1.0),
-        examples=[1.0],
-    )
-
     smoothing_factor: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("smoothing_factor", 0.0),
     )
@@ -156,6 +151,12 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("min_temp", 0.0),
         validation_alias=AliasChoices("min_temp", "dynatemp_low"),
         description="Aliases: dynatemp_low",
+    )
+
+    temp_exponent: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("temp_exponent", 1.0),
+        validation_alias=AliasChoices("temp_exponent", "dynatemp_exponent"),
+        examples=[1.0],
     )
 
     def to_gen_params(self):
