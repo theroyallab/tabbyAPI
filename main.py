@@ -414,11 +414,8 @@ async def unload_loras():
 )
 async def encode_tokens(data: TokenEncodeRequest):
     """Encodes a string into tokens."""
-    raw_tokens = MODEL_CONTAINER.get_tokens(data.text, None, **data.get_params())
-
-    # Have to use this if check otherwise Torch's tensors error out
-    # with a boolean issue
-    tokens = raw_tokens[0].tolist() if raw_tokens is not None else []
+    raw_tokens = MODEL_CONTAINER.encode_tokens(data.text, **data.get_params())
+    tokens = unwrap(raw_tokens, [])
     response = TokenEncodeResponse(tokens=tokens, length=len(tokens))
 
     return response
@@ -431,7 +428,7 @@ async def encode_tokens(data: TokenEncodeRequest):
 )
 async def decode_tokens(data: TokenDecodeRequest):
     """Decodes tokens into a string."""
-    message = MODEL_CONTAINER.get_tokens(None, data.tokens, **data.get_params())
+    message = MODEL_CONTAINER.decode_tokens(data.tokens, **data.get_params())
     response = TokenDecodeResponse(text=unwrap(message, ""))
 
     return response

@@ -446,24 +446,23 @@ class ExllamaV2Container:
         gc.collect()
         torch.cuda.empty_cache()
 
-    def get_tokens(self, text: Optional[str], ids: Optional[List[int]], **kwargs):
-        """Common function for token operations"""
-        if text:
-            # Assume token encoding
-            return self.tokenizer.encode(
-                text,
-                add_bos=unwrap(kwargs.get("add_bos_token"), True),
-                encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
-            )
-        if ids:
-            # Assume token decoding
-            ids = torch.tensor([ids])
-            return self.tokenizer.decode(
-                ids,
-                decode_special_tokens=unwrap(kwargs.get("decode_special_tokens"), True),
-            )[0]
+    def encode_tokens(self, text: str, **kwargs):
+        """Wrapper to encode tokens from a text string"""
 
-        return None
+        return self.tokenizer.encode(
+            text,
+            add_bos=unwrap(kwargs.get("add_bos_token"), True),
+            encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
+        )[0].tolist()
+
+    def decode_tokens(self, ids: List[int], **kwargs):
+        """Wrapper to decode tokens from a list of IDs"""
+
+        ids = torch.tensor([ids])
+        return self.tokenizer.decode(
+            ids,
+            decode_special_tokens=unwrap(kwargs.get("decode_special_tokens"), True),
+        )[0]
 
     def get_special_tokens(self, add_bos_token: bool, ban_eos_token: bool):
         return {
