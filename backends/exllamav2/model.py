@@ -515,7 +515,7 @@ class ExllamaV2Container:
         max_tokens = unwrap(kwargs.get("max_tokens"), 150)
         stream_interval = unwrap(kwargs.get("stream_interval"), 0)
         generate_window = max(
-            unwrap(kwargs.get("generate_window"), 512), max_tokens // 8
+            unwrap(kwargs.get("generate_window"), 512), self.config.max_seq_len // 8
         )
 
         # Sampler settings
