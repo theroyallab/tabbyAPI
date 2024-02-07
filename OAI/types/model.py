@@ -70,7 +70,7 @@ class ModelLoadRequest(BaseModel):
         default=None,
         examples=[4096],
     )
-    gpu_split_auto: Optional[bool] = False
+    gpu_split_auto: Optional[bool] = True
     gpu_split: Optional[List[float]] = Field(
         default_factory=list, examples=[[24.0, 20.0]]
     )

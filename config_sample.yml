@@ -68,11 +68,12 @@ model:
   # Only use this if the model's base sequence length in config.json is incorrect (ex. Mistral/Mixtral models)
   #override_base_seq_len:
 
-  # Automatically allocate resources to GPUs (default: False)
-  # WARNING: Will use more VRAM for single GPU users
-  #gpu_split_auto: False
+  # Automatically allocate resources to GPUs (default: True)
+  # NOTE: Not parsed for single GPU users
+  #gpu_split_auto: True
 
   # An integer array of GBs of vram to split between GPUs (default: [])
+  # NOTE: Not parsed for single GPU users
   #gpu_split: [20.6, 24]
 
   # Rope scale (default: 1.0)

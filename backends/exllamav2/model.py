@@ -103,8 +103,15 @@ class ExllamaV2Container:
         self.quiet = quiet
 
         self.cache_fp8 = "cache_mode" in kwargs and kwargs["cache_mode"] == "FP8"
-        self.gpu_split = kwargs.get("gpu_split")
-        self.gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), False)
+
+        # Turn off GPU split if the user is using 1 GPU
+        gpu_count = torch.cuda.device_count()
+        if gpu_count > 1:
+            self.gpu_split = kwargs.get("gpu_split")
+            self.gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
+        else:
+            self.gpu_split_auto = False
+            logger.info("Disabling GPU split because one GPU is in use.")
 
         self.config = ExLlamaV2Config()
         self.config.model_dir = str(model_directory.resolve())
@@ -354,9 +361,7 @@ class ExllamaV2Container:
         # Load model with manual split
         # Entrypoint for single GPU users
         if not self.gpu_split_auto:
-            logger.info(
-                "Loading with a manual GPU split (or a one GPU setup)"
-            )
+            logger.info("Loading with a manual GPU split (or a one GPU setup)")
 
             for value in self.model.load_gen(
                 self.gpu_split,
