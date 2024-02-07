@@ -104,7 +104,7 @@ class ExllamaV2Container:
 
         self.cache_fp8 = "cache_mode" in kwargs and kwargs["cache_mode"] == "FP8"
         self.gpu_split = kwargs.get("gpu_split")
-        self.gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
+        self.gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), False)
 
         self.config = ExLlamaV2Config()
         self.config.model_dir = str(model_directory.resolve())
@@ -347,16 +347,22 @@ class ExllamaV2Container:
             input_ids = torch.zeros((1, self.config.max_input_len), dtype=torch.long)
             self.draft_model.forward(input_ids, cache=self.cache, preprocess_only=True)
 
-        # Load model
         self.model = ExLlamaV2(self.config)
         if not self.quiet:
             logger.info("Loading model: " + self.config.model_dir)
 
+        # Load model with manual split
+        # Entrypoint for single GPU users
         if not self.gpu_split_auto:
+            logger.info(
+                "Loading with a manual GPU split (or a one GPU setup)"
+            )
+
             for value in self.model.load_gen(
-                self.gpu_split, callback_gen=progress_callback
+                self.gpu_split,
+                callback_gen=progress_callback,
             ):
-                if isinstance(value, str):
+                if value:
                     yield value
 
         batch_size = 2 if self.use_cfg else 1
@@ -369,14 +375,19 @@ class ExllamaV2Container:
                 self.model, lazy=self.gpu_split_auto, batch_size=batch_size
             )
 
+        # Load model with autosplit
         if self.gpu_split_auto:
+            logger.info("Loading with autosplit")
+
             reserve = [AUTO_SPLIT_RESERVE_BYTES] + [0] * 16
-            yield from self.model.load_autosplit_gen(
+            for value in self.model.load_autosplit_gen(
                 self.cache,
                 reserve_vram=reserve,
                 last_id_only=True,
                 callback_gen=progress_callback,
-            )
+            ):
+                if value:
+                    yield value
 
         # Test VRAM allocation with a full-length forward pass
         input_ids = torch.zeros((1, self.config.max_input_len), dtype=torch.long)
@@ -394,6 +405,11 @@ class ExllamaV2Container:
         # Always return logprobs and logits
         self.generator.return_probabilities = True
         self.generator.return_logits = True
+
+        # Clean up any extra vram usage from torch and cuda
+        # (Helps reduce VRAM bottlenecking on Windows)
+        gc.collect()
+        torch.cuda.empty_cache()
 
         logger.info("Model successfully loaded.")
 
