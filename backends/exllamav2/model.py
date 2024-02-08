@@ -520,6 +520,8 @@ class ExllamaV2Container:
                 joined_generation["token_probs"].update(
                     unwrap(generation.get("token_probs"), {})
                 )
+
+                # Include empty logprob dicts for index preservation
                 joined_generation["logprobs"].append(
                     unwrap(generation.get("logprobs"), {})
                 )

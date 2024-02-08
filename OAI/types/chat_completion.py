@@ -6,14 +6,14 @@ from uuid import uuid4
 from OAI.types.common import UsageStats, CommonCompletionRequest
 
 
-class ChatCompletionLogprobs(BaseModel):
+class ChatCompletionLogprob(BaseModel):
     token: str
     logprob: float
-    top_logprobs: List["ChatCompletionLogprobs"]
+    top_logprobs: Optional[List["ChatCompletionLogprob"]] = None
 
 
-class WrappedChatCompletionLogprobs(BaseModel):
-    content: List[ChatCompletionLogprobs]
+class ChatCompletionLogprobs(BaseModel):
+    content: List[ChatCompletionLogprob] = Field(default_factory=list)
 
 
 class ChatCompletionMessage(BaseModel):
@@ -26,7 +26,7 @@ class ChatCompletionRespChoice(BaseModel):
     index: int = 0
     finish_reason: str
     message: ChatCompletionMessage
-    logprobs: Optional[WrappedChatCompletionLogprobs] = None
+    logprobs: Optional[ChatCompletionLogprobs] = None
 
 
 class ChatCompletionStreamChoice(BaseModel):
@@ -34,7 +34,7 @@ class ChatCompletionStreamChoice(BaseModel):
     index: int = 0
     finish_reason: Optional[str]
     delta: Union[ChatCompletionMessage, dict] = {}
-    logprobs: Optional[WrappedChatCompletionLogprobs] = None
+    logprobs: Optional[ChatCompletionLogprobs] = None
 
 
 # Inherited from common request
