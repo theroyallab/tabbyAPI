@@ -142,13 +142,13 @@ class BaseSamplerRequest(BaseModel):
     )
 
     max_temp: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("max_temp", 0.0),
+        default_factory=lambda: get_default_sampler_value("max_temp", 1.0),
         validation_alias=AliasChoices("max_temp", "dynatemp_high"),
         description="Aliases: dynatemp_high",
     )
 
     min_temp: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("min_temp", 0.0),
+        default_factory=lambda: get_default_sampler_value("min_temp", 1.0),
         validation_alias=AliasChoices("min_temp", "dynatemp_low"),
         description="Aliases: dynatemp_low",
     )

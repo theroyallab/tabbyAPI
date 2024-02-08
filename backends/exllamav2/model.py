@@ -537,8 +537,8 @@ class ExllamaV2Container:
         gen_settings.mirostat = unwrap(kwargs.get("mirostat"), False)
 
         # DynaTemp settings
-        max_temp = unwrap(kwargs.get("max_temp"), 0.0)
-        min_temp = unwrap(kwargs.get("min_temp"), 0.0)
+        max_temp = unwrap(kwargs.get("max_temp"), 1.0)
+        min_temp = unwrap(kwargs.get("min_temp"), 1.0)
 
         if max_temp > min_temp:
             gen_settings.max_temp = max_temp
@@ -553,7 +553,7 @@ class ExllamaV2Container:
         # Warn if max/min temp values are > 0
         # and if they're less than or equal to each other
         if max_temp < min_temp or (
-            0 not in {min_temp, max_temp} and max_temp == min_temp
+            1 not in {min_temp, max_temp} and max_temp == min_temp
         ):
             logger.warning(
                 "Max temp is less than or equal to min temp, skipping DynaTemp."
