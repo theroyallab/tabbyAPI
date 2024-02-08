@@ -1,10 +1,19 @@
 """ Completion API protocols """
 from pydantic import BaseModel, Field
 from time import time
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 from uuid import uuid4
 
-from OAI.types.common import CommonCompletionRequest, LogProbs, UsageStats
+from OAI.types.common import CommonCompletionRequest, UsageStats
+
+
+class CompletionLogProbs(BaseModel):
+    """Represents log probabilities for a completion request."""
+
+    text_offset: List[int] = Field(default_factory=list)
+    token_logprobs: List[Optional[float]] = Field(default_factory=list)
+    tokens: List[str] = Field(default_factory=list)
+    top_logprobs: List[Optional[Dict[str, float]]] = Field(default_factory=list)
 
 
 class CompletionRespChoice(BaseModel):
@@ -13,7 +22,7 @@ class CompletionRespChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
     finish_reason: str
-    logprobs: Optional[LogProbs] = None
+    logprobs: Optional[CompletionLogProbs] = None
     text: str
 
 
