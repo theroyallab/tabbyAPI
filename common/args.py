@@ -135,3 +135,8 @@ def add_developer_args(parser: argparse.ArgumentParser):
     developer_group.add_argument(
         "--unsafe-launch", type=str_to_bool, help="Skip Exllamav2 version check"
     )
+    developer_group.add_argument(
+        "--disable-request-streaming",
+        type=str_to_bool,
+        help="Disables API request streaming",
+    )

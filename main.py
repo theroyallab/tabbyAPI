@@ -449,7 +449,11 @@ async def generate_completion(request: Request, data: CompletionRequest):
     if isinstance(data.prompt, list):
         data.prompt = "\n".join(data.prompt)
 
-    if data.stream:
+    disable_request_streaming = unwrap(
+        get_developer_config().get("disable_request_streaming"), False
+    )
+
+    if data.stream and not disable_request_streaming:
 
         async def generator():
             """Generator for the generation process."""
@@ -531,7 +535,11 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
                 f"TemplateError: {str(exc)}",
             ) from exc
 
-    if data.stream:
+    disable_request_streaming = unwrap(
+        get_developer_config().get("disable_request_streaming"), False
+    )
+
+    if data.stream and not disable_request_streaming:
         const_id = f"chatcmpl-{uuid4().hex}"
 
         async def generator():

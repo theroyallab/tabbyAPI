@@ -42,6 +42,10 @@ developer:
   # WARNING: Don't set this unless you know what you're doing!
   #unsafe_launch: False
 
+  # Disable all request streaming (default: False)
+  # A kill switch for turning off SSE in the API server
+  #disable_request_streaming: False
+
 # Options for model overrides and loading
 model:
   # Overrides the directory to look for models (default: models)
