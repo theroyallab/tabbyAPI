@@ -159,7 +159,7 @@ class BaseSamplerRequest(BaseModel):
         examples=[1.0],
     )
 
-    def to_gen_params(self):
+    def to_gen_params(self, **kwargs):
         """Converts samplers to internal generation params"""
 
         # Add forced overrides if present
@@ -201,7 +201,7 @@ class BaseSamplerRequest(BaseModel):
             "negative_prompt": self.negative_prompt,
         }
 
-        return gen_params
+        return {**gen_params, **kwargs}
 
 
 # Global for default overrides

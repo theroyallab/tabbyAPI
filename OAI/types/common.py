@@ -1,17 +1,8 @@
 """ Common types for OAI. """
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import Optional
 
 from common.sampling import BaseSamplerRequest
-
-
-class LogProbs(BaseModel):
-    """Represents log probabilities."""
-
-    text_offset: List[int] = Field(default_factory=list)
-    token_logprobs: List[Optional[float]] = Field(default_factory=list)
-    tokens: List[str] = Field(default_factory=list)
-    top_logprobs: List[Optional[Dict[str, float]]] = Field(default_factory=list)
 
 
 class UsageStats(BaseModel):
@@ -29,15 +20,16 @@ class CommonCompletionRequest(BaseSamplerRequest):
     # This parameter is not used, the loaded model is used instead
     model: Optional[str] = None
 
+    # Generation info (remainder is in BaseSamplerRequest superclass)
+    stream: Optional[bool] = False
+    logprobs: Optional[int] = 0
+
     # Extra OAI request stuff
     best_of: Optional[int] = Field(
         description="Not parsed. Only used for OAI compliance.", default=None
     )
     echo: Optional[bool] = Field(
         description="Not parsed. Only used for OAI compliance.", default=False
-    )
-    logprobs: Optional[int] = Field(
-        description="Not parsed. Only used for OAI compliance.", default=None
     )
     n: Optional[int] = Field(
         description="Not parsed. Only used for OAI compliance.", default=1
@@ -49,5 +41,7 @@ class CommonCompletionRequest(BaseSamplerRequest):
         description="Not parsed. Only used for OAI compliance.", default=None
     )
 
-    # Generation info (remainder is in BaseSamplerRequest superclass)
-    stream: Optional[bool] = False
+    def to_gen_params(self):
+        extra_gen_params = {"logprobs": self.logprobs}
+
+        return super().to_gen_params(**extra_gen_params)

@@ -472,19 +472,71 @@ class ExllamaV2Container:
             "unk_token": self.tokenizer.unk_token,
         }
 
+    def get_logprobs(self, logits: torch.Tensor, max_logprobs: int):
+        normalized_logits = torch.log_softmax(logits, dim=-1)
+        top_values, top_ids = torch.topk(normalized_logits, max_logprobs, dim=-1)
+
+        top_tokens = list(
+            map(
+                lambda index: self.tokenizer.extended_id_to_piece.get(
+                    index, self.tokenizer.id_to_piece[index]
+                ),
+                top_ids[0].tolist(),
+            )
+        )
+        top_values = top_values[0].tolist()
+
+        return dict(zip(top_tokens, top_values, strict=True))
+
+    def get_token_probs(self, token_ids: torch.tensor, token_probs: torch.Tensor):
+        tokens = list(
+            map(
+                lambda index: self.tokenizer.extended_id_to_piece.get(
+                    index, self.tokenizer.id_to_piece[index]
+                ),
+                token_ids[0].tolist(),
+            )
+        )
+
+        return dict(zip(tokens, token_probs[0].tolist(), strict=True))
+
+    def generate(self, prompt: str, **kwargs):
+        """Generate a response to a prompt"""
+        generations = list(self.generate_gen(prompt, **kwargs))
+
+        joined_generation = {
+            "chunk": "",
+            "prompt_tokens": 0,
+            "generation_tokens": 0,
+            "offset": [],
+            "token_probs": {},
+            "logprobs": [],
+        }
+
+        if generations:
+            for generation in generations:
+                joined_generation["chunk"] += unwrap(generation.get("chunk"), "")
+                joined_generation["offset"].append(unwrap(generation.get("offset"), []))
+                joined_generation["token_probs"].update(
+                    unwrap(generation.get("token_probs"), {})
+                )
+                joined_generation["logprobs"].append(
+                    unwrap(generation.get("logprobs"), {})
+                )
+
+            joined_generation["prompt_tokens"] = unwrap(
+                generations[-1].get("prompt_tokens"), 0
+            )
+            joined_generation["generation_tokens"] = unwrap(
+                generations[-1].get("generated_tokens"), 0
+            )
+
+        return joined_generation
+
     def check_unsupported_settings(self, **kwargs):
         """Check and warn the user if a sampler is unsupported. Meant for dev wheels!"""
 
         pass
-
-    def generate(self, prompt: str, **kwargs):
-        """Generate a response to a prompt"""
-        generation = list(self.generate_gen(prompt, **kwargs))
-        if generation:
-            response = "".join(map(lambda chunk: chunk[0], generation))
-            return response, generation[-1][1], generation[-1][2]
-
-        return "", 0, 0
 
     # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     def generate_gen(self, prompt: str, **kwargs):
@@ -639,6 +691,7 @@ class ExllamaV2Container:
         add_bos_token = unwrap(kwargs.get("add_bos_token"), True)
         ban_eos_token = unwrap(kwargs.get("ban_eos_token"), False)
         logit_bias = kwargs.get("logit_bias")
+        request_logprobs = unwrap(kwargs.get("logprobs"), 0)
 
         # Override sampler settings for temp = 0
         if gen_settings.temperature == 0:
@@ -657,6 +710,7 @@ class ExllamaV2Container:
             generate_window=generate_window,
             add_bos_token=add_bos_token,
             ban_eos_token=ban_eos_token,
+            logprobs=request_logprobs,
             stop_conditions=stop_conditions,
             logit_bias=logit_bias,
         )
@@ -758,7 +812,7 @@ class ExllamaV2Container:
                 gen_settings.token_repetition_range = generated_tokens
 
             # Generate
-            chunk, eos, tokens, _, _ = self.generator.stream()
+            chunk, eos, tokens, token_probs, logits = self.generator.stream()
 
             if token_healing:
                 # Extract healed token
@@ -780,7 +834,27 @@ class ExllamaV2Container:
             if chunk_buffer != "" and (
                 elapsed > stream_interval or eos or generated_tokens == max_tokens
             ):
-                yield chunk_buffer, prompt_tokens, generated_tokens
+                generation = {
+                    "chunk": chunk_buffer,
+                    "prompt_tokens": prompt_tokens,
+                    "generated_tokens": generated_tokens,
+                    "offset": len(full_response),
+                }
+
+                if request_logprobs > 0:
+                    # Get sampled token probs
+                    if token_probs.numel() > 0 and tokens.numel() > 0:
+                        generation["token_probs"] = self.get_token_probs(
+                            tokens, token_probs
+                        )
+
+                    # Get logprob choices
+                    if logits.numel() > 0:
+                        generation["logprobs"] = self.get_logprobs(
+                            logits, request_logprobs
+                        )
+
+                yield generation
                 full_response += chunk_buffer
                 chunk_buffer = ""
                 last_chunk_time = now
