@@ -64,7 +64,7 @@ class BaseSamplerRequest(BaseModel):
     )
 
     tfs: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("tfs", 0.0)
+        default_factory=lambda: get_default_sampler_value("tfs", 1.0)
     )
 
     frequency_penalty: Optional[float] = Field(
