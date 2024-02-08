@@ -462,10 +462,7 @@ async def generate_completion(request: Request, data: CompletionRequest):
                     if await request.is_disconnected():
                         break
 
-                    response = create_completion_response(
-                        **generation,
-                        model_name=model_path.name,
-                    )
+                    response = create_completion_response(generation, model_path.name)
 
                     yield get_sse_packet(response.model_dump_json())
 
@@ -483,7 +480,7 @@ async def generate_completion(request: Request, data: CompletionRequest):
     generation = await call_with_semaphore(
         partial(MODEL_CONTAINER.generate, data.prompt, **data.to_gen_params())
     )
-    response = create_completion_response(**generation)
+    response = create_completion_response(generation, model_path.name)
 
     return response
 
@@ -548,7 +545,7 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
                         break
 
                     response = create_chat_completion_stream_chunk(
-                        const_id, generation.get("chunk"), model_path.name
+                        const_id, generation, model_path.name
                     )
 
                     yield get_sse_packet(response.model_dump_json())
@@ -568,13 +565,10 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
             generate_with_semaphore(generator), media_type="text/event-stream"
         )
 
-    response_text, prompt_tokens, completion_tokens = await call_with_semaphore(
+    generation = await call_with_semaphore(
         partial(MODEL_CONTAINER.generate, prompt, **data.to_gen_params())
     )
-
-    response = create_chat_completion_response(
-        response_text, prompt_tokens, completion_tokens, model_path.name
-    )
+    response = create_chat_completion_response(generation, model_path.name)
 
     return response
 

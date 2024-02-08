@@ -505,7 +505,7 @@ class ExllamaV2Container:
         generations = list(self.generate_gen(prompt, **kwargs))
 
         joined_generation = {
-            "chunk": "",
+            "text": "",
             "prompt_tokens": 0,
             "generation_tokens": 0,
             "offset": [],
@@ -515,7 +515,7 @@ class ExllamaV2Container:
 
         if generations:
             for generation in generations:
-                joined_generation["chunk"] += unwrap(generation.get("chunk"), "")
+                joined_generation["text"] += unwrap(generation.get("text"), "")
                 joined_generation["offset"].append(unwrap(generation.get("offset"), []))
                 joined_generation["token_probs"].update(
                     unwrap(generation.get("token_probs"), {})
@@ -835,7 +835,7 @@ class ExllamaV2Container:
                 elapsed > stream_interval or eos or generated_tokens == max_tokens
             ):
                 generation = {
-                    "chunk": chunk_buffer,
+                    "text": chunk_buffer,
                     "prompt_tokens": prompt_tokens,
                     "generated_tokens": generated_tokens,
                     "offset": len(full_response),
