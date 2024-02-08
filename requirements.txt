@@ -24,8 +24,8 @@ colorlog
 # Flash attention v2
 
 # Windows FA2 from https://github.com/bdashore3/flash-attention/releases
-https://github.com/bdashore3/flash-attention/releases/download/v2.4.2/flash_attn-2.4.2+cu122torch2.2.0cxx11abiFALSE-cp311-cp311-win_amd64.whl; platform_system == "Windows" and python_version == "3.11"
-https://github.com/bdashore3/flash-attention/releases/download/v2.4.2/flash_attn-2.4.2+cu122torch2.2.0cxx11abiFALSE-cp310-cp310-win_amd64.whl; platform_system == "Windows" and python_version == "3.10"
+https://github.com/bdashore3/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu122torch2.2.0cxx11abiFALSE-cp311-cp311-win_amd64.whl; platform_system == "Windows" and python_version == "3.11"
+https://github.com/bdashore3/flash-attention/releases/download/v2.4.2/flash_attn-2.5.2+cu122torch2.2.0cxx11abiFALSE-cp310-cp310-win_amd64.whl; platform_system == "Windows" and python_version == "3.10"
 
 # Linux FA2 from https://github.com/Dao-AILab/flash-attention/releases
 https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu122torch2.2cxx11abiFALSE-cp311-cp311-linux_x86_64.whl; platform_system == "Linux" and platform_machine == "x86_64" and python_version == "3.11"
