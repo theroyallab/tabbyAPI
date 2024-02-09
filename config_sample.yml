@@ -76,6 +76,10 @@ model:
   # NOTE: Not parsed for single GPU users
   #gpu_split_auto: True
 
+  # Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0)
+  # This is represented as an array of MB per GPU used
+  #autosplit_reserve: [96]
+
   # An integer array of GBs of vram to split between GPUs (default: [])
   # NOTE: Not parsed for single GPU users
   #gpu_split: [20.6, 24]

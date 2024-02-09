@@ -28,13 +28,11 @@ from common.logger import init_logger
 
 logger = init_logger(__name__)
 
-# Bytes to reserve on first device when loading with auto split
-AUTO_SPLIT_RESERVE_BYTES = 96 * 1024**2
-
 
 class ExllamaV2Container:
     """The model container class for ExLlamaV2 models."""
 
+    # Exl2 vars
     config: Optional[ExLlamaV2Config] = None
     draft_config: Optional[ExLlamaV2Config] = None
     model: Optional[ExLlamaV2] = None
@@ -44,13 +42,16 @@ class ExllamaV2Container:
     tokenizer: Optional[ExLlamaV2Tokenizer] = None
     generator: Optional[ExLlamaV2StreamingGenerator] = None
     prompt_template: Optional[PromptTemplate] = None
+    active_loras: List[ExLlamaV2Lora] = []
 
+    # Internal config vars
     cache_fp8: bool = False
-    gpu_split_auto: bool = True
-    gpu_split: Optional[list] = None
     use_cfg: bool = False
 
-    active_loras: List[ExLlamaV2Lora] = []
+    # GPU split vars
+    gpu_split: Optional[list] = None
+    gpu_split_auto: bool = True
+    autosplit_reserve: List[float] = [96 * 1024**2]
 
     def __init__(self, model_directory: pathlib.Path, quiet=False, **kwargs):
         """
@@ -109,7 +110,13 @@ class ExllamaV2Container:
         gpu_count = torch.cuda.device_count()
         if gpu_count > 1:
             self.gpu_split = kwargs.get("gpu_split")
+
+            # Auto GPU split parameters
             self.gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
+            autosplit_reserve_megabytes = unwrap(kwargs.get("autosplit_reserve"), [96])
+            self.autosplit_reserve = list(
+                map(lambda value: value * 1024**2, autosplit_reserve_megabytes)
+            )
         else:
             self.gpu_split_auto = False
             logger.info("Disabling GPU split because one GPU is in use.")
@@ -336,6 +343,12 @@ class ExllamaV2Container:
         # Load tokenizer
         self.tokenizer = ExLlamaV2Tokenizer(self.config)
 
+        # Calculate autosplit reserve for all GPUs
+        gpu_count = torch.cuda.device_count()
+        autosplit_reserve = self.autosplit_reserve + [0] * (
+            gpu_count - len(self.autosplit_reserve)
+        )
+
         # Load draft model if a config is present
         if self.draft_config:
             self.draft_model = ExLlamaV2(self.draft_config)
@@ -343,10 +356,9 @@ class ExllamaV2Container:
                 logger.info("Loading draft model: " + self.draft_config.model_dir)
 
             self.draft_cache = ExLlamaV2Cache(self.draft_model, lazy=True)
-            reserve = [AUTO_SPLIT_RESERVE_BYTES] + [0] * 16
             yield from self.draft_model.load_autosplit_gen(
                 self.draft_cache,
-                reserve_vram=reserve,
+                reserve_vram=autosplit_reserve,
                 last_id_only=True,
                 callback_gen=progress_callback,
             )
@@ -385,10 +397,9 @@ class ExllamaV2Container:
         if self.gpu_split_auto:
             logger.info("Loading with autosplit")
 
-            reserve = [AUTO_SPLIT_RESERVE_BYTES] + [0] * 16
             for value in self.model.load_autosplit_gen(
                 self.cache,
-                reserve_vram=reserve,
+                reserve_vram=autosplit_reserve,
                 last_id_only=True,
                 callback_gen=progress_callback,
             ):
