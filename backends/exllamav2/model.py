@@ -634,8 +634,8 @@ class ExllamaV2Container:
             gen_settings.temp_exponent = unwrap(kwargs.get("temp_exponent"), 1.0)
         else:
             # Force to default values
-            gen_settings.max_temp = 0.0
-            gen_settings.min_temp = 0.0
+            gen_settings.max_temp = 1.0
+            gen_settings.min_temp = 1.0
             gen_settings.temp_exponent = 1.0
 
         # Warn if max/min temp values are > 0
