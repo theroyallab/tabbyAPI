@@ -9,10 +9,10 @@ logger = init_logger(__name__)
 def check_exllama_version():
     """Verifies the exllama version"""
 
-    required_version = "0.0.13"
-    current_version = package_version("exllamav2").split("+")[0]
+    required_version = version.parse("0.0.13.post1")
+    current_version = version.parse(package_version("exllamav2").split("+")[0])
 
-    if version.parse(current_version) < version.parse(required_version):
+    if current_version < required_version:
         raise SystemExit(
             f"ERROR: TabbyAPI requires ExLlamaV2 {required_version} "
             f"or greater. Your current version is {current_version}.\n"
