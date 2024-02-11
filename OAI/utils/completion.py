@@ -43,7 +43,7 @@ def create_completion_response(generation: dict, model_name: Optional[str]):
     )
 
     prompt_tokens = unwrap(generation.get("prompt_tokens"), 0)
-    completion_tokens = unwrap(generation.get("completion_tokens"), 0)
+    completion_tokens = unwrap(generation.get("generated_tokens"), 0)
 
     response = CompletionResponse(
         choices=[choice],
