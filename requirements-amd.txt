@@ -3,8 +3,8 @@
 torch ~= 2.2
 
 # Exllamav2
-https://github.com/turboderp/exllamav2/releases/download/0.0.13.post1/exllamav2-0.0.13.post1+rocm5.6-cp311-cp311-linux_x86_64.whl; python_version == "3.11"
-https://github.com/turboderp/exllamav2/releases/download/0.0.13.post1/exllamav2-0.0.13.post1+rocm5.6-cp310-cp310-linux_x86_64.whl; python_version == "3.10"
+https://github.com/turboderp/exllamav2/releases/download/0.0.13.post2/exllamav2-0.0.13.post2+rocm5.6-cp311-cp311-linux_x86_64.whl; python_version == "3.11"
+https://github.com/turboderp/exllamav2/releases/download/0.0.13.post2/exllamav2-0.0.13.post2+rocm5.6-cp310-cp310-linux_x86_64.whl; python_version == "3.10"
 
 # Pip dependencies
 fastapi
