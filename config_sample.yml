@@ -35,7 +35,7 @@ sampling:
   # WARNING: Using this can result in a generation speed penalty
   #override_preset: 
 
-# Options for development
+# Options for development and experimentation
 developer:
   # Skips exllamav2 version check (default: False)
   # It's highly recommended to update your dependencies rather than enabling this flag
@@ -45,6 +45,10 @@ developer:
   # Disable all request streaming (default: False)
   # A kill switch for turning off SSE in the API server
   #disable_request_streaming: False
+
+  # Enable the torch CUDA malloc backend (default: False)
+  # This can save a few MBs of VRAM, but has a risk of errors. Use at your own risk.
+  #cuda_malloc_backend: False
 
 # Options for model overrides and loading
 model:

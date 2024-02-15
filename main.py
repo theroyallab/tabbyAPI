@@ -1,4 +1,5 @@
 """The main tabbyAPI module. Contains the FastAPI server and endpoints."""
+import os
 import pathlib
 import uvicorn
 from asyncio import CancelledError
@@ -599,6 +600,11 @@ def entrypoint(args: Optional[dict] = None):
         )
     else:
         check_exllama_version()
+
+    # Enable CUDA malloc backend
+    if unwrap(developer_config.get("cuda_malloc_backend"), False):
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
+        logger.warning("Enabled the experimental CUDA malloc backend.")
 
     network_config = get_network_config()
 

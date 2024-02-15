@@ -140,3 +140,8 @@ def add_developer_args(parser: argparse.ArgumentParser):
         type=str_to_bool,
         help="Disables API request streaming",
     )
+    developer_group.add_argument(
+        "--cuda-malloc-backend",
+        type=str_to_bool,
+        help="Disables API request streaming",
+    )
