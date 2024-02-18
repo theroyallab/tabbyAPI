@@ -114,9 +114,7 @@ class ExllamaV2Container:
             # Auto GPU split parameters
             self.gpu_split_auto = gpu_split_auto
 
-            autosplit_reserve_megabytes = unwrap(
-                kwargs.get("autosplit_reserve"), [96]
-            )
+            autosplit_reserve_megabytes = unwrap(kwargs.get("autosplit_reserve"), [96])
             self.autosplit_reserve = list(
                 map(lambda value: value * 1024**2, autosplit_reserve_megabytes)
             )
