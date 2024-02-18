@@ -111,7 +111,7 @@ class BaseSamplerRequest(BaseModel):
 
     logit_bias: Optional[Dict[int, float]] = Field(
         default_factory=lambda: get_default_sampler_value("logit_bias"),
-        examples=[[{"1": 10}]],
+        examples=[{"1": 10, "2": 50}],
     )
 
     negative_prompt: Optional[str] = Field(

@@ -750,7 +750,13 @@ class ExllamaV2Container:
 
             # Map logits to the tensor with their biases
             for token, bias in logit_bias.items():
-                gen_settings.token_bias[token] = bias
+                if token in gen_settings.token_bias:
+                    gen_settings.token_bias[token] = bias
+                else:
+                    logger.warning(
+                        f"Logit bias: Token {token} not present "
+                        "in the model's vocab. Skipping."
+                    )
 
         # Ban the EOS token if specified. If not, append to stop conditions
         # as well.
