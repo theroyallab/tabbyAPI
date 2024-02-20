@@ -1,5 +1,9 @@
 # TabbyAPI
 
+> [!IMPORTANT]
+>
+>  In addition to the README, please read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started) page for information about getting started!
+
 > [!NOTE]
 > 
 >  Need help? Join the [Discord Server](https://discord.gg/sYQxnuD7Fj) and get the `Tabby` role. Please be nice when asking questions.
@@ -8,17 +12,11 @@ A FastAPI based application that allows for generating text using an LLM (large 
 
 ## Disclaimer
 
-This API is still in the alpha phase. There may be bugs and changes down the line. Please be aware that you might need to reinstall dependencies if needed.
-
-### Help Wanted
-
-Please check the issues page for issues that contributors can help on. We appreciate all contributions. Please read the contributions section for more details about issues and pull requests.
-
-If you want to add samplers, add them in the [exllamav2 library](https://github.com/turboderp/exllamav2) and then link them to tabbyAPI.
+This API is considered as rolling release. There may be bugs and changes down the line. Please be aware that you might need to reinstall dependencies if needed.
 
 ## Getting Started
 
-Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki) for more information. It contains user-facing documentation for installation, configuration, sampling, API usage, and so much more.
+Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started) for more information. It contains user-facing documentation for installation, configuration, sampling, API usage, and so much more.
 
 ## Supported Model Types
 
