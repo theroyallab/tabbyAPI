@@ -16,6 +16,7 @@ from exllamav2 import (
 from exllamav2.generator import ExLlamaV2StreamingGenerator, ExLlamaV2Sampler
 from typing import List, Optional, Union
 
+from backends.exllamav2.grammar import ExLlamaV2Grammar
 from common.gen_logging import log_generation_params, log_prompt, log_response
 from common.templating import (
     PromptTemplate,
@@ -757,6 +758,16 @@ class ExllamaV2Container:
                         f"Logit bias: Token {token_id} not present "
                         "in the model's vocab. Skipping."
                     )
+
+        # Initialize grammar handler
+        grammar_handler = ExLlamaV2Grammar()
+
+        # Add JSON schema filter if it exists
+        json_schema = unwrap(kwargs.get("json_schema"))
+        if json_schema:
+            grammar_handler.add_json_schema_filter(
+                json_schema, gen_settings, self.model, self.tokenizer
+            )
 
         # Ban the EOS token if specified. If not, append to stop conditions
         # as well.
