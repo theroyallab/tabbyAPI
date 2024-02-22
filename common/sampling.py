@@ -118,6 +118,10 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("negative_prompt")
     )
 
+    json_schema: Optional[object] = Field(
+        default_factory=lambda: get_default_sampler_value("json_schema"),
+    )
+
     # Aliased variables
     typical: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("typical", 1.0),
@@ -261,6 +265,7 @@ class BaseSamplerRequest(BaseModel):
             "mirostat_eta": self.mirostat_eta,
             "cfg_scale": self.cfg_scale,
             "negative_prompt": self.negative_prompt,
+            "json_schema": self.json_schema,
         }
 
         return {**gen_params, **kwargs}
