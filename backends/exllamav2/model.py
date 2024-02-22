@@ -464,6 +464,8 @@ class ExllamaV2Container:
         gc.collect()
         torch.cuda.empty_cache()
 
+        logger.info("Model unloaded.")
+
     def encode_tokens(self, text: str, **kwargs):
         """Wrapper to encode tokens from a text string"""
 

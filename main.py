@@ -172,11 +172,19 @@ async def load_model(request: Request, data: ModelLoadRequest):
     """Loads a model into the model container."""
     global MODEL_CONTAINER
 
-    if MODEL_CONTAINER and MODEL_CONTAINER.model:
-        raise HTTPException(400, "A model is already loaded! Please unload it first.")
-
     if not data.name:
-        raise HTTPException(400, "model_name not found.")
+        raise HTTPException(400, "A model name was not provided.")
+
+    # Unload the existing model
+    if MODEL_CONTAINER and MODEL_CONTAINER.model:
+        loaded_model_name = MODEL_CONTAINER.get_model_path().name
+
+        if loaded_model_name == data.name:
+            raise HTTPException(
+                400, f"Model \"{loaded_model_name}\"is already loaded! Aborting."
+            )
+        else:
+            MODEL_CONTAINER.unload()
 
     model_path = pathlib.Path(unwrap(get_model_config().get("model_dir"), "models"))
     model_path = model_path / data.name
