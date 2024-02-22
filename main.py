@@ -181,7 +181,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
 
         if loaded_model_name == data.name:
             raise HTTPException(
-                400, f"Model \"{loaded_model_name}\"is already loaded! Aborting."
+                400, f'Model "{loaded_model_name}"is already loaded! Aborting.'
             )
         else:
             MODEL_CONTAINER.unload()
