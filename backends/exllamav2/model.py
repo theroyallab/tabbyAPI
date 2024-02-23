@@ -749,12 +749,12 @@ class ExllamaV2Container:
                 )
 
             # Map logits to the tensor with their biases
-            for token, bias in logit_bias.items():
-                if token in gen_settings.token_bias:
-                    gen_settings.token_bias[token] = bias
+            for token_id, bias in logit_bias.items():
+                if 0 <= token_id < len(self.tokenizer.id_to_piece):
+                    gen_settings.token_bias[token_id] = bias
                 else:
                     logger.warning(
-                        f"Logit bias: Token {token} not present "
+                        f"Logit bias: Token {token_id} not present "
                         "in the model's vocab. Skipping."
                     )
 
