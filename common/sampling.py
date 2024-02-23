@@ -122,6 +122,10 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("json_schema"),
     )
 
+    grammar_string: Optional[str] = Field(
+        default_factory=lambda: get_default_sampler_value("grammar_string"),
+    )
+
     # Aliased variables
     typical: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("typical", 1.0),
@@ -266,6 +270,7 @@ class BaseSamplerRequest(BaseModel):
             "cfg_scale": self.cfg_scale,
             "negative_prompt": self.negative_prompt,
             "json_schema": self.json_schema,
+            "grammar_string": self.grammar_string,
         }
 
         return {**gen_params, **kwargs}
