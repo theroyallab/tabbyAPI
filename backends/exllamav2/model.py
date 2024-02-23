@@ -761,12 +761,20 @@ class ExllamaV2Container:
 
         # Initialize grammar handler
         grammar_handler = ExLlamaV2Grammar()
+        gen_settings.filters = []
 
         # Add JSON schema filter if it exists
         json_schema = unwrap(kwargs.get("json_schema"))
         if json_schema:
             grammar_handler.add_json_schema_filter(
                 json_schema, gen_settings, self.model, self.tokenizer
+            )
+
+        # Add EBNF filter if it exists
+        grammar_string = unwrap(kwargs.get("grammar_string"))
+        if grammar_string:
+            grammar_handler.add_ebnf_filter(
+                grammar_string, gen_settings, self.model, self.tokenizer
             )
 
         # Ban the EOS token if specified. If not, append to stop conditions
