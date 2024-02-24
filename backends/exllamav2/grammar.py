@@ -1,8 +1,9 @@
 import traceback
-from common.logger import init_logger
 from exllamav2 import ExLlamaV2, ExLlamaV2Tokenizer
 from exllamav2.generator import ExLlamaV2Sampler
 from exllamav2.generator.filters import ExLlamaV2Filter
+
+from common.logger import init_logger
 
 # TODO: Remove after new exllama version is released
 try:
