@@ -9,7 +9,7 @@ logger = init_logger(__name__)
 def check_exllama_version():
     """Verifies the exllama version"""
 
-    required_version = version.parse("0.0.13.post2")
+    required_version = version.parse("0.0.14")
     current_version = version.parse(package_version("exllamav2").split("+")[0])
 
     if current_version < required_version:
