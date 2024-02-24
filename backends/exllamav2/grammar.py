@@ -1,18 +1,9 @@
 import traceback
 from exllamav2 import ExLlamaV2, ExLlamaV2Tokenizer
 from exllamav2.generator import ExLlamaV2Sampler
-from exllamav2.generator.filters import ExLlamaV2Filter
+from exllamav2.generator.filters import ExLlamaV2Filter, ExLlamaV2PrefixFilter
 
 from common.logger import init_logger
-
-# TODO: Remove after new exllama version is released
-try:
-    from exllamav2.generator.filters import ExLlamaV2PrefixFilter
-
-    _exllama_filter_available = True
-except ImportError:
-    _exllama_filter_available = False
-
 
 logger = init_logger(__name__)
 
@@ -73,15 +64,6 @@ class ExLlamaV2Grammar:
     ):
         """Adds an ExllamaV2 filter based on a JSON schema."""
 
-        if not _exllama_filter_available:
-            logger.warning(
-                "ExllamaV2PrefixFilter is not available "
-                "in the currently installed ExllamaV2 version. "
-                "Skipping JSON schema parsing."
-            )
-
-            return
-
         # Import optional dependencies
         try:
             from lmformatenforcer import JsonSchemaParser
@@ -128,15 +110,6 @@ class ExLlamaV2Grammar:
         Add an EBNF grammar filter.
         Possibly replace outlines with an in-house solution in the future.
         """
-
-        if not _exllama_filter_available:
-            logger.warning(
-                "filter_prefer_eos is not available "
-                "in the currently installed ExllamaV2 version. "
-                "Skipping EBNF parsing."
-            )
-
-            return
 
         try:
             ebnf_filter = ExLlamaV2EbnfFilter(model, tokenizer, ebnf_string)
