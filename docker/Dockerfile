@@ -13,11 +13,7 @@ WORKDIR /usr/src/app
 # Get requirements
 COPY requirements.txt requirements.txt
 
-# Install torch with CUDA support and exllamav2
-RUN pip install torch --extra-index-url https://download.pytorch.org/whl/cu121
-RUN pip install exllamav2
-
-# Install any other needed packages specified in requirements.txt
+# Install packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the current directory contents into the container at /usr/src/app
