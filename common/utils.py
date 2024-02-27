@@ -1,8 +1,8 @@
-"""Common utilities for the tabbyAPI"""
-import traceback
-from typing import Optional
+"""Common utility functions"""
 
+import traceback
 from pydantic import BaseModel
+from typing import Optional
 
 from common.logger import init_logger
 
@@ -14,30 +14,41 @@ def load_progress(module, modules):
     yield module, modules
 
 
-class TabbyGeneratorErrorMessage(BaseModel):
-    """Common error types."""
+class TabbyRequestErrorMessage(BaseModel):
+    """Common request error type."""
 
     message: str
     trace: Optional[str] = None
 
 
-class TabbyGeneratorError(BaseModel):
-    """Common error types."""
+class TabbyRequestError(BaseModel):
+    """Common request error type."""
 
-    error: TabbyGeneratorErrorMessage
+    error: TabbyRequestErrorMessage
 
 
 def get_generator_error(message: str):
     """Get a generator error."""
-    error_message = TabbyGeneratorErrorMessage(
+
+    generator_error = handle_request_error(message)
+
+    return get_sse_packet(generator_error.model_dump_json())
+
+
+def handle_request_error(message: str):
+    """Log a request error to the console."""
+
+    error_message = TabbyRequestErrorMessage(
         message=message, trace=traceback.format_exc()
     )
 
-    generator_error = TabbyGeneratorError(error=error_message)
+    request_error = TabbyRequestError(error=error_message)
 
-    # Log and send the exception
-    logger.error(generator_error.error.trace)
-    return get_sse_packet(generator_error.model_dump_json())
+    # Log the error and provided message to the console
+    logger.error(error_message.trace)
+    logger.error(message)
+
+    return request_error
 
 
 def get_sse_packet(json_data: str):

@@ -1,12 +1,17 @@
 """The main tabbyAPI module. Contains the FastAPI server and endpoints."""
+import asyncio
 import os
 import pathlib
+import signal
+import sys
 import uvicorn
+import threading
 from asyncio import CancelledError
 from typing import Optional
 from uuid import uuid4
 from jinja2 import TemplateError
 from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from functools import partial
@@ -39,7 +44,13 @@ from common.templating import (
     get_prompt_from_template,
     get_template_from_file,
 )
-from common.utils import get_generator_error, get_sse_packet, load_progress, unwrap
+from common.utils import (
+    get_generator_error,
+    get_sse_packet,
+    handle_request_error,
+    load_progress,
+    unwrap,
+)
 from common.logger import init_logger
 from OAI.types.completion import CompletionRequest
 from OAI.types.chat_completion import ChatCompletionRequest
@@ -82,8 +93,12 @@ MODEL_CONTAINER: Optional[ExllamaV2Container] = None
 
 
 def _check_model_container():
-    if MODEL_CONTAINER is None or MODEL_CONTAINER.model is None:
-        raise HTTPException(400, "No models are loaded.")
+    if MODEL_CONTAINER is None or not MODEL_CONTAINER.model_loaded:
+        error_message = handle_request_error(
+            "No models are currently loaded."
+        ).error.message
+
+        raise HTTPException(400, error_message)
 
 
 # ALlow CORS requests
@@ -99,7 +114,7 @@ app.add_middleware(
 # Model list endpoint
 @app.get("/v1/models", dependencies=[Depends(check_api_key)])
 @app.get("/v1/model/list", dependencies=[Depends(check_api_key)])
-async def list_models():
+def list_models():
     """Lists all models in the model directory."""
     model_config = get_model_config()
     model_dir = unwrap(model_config.get("model_dir"), "models")
@@ -123,7 +138,7 @@ async def list_models():
     "/v1/internal/model/info",
     dependencies=[Depends(check_api_key), Depends(_check_model_container)],
 )
-async def get_current_model():
+def get_current_model():
     """Returns the currently loaded model."""
     model_name = MODEL_CONTAINER.get_model_path().name
     prompt_template = MODEL_CONTAINER.prompt_template
@@ -156,7 +171,7 @@ async def get_current_model():
 
 
 @app.get("/v1/model/draft/list", dependencies=[Depends(check_api_key)])
-async def list_draft_models():
+def list_draft_models():
     """Lists all draft models in the model directory."""
     draft_model_dir = unwrap(get_draft_model_config().get("draft_model_dir"), "models")
     draft_model_path = pathlib.Path(draft_model_dir)
@@ -168,7 +183,7 @@ async def list_draft_models():
 
 # Load model endpoint
 @app.post("/v1/model/load", dependencies=[Depends(check_admin_key)])
-async def load_model(request: Request, data: ModelLoadRequest):
+def load_model(request: Request, data: ModelLoadRequest):
     """Loads a model into the model container."""
     global MODEL_CONTAINER
 
@@ -262,7 +277,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
     "/v1/model/unload",
     dependencies=[Depends(check_admin_key), Depends(_check_model_container)],
 )
-async def unload_model():
+def unload_model():
     """Unloads the currently loaded model."""
     global MODEL_CONTAINER
 
@@ -272,7 +287,7 @@ async def unload_model():
 
 @app.get("/v1/templates", dependencies=[Depends(check_api_key)])
 @app.get("/v1/template/list", dependencies=[Depends(check_api_key)])
-async def get_templates():
+def get_templates():
     templates = get_all_templates()
     template_strings = list(map(lambda template: template.stem, templates))
     return TemplateList(data=template_strings)
@@ -282,7 +297,7 @@ async def get_templates():
     "/v1/template/switch",
     dependencies=[Depends(check_admin_key), Depends(_check_model_container)],
 )
-async def switch_template(data: TemplateSwitchRequest):
+def switch_template(data: TemplateSwitchRequest):
     """Switch the currently loaded template"""
     if not data.name:
         raise HTTPException(400, "New template name not found.")
@@ -298,7 +313,7 @@ async def switch_template(data: TemplateSwitchRequest):
     "/v1/template/unload",
     dependencies=[Depends(check_admin_key), Depends(_check_model_container)],
 )
-async def unload_template():
+def unload_template():
     """Unloads the currently selected template"""
 
     MODEL_CONTAINER.prompt_template = None
@@ -307,7 +322,7 @@ async def unload_template():
 # Sampler override endpoints
 @app.get("/v1/sampling/overrides", dependencies=[Depends(check_api_key)])
 @app.get("/v1/sampling/override/list", dependencies=[Depends(check_api_key)])
-async def list_sampler_overrides():
+def list_sampler_overrides():
     """API wrapper to list all currently applied sampler overrides"""
 
     return get_sampler_overrides()
@@ -317,7 +332,7 @@ async def list_sampler_overrides():
     "/v1/sampling/override/switch",
     dependencies=[Depends(check_admin_key)],
 )
-async def switch_sampler_override(data: SamplerOverrideSwitchRequest):
+def switch_sampler_override(data: SamplerOverrideSwitchRequest):
     """Switch the currently loaded override preset"""
 
     if data.preset:
@@ -339,7 +354,7 @@ async def switch_sampler_override(data: SamplerOverrideSwitchRequest):
     "/v1/sampling/override/unload",
     dependencies=[Depends(check_admin_key)],
 )
-async def unload_sampler_override():
+def unload_sampler_override():
     """Unloads the currently selected override preset"""
 
     set_overrides_from_dict({})
@@ -348,7 +363,7 @@ async def unload_sampler_override():
 # Lora list endpoint
 @app.get("/v1/loras", dependencies=[Depends(check_api_key)])
 @app.get("/v1/lora/list", dependencies=[Depends(check_api_key)])
-async def get_all_loras():
+def get_all_loras():
     """Lists all LoRAs in the lora directory."""
     lora_path = pathlib.Path(unwrap(get_lora_config().get("lora_dir"), "loras"))
     loras = get_lora_list(lora_path.resolve())
@@ -361,7 +376,7 @@ async def get_all_loras():
     "/v1/lora",
     dependencies=[Depends(check_api_key), Depends(_check_model_container)],
 )
-async def get_active_loras():
+def get_active_loras():
     """Returns the currently loaded loras."""
     active_loras = LoraList(
         data=list(
@@ -383,7 +398,7 @@ async def get_active_loras():
     "/v1/lora/load",
     dependencies=[Depends(check_admin_key), Depends(_check_model_container)],
 )
-async def load_lora(data: LoraLoadRequest):
+def load_lora(data: LoraLoadRequest):
     """Loads a LoRA into the model container."""
     if not data.loras:
         raise HTTPException(400, "List of loras to load is not found.")
@@ -411,7 +426,7 @@ async def load_lora(data: LoraLoadRequest):
     "/v1/lora/unload",
     dependencies=[Depends(check_admin_key), Depends(_check_model_container)],
 )
-async def unload_loras():
+def unload_loras():
     """Unloads the currently loaded loras."""
     MODEL_CONTAINER.unload(True)
 
@@ -421,7 +436,7 @@ async def unload_loras():
     "/v1/token/encode",
     dependencies=[Depends(check_api_key), Depends(_check_model_container)],
 )
-async def encode_tokens(data: TokenEncodeRequest):
+def encode_tokens(data: TokenEncodeRequest):
     """Encodes a string into tokens."""
     raw_tokens = MODEL_CONTAINER.encode_tokens(data.text, **data.get_params())
     tokens = unwrap(raw_tokens, [])
@@ -435,7 +450,7 @@ async def encode_tokens(data: TokenEncodeRequest):
     "/v1/token/decode",
     dependencies=[Depends(check_api_key), Depends(_check_model_container)],
 )
-async def decode_tokens(data: TokenDecodeRequest):
+def decode_tokens(data: TokenDecodeRequest):
     """Decodes tokens into a string."""
     message = MODEL_CONTAINER.decode_tokens(data.tokens, **data.get_params())
     response = TokenDecodeResponse(text=unwrap(message, ""))
@@ -477,21 +492,34 @@ async def generate_completion(request: Request, data: CompletionRequest):
 
                 # Yield a finish response on successful generation
                 yield get_sse_packet("[DONE]")
-            except CancelledError:
-                logger.error("Completion request cancelled by user.")
-            except Exception as exc:
-                yield get_generator_error(str(exc))
+            except Exception:
+                yield get_generator_error(
+                    "Completion aborted. Please check the server console."
+                )
 
         return StreamingResponse(
             generate_with_semaphore(generator), media_type="text/event-stream"
         )
 
-    generation = await call_with_semaphore(
-        partial(MODEL_CONTAINER.generate, data.prompt, **data.to_gen_params())
-    )
-    response = create_completion_response(generation, model_path.name)
+    try:
+        generation = await call_with_semaphore(
+            partial(
+                run_in_threadpool,
+                MODEL_CONTAINER.generate,
+                data.prompt,
+                **data.to_gen_params(),
+            )
+        )
 
-    return response
+        response = create_completion_response(generation, model_path.name)
+        return response
+    except Exception as exc:
+        error_message = handle_request_error(
+            "Completion aborted. Please check the server console."
+        ).error.message
+
+        # Server error if there's a generation exception
+        raise HTTPException(503, error_message) from exc
 
 
 # Chat completions endpoint
@@ -501,6 +529,7 @@ async def generate_completion(request: Request, data: CompletionRequest):
 )
 async def generate_chat_completion(request: Request, data: ChatCompletionRequest):
     """Generates a chat completion from a prompt."""
+
     if MODEL_CONTAINER.prompt_template is None:
         raise HTTPException(
             422,
@@ -565,26 +594,65 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
                 )
 
                 yield get_sse_packet(finish_response.model_dump_json())
-            except CancelledError:
-                logger.error("Chat completion cancelled by user.")
-            except Exception as exc:
-                yield get_generator_error(str(exc))
+            except Exception:
+                yield get_generator_error(
+                    "Chat completion aborted. Please check the server console."
+                )
 
         return StreamingResponse(
             generate_with_semaphore(generator), media_type="text/event-stream"
         )
 
-    generation = await call_with_semaphore(
-        partial(MODEL_CONTAINER.generate, prompt, **data.to_gen_params())
-    )
-    response = create_chat_completion_response(generation, model_path.name)
+    try:
+        generation = await call_with_semaphore(
+            partial(
+                run_in_threadpool,
+                MODEL_CONTAINER.generate,
+                prompt,
+                **data.to_gen_params(),
+            )
+        )
+        response = create_chat_completion_response(generation, model_path.name)
 
-    return response
+        return response
+    except Exception as exc:
+        error_message = handle_request_error(
+            "Chat completion aborted. Please check the server console."
+        ).error.message
+
+        # Server error if there's a generation exception
+        raise HTTPException(503, error_message) from exc
+
+
+def start_api(host: str, port: int):
+    """Isolated function to start the API server"""
+
+    # TODO: Move OAI API to a separate folder
+    logger.info(f"Developer documentation: http://{host}:{port}/docs")
+    logger.info(f"Completions: http://{host}:{port}/v1/completions")
+    logger.info(f"Chat completions: http://{host}:{port}/v1/chat/completions")
+
+    uvicorn.run(
+        app,
+        host=host,
+        port=port,
+        log_level="debug",
+    )
+
+
+def signal_handler(*_):
+    logger.warning("Shutdown signal called. Exiting gracefully.")
+    sys.exit(0)
 
 
 def entrypoint(args: Optional[dict] = None):
     """Entry function for program startup"""
+
     global MODEL_CONTAINER
+
+    # Set up signal aborting
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     # Load from YAML config
     read_config_from_file(pathlib.Path("config.yml"))
@@ -665,17 +733,15 @@ def entrypoint(args: Optional[dict] = None):
     host = unwrap(network_config.get("host"), "127.0.0.1")
     port = unwrap(network_config.get("port"), 5000)
 
-    # TODO: Move OAI API to a separate folder
-    logger.info(f"Developer documentation: http://{host}:{port}/docs")
-    logger.info(f"Completions: http://{host}:{port}/v1/completions")
-    logger.info(f"Chat completions: http://{host}:{port}/v1/chat/completions")
+    # Start the API in a daemon thread
+    # This allows for command signals to be passed and properly shut down the program
+    # Otherwise the program will hang
+    # TODO: Replace this with abortables, async via producer consumer, or something else
+    threading.Thread(target=partial(start_api, host, port), daemon=True).start()
 
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        log_level="debug",
-    )
+    # Keep the program alive
+    loop = asyncio.get_event_loop()
+    loop.run_forever()
 
 
 if __name__ == "__main__":
