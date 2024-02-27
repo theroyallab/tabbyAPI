@@ -54,6 +54,9 @@ class ExllamaV2Container:
     gpu_split_auto: bool = True
     autosplit_reserve: List[float] = [96 * 1024**2]
 
+    # Load state
+    model_loaded: bool = False
+
     def __init__(self, model_directory: pathlib.Path, quiet=False, **kwargs):
         """
         Create model container
@@ -435,6 +438,8 @@ class ExllamaV2Container:
         gc.collect()
         torch.cuda.empty_cache()
 
+        # Update model load state
+        self.model_loaded = True
         logger.info("Model successfully loaded.")
 
     def unload(self, loras_only: bool = False):
@@ -465,6 +470,8 @@ class ExllamaV2Container:
         gc.collect()
         torch.cuda.empty_cache()
 
+        # Update model load state
+        self.model_loaded = False
         logger.info("Model unloaded.")
 
     def encode_tokens(self, text: str, **kwargs):
