@@ -32,6 +32,7 @@ class LoraLoadRequest(BaseModel):
     """Represents a Lora load request."""
 
     loras: List[LoraLoadInfo]
+    skip_queue: bool = False
 
 
 class LoraLoadResponse(BaseModel):

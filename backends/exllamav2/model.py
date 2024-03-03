@@ -55,6 +55,7 @@ class ExllamaV2Container:
     autosplit_reserve: List[float] = [96 * 1024**2]
 
     # Load state
+    model_is_loading: bool = False
     model_loaded: bool = False
 
     def __init__(self, model_directory: pathlib.Path, quiet=False, **kwargs):
@@ -350,6 +351,9 @@ class ExllamaV2Container:
                 def progress(loaded_modules: int, total_modules: int)
         """
 
+        # Notify that the model is being loaded
+        self.model_is_loading = True
+
         # Load tokenizer
         self.tokenizer = ExLlamaV2Tokenizer(self.config)
 
@@ -439,6 +443,7 @@ class ExllamaV2Container:
         torch.cuda.empty_cache()
 
         # Update model load state
+        self.model_is_loading = False
         self.model_loaded = True
         logger.info("Model successfully loaded.")
 
@@ -472,7 +477,7 @@ class ExllamaV2Container:
 
         # Update model load state
         self.model_loaded = False
-        logger.info("Model unloaded.")
+        logger.info("Loras unloaded." if loras_only else "Model unloaded.")
 
     def encode_tokens(self, text: str, **kwargs):
         """Wrapper to encode tokens from a text string"""
