@@ -45,8 +45,10 @@ def handle_request_error(message: str):
     request_error = TabbyRequestError(error=error_message)
 
     # Log the error and provided message to the console
-    logger.error(error_message.trace)
-    logger.error(message)
+    if error_message.trace:
+        logger.error(error_message.trace)
+
+    logger.error(f"Sent to request: {message}")
 
     return request_error
 

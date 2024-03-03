@@ -93,6 +93,7 @@ class ModelLoadRequest(BaseModel):
     use_cfg: Optional[bool] = None
     fasttensors: Optional[bool] = False
     draft: Optional[DraftModelLoadRequest] = None
+    skip_queue: Optional[bool] = False
 
 
 class ModelLoadResponse(BaseModel):
