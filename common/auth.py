@@ -76,7 +76,9 @@ def load_auth_keys(disable_from_config: bool):
     )
 
 
-def check_api_key(x_api_key: str = Header(None), authorization: str = Header(None)):
+async def check_api_key(
+    x_api_key: str = Header(None), authorization: str = Header(None)
+):
     """Check if the API key is valid."""
 
     # Allow request if auth is disabled
@@ -102,7 +104,9 @@ def check_api_key(x_api_key: str = Header(None), authorization: str = Header(Non
     raise HTTPException(401, "Please provide an API key")
 
 
-def check_admin_key(x_admin_key: str = Header(None), authorization: str = Header(None)):
+async def check_admin_key(
+    x_admin_key: str = Header(None), authorization: str = Header(None)
+):
     """Check if the admin key is valid."""
 
     # Allow request if auth is disabled
