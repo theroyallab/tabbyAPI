@@ -136,10 +136,6 @@ async def list_models():
     "/v1/model",
     dependencies=[Depends(check_api_key), Depends(_check_model_container)],
 )
-@app.get(
-    "/v1/internal/model/info",
-    dependencies=[Depends(check_api_key), Depends(_check_model_container)],
-)
 async def get_current_model():
     """Returns the currently loaded model."""
     model_name = MODEL_CONTAINER.get_model_path().name
