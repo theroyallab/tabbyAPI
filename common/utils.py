@@ -27,7 +27,7 @@ class TabbyRequestError(BaseModel):
     error: TabbyRequestErrorMessage
 
 
-def get_generator_error(message: str):
+def get_generator_error(message: str, exc_info: bool = True):
     """Get a generator error."""
 
     generator_error = handle_request_error(message)
@@ -35,7 +35,7 @@ def get_generator_error(message: str):
     return get_sse_packet(generator_error.model_dump_json())
 
 
-def handle_request_error(message: str):
+def handle_request_error(message: str, exc_info: bool = True):
     """Log a request error to the console."""
 
     error_message = TabbyRequestErrorMessage(
@@ -45,7 +45,7 @@ def handle_request_error(message: str):
     request_error = TabbyRequestError(error=error_message)
 
     # Log the error and provided message to the console
-    if error_message.trace:
+    if error_message.trace and exc_info:
         logger.error(error_message.trace)
 
     logger.error(f"Sent to request: {message}")

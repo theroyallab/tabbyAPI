@@ -93,11 +93,14 @@ MODEL_CONTAINER: Optional[ExllamaV2Container] = None
 
 
 async def _check_model_container():
+    """Checks if a model isn't loading or loaded."""
+
     if MODEL_CONTAINER is None or not (
         MODEL_CONTAINER.model_is_loading or MODEL_CONTAINER.model_loaded
     ):
         error_message = handle_request_error(
-            "No models are currently loaded."
+            "No models are currently loaded.",
+            exc_info=False,
         ).error.message
 
         raise HTTPException(400, error_message)
@@ -221,6 +224,7 @@ async def load_model(request: Request, data: ModelLoadRequest):
 
         # Unload the existing model
         if MODEL_CONTAINER and MODEL_CONTAINER.model:
+            logger.info("Unloading existing model.")
             await unload_model()
 
         MODEL_CONTAINER = ExllamaV2Container(model_path.resolve(), False, **load_data)
@@ -231,7 +235,10 @@ async def load_model(request: Request, data: ModelLoadRequest):
         try:
             for module, modules in load_status:
                 if await request.is_disconnected():
-                    await unload_model()
+                    logger.error(
+                        "Model load cancelled by user. "
+                        "Please make sure to run unload to free up resources."
+                    )
                     break
 
                 if module == 0:
