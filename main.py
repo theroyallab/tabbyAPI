@@ -149,7 +149,7 @@ async def get_current_model():
             rope_scale=MODEL_CONTAINER.config.scale_pos_emb,
             rope_alpha=MODEL_CONTAINER.config.scale_alpha_value,
             max_seq_len=MODEL_CONTAINER.config.max_seq_len,
-            cache_mode="FP8" if MODEL_CONTAINER.cache_fp8 else "FP16",
+            cache_mode=MODEL_CONTAINER.cache_mode,
             prompt_template=prompt_template.name if prompt_template else None,
             num_experts_per_token=MODEL_CONTAINER.config.num_experts_per_token,
             use_cfg=MODEL_CONTAINER.use_cfg,
