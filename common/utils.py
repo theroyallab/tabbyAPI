@@ -2,6 +2,14 @@
 
 import traceback
 from pydantic import BaseModel
+from rich.progress import (
+    Progress,
+    TextColumn,
+    BarColumn,
+    TimeRemainingColumn,
+    TaskProgressColumn,
+    MofNCompleteColumn,
+)
 from typing import Optional
 
 from common.logger import init_logger
@@ -56,6 +64,18 @@ def handle_request_error(message: str, exc_info: bool = True):
 def get_sse_packet(json_data: str):
     """Get an SSE packet."""
     return f"data: {json_data}\n\n"
+
+
+def get_loading_progress_bar():
+    """Gets a pre-made progress bar for loading tasks."""
+
+    return Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        MofNCompleteColumn(),
+        TimeRemainingColumn(),
+    )
 
 
 def unwrap(wrapped, default=None):

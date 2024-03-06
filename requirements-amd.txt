@@ -10,7 +10,7 @@ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.1
 fastapi
 pydantic >= 2.0.0
 PyYAML
-progress
+rich
 uvicorn
 jinja2 >= 3.0.0
 colorlog

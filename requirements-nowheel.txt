@@ -2,7 +2,7 @@
 fastapi
 pydantic >= 2.0.0
 PyYAML
-progress
+rich
 uvicorn
 jinja2 >= 3.0.0
 colorlog
