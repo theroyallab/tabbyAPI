@@ -10,6 +10,7 @@ from exllamav2 import (
     ExLlamaV2Config,
     ExLlamaV2Cache,
     ExLlamaV2Cache_8bit,
+    ExLlamaV2Cache_Q4,
     ExLlamaV2Tokenizer,
     ExLlamaV2Lora,
 )
@@ -26,14 +27,6 @@ from common.templating import (
 )
 from common.utils import coalesce, unwrap
 from common.logger import init_logger
-
-# Optional imports for dependencies
-try:
-    from exllamav2 import ExLlamaV2Cache_Q4
-
-    _exllamav2_has_int4 = True
-except ImportError:
-    _exllamav2_has_int4 = False
 
 logger = init_logger(__name__)
 
@@ -116,16 +109,7 @@ class ExllamaV2Container:
         """
 
         self.quiet = quiet
-
-        cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
-        if cache_mode == "Q4" and not _exllamav2_has_int4:
-            logger.warning(
-                "Q4 cache is not available "
-                "in the currently installed ExllamaV2 version. Using FP16."
-            )
-            cache_mode = "FP16"
-
-        self.cache_mode = cache_mode
+        self.cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
 
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
@@ -415,7 +399,7 @@ class ExllamaV2Container:
 
         batch_size = 2 if self.use_cfg else 1
 
-        if self.cache_mode == "Q4" and _exllamav2_has_int4:
+        if self.cache_mode == "Q4":
             self.cache = ExLlamaV2Cache_Q4(
                 self.model, lazy=self.gpu_split_auto, batch_size=batch_size
             )
