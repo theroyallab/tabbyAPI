@@ -33,6 +33,7 @@ from common.config import (
     get_lora_config,
     get_network_config,
 )
+from common.downloaders import hf_download
 from common.generators import call_with_semaphore, generate_with_semaphore
 from common.sampling import (
     get_sampler_overrides,
@@ -54,6 +55,7 @@ from common.utils import (
 from common.logger import init_logger
 from OAI.types.completion import CompletionRequest
 from OAI.types.chat_completion import ChatCompletionRequest
+from OAI.types.download import HFDownloadRequest
 from OAI.types.lora import LoraCard, LoraList, LoraLoadRequest, LoraLoadResponse
 from OAI.types.model import (
     ModelCard,
@@ -657,6 +659,31 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
 
         # Server error if there's a generation exception
         raise HTTPException(503, error_message) from exc
+
+
+# HF downloader endpoint
+@app.post(
+    "/v1/download",
+    dependencies=[Depends(check_admin_key)],
+)
+async def download_hf_repo(request: Request, data: HFDownloadRequest):
+    """Downloads a HuggingFace repository."""
+
+    if data.repo_type == "model":
+        download_path = pathlib.Path(
+            unwrap(get_model_config().get("model_dir"), "models")
+        )
+    elif data.repo_type == "lora":
+        download_path = pathlib.Path(unwrap(get_lora_config().get("lora_dir"), "loras"))
+    elif data.repo_type == "draft_model":
+        download_path = pathlib.Path(
+            unwrap(get_draft_model_config().get("draft_model_dir"), "models")
+        )
+    else:
+        raise HTTPException(400, f"Unrecognized repo type: {data.repo_type}.")
+    download_path = download_path / data.repo_id.replace('/', '_')
+
+    return hf_download(data.repo_id, data.revision, download_path, data.hf_token)
 
 
 def start_api(host: str, port: int):
