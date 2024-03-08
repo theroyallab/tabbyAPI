@@ -1,15 +1,12 @@
 """Common functions for sampling parameters"""
 
 import pathlib
-from typing import Dict, List, Optional, Union
-from pydantic import AliasChoices, BaseModel, Field
 import yaml
+from loguru import logger
+from pydantic import AliasChoices, BaseModel, Field
+from typing import Dict, List, Optional, Union
 
-from common.logger import init_logger
 from common.utils import unwrap, prune_dict
-
-
-logger = init_logger(__name__)
 
 
 # Common class for sampler params

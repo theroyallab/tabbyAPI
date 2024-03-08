@@ -19,7 +19,7 @@ PyYAML
 rich
 uvicorn
 jinja2 >= 3.0.0
-colorlog
+loguru
 
 # Flash attention v2
 

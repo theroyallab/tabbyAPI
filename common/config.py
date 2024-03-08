@@ -1,10 +1,8 @@
 import yaml
 import pathlib
+from loguru import logger
 
-from common.logger import init_logger
 from common.utils import unwrap
-
-logger = init_logger(__name__)
 
 GLOBAL_CONFIG: dict = {}
 
