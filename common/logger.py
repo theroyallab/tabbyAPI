@@ -58,12 +58,7 @@ def _log_formatter(record: dict) -> str:
 
     fmt = ""
     if len(lines) > 1:
-        fmt = "\n".join(
-            [
-                f"{colored_level}{separator}{line}"
-                for line in lines
-            ]
-        )
+        fmt = "\n".join([f"{colored_level}{separator}{line}" for line in lines])
     else:
         fmt = f"{colored_level}{separator}{message}"
 
