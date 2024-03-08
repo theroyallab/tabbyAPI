@@ -12,7 +12,7 @@ class SamplerOverrideSwitchRequest(BaseModel):
     overrides: Optional[dict] = Field(
         default=None,
         description=(
-            "Sampling override parent takes in individual keys and overrides."
+            "Sampling override parent takes in individual keys and overrides. "
             + "Ignored if preset is provided."
         ),
         examples=[
