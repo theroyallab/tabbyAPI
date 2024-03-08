@@ -80,9 +80,7 @@ UVICORN_LOG_CONFIG = {
     "disable_existing_loggers": False,
     "handlers": {
         "uvicorn": {
-            "class": (
-                f"{UvicornLoggingHandler.__module__}.{UvicornLoggingHandler.__qualname__}",
-            )
+            "class": f"{UvicornLoggingHandler.__module__}.{UvicornLoggingHandler.__qualname__}",  # noqa
         },
     },
     "root": {"handlers": ["uvicorn"], "propagate": False, "level": "TRACE"},

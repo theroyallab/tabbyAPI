@@ -17,7 +17,7 @@ from fastapi.responses import StreamingResponse
 from functools import partial
 from loguru import logger
 
-from common.logger import setup_logger, get_loading_progress_bar
+from common.logger import UVICORN_LOG_CONFIG, setup_logger, get_loading_progress_bar
 import common.gen_logging as gen_logging
 from backends.exllamav2.model import ExllamaV2Container
 from backends.exllamav2.utils import check_exllama_version
@@ -677,6 +677,7 @@ def start_api(host: str, port: int):
         app,
         host=host,
         port=port,
+        log_config=UVICORN_LOG_CONFIG,
     )
 
 
