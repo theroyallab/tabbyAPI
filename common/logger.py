@@ -46,6 +46,9 @@ def _log_formatter(record: dict) -> str:
     }
     level = record.get("level")
     level_color = color_map.get(level.name, "cyan")
+    colored_level = f"[{level_color}]{level.name}[/{level_color}]:"
+
+    separator = " " * (9 - len(level.name))
 
     message = unwrap(record.get("message"), "")
     lines = message.splitlines()
@@ -57,12 +60,12 @@ def _log_formatter(record: dict) -> str:
     if len(lines) > 1:
         fmt = "\n".join(
             [
-                f"[{level_color}]{level.name + ':' :<10}[/{level_color}]{line}"
+                f"{colored_level}{separator}{line}"
                 for line in lines
             ]
         )
     else:
-        fmt = f"[{level_color}]{level.name + ':' :<10}[/{level_color}]{message}"
+        fmt = f"{colored_level}{separator}{message}"
 
     return fmt
 
