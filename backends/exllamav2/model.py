@@ -15,6 +15,7 @@ from exllamav2 import (
     ExLlamaV2Lora,
 )
 from exllamav2.generator import ExLlamaV2StreamingGenerator, ExLlamaV2Sampler
+from loguru import logger
 from typing import List, Optional, Union
 
 from backends.exllamav2.grammar import ExLlamaV2Grammar
@@ -26,9 +27,6 @@ from common.templating import (
     get_template_from_file,
 )
 from common.utils import coalesce, unwrap
-from common.logger import init_logger
-
-logger = init_logger(__name__)
 
 
 class ExllamaV2Container:

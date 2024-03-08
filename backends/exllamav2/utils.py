@@ -1,9 +1,6 @@
 from packaging import version
 from importlib.metadata import version as package_version
-
-from common.logger import init_logger
-
-logger = init_logger(__name__)
+from loguru import logger
 
 
 def check_exllama_version():

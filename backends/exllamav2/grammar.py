@@ -2,10 +2,7 @@ import traceback
 from exllamav2 import ExLlamaV2, ExLlamaV2Tokenizer
 from exllamav2.generator import ExLlamaV2Sampler
 from exllamav2.generator.filters import ExLlamaV2Filter, ExLlamaV2PrefixFilter
-
-from common.logger import init_logger
-
-logger = init_logger(__name__)
+from loguru import logger
 
 
 class OutlinesTokenizerWrapper:

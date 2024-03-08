@@ -4,8 +4,8 @@ import pathlib
 import signal
 import sys
 import time
-import uvicorn
 import threading
+import uvicorn
 from asyncio import CancelledError
 from typing import Optional
 from uuid import uuid4
@@ -15,7 +15,9 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from functools import partial
+from loguru import logger
 
+from common.logger import setup_logger, get_loading_progress_bar
 import common.gen_logging as gen_logging
 from backends.exllamav2.model import ExllamaV2Container
 from backends.exllamav2.utils import check_exllama_version
@@ -45,13 +47,11 @@ from common.templating import (
 )
 from common.utils import (
     get_generator_error,
-    get_loading_progress_bar,
     get_sse_packet,
     handle_request_error,
     load_progress,
     unwrap,
 )
-from common.logger import init_logger
 from OAI.types.completion import CompletionRequest
 from OAI.types.chat_completion import ChatCompletionRequest
 from OAI.types.lora import LoraCard, LoraList, LoraLoadRequest, LoraLoadResponse
@@ -76,8 +76,6 @@ from OAI.utils.completion import (
 )
 from OAI.utils.model import get_model_list
 from OAI.utils.lora import get_lora_list
-
-logger = init_logger(__name__)
 
 app = FastAPI(
     title="TabbyAPI",
@@ -691,6 +689,8 @@ def entrypoint(args: Optional[dict] = None):
     """Entry function for program startup"""
 
     global MODEL_CONTAINER
+
+    setup_logger()
 
     # Set up signal aborting
     signal.signal(signal.SIGINT, signal_handler)

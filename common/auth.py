@@ -6,11 +6,8 @@ import secrets
 import yaml
 from fastapi import Header, HTTPException
 from pydantic import BaseModel
+from loguru import logger
 from typing import Optional
-
-from common.logger import init_logger
-
-logger = init_logger(__name__)
 
 
 class AuthKeys(BaseModel):

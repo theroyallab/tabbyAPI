@@ -19,7 +19,7 @@ PyYAML
 rich
 uvicorn
 jinja2 >= 3.0.0
-colorlog
+loguru
 
 # Linux FA2 from https://github.com/Dao-AILab/flash-attention/releases
 https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu118torch2.2cxx11abiFALSE-cp311-cp311-linux_x86_64.whl; platform_system == "Linux" and platform_machine == "x86_64" and python_version == "3.11"
