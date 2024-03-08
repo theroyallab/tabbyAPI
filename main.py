@@ -669,7 +669,7 @@ def start_api(host: str, port: int):
     """Isolated function to start the API server"""
 
     # TODO: Move OAI API to a separate folder
-    logger.info(f"Developer documentation: http://{host}:{port}/docs")
+    logger.info(f"Developer documentation: http://{host}:{port}/redoc")
     logger.info(f"Completions: http://{host}:{port}/v1/completions")
     logger.info(f"Chat completions: http://{host}:{port}/v1/chat/completions")
 
