@@ -18,6 +18,8 @@ class ModelCardParameters(BaseModel):
     prompt_template: Optional[str] = None
     num_experts_per_token: Optional[int] = None
     use_cfg: Optional[bool] = None
+
+    # Draft is another model, so include it in the card params
     draft: Optional["ModelCard"] = None
 
 
