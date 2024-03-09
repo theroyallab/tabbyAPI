@@ -293,6 +293,32 @@ class ExllamaV2Container:
         )
         return model_path
 
+    def get_model_parameters(self):
+        model_params = {
+            "name": self.get_model_path().name,
+            "rope_scale": self.config.scale_pos_emb,
+            "rope_alpha": self.config.scale_alpha_value,
+            "max_seq_len": self.config.max_seq_len,
+            "cache_mode": self.cache_mode,
+            "num_experts_per_token": self.config.num_experts_per_token,
+            "use_cfg": self.use_cfg,
+            "prompt_template": self.prompt_template.name
+            if self.prompt_template
+            else None,
+        }
+
+        if self.draft_config:
+            draft_model_params = {
+                "name": self.get_model_path(is_draft=True).name,
+                "rope_scale": self.draft_config.scale_pos_emb,
+                "rope_alpha": self.draft_config.scale_alpha_value,
+                "max_seq_len": self.draft_config.max_seq_len,
+            }
+
+            model_params["draft"] = draft_model_params
+
+        return model_params
+
     def load(self, progress_callback=None):
         """
         Load model
