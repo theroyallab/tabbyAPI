@@ -522,6 +522,7 @@ async def generate_completion(request: Request, data: CompletionRequest):
                 )
                 for generation in new_generation:
                     if await request.is_disconnected():
+                        logger.error("Completion generation cancelled by user.")
                         break
 
                     response = create_completion_response(generation, model_path.name)
@@ -620,6 +621,7 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
                 )
                 for generation in new_generation:
                     if await request.is_disconnected():
+                        logger.error("Chat completion generation cancelled by user.")
                         break
 
                     response = create_chat_completion_stream_chunk(
