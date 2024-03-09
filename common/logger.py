@@ -51,10 +51,10 @@ def _log_formatter(record: dict) -> str:
     separator = " " * (9 - len(level.name))
 
     message = unwrap(record.get("message"), "")
-    lines = message.splitlines()
 
     # Replace once loguru allows for turning off str.format
     message = message.replace("{", "{{").replace("}", "}}")
+    lines = message.splitlines()
 
     fmt = ""
     if len(lines) > 1:
