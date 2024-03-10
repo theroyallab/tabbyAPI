@@ -32,6 +32,7 @@ class AuthKeys(BaseModel):
         return False
 
 
+# Global auth constants
 AUTH_KEYS: Optional[AuthKeys] = None
 DISABLE_AUTH: bool = False
 

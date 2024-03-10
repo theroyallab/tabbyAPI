@@ -13,6 +13,7 @@ from common.logger import get_loading_progress_bar
 from common.utils import load_progress
 
 
+# Global model container
 container: Optional[ExllamaV2Container] = None
 
 
