@@ -53,7 +53,7 @@ def _log_formatter(record: dict) -> str:
     message = unwrap(record.get("message"), "")
 
     # Replace once loguru allows for turning off str.format
-    message = message.replace("{", "{{").replace("}", "}}")
+    message = message.replace("{", "{{").replace("}", "}}").replace("<", "\<")
     lines = message.splitlines()
 
     fmt = ""
