@@ -8,6 +8,10 @@ from typing import AsyncGenerator, Generator, Union
 generate_semaphore = asyncio.Semaphore(1)
 
 
+def release_semaphore():
+    generate_semaphore.release()
+
+
 async def generate_with_semaphore(generator: Union[AsyncGenerator, Generator]):
     """Generate with a semaphore."""
 
