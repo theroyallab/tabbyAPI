@@ -29,7 +29,7 @@ def get_generator_error(message: str, exc_info: bool = True):
 
     generator_error = handle_request_error(message)
 
-    return get_sse_packet(generator_error.model_dump_json())
+    return generator_error.model_dump_json()
 
 
 def handle_request_error(message: str, exc_info: bool = True):
@@ -48,11 +48,6 @@ def handle_request_error(message: str, exc_info: bool = True):
     logger.error(f"Sent to request: {message}")
 
     return request_error
-
-
-def get_sse_packet(json_data: str):
-    """Get an SSE packet."""
-    return f"data: {json_data}\n\n"
 
 
 def unwrap(wrapped, default=None):
