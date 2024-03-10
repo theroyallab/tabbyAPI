@@ -6,15 +6,15 @@ from loguru import logger
 from typing import Dict, Optional
 
 
-class LogPreferences(BaseModel):
+class GenLogPreferences(BaseModel):
     """Logging preference config."""
 
     prompt: bool = False
     generation_params: bool = False
 
 
-# Global reference to logging preferences
-PREFERENCES = LogPreferences()
+# Global logging preferences constant
+PREFERENCES = GenLogPreferences()
 
 
 def update_from_dict(options_dict: Dict[str, bool]):
@@ -26,7 +26,7 @@ def update_from_dict(options_dict: Dict[str, bool]):
         if value is None:
             value = False
 
-    PREFERENCES = LogPreferences.model_validate(options_dict)
+    PREFERENCES = GenLogPreferences.model_validate(options_dict)
 
 
 def broadcast_status():

@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Optional
 
-from common.gen_logging import LogPreferences
+from common.gen_logging import GenLogPreferences
 
 
 class ModelCardParameters(BaseModel):
@@ -30,7 +30,7 @@ class ModelCard(BaseModel):
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time()))
     owned_by: str = "tabbyAPI"
-    logging: Optional[LogPreferences] = None
+    logging: Optional[GenLogPreferences] = None
     parameters: Optional[ModelCardParameters] = None
 
 
@@ -53,7 +53,6 @@ class DraftModelLoadRequest(BaseModel):
     )
 
 
-# TODO: Unify this with ModelCardParams
 class ModelLoadRequest(BaseModel):
     """Represents a model load request."""
 
