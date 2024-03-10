@@ -83,7 +83,7 @@ UVICORN_LOG_CONFIG = {
             "class": f"{UvicornLoggingHandler.__module__}.{UvicornLoggingHandler.__qualname__}",  # noqa
         },
     },
-    "root": {"handlers": ["uvicorn"], "propagate": False, "level": "TRACE"},
+    "root": {"handlers": ["uvicorn"], "propagate": False, "level": "INFO"},
 }
 
 
@@ -94,7 +94,7 @@ def setup_logger():
 
     logger.add(
         RICH_CONSOLE.print,
-        level="DEBUG",
+        level="INFO",
         format=_log_formatter,
         colorize=True,
     )
