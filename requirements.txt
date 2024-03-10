@@ -20,6 +20,7 @@ rich
 uvicorn
 jinja2 >= 3.0.0
 loguru
+sse-starlette
 
 # Flash attention v2
 
