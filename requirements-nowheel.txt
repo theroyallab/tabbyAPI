@@ -3,6 +3,6 @@ fastapi
 pydantic >= 2.0.0
 PyYAML
 rich
-uvicorn
+uvicorn <= 0.27.1
 jinja2 >= 3.0.0
 loguru
