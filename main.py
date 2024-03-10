@@ -234,7 +234,6 @@ async def load_model(request: Request, data: ModelLoadRequest):
             progress.start()
 
             for module, modules in load_status:
-
                 # Get out if the request gets disconnected
                 if await request.is_disconnected():
                     logger.error(
@@ -521,7 +520,6 @@ async def generate_completion(request: Request, data: CompletionRequest):
                     data.prompt, **data.to_gen_params()
                 )
                 for generation in new_generation:
-
                     # Get out if the request gets disconnected
                     if await request.is_disconnected():
                         logger.error("Completion generation cancelled by user.")
@@ -620,7 +618,6 @@ async def generate_chat_completion(request: Request, data: ChatCompletionRequest
                     prompt, **data.to_gen_params()
                 )
                 for generation in new_generation:
-
                     # Get out if the request gets disconnected
                     if await request.is_disconnected():
                         logger.error("Chat completion generation cancelled by user.")
