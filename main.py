@@ -541,7 +541,6 @@ async def generate_completion(request: Request, data: CompletionRequest):
                 yield get_generator_error(
                     "Completion aborted. Please check the server console."
                 )
-            print("Finished generation")
 
         return EventSourceResponse(generate_with_semaphore(generator))
 
