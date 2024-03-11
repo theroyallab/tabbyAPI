@@ -680,7 +680,7 @@ class ExllamaV2Container:
                     kwargs.get("negative_prompt"), self.tokenizer.bos_token
                 )
             else:
-                logger.warn(
+                logger.warning(
                     "CFG is currently disabled. "
                     "Please reload your model with use_cfg = True.",
                 )
