@@ -4,7 +4,7 @@ from time import time
 from typing import Dict, List, Optional, Union
 from uuid import uuid4
 
-from OAI.types.common import CommonCompletionRequest, UsageStats
+from endpoints.OAI.types.common import CommonCompletionRequest, UsageStats
 
 
 class CompletionLogProbs(BaseModel):

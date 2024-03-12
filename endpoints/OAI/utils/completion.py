@@ -2,7 +2,7 @@
 from typing import Optional
 
 from common.utils import unwrap
-from OAI.types.chat_completion import (
+from endpoints.OAI.types.chat_completion import (
     ChatCompletionLogprobs,
     ChatCompletionLogprob,
     ChatCompletionMessage,
@@ -11,12 +11,12 @@ from OAI.types.chat_completion import (
     ChatCompletionResponse,
     ChatCompletionStreamChoice,
 )
-from OAI.types.completion import (
+from endpoints.OAI.types.completion import (
     CompletionResponse,
     CompletionRespChoice,
     CompletionLogProbs,
 )
-from OAI.types.common import UsageStats
+from endpoints.OAI.types.common import UsageStats
 
 
 def create_completion_response(generation: dict, model_name: Optional[str]):

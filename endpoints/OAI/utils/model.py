@@ -1,7 +1,7 @@
 import pathlib
 from typing import Optional
 
-from OAI.types.model import ModelCard, ModelList
+from endpoints.OAI.types.model import ModelCard, ModelList
 
 
 def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = None):

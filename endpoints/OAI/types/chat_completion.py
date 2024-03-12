@@ -3,7 +3,7 @@ from time import time
 from typing import Union, List, Optional, Dict
 from uuid import uuid4
 
-from OAI.types.common import UsageStats, CommonCompletionRequest
+from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
 
 
 class ChatCompletionLogprob(BaseModel):
