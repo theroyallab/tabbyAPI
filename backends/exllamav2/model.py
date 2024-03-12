@@ -475,11 +475,13 @@ class ExllamaV2Container:
             self.tokenizer = None
             self.generator = None
 
+            # Set all model state variables to False
+            self.model_is_loading = False
+            self.model_loaded = False
+
         gc.collect()
         torch.cuda.empty_cache()
 
-        # Update model load state
-        self.model_loaded = False
         logger.info("Loras unloaded." if loras_only else "Model unloaded.")
 
     def encode_tokens(self, text: str, **kwargs):
