@@ -1,7 +1,19 @@
 import pathlib
+from asyncio import CancelledError
+from fastapi import Request
+from loguru import logger
 from typing import Optional
 
-from endpoints.OAI.types.model import ModelCard, ModelList
+from common import model
+from common.generators import release_semaphore
+from common.utils import get_generator_error
+
+from endpoints.OAI.types.model import (
+    ModelCard,
+    ModelList,
+    ModelLoadRequest,
+    ModelLoadResponse,
+)
 
 
 def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = None):
@@ -20,3 +32,55 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = N
             model_card_list.data.append(model_card)  # pylint: disable=no-member
 
     return model_card_list
+
+
+async def stream_model_load(
+    request: Request,
+    data: ModelLoadRequest,
+    model_path: pathlib.Path,
+    draft_model_path: str,
+):
+    """Request generation wrapper for the loading process."""
+
+    # Set the draft model path if it exists
+    load_data = data.model_dump()
+    if draft_model_path:
+        load_data["draft"]["draft_model_dir"] = draft_model_path
+
+    load_status = model.load_model_gen(model_path, **load_data)
+    try:
+        async for module, modules, model_type in load_status:
+            if await request.is_disconnected():
+                release_semaphore()
+                logger.error(
+                    "Model load cancelled by user. "
+                    "Please make sure to run unload to free up resources."
+                )
+                return
+
+            if module != 0:
+                response = ModelLoadResponse(
+                    model_type=model_type,
+                    module=module,
+                    modules=modules,
+                    status="processing",
+                )
+
+                yield response.model_dump_json()
+
+            if module == modules:
+                response = ModelLoadResponse(
+                    model_type=model_type,
+                    module=module,
+                    modules=modules,
+                    status="finished",
+                )
+
+                yield response.model_dump_json()
+    except CancelledError:
+        logger.error(
+            "Model load cancelled by user. "
+            "Please make sure to run unload to free up resources."
+        )
+    except Exception as exc:
+        yield get_generator_error(str(exc))
