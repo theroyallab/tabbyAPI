@@ -74,3 +74,16 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
 async def load_model(model_path: pathlib.Path, **kwargs):
     async for _, _, _ in load_model_gen(model_path, **kwargs):
         pass
+
+
+def load_loras(lora_dir, **kwargs):
+    """Wrapper to load loras."""
+    if len(container.active_loras) > 0:
+        unload_loras()
+
+    return container.load_loras(lora_dir, **kwargs)
+
+
+def unload_loras():
+    """Wrapper to unload loras"""
+    container.unload(loras_only=True)
