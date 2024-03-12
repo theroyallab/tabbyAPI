@@ -1,5 +1,6 @@
 """Common utility functions"""
 
+import socket
 import traceback
 from loguru import logger
 from pydantic import BaseModel
@@ -67,3 +68,14 @@ def prune_dict(input_dict):
     """Trim out instances of None from a dictionary"""
 
     return {k: v for k, v in input_dict.items() if v is not None}
+
+
+def is_port_in_use(port: int) -> bool:
+    """
+    Checks if a port is in use
+
+    From https://stackoverflow.com/questions/2470971/fast-way-to-test-if-a-port-is-in-use-using-python
+    """
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(("localhost", port)) == 0

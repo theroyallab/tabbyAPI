@@ -53,6 +53,7 @@ from common.utils import (
     get_generator_error,
     handle_request_error,
     load_progress,
+    is_port_in_use,
     unwrap,
 )
 from OAI.types.completion import CompletionRequest
@@ -732,6 +733,28 @@ def entrypoint(args: Optional[dict] = None):
 
     network_config = get_network_config()
 
+    host = unwrap(network_config.get("host"), "127.0.0.1")
+    port = unwrap(network_config.get("port"), 5000)
+
+    # Check if the port is available and attempt to bind a fallback
+    if is_port_in_use(port):
+        fallback_port = port + 1
+
+        if is_port_in_use(fallback_port):
+            logger.error(
+                f"Ports {port} and {fallback_port} are in use by different services.\n"
+                "Please free up those ports or specify a different one.\n"
+                "Exiting."
+            )
+
+            return
+        else:
+            logger.warning(
+                f"Port {port} is currently in use. Switching to {fallback_port}."
+            )
+
+            port = fallback_port
+
     # Initialize auth keys
     load_auth_keys(unwrap(network_config.get("disable_auth"), False))
 
@@ -787,9 +810,6 @@ def entrypoint(args: Optional[dict] = None):
         if lora_config.get("loras"):
             lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
             MODEL_CONTAINER.load_loras(lora_dir.resolve(), **lora_config)
-
-    host = unwrap(network_config.get("host"), "127.0.0.1")
-    port = unwrap(network_config.get("port"), 5000)
 
     # TODO: Replace this with abortables, async via producer consumer, or something else
     api_thread = threading.Thread(target=partial(start_api, host, port), daemon=True)
