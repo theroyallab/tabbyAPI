@@ -1,5 +1,5 @@
 # formatting
-ruff==0.1.9
+ruff==0.3.2
 
 ## Implement below dependencies when support is added
 
