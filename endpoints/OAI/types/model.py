@@ -1,4 +1,5 @@
-""" Contains model card types. """
+"""Contains model card types."""
+
 from pydantic import BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Optional

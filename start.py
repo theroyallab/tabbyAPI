@@ -1,4 +1,5 @@
 """Utility to automatically upgrade and start the API"""
+
 import asyncio
 import argparse
 import os

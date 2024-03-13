@@ -2,6 +2,7 @@
 This method of authorization is pretty insecure, but since TabbyAPI is a local
 application, it should be fine.
 """
+
 import secrets
 import yaml
 from fastapi import Header, HTTPException

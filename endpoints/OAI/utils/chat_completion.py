@@ -1,4 +1,5 @@
 """Chat completion utilities for OAI server."""
+
 import pathlib
 from typing import Optional
 from uuid import uuid4

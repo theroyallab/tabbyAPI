@@ -1,4 +1,5 @@
 """Small replication of AutoTokenizer's chat template system for efficiency"""
+
 import json
 import pathlib
 from functools import lru_cache

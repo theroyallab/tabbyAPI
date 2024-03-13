@@ -1,6 +1,7 @@
 """
 Functions for logging generation events.
 """
+
 from pydantic import BaseModel
 from loguru import logger
 from typing import Dict, Optional

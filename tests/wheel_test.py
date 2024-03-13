@@ -1,4 +1,4 @@
-""" Test if the wheels are installed correctly. """
+"""Test if the wheels are installed correctly."""
 
 from importlib.metadata import version
 from importlib.util import find_spec

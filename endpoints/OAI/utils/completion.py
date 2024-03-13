@@ -1,4 +1,5 @@
 """Completion utilities for OAI server."""
+
 import pathlib
 from fastapi import HTTPException, Request
 from fastapi.concurrency import run_in_threadpool

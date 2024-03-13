@@ -1,4 +1,5 @@
-""" Completion API protocols """
+"""Completion API protocols"""
+
 from pydantic import BaseModel, Field
 from time import time
 from typing import Dict, List, Optional, Union

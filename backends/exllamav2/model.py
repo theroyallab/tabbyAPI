@@ -1,4 +1,5 @@
 """The model container class for ExLlamaV2 models."""
+
 import gc
 from itertools import zip_longest
 import pathlib

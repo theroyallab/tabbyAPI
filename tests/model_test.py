@@ -1,4 +1,5 @@
-""" Test the model container. """
+"""Test the model container."""
+
 from backends.exllamav2.model import ModelContainer
 
 

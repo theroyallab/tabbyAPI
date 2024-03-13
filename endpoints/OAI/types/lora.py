@@ -1,4 +1,5 @@
-""" Lora types """
+"""Lora types"""
+
 from pydantic import BaseModel, Field
 from time import time
 from typing import Optional, List
