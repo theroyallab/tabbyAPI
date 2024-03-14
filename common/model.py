@@ -52,7 +52,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     progress.start()
 
     try:
-        for module, modules in load_status:
+        async for module, modules in load_status:
             if module == 0:
                 loading_task = progress.add_task(
                     f"[cyan]Loading {model_type} modules", total=modules
@@ -76,12 +76,12 @@ async def load_model(model_path: pathlib.Path, **kwargs):
         pass
 
 
-def load_loras(lora_dir, **kwargs):
+async def load_loras(lora_dir, **kwargs):
     """Wrapper to load loras."""
     if len(container.active_loras) > 0:
         unload_loras()
 
-    return container.load_loras(lora_dir, **kwargs)
+    return await container.load_loras(lora_dir, **kwargs)
 
 
 def unload_loras():

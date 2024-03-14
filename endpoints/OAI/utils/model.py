@@ -1,12 +1,9 @@
 import pathlib
 from asyncio import CancelledError
-from fastapi import Request
-from loguru import logger
 from typing import Optional
 
 from common import model
-from common.generators import release_semaphore
-from common.utils import get_generator_error
+from common.utils import get_generator_error, handle_request_disconnect
 
 from endpoints.OAI.types.model import (
     ModelCard,
@@ -35,7 +32,6 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = N
 
 
 async def stream_model_load(
-    request: Request,
     data: ModelLoadRequest,
     model_path: pathlib.Path,
     draft_model_path: str,
@@ -50,14 +46,6 @@ async def stream_model_load(
     load_status = model.load_model_gen(model_path, **load_data)
     try:
         async for module, modules, model_type in load_status:
-            if await request.is_disconnected():
-                release_semaphore()
-                logger.error(
-                    "Model load cancelled by user. "
-                    "Please make sure to run unload to free up resources."
-                )
-                return
-
             if module != 0:
                 response = ModelLoadResponse(
                     model_type=model_type,
@@ -78,7 +66,9 @@ async def stream_model_load(
 
                 yield response.model_dump_json()
     except CancelledError:
-        logger.error(
+        # Get out if the request gets disconnected
+
+        handle_request_disconnect(
             "Model load cancelled by user. "
             "Please make sure to run unload to free up resources."
         )
