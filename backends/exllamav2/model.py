@@ -20,7 +20,7 @@ from loguru import logger
 from typing import List, Optional, Union
 
 from backends.exllamav2.grammar import ExLlamaV2Grammar
-from common.gen_logging import log_generation_params, log_prompt, log_response
+from common.gen_logging import log_generation_params, log_metrics, log_prompt, log_response
 from common.templating import (
     PromptTemplate,
     find_template_from_model,
@@ -969,35 +969,10 @@ class ExllamaV2Container:
         # Print response
         log_response(full_response)
 
+        # Print metrics
         elapsed_time = last_chunk_time - start_time
+        context_len = None if ids is None else context_len
 
-        initial_response = (
-            f"Metrics: {generated_tokens} tokens generated in "
-            f"{round(elapsed_time, 2)} seconds"
-        )
-        itemization = []
-        extra_parts = []
-
-        # Add tokens per second
-        tokens_per_second = (
-            "Indeterminate"
-            if elapsed_time == 0
-            else round(generated_tokens / elapsed_time, 2)
-        )
-        itemization.append(f"{tokens_per_second} T/s")
-
-        # Add context (original token count)
-        if ids is not None:
-            itemization.append(f"context {context_len} tokens")
-
-        if context_len > self.config.max_seq_len:
-            extra_parts.append("<-- Not accurate (truncated)")
-
-        # Print output
-        logger.info(
-            initial_response
-            + " ("
-            + ", ".join(itemization)
-            + ") "
-            + " ".join(extra_parts)
+        log_metrics(
+            generated_tokens, elapsed_time, context_len, self.config.max_seq_len
         )

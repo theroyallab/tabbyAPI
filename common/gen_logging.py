@@ -67,3 +67,41 @@ def log_response(response: str):
     if PREFERENCES.prompt:
         formatted_response = "\n" + response
         logger.info(f"Response: {formatted_response if response else 'Empty'}\n")
+
+
+def log_metrics(
+    generated_tokens: int,
+    elapsed_time: float,
+    context_len: Optional[int],
+    max_seq_len: int,
+):
+    initial_response = (
+        f"Metrics: {generated_tokens} tokens generated in "
+        f"{round(elapsed_time, 2)} seconds"
+    )
+    itemization = []
+    extra_parts = []
+
+    # Add tokens per second
+    tokens_per_second = (
+        "Indeterminate"
+        if elapsed_time == 0
+        else round(generated_tokens / elapsed_time, 2)
+    )
+    itemization.append(f"{tokens_per_second} T/s")
+
+    # Add context (original token count)
+    if context_len:
+        itemization.append(f"context {context_len} tokens")
+
+        if context_len > max_seq_len:
+            extra_parts.append("<-- Not accurate (truncated)")
+
+    # Print output
+    logger.info(
+        initial_response
+        + " ("
+        + ", ".join(itemization)
+        + ") "
+        + " ".join(extra_parts)
+    )
