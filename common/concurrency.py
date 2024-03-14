@@ -1,4 +1,4 @@
-"""Generator handling"""
+"""Concurrency handling"""
 
 import asyncio
 import inspect

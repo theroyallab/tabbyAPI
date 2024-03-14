@@ -6,6 +6,8 @@ from loguru import logger
 from pydantic import BaseModel
 from typing import Optional
 
+from common.concurrency import release_semaphore
+
 
 def load_progress(module, modules):
     """Wrapper callback for load progress."""
@@ -49,6 +51,13 @@ def handle_request_error(message: str, exc_info: bool = True):
     logger.error(f"Sent to request: {message}")
 
     return request_error
+
+
+def handle_request_disconnect(message: str):
+    """Wrapper for handling for request disconnection."""
+
+    release_semaphore()
+    logger.error(message)
 
 
 def unwrap(wrapped, default=None):

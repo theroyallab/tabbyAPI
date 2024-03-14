@@ -5,9 +5,6 @@ import os
 import pathlib
 import signal
 import sys
-import threading
-import time
-from functools import partial
 from loguru import logger
 from typing import Optional
 
@@ -121,13 +118,7 @@ async def entrypoint(args: Optional[dict] = None):
             lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
             model.container.load_loras(lora_dir.resolve(), **lora_config)
 
-    # TODO: Replace this with abortables, async via producer consumer, or something else
-    api_thread = threading.Thread(target=partial(start_api, host, port), daemon=True)
-
-    api_thread.start()
-    # Keep the program alive
-    while api_thread.is_alive():
-        time.sleep(0.5)
+    await start_api(host, port)
 
 
 if __name__ == "__main__":
