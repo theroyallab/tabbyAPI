@@ -17,6 +17,9 @@ stop:
 token_healing:
   override: false
   force: false
+speculative_ngram:
+  override: false
+  force: false
 
 # Commented out because the default is dynamically scaled
 #generate_window:
