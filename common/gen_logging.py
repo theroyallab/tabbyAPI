@@ -99,9 +99,5 @@ def log_metrics(
 
     # Print output
     logger.info(
-        initial_response
-        + " ("
-        + ", ".join(itemization)
-        + ") "
-        + " ".join(extra_parts)
+        initial_response + " (" + ", ".join(itemization) + ") " + " ".join(extra_parts)
     )
