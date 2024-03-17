@@ -1,7 +1,7 @@
 """Completion utilities for OAI server."""
 
-from asyncio import CancelledError
 import pathlib
+from asyncio import CancelledError
 from fastapi import HTTPException
 from typing import Optional
 

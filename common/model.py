@@ -72,7 +72,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
 
 
 async def load_model(model_path: pathlib.Path, **kwargs):
-    async for _, _, _ in load_model_gen(model_path, **kwargs):
+    async for _ in load_model_gen(model_path, **kwargs):
         pass
 
 

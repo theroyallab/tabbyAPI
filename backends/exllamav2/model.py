@@ -1,8 +1,6 @@
 """The model container class for ExLlamaV2 models."""
 
-import asyncio
 import gc
-from itertools import zip_longest
 import pathlib
 import time
 
@@ -17,10 +15,12 @@ from exllamav2 import (
     ExLlamaV2Lora,
 )
 from exllamav2.generator import ExLlamaV2StreamingGenerator, ExLlamaV2Sampler
+from itertools import zip_longest
 from loguru import logger
 from typing import List, Optional, Union
 
 from backends.exllamav2.grammar import ExLlamaV2Grammar
+from common.concurrency import iterate_in_threadpool
 from common.gen_logging import (
     log_generation_params,
     log_metrics,
@@ -336,7 +336,7 @@ class ExllamaV2Container:
                 def progress(loaded_modules: int, total_modules: int)
         """
 
-        for _ in self.load_gen(progress_callback):
+        async for _ in self.load_gen(progress_callback):
             pass
 
     async def load_loras(self, lora_directory: pathlib.Path, **kwargs):
@@ -373,6 +373,13 @@ class ExllamaV2Container:
         return {"success": success, "failure": failure}
 
     async def load_gen(self, progress_callback=None):
+        """Basic async wrapper around the loading generator"""
+
+        load_generator = self.load_gen_sync(progress_callback)
+        async for value in iterate_in_threadpool(load_generator):
+            yield value
+
+    def load_gen_sync(self, progress_callback=None):
         """
         Load model, generator function
 
@@ -407,8 +414,6 @@ class ExllamaV2Container:
                 last_id_only=True,
                 callback_gen=progress_callback,
             ):
-                # Manually suspend the task to allow for other stuff to run
-                await asyncio.sleep(0)
                 if value:
                     yield value
 
@@ -429,8 +434,6 @@ class ExllamaV2Container:
                 self.gpu_split,
                 callback_gen=progress_callback,
             ):
-                # Manually suspend the task to allow for other stuff to run
-                await asyncio.sleep(0)
                 if value:
                     yield value
 
@@ -459,8 +462,6 @@ class ExllamaV2Container:
                 last_id_only=True,
                 callback_gen=progress_callback,
             ):
-                # Manually suspend the task to allow for other stuff to run
-                await asyncio.sleep(0)
                 if value:
                     yield value
 
@@ -627,6 +628,13 @@ class ExllamaV2Container:
         return kwargs
 
     async def generate_gen(self, prompt: str, **kwargs):
+        """Basic async wrapper for completion generator"""
+
+        sync_generator = self.generate_gen_sync(prompt, **kwargs)
+        async for value in iterate_in_threadpool(sync_generator):
+            yield value
+
+    def generate_gen_sync(self, prompt: str, **kwargs):
         """
         Create generator function for prompt completion
 
@@ -899,9 +907,6 @@ class ExllamaV2Container:
         chunk_tokens = 0
 
         while True:
-            # Manually suspend the task to allow for other stuff to run
-            await asyncio.sleep(0)
-
             # Ingest prompt
             if chunk_tokens == 0:
                 ids = torch.cat((ids, save_tokens), dim=-1)
