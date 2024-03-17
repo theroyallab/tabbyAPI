@@ -4,7 +4,6 @@ import asyncio
 import os
 import pathlib
 import signal
-import sys
 from loguru import logger
 from typing import Optional
 
@@ -13,13 +12,9 @@ from common import config, gen_logging, sampling, model
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
 from common.logger import setup_logger
+from common.signals import signal_handler
 from common.utils import is_port_in_use, unwrap
 from endpoints.OAI.app import start_api
-
-
-def signal_handler(*_):
-    logger.warning("Shutdown signal called. Exiting gracefully.")
-    sys.exit(0)
 
 
 async def entrypoint(args: Optional[dict] = None):
