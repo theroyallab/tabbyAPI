@@ -33,7 +33,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     if container and container.model:
         loaded_model_name = container.get_model_path().name
 
-        if loaded_model_name == model_path.name:
+        if loaded_model_name == model_path.name and container.model_loaded:
             raise ValueError(
                 f'Model "{loaded_model_name}" is already loaded! Aborting.'
             )
