@@ -103,7 +103,8 @@ model:
   # Disable Flash-attention 2. Set to True for GPUs lower than Nvidia's 3000 series. (default: False)
   #no_flash_attention: False
 
-  # Enable 8 bit cache mode for VRAM savings (slight performance hit). Possible values FP16, FP8. (default: FP16)
+  # Enable 8 bit cache mode for VRAM savings (slight performance hit).
+  # Possible values FP16, FP8, Q4. (default: FP16)
   #cache_mode: FP16
 
   # Set the prompt template for this model. If empty, chat completions will be disabled. (default: Empty)
