@@ -24,7 +24,7 @@ class ChatCompletionMessage(BaseModel):
 class ChatCompletionRespChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
-    finish_reason: str
+    finish_reason: Optional[str] = None
     message: ChatCompletionMessage
     logprobs: Optional[ChatCompletionLogprobs] = None
 
@@ -32,7 +32,7 @@ class ChatCompletionRespChoice(BaseModel):
 class ChatCompletionStreamChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
-    finish_reason: Optional[str]
+    finish_reason: Optional[str] = None
     delta: Union[ChatCompletionMessage, dict] = {}
     logprobs: Optional[ChatCompletionLogprobs] = None
 

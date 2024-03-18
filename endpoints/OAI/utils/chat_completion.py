@@ -60,7 +60,9 @@ def _create_response(generation: dict, model_name: Optional[str]):
         logprob_response = ChatCompletionLogprobs(content=collected_token_probs)
 
     choice = ChatCompletionRespChoice(
-        finish_reason="Generated", message=message, logprobs=logprob_response
+        finish_reason=generation.get("finish_reason"),
+        message=message,
+        logprobs=logprob_response,
     )
 
     prompt_tokens = unwrap(generation.get("prompt_tokens"), 0)
@@ -83,14 +85,15 @@ def _create_stream_chunk(
     const_id: str,
     generation: Optional[dict] = None,
     model_name: Optional[str] = None,
-    finish_reason: Optional[str] = None,
 ):
     """Create a chat completion stream chunk from the provided text."""
 
     logprob_response = None
 
-    if finish_reason:
-        message = {}
+    if "finish_reason" in generation:
+        choice = ChatCompletionStreamChoice(
+            finish_reason=generation.get("finish_reason")
+        )
     else:
         message = ChatCompletionMessage(
             role="assistant", content=unwrap(generation.get("text"), "")
@@ -113,10 +116,10 @@ def _create_stream_chunk(
 
             logprob_response = ChatCompletionLogprobs(content=[token_prob_response])
 
-    # The finish reason can be None
-    choice = ChatCompletionStreamChoice(
-        finish_reason=finish_reason, delta=message, logprobs=logprob_response
-    )
+        choice = ChatCompletionStreamChoice(
+            delta=message,
+            logprobs=logprob_response,
+        )
 
     chunk = ChatCompletionStreamChunk(
         id=const_id, choices=[choice], model=unwrap(model_name, "")
@@ -165,10 +168,14 @@ async def stream_generate_chat_completion(
 
             yield response.model_dump_json()
 
-        # Yield a finish response on successful generation
-        finish_response = _create_stream_chunk(const_id, finish_reason="stop")
+            # Break if the generation is finished
+            if "finish_reason" in generation:
+                break
 
-        yield finish_response.model_dump_json()
+        # Yield a finish response on successful generation
+        # finish_response = _create_stream_chunk(const_id, finish_reason="stop")
+
+        # yield finish_response.model_dump_json()
     except CancelledError:
         # Get out if the request gets disconnected
 

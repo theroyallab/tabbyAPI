@@ -605,6 +605,9 @@ class ExllamaV2Container:
             joined_generation["generation_tokens"] = unwrap(
                 generations[-1].get("generated_tokens"), 0
             )
+            joined_generation["finish_reason"] = unwrap(
+                generations[-1].get("finish_reason"), "stop"
+            )
 
         return joined_generation
 
@@ -1004,6 +1007,10 @@ class ExllamaV2Container:
                 last_chunk_time = now
 
             if eos or generated_tokens == max_tokens:
+                finish_reason = "length" if generated_tokens == max_tokens else "stop"
+                generation = {"finish_reason": finish_reason}
+                yield generation
+
                 break
 
         # Print response

@@ -39,7 +39,7 @@ def _create_response(generation: dict, model_name: Optional[str]):
         )
 
     choice = CompletionRespChoice(
-        finish_reason="Generated",
+        finish_reason=generation.get("finish_reason"),
         text=unwrap(generation.get("text"), ""),
         logprobs=logprob_response,
     )
@@ -69,11 +69,15 @@ async def stream_generate_completion(data: CompletionRequest, model_path: pathli
         )
         async for generation in new_generation:
             response = _create_response(generation, model_path.name)
-
             yield response.model_dump_json()
 
+            # Break if the generation is finished
+            if "finish_reason" in generation:
+                yield "[DONE]"
+                break
+
         # Yield a finish response on successful generation
-        yield "[DONE]"
+        # yield "[DONE]"
     except CancelledError:
         # Get out if the request gets disconnected
 
