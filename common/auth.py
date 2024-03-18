@@ -10,6 +10,8 @@ from pydantic import BaseModel
 from loguru import logger
 from typing import Optional
 
+from endpoints.OAI.types.auth import AuthPermissionResponse
+
 
 class AuthKeys(BaseModel):
     """
@@ -73,6 +75,18 @@ def load_auth_keys(disable_from_config: bool):
         "If these keys get compromised, make sure to delete api_tokens.yml "
         "and restart the server. Have fun!"
     )
+
+
+async def validate_key_permission(test_key: str):
+    if test_key.lower().startswith("bearer"):
+        test_key = test_key.split(" ")[1]
+
+    if AUTH_KEYS.verify_key(test_key, "admin_key"):
+        return AuthPermissionResponse(permission="admin")
+    elif AUTH_KEYS.verify_key(test_key, "api_key"):
+        return AuthPermissionResponse(permission="api")
+    else:
+        raise ValueError("The provided authentication key is invalid.")
 
 
 async def check_api_key(

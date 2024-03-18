@@ -2,15 +2,16 @@ import pathlib
 import signal
 import uvicorn
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, HTTPException, Request
+from fastapi import FastAPI, Depends, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from functools import partial
 from loguru import logger
 from sse_starlette import EventSourceResponse
 from sys import maxsize
+from typing import Optional
 
 from common import config, model, gen_logging, sampling
-from common.auth import check_admin_key, check_api_key
+from common.auth import check_admin_key, check_api_key, validate_key_permission
 from common.concurrency import (
     call_with_semaphore,
     generate_with_semaphore,
@@ -22,6 +23,7 @@ from common.templating import (
     get_template_from_file,
 )
 from common.utils import (
+    coalesce,
     handle_request_error,
     unwrap,
 )
@@ -397,6 +399,32 @@ async def decode_tokens(data: TokenDecodeRequest):
     response = TokenDecodeResponse(text=unwrap(message, ""))
 
     return response
+
+
+@app.get("/v1/auth/permission", dependencies=[Depends(check_api_key)])
+async def get_key_permission(
+    x_admin_key: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Gets the access level/permission of a provided key in headers.
+
+    Priority:
+    - X-api-key
+    - X-admin-key
+    - Authorization
+    """
+
+    test_key = coalesce(x_admin_key, x_api_key, authorization)
+
+    try:
+        response = await validate_key_permission(test_key)
+        return response
+    except ValueError as exc:
+        error_message = handle_request_error(str(exc)).error.message
+
+        raise HTTPException(400, error_message) from exc
 
 
 # Completions endpoint
