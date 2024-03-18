@@ -75,9 +75,6 @@ async def stream_generate_completion(data: CompletionRequest, model_path: pathli
             if "finish_reason" in generation:
                 yield "[DONE]"
                 break
-
-        # Yield a finish response on successful generation
-        # yield "[DONE]"
     except CancelledError:
         # Get out if the request gets disconnected
 

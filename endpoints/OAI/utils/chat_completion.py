@@ -171,11 +171,6 @@ async def stream_generate_chat_completion(
             # Break if the generation is finished
             if "finish_reason" in generation:
                 break
-
-        # Yield a finish response on successful generation
-        # finish_response = _create_stream_chunk(const_id, finish_reason="stop")
-
-        # yield finish_response.model_dump_json()
     except CancelledError:
         # Get out if the request gets disconnected
 
