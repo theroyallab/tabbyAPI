@@ -10,8 +10,6 @@ from pydantic import BaseModel
 from loguru import logger
 from typing import Optional
 
-from endpoints.OAI.types.auth import AuthPermissionResponse
-
 
 class AuthKeys(BaseModel):
     """
@@ -82,9 +80,9 @@ async def validate_key_permission(test_key: str):
         test_key = test_key.split(" ")[1]
 
     if AUTH_KEYS.verify_key(test_key, "admin_key"):
-        return AuthPermissionResponse(permission="admin")
+        return "admin"
     elif AUTH_KEYS.verify_key(test_key, "api_key"):
-        return AuthPermissionResponse(permission="api")
+        return "api"
     else:
         raise ValueError("The provided authentication key is invalid.")
 

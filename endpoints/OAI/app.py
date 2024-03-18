@@ -27,6 +27,7 @@ from common.utils import (
     handle_request_error,
     unwrap,
 )
+from endpoints.OAI.types.auth import AuthPermissionResponse
 from endpoints.OAI.types.completion import CompletionRequest
 from endpoints.OAI.types.chat_completion import ChatCompletionRequest
 from endpoints.OAI.types.lora import (
@@ -419,8 +420,8 @@ async def get_key_permission(
     test_key = coalesce(x_admin_key, x_api_key, authorization)
 
     try:
-        response = await validate_key_permission(test_key)
-        return response
+        permission = await validate_key_permission(test_key)
+        return AuthPermissionResponse(permission=permission)
     except ValueError as exc:
         error_message = handle_request_error(str(exc)).error.message
 
