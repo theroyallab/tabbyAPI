@@ -143,6 +143,10 @@ class ExllamaV2Container:
         # Make the max seq len 4096 before preparing the config
         # This is a better default than 2038
         self.config.max_seq_len = 4096
+
+        # Hardcode max output length to 16
+        self.config.max_output_len = 16
+
         self.config.prepare()
 
         # Then override the base_seq_len if present
