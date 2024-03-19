@@ -14,7 +14,7 @@ class BaseSamplerRequest(BaseModel):
     """Common class for sampler params that are used in APIs"""
 
     max_tokens: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("max_tokens", 150),
+        default_factory=lambda: get_default_sampler_value("max_tokens"),
         examples=[150],
     )
 
