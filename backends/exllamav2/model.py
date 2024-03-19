@@ -141,7 +141,7 @@ class ExllamaV2Container:
         self.config.model_dir = str(model_directory.resolve())
 
         # Make the max seq len 4096 before preparing the config
-        # This is a better default than 2038
+        # This is a better default than 2048
         self.config.max_seq_len = 4096
 
         # Hardcode max output length to 16
@@ -184,13 +184,6 @@ class ExllamaV2Container:
         self.config.no_flash_attn = (
             True if self.use_cfg else unwrap(kwargs.get("no_flash_attention"), False)
         )
-
-        # low_mem is currently broken in exllamav2. Don't use it until it's
-        # fixed.
-        """
-        if "low_mem" in kwargs and kwargs["low_mem"]:
-            self.config.set_low_mem()
-        """
 
         # Try to set prompt template
         self.prompt_template = self.find_prompt_template(
@@ -639,46 +632,9 @@ class ExllamaV2Container:
 
     def generate_gen_sync(self, prompt: str, **kwargs):
         """
-        Create generator function for prompt completion
+        Create generator function for prompt completion.
 
-        Args:
-            prompt (str): Input prompt
-            **kwargs:
-                'token_healing' (bool): Use token healing (default: False)
-                'temperature' (float): Sampling temperature (default: 1.0)
-                'temperature_last' (bool): Apply temperature after all other
-                    samplers (default: False)
-                'top_k' (int): Sampling top-K (default: 0)
-                'top_p' (float): Sampling top-P (default: 1.0)
-                'min_p' (float): Sampling min-P (default: 0.0)
-                'tfs' (float): Tail-free sampling (default: 0.0)
-                'typical' (float): Sampling typical (default: 0.0)
-                'mirostat' (bool): Use Mirostat (default: False)
-                'mirostat_tau' (float) Mirostat tau parameter (default: 1.5)
-                'mirostat_eta' (float) Mirostat eta parameter (default: 0.1)
-                'frequency_penalty' (float): Token frequency penalty (default: 0.0)
-                'presence_penalty' (float): Token presence penalty (default: 0.0)
-                'repetition_penalty' (float): Token repetition penalty
-                    (default: 1.15)
-                'penalty_range' (int): Penalty range
-                    (default: whole context)
-                'repetition_decay' (int): Repetition penalty range
-                    (default: same as range)
-                'stop' (List[Union[str, int]]): List of stop strings/tokens to
-                    end response (default: [EOS])
-                'max_tokens' (int): Max no. tokens in response (default: 150)
-                'add_bos_token' (bool): Adds the BOS token to the start of the
-                    prompt (default: True)
-                'ban_eos_token' (bool): Bans the EOS token from generation
-                    (default: False)
-                'logit_bias' (Dict[int, float]): Biases specific tokens to
-                    either show up more or less (default: None)
-                'stream_interval' (float): Interval in seconds between each
-                    output chunk (default: immediate)
-                'generate_window' (int): Space to reserve at the end of the
-                    model's context when generating. Rolls context window by
-                    the same amount if context length is exceeded to allow
-                    generating pastthe models max_seq_len.
+        for kwargs, check common/sampling.py
         """
 
         token_healing = unwrap(kwargs.get("token_healing"), False)
