@@ -1,9 +1,0 @@
-# Pip dependencies
-fastapi
-pydantic >= 2.0.0
-PyYAML
-rich
-uvicorn
-jinja2 >= 3.0.0
-loguru
-sse-starlette
