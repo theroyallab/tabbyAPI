@@ -390,7 +390,12 @@ class ExllamaV2Container:
         # Notify that the model is being loaded
         self.model_is_loading = True
 
-        # Load tokenizer
+        # Reset tokenizer namespace vars and create a tokenizer
+        ExLlamaV2Tokenizer.unspecial_piece_to_id = {}
+        ExLlamaV2Tokenizer.unspecial_id_to_piece = {}
+        ExLlamaV2Tokenizer.extended_id_to_piece = {}
+        ExLlamaV2Tokenizer.extended_piece_to_id = {}
+
         self.tokenizer = ExLlamaV2Tokenizer(self.config)
 
         # Calculate autosplit reserve for all GPUs
