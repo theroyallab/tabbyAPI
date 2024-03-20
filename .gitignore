@@ -196,3 +196,6 @@ templates/*
 # Sampler overrides folder
 sampler_overrides/*
 !sampler_overrides/sample_preset.yml
+
+# Gpu lib preferences file
+gpu_lib.txt
