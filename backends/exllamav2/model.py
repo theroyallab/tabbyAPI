@@ -975,19 +975,19 @@ class ExllamaV2Container:
                 last_chunk_time = now
 
             if eos or generated_tokens == max_tokens:
+                # Print response
+                log_response(full_response)
+
+                # Print metrics
+                elapsed_time = last_chunk_time - start_time
+                context_len = None if ids is None else context_len
+
+                log_metrics(
+                    generated_tokens, elapsed_time, context_len, self.config.max_seq_len
+                )
+
                 finish_reason = "length" if generated_tokens == max_tokens else "stop"
                 generation = {"finish_reason": finish_reason}
                 yield generation
 
                 break
-
-        # Print response
-        log_response(full_response)
-
-        # Print metrics
-        elapsed_time = last_chunk_time - start_time
-        context_len = None if ids is None else context_len
-
-        log_metrics(
-            generated_tokens, elapsed_time, context_len, self.config.max_seq_len
-        )
