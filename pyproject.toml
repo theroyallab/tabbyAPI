@@ -1,0 +1,82 @@
+[build-system]
+requires = [
+    "packaging",
+    "setuptools",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+# We're not building the project itself
+[tool.setuptools]
+py-modules = []
+
+[project]
+name = "tabbyAPI"
+version = "0.0.1"
+description = "An OAI compatible exllamav2 API that's both lightweight and fast"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi >= 0.110.0",
+    "pydantic >= 2.0.0",
+    "PyYAML",
+    "rich",
+    "uvicorn >= 0.28.1",
+    "jinja2 >= 3.0.0",
+    "loguru",
+    "sse-starlette",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/theroyallab/tabbyAPI"
+
+[project.optional-dependencies]
+dev = [
+    "ruff == 0.3.2"
+]
+cu121 = [
+    # Torch (Extra index URLs not support in pyproject.toml)
+    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.1%2Bcu121-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.1%2Bcu121-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
+    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.1%2Bcu121-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.1%2Bcu121-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+
+    # Exl2
+    "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.15+cu121-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
+    "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.15+cu121-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
+    "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.15+cu121-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.15+cu121-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+
+    # Windows FA2 from https://github.com/bdashore3/flash-attention/releases
+    "flash_attn @ https://github.com/bdashore3/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu122torch2.2.0cxx11abiFALSE-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
+    "flash_attn @ https://github.com/bdashore3/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu122torch2.2.0cxx11abiFALSE-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
+
+    # Linux FA2 from https://github.com/Dao-AILab/flash-attention/releases
+    "flash_attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu122torch2.2cxx11abiFALSE-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "flash_attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu122torch2.2cxx11abiFALSE-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+]
+cu118 = [
+    # Torch
+    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.1%2Bcu118-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.1%2Bcu118-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
+    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.1%2Bcu118-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.1%2Bcu118-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+
+    # Exl2
+    "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.15+cu121-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
+    "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.15+cu118-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
+    "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.15+cu118-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.15+cu118-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+
+    # Linux FA2 from https://github.com/Dao-AILab/flash-attention/releases
+    "flash_attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu118torch2.2cxx11abiFALSE-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "flash_attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.5.2/flash_attn-2.5.2+cu118torch2.2cxx11abiFALSE-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+]
+amd = [
+    # Torch
+    "torch @ https://download.pytorch.org/whl/rocm5.6/torch-2.2.1%2Brocm5.6-cp311-cp311-linux_x86_64.whl ; python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/rocm5.6/torch-2.2.1%2Brocm5.6-cp310-cp310-linux_x86_64.whl ; python_version == '3.10'",
+
+    # Exl2
+    "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.15+rocm5.6-cp311-cp311-linux_x86_64.whl ; python_version == '3.11'",
+    "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.15/exllamav2-0.0.15+rocm5.6-cp310-cp310-linux_x86_64.whl ; python_version == '3.10'",
+]
