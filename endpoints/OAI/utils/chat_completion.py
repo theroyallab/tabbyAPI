@@ -2,6 +2,7 @@
 
 from asyncio import CancelledError
 import pathlib
+import threading
 from typing import Optional
 from uuid import uuid4
 
@@ -161,8 +162,11 @@ async def stream_generate_chat_completion(
     """Generator for the generation process."""
     try:
         const_id = f"chatcmpl-{uuid4().hex}"
+        abort_event = threading.Event()
 
-        new_generation = model.container.generate_gen(prompt, **data.to_gen_params())
+        new_generation = model.container.generate_gen(
+            prompt, abort_event, **data.to_gen_params()
+        )
         async for generation in new_generation:
             response = _create_stream_chunk(const_id, generation, model_path.name)
 
@@ -174,6 +178,7 @@ async def stream_generate_chat_completion(
     except CancelledError:
         # Get out if the request gets disconnected
 
+        abort_event.set()
         handle_request_disconnect("Chat completion generation cancelled by user.")
     except Exception:
         yield get_generator_error(
