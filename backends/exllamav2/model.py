@@ -2,6 +2,7 @@
 
 import gc
 import pathlib
+import threading
 import time
 
 import torch
@@ -623,14 +624,18 @@ class ExllamaV2Container:
 
         return kwargs
 
-    async def generate_gen(self, prompt: str, **kwargs):
+    async def generate_gen(
+        self, prompt: str, abort_event: Optional[threading.Event] = None, **kwargs
+    ):
         """Basic async wrapper for completion generator"""
 
-        sync_generator = self.generate_gen_sync(prompt, **kwargs)
+        sync_generator = self.generate_gen_sync(prompt, abort_event, **kwargs)
         async for value in iterate_in_threadpool(sync_generator):
             yield value
 
-    def generate_gen_sync(self, prompt: str, **kwargs):
+    def generate_gen_sync(
+        self, prompt: str, abort_event: Optional[threading.Event] = None, **kwargs
+    ):
         """
         Create generator function for prompt completion.
 
@@ -893,6 +898,7 @@ class ExllamaV2Container:
                         return_probabilities=request_logprobs > 0,
                         return_top_tokens=request_logprobs,
                         return_logits=request_logprobs > 0,
+                        abort_event=abort_event,
                     )
                 else:
                     self.generator.begin_stream_ex(
@@ -903,6 +909,7 @@ class ExllamaV2Container:
                         return_probabilities=request_logprobs > 0,
                         return_top_tokens=request_logprobs,
                         return_logits=request_logprobs > 0,
+                        abort_event=abort_event,
                     )
 
                 # Reset offsets for subsequent passes if the context is truncated
