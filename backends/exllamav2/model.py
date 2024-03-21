@@ -863,6 +863,7 @@ class ExllamaV2Container:
         # Some options are too large, so log the args instead
         log_generation_params(
             max_tokens=max_tokens,
+            stream=kwargs.get("stream"),
             **gen_settings_log_dict,
             token_healing=token_healing,
             auto_scale_penalty_range=auto_scale_penalty_range,

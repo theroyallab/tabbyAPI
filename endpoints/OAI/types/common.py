@@ -43,6 +43,9 @@ class CommonCompletionRequest(BaseSamplerRequest):
     )
 
     def to_gen_params(self):
-        extra_gen_params = {"logprobs": self.logprobs}
+        extra_gen_params = {
+            "stream": self.stream,
+            "logprobs": self.logprobs,
+        }
 
         return super().to_gen_params(**extra_gen_params)
