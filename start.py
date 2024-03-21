@@ -128,7 +128,9 @@ if __name__ == "__main__":
         features = f"[{install_features}]" if install_features else ""
 
         # pip install .[features]
-        subprocess.run(["pip", "install", "-U", f".{features}"])
+        install_command = f"pip install -U .{features}"
+        print(f"Running install command: {install_command}")
+        subprocess.run(install_command.split(" "))
 
     # Import entrypoint after installing all requirements
     from main import entrypoint
