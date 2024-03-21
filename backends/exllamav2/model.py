@@ -377,6 +377,7 @@ class ExllamaV2Container:
         async for value in iterate_in_threadpool(load_generator):
             yield value
 
+    @torch.inference_mode()
     def load_gen_sync(self, progress_callback=None):
         """
         Load model, generator function
@@ -385,6 +386,8 @@ class ExllamaV2Container:
             progress_callback (function, optional): A function to call for each
                 module loaded. Prototype:
                 def progress(loaded_modules: int, total_modules: int)
+
+        Runs under a shared inference mode context.
         """
 
         # Notify that the model is being loaded
