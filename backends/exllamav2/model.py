@@ -590,9 +590,18 @@ class ExllamaV2Container:
         }
 
         if generations:
+            # Get finish_reason first and then shift where -1 points to
+            if "finish_reason" in generations[-1]:
+                finish_reason_gen = generations.pop()
+                joined_generation["finish_reason"] = finish_reason_gen.get(
+                    "finish_reason"
+                )
+            else:
+                joined_generation["finish_reason"] = "stop"
+
             for generation in generations:
                 joined_generation["text"] += unwrap(generation.get("text"), "")
-                joined_generation["offset"].append(unwrap(generation.get("offset"), []))
+                joined_generation["offset"].append(unwrap(generation.get("offset"), -1))
                 joined_generation["token_probs"].update(
                     unwrap(generation.get("token_probs"), {})
                 )
@@ -607,9 +616,6 @@ class ExllamaV2Container:
             )
             joined_generation["generation_tokens"] = unwrap(
                 generations[-1].get("generated_tokens"), 0
-            )
-            joined_generation["finish_reason"] = unwrap(
-                generations[-1].get("finish_reason"), "stop"
             )
 
         return joined_generation
