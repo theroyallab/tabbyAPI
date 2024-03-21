@@ -30,6 +30,11 @@ dependencies = [
 "Homepage" = "https://github.com/theroyallab/tabbyAPI"
 
 [project.optional-dependencies]
+extras = [
+    "tokenizers",
+    "outlines",
+    "lm-format-enforcer",
+]
 dev = [
     "ruff == 0.3.2"
 ]
