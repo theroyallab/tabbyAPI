@@ -7,12 +7,12 @@ from fastapi import HTTPException
 from typing import Optional
 
 from common import model
-from common.utils import (
+from common.networking import (
     get_generator_error,
     handle_request_disconnect,
     handle_request_error,
-    unwrap,
 )
+from common.utils import unwrap
 from endpoints.OAI.types.completion import (
     CompletionRequest,
     CompletionResponse,

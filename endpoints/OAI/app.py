@@ -18,17 +18,13 @@ from common.concurrency import (
     generate_with_semaphore,
 )
 from common.logger import UVICORN_LOG_CONFIG
+from common.networking import handle_request_error, run_with_request_disconnect
 from common.signals import uvicorn_signal_handler
 from common.templating import (
     get_all_templates,
     get_template_from_file,
 )
-from common.utils import (
-    coalesce,
-    handle_request_error,
-    run_with_request_disconnect,
-    unwrap,
-)
+from common.utils import coalesce, unwrap
 from endpoints.OAI.types.auth import AuthPermissionResponse
 from endpoints.OAI.types.completion import CompletionRequest
 from endpoints.OAI.types.chat_completion import ChatCompletionRequest

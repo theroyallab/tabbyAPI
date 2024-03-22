@@ -10,11 +10,14 @@ from typing import Optional
 
 from backends.exllamav2.model import ExllamaV2Container
 from common.logger import get_loading_progress_bar
-from common.utils import load_progress
-
 
 # Global model container
 container: Optional[ExllamaV2Container] = None
+
+
+def load_progress(module, modules):
+    """Wrapper callback for load progress."""
+    yield module, modules
 
 
 async def unload_model():

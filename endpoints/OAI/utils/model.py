@@ -3,7 +3,7 @@ from asyncio import CancelledError
 from typing import Optional
 
 from common import model
-from common.utils import get_generator_error, handle_request_disconnect
+from common.networking import get_generator_error, handle_request_disconnect
 
 from endpoints.OAI.types.model import (
     ModelCard,

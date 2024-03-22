@@ -10,13 +10,13 @@ from fastapi import HTTPException
 from jinja2 import TemplateError
 
 from common import model
-from common.templating import get_prompt_from_template
-from common.utils import (
+from common.networking import (
     get_generator_error,
     handle_request_disconnect,
     handle_request_error,
-    unwrap,
 )
+from common.templating import get_prompt_from_template
+from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionLogprobs,
     ChatCompletionLogprob,
