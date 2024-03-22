@@ -1,8 +1,6 @@
 import asyncio
 import pathlib
-import signal
 import uvicorn
-from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from functools import partial
@@ -19,7 +17,6 @@ from common.concurrency import (
 )
 from common.logger import UVICORN_LOG_CONFIG
 from common.networking import handle_request_error, run_with_request_disconnect
-from common.signals import uvicorn_signal_handler
 from common.templating import (
     get_all_templates,
     get_template_from_file,
@@ -59,14 +56,6 @@ from endpoints.OAI.utils.completion import (
 from endpoints.OAI.utils.model import get_model_list, stream_model_load
 from endpoints.OAI.utils.lora import get_lora_list
 
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    uvicorn_signal_handler(signal.SIGINT)
-    uvicorn_signal_handler(signal.SIGTERM)
-    yield
-
-
 app = FastAPI(
     title="TabbyAPI",
     summary="An OAI compatible exllamav2 API that's both lightweight and fast",
@@ -74,7 +63,6 @@ app = FastAPI(
         "This docs page is not meant to send requests! Please use a service "
         "like Postman or a frontend UI."
     ),
-    lifespan=lifespan,
 )
 
 # ALlow CORS requests
