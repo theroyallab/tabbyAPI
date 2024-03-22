@@ -1,3 +1,4 @@
+import asyncio
 import pathlib
 import signal
 import uvicorn
@@ -25,6 +26,7 @@ from common.templating import (
 from common.utils import (
     coalesce,
     handle_request_error,
+    run_with_request_disconnect,
     unwrap,
 )
 from endpoints.OAI.types.auth import AuthPermissionResponse
@@ -452,10 +454,15 @@ async def completion_request(request: Request, data: CompletionRequest):
             ping=maxsize,
         )
     else:
-        response = await call_with_semaphore(
-            partial(generate_completion, data, model_path)
+        generate_task = asyncio.create_task(
+            call_with_semaphore(partial(generate_completion, data, model_path))
         )
 
+        response = await run_with_request_disconnect(
+            request,
+            generate_task,
+            disconnect_message="Completion generation cancelled by user.",
+        )
         return response
 
 
@@ -494,10 +501,17 @@ async def chat_completion_request(request: Request, data: ChatCompletionRequest)
             ping=maxsize,
         )
     else:
-        response = await call_with_semaphore(
-            partial(generate_chat_completion, prompt, data, model_path)
+        generate_task = asyncio.create_task(
+            call_with_semaphore(
+                partial(generate_chat_completion, prompt, data, model_path)
+            )
         )
 
+        response = await run_with_request_disconnect(
+            request,
+            generate_task,
+            disconnect_message="Chat completion generation cancelled by user.",
+        )
         return response
 
 
