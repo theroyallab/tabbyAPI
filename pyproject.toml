@@ -25,6 +25,7 @@ dependencies = [
     "loguru",
     "sse-starlette",
     "packaging",
+    "tokenizers",
 ]
 
 [project.urls]
@@ -32,7 +33,6 @@ dependencies = [
 
 [project.optional-dependencies]
 extras = [
-    "tokenizers",
     "outlines",
     "lm-format-enforcer",
 ]

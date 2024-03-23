@@ -399,19 +399,7 @@ class ExllamaV2Container:
         ExLlamaV2Tokenizer.extended_id_to_piece = {}
         ExLlamaV2Tokenizer.extended_piece_to_id = {}
 
-        try:
-            self.tokenizer = ExLlamaV2Tokenizer(self.config)
-        except AssertionError as exc:
-            if "HF tokenizer" in str(exc):
-                raise ImportError(
-                    "Could not create ExllamaV2's tokenizer for this model "
-                    "because tokenizers is not installed.\n"
-                    "Please run the following command in your environment "
-                    "to install extra packages:\n"
-                    "pip install -U .[extras]"
-                ) from exc
-            else:
-                raise exc
+        self.tokenizer = ExLlamaV2Tokenizer(self.config)
 
         # Calculate autosplit reserve for all GPUs
         gpu_count = torch.cuda.device_count()
