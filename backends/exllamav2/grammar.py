@@ -71,8 +71,9 @@ class ExLlamaV2Grammar:
             logger.error(
                 "Skipping JSON schema parsing because "
                 "lm-format-enforcer is not installed.\n"
-                "Please run the following command: "
-                "pip install lm-format-enforcer"
+                "Please run the following command in your environment "
+                "to install extra packages:\n"
+                "pip install -U .[extras]"
             )
 
             return
@@ -113,7 +114,9 @@ class ExLlamaV2Grammar:
         except ImportError:
             logger.error(
                 "Skipping EBNF parsing because Outlines is not installed.\n"
-                "Please run the following command: pip install outlines"
+                "Please run the following command in your environment "
+                "to install extra packages:\n"
+                "pip install -U .[extras]"
             )
 
             return
