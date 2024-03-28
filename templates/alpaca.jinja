@@ -1,3 +1,7 @@
+{# Metadata #}
+{% set stop_strings = ["### Instruction:", "### Input:", "### Response:"] %}
+
+{# Template #}
 {{ (messages|selectattr('role', 'equalto', 'system')|list|last).content|trim if (messages|selectattr('role', 'equalto', 'system')|list) else '' }}
 
 {% for message in messages %}
