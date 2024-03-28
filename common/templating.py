@@ -4,8 +4,9 @@ import json
 import pathlib
 from functools import lru_cache
 from importlib.metadata import version as package_version
-from jinja2 import TemplateError
+from jinja2 import Template, TemplateError
 from jinja2.sandbox import ImmutableSandboxedEnvironment
+from loguru import logger
 from packaging import version
 from pydantic import BaseModel
 from typing import Optional, Dict
@@ -34,15 +35,19 @@ def get_prompt_from_template(
         )
 
     compiled_template = _compile_template(prompt_template.template)
-    return compiled_template.render(
+    rendered_template = compiled_template.render(
         messages=messages,
         add_generation_prompt=add_generation_prompt,
         **special_tokens,
     )
+    template_stop_strings = _get_template_stop_strings(compiled_template)
+
+    return rendered_template, template_stop_strings
 
 
 # Inspired from
 # https://github.com/huggingface/transformers/blob/main/src/transformers/tokenization_utils_base.py#L1761
+# TODO: Migrate to compile when template is loaded (removes the need for an lru_cache)
 @lru_cache
 def _compile_template(template: str):
     """Compiles a Jinja2 template"""
@@ -56,6 +61,24 @@ def _compile_template(template: str):
 
     jinja_template = jinja_env.from_string(template)
     return jinja_template
+
+
+# TODO: Migrate to run during template load
+def _get_template_stop_strings(prompt_template: Template):
+    """Appends extra stop strings if present in a chat template."""
+
+    extra_stop_strings = []
+
+    if hasattr(prompt_template.module, "stop_strings"):
+        if isinstance(prompt_template.module.stop_strings, list):
+            extra_stop_strings += prompt_template.module.stop_strings
+        else:
+            logger.warning(
+                "Skipping append of stopping strings from chat template "
+                "because stop_strings isn't a list."
+            )
+
+    return extra_stop_strings
 
 
 def get_all_templates():
