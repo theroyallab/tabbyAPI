@@ -602,6 +602,7 @@ class ExllamaV2Container:
             else:
                 joined_generation["finish_reason"] = "stop"
 
+        if len(generations) > 0:
             for generation in generations:
                 joined_generation["text"] += unwrap(generation.get("text"), "")
                 joined_generation["offset"].append(unwrap(generation.get("offset"), -1))
