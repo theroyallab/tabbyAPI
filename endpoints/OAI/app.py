@@ -508,10 +508,7 @@ async def chat_completion_request(request: Request, data: ChatCompletionRequest)
     if isinstance(data.messages, str):
         prompt = data.messages
     else:
-        # Compile the prompt and get any additional stop strings from the template
-        # Template stop strings can be overriden by sampler overrides if force is true
-        prompt, template_stop_strings = format_prompt_with_template(data)
-        data.stop += template_stop_strings
+        prompt = format_prompt_with_template(data)
 
     disable_request_streaming = unwrap(
         config.developer_config().get("disable_request_streaming"), False

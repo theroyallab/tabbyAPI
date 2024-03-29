@@ -130,18 +130,32 @@ def _create_stream_chunk(
 
 
 def format_prompt_with_template(data: ChatCompletionRequest):
+    """
+    Compile the prompt and get any additional stop strings from the template.
+    Template stop strings can be overriden by sampler overrides if force is true.
+    """
+
     try:
         special_tokens_dict = model.container.get_special_tokens(
             unwrap(data.add_bos_token, True),
             unwrap(data.ban_eos_token, False),
         )
 
-        return get_prompt_from_template(
+        prompt, template_stop_strings = get_prompt_from_template(
             data.messages,
             model.container.prompt_template,
             data.add_generation_prompt,
             special_tokens_dict,
         )
+
+        # Append template stop strings
+        if isinstance(data.stop, str):
+            data.stop = [data.stop] + template_stop_strings
+        else:
+            data.stop += template_stop_strings
+
+        return prompt
+
     except KeyError as exc:
         raise HTTPException(
             400,
