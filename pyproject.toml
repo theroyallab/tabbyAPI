@@ -41,10 +41,10 @@ dev = [
 ]
 cu121 = [
     # Torch (Extra index URLs not support in pyproject.toml)
-    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.1%2Bcu121-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
-    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.1%2Bcu121-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
-    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.1%2Bcu121-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
-    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.1%2Bcu121-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.2%2Bcu121-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.2%2Bcu121-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
+    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.2%2Bcu121-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/cu121/torch-2.2.2%2Bcu121-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
 
     # Exl2
     "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.16/exllamav2-0.0.16+cu121-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
@@ -62,10 +62,10 @@ cu121 = [
 ]
 cu118 = [
     # Torch
-    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.1%2Bcu118-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
-    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.1%2Bcu118-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
-    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.1%2Bcu118-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
-    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.1%2Bcu118-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.2%2Bcu118-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.2%2Bcu118-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
+    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.2%2Bcu118-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/cu118/torch-2.2.2%2Bcu118-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
 
     # Exl2
     "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.16/exllamav2-0.0.16+cu121-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
@@ -83,8 +83,8 @@ amd = [
     "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-2.2.0-cp310-cp310-linux_x86_64.whl ; python_version == '3.10'",
 
     # Torch
-    "torch @ https://download.pytorch.org/whl/rocm5.6/torch-2.2.1%2Brocm5.6-cp311-cp311-linux_x86_64.whl ; python_version == '3.11'",
-    "torch @ https://download.pytorch.org/whl/rocm5.6/torch-2.2.1%2Brocm5.6-cp310-cp310-linux_x86_64.whl ; python_version == '3.10'",
+    "torch @ https://download.pytorch.org/whl/rocm5.6/torch-2.2.2%2Brocm5.6-cp311-cp311-linux_x86_64.whl ; python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/rocm5.6/torch-2.2.2%2Brocm5.6-cp310-cp310-linux_x86_64.whl ; python_version == '3.10'",
 
     # Exl2
     "exllamav2 @ https://github.com/turboderp/exllamav2/releases/download/v0.0.16/exllamav2-0.0.16+rocm5.6-cp311-cp311-linux_x86_64.whl ; python_version == '3.11'",
