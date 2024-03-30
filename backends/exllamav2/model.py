@@ -648,6 +648,7 @@ class ExllamaV2Container:
         async for value in iterate_in_threadpool(sync_generator):
             yield value
 
+    @torch.inference_mode()
     def generate_gen_sync(
         self, prompt: str, abort_event: Optional[threading.Event] = None, **kwargs
     ):
