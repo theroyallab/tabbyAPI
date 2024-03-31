@@ -325,6 +325,16 @@ def apply_forced_sampler_overrides(params: BaseSamplerRequest):
 
     for var, value in overrides.items():
         override = value.get("override")
-        force = unwrap(value.get("force"), False)
-        if force and override:
-            setattr(params, var, override)
+        original_value = getattr(params, var, None)
+
+        # Force takes precedence over additive
+        # Additive only works on lists and doesn't remove duplicates
+        if override:
+            if unwrap(value.get("force"), False):
+                setattr(params, var, override)
+            elif (
+                unwrap(value.get("additive"), False)
+                and isinstance(override, list)
+                and isinstance(original_value, list)
+            ):
+                setattr(params, var, override + original_value)

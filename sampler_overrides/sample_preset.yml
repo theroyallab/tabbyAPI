@@ -14,6 +14,7 @@ max_tokens:
 stop:
   override: []
   force: false
+  additive: false
 token_healing:
   override: false
   force: false
@@ -104,6 +105,7 @@ ban_eos_token:
 logit_bias:
   override:
   force: false
+  additive: false
 
 # MARK: CFG scale
 cfg_scale:
