@@ -19,7 +19,7 @@ from rich.progress import (
 from common.utils import unwrap
 
 RICH_CONSOLE = Console()
-LOG_LEVEL = os.getenv("TABBY_LOG_LEVEL", "INFO")a
+LOG_LEVEL = os.getenv("TABBY_LOG_LEVEL", "INFO")
 
 def get_loading_progress_bar():
     """Gets a pre-made progress bar for loading tasks."""
