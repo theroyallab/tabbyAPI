@@ -1,7 +1,7 @@
 """
 Internal logging utility.
 """
-
+import os
 import logging
 from loguru import logger
 from rich.console import Console
@@ -95,10 +95,11 @@ def setup_logger():
     """Bootstrap the logger."""
 
     logger.remove()
+    log_level = os.getenv("TABBY_LOG_LEVEL", "INFO")
 
     logger.add(
         RICH_CONSOLE.print,
-        level="INFO",
+        level=log_level,
         format=_log_formatter,
         colorize=True,
     )
