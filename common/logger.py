@@ -19,7 +19,7 @@ from rich.progress import (
 from common.utils import unwrap
 
 RICH_CONSOLE = Console()
-
+LOG_LEVEL = os.getenv("TABBY_LOG_LEVEL", "INFO")a
 
 def get_loading_progress_bar():
     """Gets a pre-made progress bar for loading tasks."""
@@ -88,7 +88,7 @@ UVICORN_LOG_CONFIG = {
             "class": f"{UvicornLoggingHandler.__module__}.{UvicornLoggingHandler.__qualname__}",  # noqa
         },
     },
-    "root": {"handlers": ["uvicorn"], "propagate": False, "level": "INFO"},
+    "root": {"handlers": ["uvicorn"], "propagate": False, "level": LOG_LEVEL},
 }
 
 
@@ -96,11 +96,10 @@ def setup_logger():
     """Bootstrap the logger."""
 
     logger.remove()
-    log_level = os.getenv("TABBY_LOG_LEVEL", "INFO")
 
     logger.add(
         RICH_CONSOLE.print,
-        level=log_level,
+        level=LOG_LEVEL,
         format=_log_formatter,
         colorize=True,
     )
