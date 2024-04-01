@@ -1,8 +1,9 @@
 """
 Internal logging utility.
 """
-import os
 import logging
+import os
+
 from loguru import logger
 from rich.console import Console
 from rich.markup import escape
