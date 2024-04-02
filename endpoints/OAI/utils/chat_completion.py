@@ -141,11 +141,14 @@ def format_prompt_with_template(data: ChatCompletionRequest):
             unwrap(data.ban_eos_token, False),
         )
 
+        template_vars = {
+            "messages": data.messages,
+            "add_generation_prompt": data.add_generation_prompt,
+            **special_tokens_dict,
+        }
+
         prompt, template_stop_strings = get_prompt_from_template(
-            data.messages,
-            model.container.prompt_template,
-            data.add_generation_prompt,
-            special_tokens_dict,
+            model.container.prompt_template, template_vars
         )
 
         # Append template stop strings
@@ -157,17 +160,17 @@ def format_prompt_with_template(data: ChatCompletionRequest):
         return prompt
 
     except KeyError as exc:
-        raise HTTPException(
-            400,
+        error_message = handle_request_error(
             "Could not find a Conversation from prompt template "
             f"'{model.container.prompt_template.name}'. "
             "Check your spelling?",
-        ) from exc
+        ).error.message
+
+        raise HTTPException(400, error_message) from exc
     except TemplateError as exc:
-        raise HTTPException(
-            400,
-            f"TemplateError: {str(exc)}",
-        ) from exc
+        error_message = handle_request_error(f"TemplateError: {str(exc)}").error.message
+
+        raise HTTPException(400, error_message) from exc
 
 
 async def stream_generate_chat_completion(
