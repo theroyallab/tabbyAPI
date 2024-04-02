@@ -3,6 +3,8 @@ Internal logging utility.
 """
 
 import logging
+import os
+
 from loguru import logger
 from rich.console import Console
 from rich.markup import escape
@@ -18,6 +20,7 @@ from rich.progress import (
 from common.utils import unwrap
 
 RICH_CONSOLE = Console()
+LOG_LEVEL = os.getenv("TABBY_LOG_LEVEL", "INFO")
 
 
 def get_loading_progress_bar():
@@ -87,7 +90,7 @@ UVICORN_LOG_CONFIG = {
             "class": f"{UvicornLoggingHandler.__module__}.{UvicornLoggingHandler.__qualname__}",  # noqa
         },
     },
-    "root": {"handlers": ["uvicorn"], "propagate": False, "level": "INFO"},
+    "root": {"handlers": ["uvicorn"], "propagate": False, "level": LOG_LEVEL},
 }
 
 
@@ -98,7 +101,7 @@ def setup_logger():
 
     logger.add(
         RICH_CONSOLE.print,
-        level="INFO",
+        level=LOG_LEVEL,
         format=_log_formatter,
         colorize=True,
     )
