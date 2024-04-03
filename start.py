@@ -43,7 +43,7 @@ def get_install_features():
     saved_lib_path = pathlib.Path("gpu_lib.txt")
     if saved_lib_path.exists():
         with open(saved_lib_path.resolve(), "r") as f:
-            lib = f.readline()
+            lib = f.readline().strip()
 
             # Assume default if the file is invalid
             if lib not in possible_features:
