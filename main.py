@@ -15,7 +15,7 @@ from common.logger import setup_logger
 from common.networking import is_port_in_use
 from common.signals import signal_handler
 from common.utils import unwrap
-from endpoints.OAI.app import start_api
+from endpoints.server import start_api
 
 
 async def entrypoint(args: Optional[dict] = None):
