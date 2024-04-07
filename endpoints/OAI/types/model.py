@@ -16,6 +16,7 @@ class ModelCardParameters(BaseModel):
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
     cache_mode: Optional[str] = "FP16"
+    chunk_size: Optional[int] = 2048
     prompt_template: Optional[str] = None
     num_experts_per_token: Optional[int] = None
     use_cfg: Optional[bool] = None
@@ -90,6 +91,7 @@ class ModelLoadRequest(BaseModel):
     no_flash_attention: Optional[bool] = False
     # low_mem: Optional[bool] = False
     cache_mode: Optional[str] = "FP16"
+    chunk_size: Optional[int] = 2048
     prompt_template: Optional[str] = None
     num_experts_per_token: Optional[int] = None
     use_cfg: Optional[bool] = None

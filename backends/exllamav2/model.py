@@ -209,11 +209,11 @@ class ExllamaV2Container:
         if num_experts_override:
             self.config.num_experts_per_token = kwargs.get("num_experts_per_token")
 
-        chunk_size = min(
-            unwrap(kwargs.get("chunk_size"), 2048), self.config.max_seq_len
-        )
+        # Make sure chunk size is >= 16 and <= max seq length
+        user_chunk_size = unwrap(kwargs.get("chunk_size"), 2048)
+        chunk_size = sorted((16, user_chunk_size, self.config.max_seq_len))[1]
         self.config.max_input_len = chunk_size
-        self.config.max_attn_size = chunk_size**2
+        self.config.max_attention_size = chunk_size**2
 
         draft_args = unwrap(kwargs.get("draft"), {})
         draft_model_name = draft_args.get("draft_model_name")
@@ -248,9 +248,9 @@ class ExllamaV2Container:
             )
             self.draft_config.max_seq_len = self.config.max_seq_len
 
-            if "chunk_size" in kwargs:
-                self.draft_config.max_input_len = kwargs["chunk_size"]
-                self.draft_config.max_attn_size = kwargs["chunk_size"] ** 2
+            if chunk_size:
+                self.draft_config.max_input_len = chunk_size
+                self.draft_config.max_attention_size = chunk_size**2
 
     def find_prompt_template(self, prompt_template_name, model_directory):
         """Tries to find a prompt template using various methods"""
@@ -320,6 +320,7 @@ class ExllamaV2Container:
             "rope_alpha": self.config.scale_alpha_value,
             "max_seq_len": self.config.max_seq_len,
             "cache_mode": self.cache_mode,
+            "chunk_size": self.config.max_input_len,
             "num_experts_per_token": self.config.num_experts_per_token,
             "use_cfg": self.use_cfg,
             "prompt_template": self.prompt_template.name
