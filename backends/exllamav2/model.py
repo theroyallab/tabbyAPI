@@ -4,6 +4,7 @@ import gc
 import pathlib
 import threading
 import time
+import traceback
 
 import torch
 from exllamav2 import (
@@ -30,6 +31,7 @@ from common.gen_logging import (
 )
 from common.templating import (
     PromptTemplate,
+    TemplateLoadError,
     find_template_from_model,
     get_template_from_model_json,
     get_template_from_file,
@@ -194,7 +196,7 @@ class ExllamaV2Container:
         # Catch all for template lookup errors
         if self.prompt_template:
             logger.info(
-                f"Using template {self.prompt_template.name} " "for chat completions."
+                f'Using template "{self.prompt_template.name}" for chat completions.'
             )
         else:
             logger.warning(
@@ -259,23 +261,36 @@ class ExllamaV2Container:
             lambda: get_template_from_model_json(
                 pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
                 "chat_template",
-                "from_tokenizer_config",
             ),
             lambda: get_template_from_file(find_template_from_model(model_directory)),
         ]
 
         # Add lookup from prompt template name if provided
         if prompt_template_name:
-            find_template_functions.insert(
-                0, lambda: get_template_from_file(prompt_template_name)
-            )
+            find_template_functions[:0] = [
+                lambda: get_template_from_file(prompt_template_name),
+                lambda: get_template_from_model_json(
+                    pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
+                    "chat_template",
+                    prompt_template_name,
+                ),
+            ]
 
-        for func in find_template_functions:
+        # Continue on exception since functions are tried as they fail
+        for template_func in find_template_functions:
             try:
-                prompt_template = func()
+                prompt_template = template_func()
                 if prompt_template is not None:
                     return prompt_template
-            except (FileNotFoundError, LookupError):
+            except TemplateLoadError as e:
+                logger.warning(f"TemplateLoadError: {str(e)}")
+                continue
+            except Exception:
+                logger.error(traceback.format_exc())
+                logger.warning(
+                    "An unexpected error happened when trying to load the template. "
+                    "Trying other methods."
+                )
                 continue
 
     def calculate_rope_alpha(self, base_seq_len):
