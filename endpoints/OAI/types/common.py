@@ -14,6 +14,10 @@ class UsageStats(BaseModel):
     total_tokens: int
 
 
+class CompletionResponseFormat(BaseModel):
+    type: str = "text"
+
+
 class CommonCompletionRequest(BaseSamplerRequest):
     """Represents a common completion request."""
 
@@ -24,6 +28,9 @@ class CommonCompletionRequest(BaseSamplerRequest):
     # Generation info (remainder is in BaseSamplerRequest superclass)
     stream: Optional[bool] = False
     logprobs: Optional[int] = 0
+    response_format: Optional[CompletionResponseFormat] = Field(
+        default_factory=CompletionResponseFormat
+    )
 
     # Extra OAI request stuff
     best_of: Optional[int] = Field(

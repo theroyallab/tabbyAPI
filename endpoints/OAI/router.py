@@ -449,6 +449,10 @@ async def completion_request(request: Request, data: CompletionRequest):
         config.developer_config().get("disable_request_streaming"), False
     )
 
+    # Set an empty JSON schema if the request wants a JSON response
+    if data.response_format.type == "json":
+        data.json_schema = {"type": "object"}
+
     if data.stream and not disable_request_streaming:
         generator_callback = partial(stream_generate_completion, data, model_path)
 
@@ -491,6 +495,10 @@ async def chat_completion_request(request: Request, data: ChatCompletionRequest)
         prompt = data.messages
     else:
         prompt = format_prompt_with_template(data)
+
+    # Set an empty JSON schema if the request wants a JSON response
+    if data.response_format.type == "json":
+        data.json_schema = {"type": "object"}
 
     disable_request_streaming = unwrap(
         config.developer_config().get("disable_request_streaming"), False
