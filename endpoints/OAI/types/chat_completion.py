@@ -44,6 +44,7 @@ class ChatCompletionRequest(CommonCompletionRequest):
     messages: Union[str, List[Dict[str, str]]]
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
+    template_vars: Optional[dict] = {}
 
 
 class ChatCompletionResponse(BaseModel):

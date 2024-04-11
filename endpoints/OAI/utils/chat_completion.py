@@ -141,14 +141,17 @@ def format_prompt_with_template(data: ChatCompletionRequest):
             unwrap(data.ban_eos_token, False),
         )
 
-        template_vars = {
-            "messages": data.messages,
-            "add_generation_prompt": data.add_generation_prompt,
-            **special_tokens_dict,
-        }
+        # Overwrite any protected vars with their values
+        data.template_vars.update(
+            {
+                "messages": data.messages,
+                "add_generation_prompt": data.add_generation_prompt,
+                **special_tokens_dict,
+            }
+        )
 
         prompt, template_stop_strings = get_prompt_from_template(
-            model.container.prompt_template, template_vars
+            model.container.prompt_template, data.template_vars
         )
 
         # Append template stop strings
