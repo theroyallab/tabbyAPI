@@ -45,9 +45,8 @@ def get_install_features(lib_name: str = None):
     else:
         # Try getting the GPU lib from file
         if saved_lib_path.exists():
-            print(saved_lib_path)
             with open(saved_lib_path.resolve(), "r") as f:
-                lib = f.readline().strip()
+                lib_name = f.readline().strip()
         else:
             # Ask the user for the GPU lib
             gpu_lib_choices = {
