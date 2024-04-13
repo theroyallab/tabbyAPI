@@ -75,7 +75,7 @@ def get_install_features(lib_name: str = None):
         install_features = lib_name
     else:
         print(
-            f"WARN: GPU library {lib} not found. "
+            f"WARN: GPU library {lib_name} not found. "
             "Skipping GPU-specific dependencies.\n"
             "WARN: Please delete gpu_lib.txt and restart "
             "if you want to change your selection."
