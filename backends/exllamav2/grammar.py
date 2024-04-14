@@ -72,8 +72,8 @@ class ExLlamaV2Grammar:
                 "Skipping JSON schema parsing because "
                 "lm-format-enforcer is not installed.\n"
                 "Please run the following command in your environment "
-                "to install extra packages:\n"
-                "pip install -U .[extras]"
+                "to reinstall dependencies:\n"
+                "pip install -U ."
             )
 
             return

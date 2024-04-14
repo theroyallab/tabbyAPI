@@ -26,6 +26,7 @@ dependencies = [
     "sse-starlette",
     "packaging",
     "tokenizers",
+    "lm-format-enforcer @ git+https://github.com/theroyallab/lm-format-enforcer",
 ]
 
 [project.urls]
@@ -33,8 +34,8 @@ dependencies = [
 
 [project.optional-dependencies]
 extras = [
-    "outlines",
-    "lm-format-enforcer",
+    # Heavy dependencies that aren't for everyday use
+    "outlines"
 ]
 dev = [
     "ruff == 0.3.2"
