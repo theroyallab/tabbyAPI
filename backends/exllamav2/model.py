@@ -566,7 +566,9 @@ class ExllamaV2Container:
             decode_special_tokens=unwrap(kwargs.get("decode_special_tokens"), True),
         )[0]
 
-    def get_special_tokens(self, add_bos_token: bool, ban_eos_token: bool):
+    def get_special_tokens(
+        self, add_bos_token: bool = True, ban_eos_token: bool = False
+    ):
         return {
             "bos_token": self.tokenizer.bos_token if add_bos_token else "",
             "eos_token": self.tokenizer.eos_token if not ban_eos_token else "",

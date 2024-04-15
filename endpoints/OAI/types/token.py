@@ -1,7 +1,7 @@
 """Tokenization types"""
 
 from pydantic import BaseModel
-from typing import List
+from typing import Dict, List, Union
 
 
 class CommonTokenRequest(BaseModel):
@@ -23,7 +23,7 @@ class CommonTokenRequest(BaseModel):
 class TokenEncodeRequest(CommonTokenRequest):
     """Represents a tokenization request."""
 
-    text: str
+    text: Union[str, List[Dict[str, str]]]
 
 
 class TokenEncodeResponse(BaseModel):

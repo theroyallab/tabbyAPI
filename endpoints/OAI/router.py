@@ -16,6 +16,7 @@ from common.concurrency import (
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.templating import (
     get_all_templates,
+    get_prompt_from_template,
     get_template_from_file,
 )
 from common.utils import coalesce, unwrap
@@ -386,8 +387,26 @@ async def unload_loras():
     dependencies=[Depends(check_api_key), Depends(check_model_container)],
 )
 async def encode_tokens(data: TokenEncodeRequest):
-    """Encodes a string into tokens."""
-    raw_tokens = model.container.encode_tokens(data.text, **data.get_params())
+    """Encodes a string or chat completion messages into tokens."""
+
+    if isinstance(data.text, str):
+        text = data.text
+    else:
+        special_tokens_dict = model.container.get_special_tokens(
+            unwrap(data.add_bos_token, True)
+        )
+
+        template_vars = {
+            "messages": data.text,
+            "add_generation_prompt": False,
+            **special_tokens_dict,
+        }
+
+        text, _ = get_prompt_from_template(
+            model.container.prompt_template, template_vars
+        )
+
+    raw_tokens = model.container.encode_tokens(text, **data.get_params())
     tokens = unwrap(raw_tokens, [])
     response = TokenEncodeResponse(tokens=tokens, length=len(tokens))
 
