@@ -4,6 +4,8 @@ services:
     build:
       context: ..
       dockerfile: ./docker/Dockerfile
+      args:
+        - DO_PULL=true
     ports:
       - "5000:5000"
     environment:

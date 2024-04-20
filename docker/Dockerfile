@@ -1,6 +1,10 @@
 # Use an official CUDA runtime with Ubuntu as a parent image
 FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04
 
+ARG GIT_REPO=https://github.com/theroyallab/tabbyAPI
+ARG DO_PULL=true
+ENV DO_PULL $DO_PULL
+
 # Set the working directory in the container
 WORKDIR /app
 
@@ -13,6 +17,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     git \
     && rm -rf /var/lib/apt/lists/*
+
+# Update repo
+RUN if [ ${DO_PULL} ]; then \
+    git init && \
+    git remote add origin $GIT_REPO && \
+    git fetch origin && \
+    git pull origin main && \
+    echo "Pull finished"; fi
 
 # Upgrade pip
 RUN pip3 install --no-cache-dir --upgrade pip
