@@ -106,6 +106,11 @@ class BaseSamplerRequest(BaseModel):
         examples=[False],
     )
 
+    skip_special_tokens: Optional[bool] = Field(
+        default_factory=lambda: get_default_sampler_value("ban_eos_token", True),
+        examples=[True],
+    )
+
     logit_bias: Optional[Dict[int, float]] = Field(
         default_factory=lambda: get_default_sampler_value("logit_bias"),
         examples=[{"1": 10, "2": 50}],
@@ -246,6 +251,7 @@ class BaseSamplerRequest(BaseModel):
             "stop": self.stop,
             "add_bos_token": self.add_bos_token,
             "ban_eos_token": self.ban_eos_token,
+            "skip_special_tokens": self.skip_special_tokens,
             "token_healing": self.token_healing,
             "logit_bias": self.logit_bias,
             "temperature": self.temperature,
