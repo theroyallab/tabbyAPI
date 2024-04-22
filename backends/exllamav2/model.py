@@ -1,6 +1,7 @@
 """The model container class for ExLlamaV2 models."""
 
 import gc
+import math
 import pathlib
 import threading
 import time
@@ -130,7 +131,10 @@ class ExllamaV2Container:
 
             autosplit_reserve_megabytes = unwrap(kwargs.get("autosplit_reserve"), [96])
             self.autosplit_reserve = list(
-                map(lambda value: value * 1024**2, autosplit_reserve_megabytes)
+                map(
+                    lambda value: int(math.ceil(value * 1024**2)),
+                    autosplit_reserve_megabytes,
+                )
             )
         elif gpu_count > 1:
             # Manual GPU split
