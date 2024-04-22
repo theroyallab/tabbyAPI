@@ -15,7 +15,6 @@ from common.networking import (
     handle_request_disconnect,
     handle_request_error,
 )
-from common.templating import get_prompt_from_template
 from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionLogprobs,
@@ -150,8 +149,8 @@ def format_prompt_with_template(data: ChatCompletionRequest):
             }
         )
 
-        prompt, template_stop_strings = get_prompt_from_template(
-            model.container.prompt_template, data.template_vars
+        prompt, template_stop_strings = model.container.prompt_template.render(
+            data.template_vars
         )
 
         # Append template stop strings

@@ -34,8 +34,6 @@ from common.templating import (
     PromptTemplate,
     TemplateLoadError,
     find_template_from_model,
-    get_template_from_model_json,
-    get_template_from_file,
 )
 from common.transformers_utils import GenerationConfig
 from common.utils import coalesce, unwrap
@@ -276,18 +274,18 @@ class ExllamaV2Container:
         logger.info("Attempting to load a prompt template if present.")
 
         find_template_functions = [
-            lambda: get_template_from_model_json(
+            lambda: PromptTemplate.from_model_json(
                 pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
                 "chat_template",
             ),
-            lambda: get_template_from_file(find_template_from_model(model_directory)),
+            lambda: PromptTemplate.from_file(find_template_from_model(model_directory)),
         ]
 
         # Add lookup from prompt template name if provided
         if prompt_template_name:
             find_template_functions[:0] = [
-                lambda: get_template_from_file(prompt_template_name),
-                lambda: get_template_from_model_json(
+                lambda: PromptTemplate.from_file(prompt_template_name),
+                lambda: PromptTemplate.from_model_json(
                     pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
                     "chat_template",
                     prompt_template_name,
