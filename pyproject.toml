@@ -26,7 +26,7 @@ dependencies = [
     "sse-starlette",
     "packaging",
     "tokenizers",
-    "lm-format-enforcer == 0.9.6",
+    "lm-format-enforcer == 0.9.8",
 ]
 
 [project.urls]
