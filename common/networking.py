@@ -92,5 +92,7 @@ def is_port_in_use(port: int) -> bool:
     From https://stackoverflow.com/questions/2470971/fast-way-to-test-if-a-port-is-in-use-using-python
     """
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        return s.connect_ex(("localhost", port)) == 0
+    test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    test_socket.settimeout(1)
+    with test_socket:
+        return test_socket.connect_ex(("localhost", port)) == 0
