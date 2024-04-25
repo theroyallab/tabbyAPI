@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from fastapi import HTTPException
 from jinja2 import TemplateError
+from loguru import logger
 
 from common import model
 from common.networking import (
@@ -152,6 +153,22 @@ def format_prompt_with_template(data: ChatCompletionRequest):
         prompt, template_stop_strings = model.container.prompt_template.render(
             data.template_vars
         )
+
+        # Append response prefix if present
+        if data.response_prefix:
+            if data.add_generation_prompt:
+                prompt += data.response_prefix
+            else:
+                logger.warning(
+                    "Could not add response prefix because "
+                    "add_generation_prompt is False"
+                )
+
+        # Removes the starting BOS token if present
+        # This is to prevent add_bos_token from adding multiple bos tokens
+        bos_token = special_tokens_dict.get("bos_token")
+        if bos_token and prompt.startswith(bos_token):
+            prompt = prompt.removeprefix(bos_token)
 
         # Append template stop strings
         if isinstance(data.stop, str):

@@ -94,8 +94,8 @@ async def generate_completion(data: CompletionRequest, model_path: pathlib.Path)
 
     try:
         generation = await model.container.generate(data.prompt, **data.to_gen_params())
-
         response = _create_response(generation, model_path.name)
+
         return response
     except Exception as exc:
         error_message = handle_request_error(

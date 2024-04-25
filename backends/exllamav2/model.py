@@ -878,6 +878,7 @@ class ExllamaV2Container:
             encode_special_tokens=True,
             return_offsets=True,
         )
+        print(ids)
         mask = (
             self.tokenizer.padding_mask(ids)
             if self.use_cfg and gen_settings.cfg_scale not in [None, 1.0]
