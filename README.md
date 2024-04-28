@@ -12,9 +12,15 @@ A FastAPI based application that allows for generating text using an LLM (large 
 
 ## Disclaimer
 
-This API is considered as rolling release. There may be bugs and changes down the line. Please be aware that you might need to reinstall dependencies if needed.
+This project is marked rolling release. There may be bugs and changes down the line. Please be aware that you might need to reinstall dependencies if needed.
+
+TabbyAPI is a hobby project solely for a small amount of users. It is not meant to run on production servers. For that, please look at other backends that support those workloads.
 
 ## Getting Started
+
+> [!IMPORTANT]
+> 
+>  This README is not for getting started. Please read the Wiki.
 
 Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started) for more information. It contains user-facing documentation for installation, configuration, sampling, API usage, and so much more.
 
@@ -30,19 +36,23 @@ TabbyAPI uses Exllamav2 as a powerful and fast backend for model inference, load
 
 #### Alternative Loaders/Backends
 
-If you want to use a different model type than the ones listed above, here are some alternative backends with their own APIs:
+If you want to use a different model type or quantization method than the ones listed above, here are some alternative backends with their own APIs:
 
 - GGUF + GGML - [KoboldCPP](https://github.com/lostruins/KoboldCPP)
 
-- AWQ - [Aphrodite Engine](https://github.com/PygmalionAI/Aphrodite-engine)
+- Production ready + Many other quants + batching [Aphrodite Engine](https://github.com/PygmalionAI/Aphrodite-engine)
+
+- Production ready + batching [VLLM](https://github.com/vllm-project/vllm)
 
 - [Text Generation WebUI](https://github.com/oobabooga/text-generation-webui)
 
 ## Contributing
 
+Use the template when creating issues or pull requests, otherwise the developers may not look at your post.
+
 If you have issues with the project:
 
-- Describe the issues in detail
+- Describe the issue in detail
 
 - If you have a feature request, please indicate it as such.
 
