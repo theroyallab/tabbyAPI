@@ -249,11 +249,14 @@ class BaseSamplerRequest(BaseModel):
         self.validate_params()
 
         # Convert stop to an array of strings
-        if isinstance(self.stop, str):
+        if self.stop and isinstance(self.stop, str):
             self.stop = [self.stop]
 
-        if isinstance(self.banned_tokens, str):
-            self.banned_tokens = list(map(int, self.banned_tokens.split(",")))
+        # Convert string banned tokens to an integer list
+        if self.banned_tokens and isinstance(self.banned_tokens, str):
+            self.banned_tokens = [
+                int(x) for x in self.banned_tokens.split(",") if x.isdigit()
+            ]
 
         gen_params = {
             "max_tokens": self.max_tokens,
