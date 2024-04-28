@@ -813,6 +813,11 @@ class ExllamaV2Container:
         # Store the gen settings for logging purposes
         gen_settings_log_dict = vars(gen_settings)
 
+        # Set banned tokens
+        banned_tokens = unwrap(kwargs.get("banned_tokens"), [])
+        if banned_tokens:
+            gen_settings.disallow_tokens(self.tokenizer, banned_tokens)
+
         # Set logit bias
         if logit_bias:
             # Create a vocab tensor if it doesn't exist for token biasing
@@ -953,6 +958,7 @@ class ExllamaV2Container:
             speculative_ngram=self.generator.speculative_ngram,
             logprobs=request_logprobs,
             stop_conditions=stop_conditions,
+            banned_tokens=banned_tokens,
             logit_bias=logit_bias,
         )
 
