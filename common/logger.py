@@ -23,6 +23,10 @@ RICH_CONSOLE = Console()
 LOG_LEVEL = os.getenv("TABBY_LOG_LEVEL", "INFO")
 
 
+def get_progress_bar():
+    return Progress(console=RICH_CONSOLE)
+
+
 def get_loading_progress_bar():
     """Gets a pre-made progress bar for loading tasks."""
 

@@ -27,6 +27,11 @@ dependencies = [
     "packaging",
     "tokenizers",
     "lm-format-enforcer >= 0.9.6",
+    "aiofiles",
+
+    # TODO: Maybe move these to a downloader feature?
+    "aiohttp",
+    "huggingface_hub",
 ]
 
 [project.urls]

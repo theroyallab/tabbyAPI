@@ -13,12 +13,14 @@ from common.concurrency import (
     call_with_semaphore,
     generate_with_semaphore,
 )
+from common.downloader import hf_repo_download
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.templating import PromptTemplate, get_all_templates
 from common.utils import coalesce, unwrap
 from endpoints.OAI.types.auth import AuthPermissionResponse
 from endpoints.OAI.types.completion import CompletionRequest
 from endpoints.OAI.types.chat_completion import ChatCompletionRequest
+from endpoints.OAI.types.download import DownloadRequest, DownloadResponse
 from endpoints.OAI.types.lora import (
     LoraCard,
     LoraList,
@@ -286,6 +288,22 @@ async def unload_sampler_override():
     """Unloads the currently selected override preset"""
 
     sampling.overrides_from_dict({})
+
+
+@router.post("/v1/download", dependencies=[Depends(check_admin_key)])
+async def download_model(request: Request, data: DownloadRequest):
+    """Downloads a model from HuggingFace."""
+
+    download_task = asyncio.create_task(hf_repo_download(**data.model_dump()))
+
+    # For now, the downloader and request data are 1:1
+    download_path = await run_with_request_disconnect(
+        request,
+        download_task,
+        "Download request cancelled by user. Files have been cleaned up.",
+    )
+
+    return DownloadResponse(download_path=str(download_path))
 
 
 # Lora list endpoint
