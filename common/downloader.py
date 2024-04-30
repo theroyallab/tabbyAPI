@@ -86,7 +86,7 @@ def _get_download_folder(repo_id: str, repo_type: str, folder_name: Optional[str
     return download_path
 
 
-def check_exclusions(
+def _check_exclusions(
     filename: str, include_patterns: List[str], exclude_patterns: List[str]
 ):
     include_result = any(fnmatch(filename, pattern) for pattern in include_patterns)
@@ -127,7 +127,7 @@ async def hf_repo_download(
         file_list = [
             file
             for file in file_list
-            if check_exclusions(
+            if _check_exclusions(
                 file.get("filename"), include_patterns, exclude_patterns
             )
         ]
