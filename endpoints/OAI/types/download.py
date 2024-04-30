@@ -1,15 +1,17 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional
 
 
 class DownloadRequest(BaseModel):
     """Parameters for a HuggingFace repo download."""
 
     repo_id: str
-    repo_type: Optional[str] = "model"
+    repo_type: str = "model"
     folder_name: Optional[str] = None
     revision: Optional[str] = None
     token: Optional[str] = None
+    include: List[str] = Field(default_factory=list)
+    exclude: List[str] = Field(default_factory=list)
     chunk_limit: Optional[int] = None
 
 

@@ -5,9 +5,10 @@ import math
 import pathlib
 import shutil
 from huggingface_hub import HfApi, hf_hub_url
+from fnmatch import fnmatch
 from loguru import logger
 from rich.progress import Progress
-from typing import Optional
+from typing import List, Optional
 
 from common.config import lora_config, model_config
 from common.logger import get_progress_bar
@@ -85,12 +86,23 @@ def _get_download_folder(repo_id: str, repo_type: str, folder_name: Optional[str
     return download_path
 
 
+def check_exclusions(
+    filename: str, include_patterns: List[str], exclude_patterns: List[str]
+):
+    include_result = any(fnmatch(filename, pattern) for pattern in include_patterns)
+    exclude_result = any(fnmatch(filename, pattern) for pattern in exclude_patterns)
+
+    return include_result and not exclude_result
+
+
 async def hf_repo_download(
     repo_id: str,
     folder_name: Optional[str],
     revision: Optional[str],
     token: Optional[str],
     chunk_limit: Optional[float],
+    include: Optional[List[str]],
+    exclude: Optional[List[str]],
     repo_type: Optional[str] = "model",
 ):
     """Gets a repo's information from HuggingFace and downloads it locally."""
@@ -108,13 +120,29 @@ async def hf_repo_download(
         if lora_filter:
             repo_type = "lora"
 
+    if include or exclude:
+        include_patterns = unwrap(include, [])
+        exclude_patterns = unwrap(exclude, [])
+
+        file_list = [
+            file
+            for file in file_list
+            if check_exclusions(
+                file.get("filename"), include_patterns, exclude_patterns
+            )
+        ]
+
+    if not file_list:
+        raise ValueError(f"File list for repo {repo_id} is empty. Check your filters?")
+
     download_path = _get_download_folder(repo_id, repo_type, folder_name)
-    download_path.parent.mkdir(parents=True, exist_ok=True)
 
     if download_path.exists():
         raise FileExistsError(
             f"The path {download_path} already exists. Remove the folder and try again."
         )
+
+    download_path.parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Saving {repo_id} to {str(download_path)}")
 
