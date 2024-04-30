@@ -121,7 +121,7 @@ async def hf_repo_download(
             repo_type = "lora"
 
     if include or exclude:
-        include_patterns = unwrap(include, [])
+        include_patterns = unwrap(include, ["*"])
         exclude_patterns = unwrap(exclude, [])
 
         file_list = [
