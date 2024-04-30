@@ -56,6 +56,10 @@ async def _download_file(
 def _get_repo_info(repo_id, revision, token):
     """Fetches information about a HuggingFace repository."""
 
+    # None-ish casting of revision and token values
+    revision = revision or None
+    token = token or None
+
     api_client = HfApi()
     repo_tree = api_client.list_repo_files(repo_id, revision=revision, token=token)
     return list(
@@ -73,11 +77,11 @@ def _get_download_folder(repo_id: str, repo_type: str, folder_name: Optional[str
     """Gets the download folder for the repo."""
 
     if repo_type == "lora":
-        download_path = pathlib.Path(unwrap(lora_config().get("lora_dir"), "loras"))
+        download_path = pathlib.Path(lora_config().get("lora_dir") or "loras")
     else:
-        download_path = pathlib.Path(unwrap(model_config().get("model_dir"), "models"))
+        download_path = pathlib.Path(model_config().get("model_dir") or "models")
 
-    download_path = download_path / unwrap(folder_name, repo_id.split("/")[-1])
+    download_path = download_path / (folder_name or repo_id.split("/")[-1])
     return download_path
 
 
