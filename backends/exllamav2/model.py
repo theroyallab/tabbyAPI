@@ -969,6 +969,7 @@ class ExllamaV2Container:
         generated_tokens = 0
         full_response = ""
         start_time = time.time()
+        first_token_time = None
         last_chunk_time = start_time
 
         save_tokens = torch.empty((ids.shape[0], 0), dtype=torch.bool)
@@ -1053,6 +1054,9 @@ class ExllamaV2Container:
                             for token in list(logprobs.keys())[:1]
                         }
 
+                if not first_token_time:
+                    first_token_time = time.time()
+
                 yield generation
                 full_response += chunk_buffer
                 chunk_buffer = ""
@@ -1067,7 +1071,12 @@ class ExllamaV2Container:
                 context_len = None if ids is None else context_len
 
                 log_metrics(
-                    generated_tokens, elapsed_time, context_len, self.config.max_seq_len
+                    generated_tokens,
+                    start_time,
+                    elapsed_time,
+                    first_token_time,
+                    context_len,
+                    self.config.max_seq_len,
                 )
 
                 finish_reason = "length" if generated_tokens == max_tokens else "stop"

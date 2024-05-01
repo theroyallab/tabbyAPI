@@ -71,16 +71,28 @@ def log_response(response: str):
 
 def log_metrics(
     generated_tokens: int,
+    start_time: float,
     elapsed_time: float,
+    first_token_time: float,
     context_len: Optional[int],
     max_seq_len: int,
 ):
+    prompt_processing_time = first_token_time - start_time
+
     initial_response = (
-        f"Metrics: {generated_tokens} tokens generated in "
+        f"Metrics: {generated_tokens} T generated in "
         f"{round(elapsed_time, 2)} seconds"
     )
     itemization = []
     extra_parts = []
+
+    # Add prompt tokens per second
+    prompt_tokens_per_second = (
+        "Indeterminate"
+        if elapsed_time == 0
+        else round(context_len / prompt_processing_time, 2)
+    )
+    itemization.append(f"PP: {prompt_tokens_per_second} T/s")
 
     # Add tokens per second
     tokens_per_second = (
@@ -88,11 +100,11 @@ def log_metrics(
         if elapsed_time == 0
         else round(generated_tokens / elapsed_time, 2)
     )
-    itemization.append(f"{tokens_per_second} T/s")
+    itemization.append(f"GEN: {tokens_per_second} T/s")
 
     # Add context (original token count)
     if context_len:
-        itemization.append(f"context {context_len} tokens")
+        itemization.append(f"context {context_len} T")
 
         if context_len > max_seq_len:
             extra_parts.append("<-- Not accurate (truncated)")
