@@ -171,7 +171,7 @@ async def hf_repo_download(
             logger.info(f"Finished download for {repo_id}")
 
             return download_path
-    except asyncio.CancelledError:
+    except (asyncio.CancelledError, Exception) as exc:
         # Cleanup on cancel
         if download_path.is_dir():
             shutil.rmtree(download_path)
@@ -180,3 +180,7 @@ async def hf_repo_download(
 
         # Stop the progress bar
         progress.stop()
+
+        # Re-raise exception if the task isn't cancelled
+        if not isinstance(exc, asyncio.CancelledError):
+            raise exc
