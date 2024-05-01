@@ -43,8 +43,8 @@ class ChatCompletionRequest(CommonCompletionRequest):
     # Take in a string as well even though it's not part of the OAI spec
     messages: Union[str, List[Dict[str, str]]]
     prompt_template: Optional[str] = None
-    add_generation_prompt: Optional[bool] = True
-    template_vars: Optional[dict] = {}
+    add_generation_prompt: bool = True
+    template_vars: dict = {}
     response_prefix: Optional[str] = None
 
 

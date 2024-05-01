@@ -26,8 +26,8 @@ class CommonCompletionRequest(BaseSamplerRequest):
     model: Optional[str] = None
 
     # Generation info (remainder is in BaseSamplerRequest superclass)
-    stream: Optional[bool] = False
-    logprobs: Optional[int] = 0
+    stream: bool = False
+    logprobs: int = 0
     response_format: Optional[CompletionResponseFormat] = Field(
         default_factory=CompletionResponseFormat
     )
@@ -36,12 +36,10 @@ class CommonCompletionRequest(BaseSamplerRequest):
     best_of: Optional[int] = Field(
         description="Not parsed. Only used for OAI compliance.", default=None
     )
-    echo: Optional[bool] = Field(
+    echo: bool = Field(
         description="Not parsed. Only used for OAI compliance.", default=False
     )
-    n: Optional[int] = Field(
-        description="Not parsed. Only used for OAI compliance.", default=1
-    )
+    n: int = Field(description="Not parsed. Only used for OAI compliance.", default=1)
     suffix: Optional[str] = Field(
         description="Not parsed. Only used for OAI compliance.", default=None
     )

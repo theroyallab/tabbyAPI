@@ -26,7 +26,7 @@ class LoraLoadInfo(BaseModel):
     """Represents a single Lora load info."""
 
     name: str
-    scaling: Optional[float] = 1.0
+    scaling: float = 1.0
 
 
 class LoraLoadRequest(BaseModel):
