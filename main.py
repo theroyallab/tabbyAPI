@@ -112,7 +112,7 @@ async def entrypoint(args: Optional[dict] = None):
         lora_config = config.lora_config()
         if lora_config.get("loras"):
             lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
-            model.container.load_loras(lora_dir.resolve(), **lora_config)
+            await model.container.load_loras(lora_dir.resolve(), **lora_config)
 
     await start_api(host, port)
 
