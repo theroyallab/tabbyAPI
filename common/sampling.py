@@ -23,90 +23,90 @@ class BaseSamplerRequest(BaseModel):
         examples=[512],
     )
 
-    stop: Union[str, List[str]] = Field(
+    stop: Optional[Union[str, List[str]]] = Field(
         default_factory=lambda: get_default_sampler_value("stop", [])
     )
 
-    token_healing: bool = Field(
+    token_healing: Optional[bool] = Field(
         default_factory=lambda: get_default_sampler_value("token_healing", False)
     )
 
-    temperature: float = Field(
+    temperature: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("temperature", 1.0),
         examples=[1.0],
     )
 
-    temperature_last: bool = Field(
+    temperature_last: Optional[bool] = Field(
         default_factory=lambda: get_default_sampler_value("temperature_last", False)
     )
 
-    smoothing_factor: float = Field(
+    smoothing_factor: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("smoothing_factor", 0.0),
     )
 
-    top_k: int = Field(
+    top_k: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("top_k", 0),
     )
 
-    top_p: float = Field(
+    top_p: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("top_p", 1.0),
         examples=[1.0],
     )
 
-    top_a: float = Field(
+    top_a: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("top_a", 0.0)
     )
 
-    min_p: float = Field(
+    min_p: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("min_p", 0.0)
     )
 
-    tfs: float = Field(
+    tfs: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("tfs", 1.0),
         examples=[1.0],
     )
 
-    frequency_penalty: float = Field(
+    frequency_penalty: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("frequency_penalty", 0.0)
     )
 
-    presence_penalty: float = Field(
+    presence_penalty: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("presence_penalty", 0.0)
     )
 
-    repetition_penalty: float = Field(
+    repetition_penalty: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("repetition_penalty", 1.0),
         examples=[1.0],
     )
 
-    repetition_decay: int = Field(
+    repetition_decay: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("repetition_decay", 0)
     )
 
-    mirostat_mode: int = Field(
+    mirostat_mode: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("mirostat_mode", 0)
     )
 
-    mirostat_tau: float = Field(
+    mirostat_tau: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("mirostat_tau", 1.5),
         examples=[1.5],
     )
 
-    mirostat_eta: float = Field(
+    mirostat_eta: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("mirostat_eta", 0.3),
         examples=[0.3],
     )
 
-    add_bos_token: bool = Field(
+    add_bos_token: Optional[bool] = Field(
         default_factory=lambda: get_default_sampler_value("add_bos_token", True)
     )
 
-    ban_eos_token: bool = Field(
+    ban_eos_token: Optional[bool] = Field(
         default_factory=lambda: get_default_sampler_value("ban_eos_token", False),
         examples=[False],
     )
 
-    skip_special_tokens: bool = Field(
+    skip_special_tokens: Optional[bool] = Field(
         default_factory=lambda: get_default_sampler_value("ban_eos_token", True),
         examples=[True],
     )
@@ -133,14 +133,14 @@ class BaseSamplerRequest(BaseModel):
     )
 
     # Aliased variables
-    typical: float = Field(
+    typical: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("typical", 1.0),
         validation_alias=AliasChoices("typical", "typical_p"),
         description="Aliases: typical_p",
         examples=[1.0],
     )
 
-    penalty_range: int = Field(
+    penalty_range: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("penalty_range", -1),
         validation_alias=AliasChoices(
             "penalty_range",
@@ -150,34 +150,34 @@ class BaseSamplerRequest(BaseModel):
         description="Aliases: repetition_range, repetition_penalty_range",
     )
 
-    cfg_scale: float = Field(
+    cfg_scale: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("cfg_scale", 1.0),
         validation_alias=AliasChoices("cfg_scale", "guidance_scale"),
         description="Aliases: guidance_scale",
         examples=[1.0],
     )
 
-    max_temp: float = Field(
+    max_temp: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("max_temp", 1.0),
         validation_alias=AliasChoices("max_temp", "dynatemp_high"),
         description="Aliases: dynatemp_high",
         examples=[1.0],
     )
 
-    min_temp: float = Field(
+    min_temp: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("min_temp", 1.0),
         validation_alias=AliasChoices("min_temp", "dynatemp_low"),
         description="Aliases: dynatemp_low",
         examples=[1.0],
     )
 
-    temp_exponent: float = Field(
+    temp_exponent: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("temp_exponent", 1.0),
         validation_alias=AliasChoices("temp_exponent", "dynatemp_exponent"),
         examples=[1.0],
     )
 
-    banned_tokens: Union[List[int], str] = Field(
+    banned_tokens: Optional[Union[List[int], str]] = Field(
         default_factory=lambda: get_default_sampler_value("banned_tokens", []),
         validation_alias=AliasChoices("banned_tokens", "custom_token_bans"),
         description="Aliases: custom_token_bans",
