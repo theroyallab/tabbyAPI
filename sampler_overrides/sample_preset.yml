@@ -11,6 +11,9 @@
 max_tokens:
   override: 150
   force: false
+min_tokens:
+  override: 0
+  force: false
 stop:
   override: []
   force: false
