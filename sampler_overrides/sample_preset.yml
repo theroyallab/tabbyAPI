@@ -18,6 +18,10 @@ stop:
   override: []
   force: false
   additive: false
+banned_strings:
+  override: []
+  force: false
+  additive: false
 token_healing:
   override: false
   force: false

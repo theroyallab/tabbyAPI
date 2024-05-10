@@ -791,6 +791,7 @@ class ExllamaV2Container:
         )
 
         stop_conditions: List[Union[str, int]] = unwrap(kwargs.get("stop"), [])
+        banned_strings: List[str] = unwrap(kwargs.get("banned_strings"), [])
         add_bos_token = unwrap(kwargs.get("add_bos_token"), True)
         ban_eos_token = unwrap(kwargs.get("ban_eos_token"), False)
         logit_bias = kwargs.get("logit_bias")
@@ -960,6 +961,22 @@ class ExllamaV2Container:
                 )
                 min_tokens = 0
 
+        # Check if banned_strings is supported
+        # TODO: Remove when a new version of ExllamaV2 is released
+        if banned_strings:
+            begin_stream_signature = signature(self.generator.begin_stream_ex)
+
+            try:
+                _bound_vars = begin_stream_signature.bind_partial(
+                    banned_strings=[]
+                )
+                begin_stream_args["banned_strings"] = banned_strings
+            except TypeError:
+                logger.warning(
+                    "banned_strings is not supported by the currently "
+                    "installed ExLlamaV2 version."
+                )
+
         # Log generation options to console
         # Some options are too large, so log the args instead
         log_generation_params(
@@ -979,6 +996,7 @@ class ExllamaV2Container:
             logprobs=request_logprobs,
             stop_conditions=stop_conditions,
             banned_tokens=banned_tokens,
+            banned_strings=banned_strings,
             logit_bias=logit_bias,
         )
 
