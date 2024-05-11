@@ -936,9 +936,7 @@ class ExllamaV2Container:
             stream_signature = signature(self.generator.stream_ex)
 
             try:
-                _bound_vars = stream_signature.bind_partial(
-                    ban_tokens=[]
-                )
+                _bound_vars = stream_signature.bind_partial(ban_tokens=[])
             except TypeError:
                 logger.warning(
                     "min_tokens is not supported by the currently "
@@ -951,9 +949,7 @@ class ExllamaV2Container:
             begin_stream_signature = signature(self.generator.begin_stream_ex)
 
             try:
-                _bound_vars = begin_stream_signature.bind_partial(
-                    banned_strings=[]
-                )
+                _bound_vars = begin_stream_signature.bind_partial(banned_strings=[])
                 begin_stream_args["banned_strings"] = banned_strings
             except TypeError:
                 logger.warning(
