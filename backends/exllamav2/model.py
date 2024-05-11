@@ -929,35 +929,6 @@ class ExllamaV2Container:
                 }
             )
 
-        # MARK: Function signature checks. Not needed in newer ExllamaV2 versions
-
-        # Check if temporary token bans are supported
-        if min_tokens:
-            stream_signature = signature(self.generator.stream_ex)
-
-            try:
-                _bound_vars = stream_signature.bind_partial(ban_tokens=[])
-            except TypeError:
-                logger.warning(
-                    "min_tokens is not supported by the currently "
-                    "installed ExLlamaV2 version."
-                )
-                min_tokens = 0
-
-        # Check if banned_strings is supported
-        if banned_strings:
-            begin_stream_signature = signature(self.generator.begin_stream_ex)
-
-            try:
-                _bound_vars = begin_stream_signature.bind_partial(banned_strings=[])
-                begin_stream_args["banned_strings"] = banned_strings
-            except TypeError:
-                logger.warning(
-                    "banned_strings is not supported by the currently "
-                    "installed ExLlamaV2 version."
-                )
-                banned_strings = []
-
         # Log generation options to console
         # Some options are too large, so log the args instead
         log_generation_params(
