@@ -18,6 +18,11 @@ class BaseSamplerRequest(BaseModel):
         examples=[150],
     )
 
+    min_tokens: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("min_tokens", 0),
+        examples=[0],
+    )
+
     generate_window: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("generate_window"),
         examples=[512],
@@ -25,6 +30,10 @@ class BaseSamplerRequest(BaseModel):
 
     stop: Optional[Union[str, List[str]]] = Field(
         default_factory=lambda: get_default_sampler_value("stop", [])
+    )
+
+    banned_strings: Optional[Union[str, List[str]]] = Field(
+        default_factory=lambda: get_default_sampler_value("banned_strings", [])
     )
 
     token_healing: Optional[bool] = Field(
@@ -252,6 +261,10 @@ class BaseSamplerRequest(BaseModel):
         if self.stop and isinstance(self.stop, str):
             self.stop = [self.stop]
 
+        # Convert banned_strings to an array of strings
+        if self.banned_strings and isinstance(self.banned_strings, str):
+            self.banned_strings = [self.banned_strings]
+
         # Convert string banned tokens to an integer list
         if self.banned_tokens and isinstance(self.banned_tokens, str):
             self.banned_tokens = [
@@ -260,8 +273,10 @@ class BaseSamplerRequest(BaseModel):
 
         gen_params = {
             "max_tokens": self.max_tokens,
+            "min_tokens": self.min_tokens,
             "generate_window": self.generate_window,
             "stop": self.stop,
+            "banned_strings": self.banned_strings,
             "add_bos_token": self.add_bos_token,
             "ban_eos_token": self.ban_eos_token,
             "skip_special_tokens": self.skip_special_tokens,
