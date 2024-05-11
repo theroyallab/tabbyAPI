@@ -929,24 +929,9 @@ class ExllamaV2Container:
                 }
             )
 
-        # Check if decode_special_tokens is supported
-        # TODO: Remove when a new version of ExllamaV2 is released
-        if decode_special_tokens:
-            begin_stream_signature = signature(self.generator.begin_stream_ex)
-
-            try:
-                _bound_vars = begin_stream_signature.bind_partial(
-                    decode_special_tokens=True
-                )
-                begin_stream_args["decode_special_tokens"] = decode_special_tokens
-            except TypeError:
-                logger.warning(
-                    "skip_special_tokens is not supported by the currently "
-                    "installed ExLlamaV2 version."
-                )
+        # MARK: Function signature checks. Not needed in newer ExllamaV2 versions
 
         # Check if temporary token bans are supported
-        # TODO: Remove when a new version of ExllamaV2 is released
         if min_tokens:
             stream_signature = signature(self.generator.stream_ex)
 
@@ -962,7 +947,6 @@ class ExllamaV2Container:
                 min_tokens = 0
 
         # Check if banned_strings is supported
-        # TODO: Remove when a new version of ExllamaV2 is released
         if banned_strings:
             begin_stream_signature = signature(self.generator.begin_stream_ex)
 
@@ -976,6 +960,7 @@ class ExllamaV2Container:
                     "banned_strings is not supported by the currently "
                     "installed ExLlamaV2 version."
                 )
+                banned_strings = []
 
         # Log generation options to console
         # Some options are too large, so log the args instead
