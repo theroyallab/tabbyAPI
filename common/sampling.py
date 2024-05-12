@@ -121,7 +121,7 @@ class BaseSamplerRequest(BaseModel):
     )
 
     skip_special_tokens: Optional[bool] = Field(
-        default_factory=lambda: get_default_sampler_value("ban_eos_token", True),
+        default_factory=lambda: get_default_sampler_value("skip_special_tokens", True),
         examples=[True],
     )
 
