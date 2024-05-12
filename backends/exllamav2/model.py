@@ -709,6 +709,7 @@ class ExllamaV2Container:
         gen_settings.tfs = unwrap(kwargs.get("tfs"), 1.0)
         gen_settings.typical = unwrap(kwargs.get("typical"), 1.0)
         gen_settings.mirostat = unwrap(kwargs.get("mirostat"), False)
+        gen_settings.skew = unwrap(kwargs.get("skew"), 0)
 
         # DynaTemp settings
         max_temp = unwrap(kwargs.get("max_temp"), 1.0)

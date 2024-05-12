@@ -75,6 +75,11 @@ class BaseSamplerRequest(BaseModel):
         examples=[1.0],
     )
 
+    skew: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("skew", 0.0),
+        examples=[0.0],
+    )
+
     frequency_penalty: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("frequency_penalty", 0.0)
     )
@@ -295,6 +300,7 @@ class BaseSamplerRequest(BaseModel):
             "typical": self.typical,
             "min_p": self.min_p,
             "tfs": self.tfs,
+            "skew": self.skew,
             "frequency_penalty": self.frequency_penalty,
             "presence_penalty": self.presence_penalty,
             "repetition_penalty": self.repetition_penalty,
