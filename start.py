@@ -87,7 +87,7 @@ def get_install_features(lib_name: str = None):
         if platform.system() == "Windows":
             print(
                 "ERROR: TabbyAPI does not support AMD and Windows. "
-                "Please use Linux and ROCm 5.6. Exiting."
+                "Please use Linux and ROCm 6.0. Exiting."
             )
             sys.exit(0)
 
