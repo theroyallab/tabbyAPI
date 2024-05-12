@@ -919,6 +919,8 @@ class ExllamaV2Container:
             "return_top_tokens": request_logprobs,
             "return_logits": request_logprobs > 0,
             "abort_event": abort_event,
+            "banned_strings": banned_strings,
+            "decode_special_tokens": decode_special_tokens,
         }
 
         if self.use_cfg:
