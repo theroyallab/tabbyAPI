@@ -112,8 +112,15 @@ add_bos_token:
 ban_eos_token:
   override: false
   force: false
+skip_special_tokens:
+  override: true
+  force: false
 logit_bias:
   override:
+  force: false
+  additive: false
+banned_tokens:
+  override: []
   force: false
   additive: false
 
