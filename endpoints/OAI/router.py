@@ -32,7 +32,10 @@ from endpoints.OAI.types.model import (
     ModelLoadRequest,
     ModelCardParameters,
 )
-from endpoints.OAI.types.sampler_overrides import SamplerOverrideSwitchRequest
+from endpoints.OAI.types.sampler_overrides import (
+    SamplerOverrideListResponse,
+    SamplerOverrideSwitchRequest,
+)
 from endpoints.OAI.types.template import TemplateList, TemplateSwitchRequest
 from endpoints.OAI.types.token import (
     TokenEncodeRequest,
@@ -248,7 +251,9 @@ async def unload_template():
 async def list_sampler_overrides():
     """API wrapper to list all currently applied sampler overrides"""
 
-    return sampling.overrides
+    return SamplerOverrideListResponse(
+        presets=sampling.get_all_presets(), **sampling.overrides_container.model_dump()
+    )
 
 
 @router.post(

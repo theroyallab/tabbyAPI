@@ -1,5 +1,13 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
+
+from common.sampling import SamplerOverridesContainer
+
+
+class SamplerOverrideListResponse(SamplerOverridesContainer):
+    """Sampler override list response"""
+
+    presets: Optional[List[str]]
 
 
 class SamplerOverrideSwitchRequest(BaseModel):
