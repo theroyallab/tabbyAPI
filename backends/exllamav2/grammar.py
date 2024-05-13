@@ -2,6 +2,8 @@ import traceback
 from exllamav2 import ExLlamaV2, ExLlamaV2Tokenizer
 from exllamav2.generator import ExLlamaV2Sampler
 from exllamav2.generator.filters import ExLlamaV2Filter, ExLlamaV2PrefixFilter
+from lmformatenforcer import JsonSchemaParser, RegexParser
+from lmformatenforcer.integrations.exllamav2 import ExLlamaV2TokenEnforcerFilter
 from loguru import logger
 
 
@@ -61,23 +63,6 @@ class ExLlamaV2Grammar:
     ):
         """Adds an ExllamaV2 filter based on a JSON schema."""
 
-        # Import optional dependencies
-        try:
-            from lmformatenforcer import JsonSchemaParser
-            from lmformatenforcer.integrations.exllamav2 import (
-                ExLlamaV2TokenEnforcerFilter,
-            )
-        except ImportError:
-            logger.error(
-                "Skipping JSON schema parsing because "
-                "lm-format-enforcer is not installed.\n"
-                "Please run the following command in your environment "
-                "to reinstall dependencies:\n"
-                "pip install -U ."
-            )
-
-            return
-
         # Create the parser
         try:
             schema_parser = JsonSchemaParser(json_schema)
@@ -104,23 +89,6 @@ class ExLlamaV2Grammar:
         tokenizer: ExLlamaV2Tokenizer,
     ):
         """Adds an ExllamaV2 filter based on regular expressions."""
-
-        # Import optional dependencies
-        try:
-            from lmformatenforcer import RegexParser
-            from lmformatenforcer.integrations.exllamav2 import (
-                ExLlamaV2TokenEnforcerFilter,
-            )
-        except ImportError:
-            logger.error(
-                "Skipping regex parsing because "
-                "lm-format-enforcer is not installed.\n"
-                "Please run the following command in your environment "
-                "to reinstall dependencies:\n"
-                "pip install -U ."
-            )
-
-            return
 
         # Create the parser
         try:
