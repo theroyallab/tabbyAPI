@@ -97,6 +97,49 @@ class ExLlamaV2Grammar:
         gen_settings.filters.extend([lmfilter, prefix_filter])
         gen_settings.filter_prefer_eos = True
 
+    def add_regex_filter(
+        self,
+        pattern: str,
+        gen_settings: ExLlamaV2Sampler.Settings,
+        tokenizer: ExLlamaV2Tokenizer,
+    ):
+        """Adds an ExllamaV2 filter based on regular expressions."""
+
+        # Import optional dependencies
+        try:
+            from lmformatenforcer import RegexParser
+            from lmformatenforcer.integrations.exllamav2 import (
+                ExLlamaV2TokenEnforcerFilter,
+            )
+        except ImportError:
+            logger.error(
+                "Skipping regex parsing because "
+                "lm-format-enforcer is not installed.\n"
+                "Please run the following command in your environment "
+                "to reinstall dependencies:\n"
+                "pip install -U ."
+            )
+
+            return
+
+        # Create the parser
+        try:
+            pattern_parser = RegexParser(pattern)
+        except Exception:
+            traceback.print_exc()
+            logger.error(
+                "Skipping because the regex pattern couldn't be parsed. "
+                "Please read the above error for more information."
+            )
+
+            return
+
+        lmfilter = ExLlamaV2TokenEnforcerFilter(pattern_parser, tokenizer)
+
+        # Append the filters
+        gen_settings.filters.extend([lmfilter])
+        gen_settings.filter_prefer_eos = True
+
     def add_ebnf_filter(
         self,
         ebnf_string: str,
