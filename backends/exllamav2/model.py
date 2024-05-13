@@ -850,6 +850,13 @@ class ExllamaV2Container:
                 json_schema, gen_settings, self.model, self.tokenizer
             )
 
+        # Add regex filter if it exists
+        regex_pattern = unwrap(kwargs.get("regex_pattern"))
+        if regex_pattern:
+            grammar_handler.add_regex_filter(
+                regex_pattern, gen_settings, self.tokenizer
+            )
+
         # Add EBNF filter if it exists
         grammar_string = unwrap(kwargs.get("grammar_string"))
         if grammar_string:

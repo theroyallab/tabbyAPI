@@ -138,6 +138,10 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("json_schema"),
     )
 
+    regex_pattern: Optional[str] = Field(
+        default_factory=lambda: get_default_sampler_value("regex_pattern"),
+    )
+
     grammar_string: Optional[str] = Field(
         default_factory=lambda: get_default_sampler_value("grammar_string"),
     )
@@ -312,6 +316,7 @@ class BaseSamplerRequest(BaseModel):
             "cfg_scale": self.cfg_scale,
             "negative_prompt": self.negative_prompt,
             "json_schema": self.json_schema,
+            "regex_pattern": self.regex_pattern,
             "grammar_string": self.grammar_string,
             "speculative_ngram": self.speculative_ngram,
         }
