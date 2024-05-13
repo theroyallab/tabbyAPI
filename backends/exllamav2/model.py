@@ -656,7 +656,7 @@ class ExllamaV2Container:
             joined_generation["prompt_tokens"] = unwrap(
                 generations[-1].get("prompt_tokens"), 0
             )
-            joined_generation["generation_tokens"] = unwrap(
+            joined_generation["generated_tokens"] = unwrap(
                 generations[-1].get("generated_tokens"), 0
             )
 
