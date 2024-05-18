@@ -2,6 +2,7 @@
 
 import pathlib
 import yaml
+from copy import deepcopy
 from loguru import logger
 from pydantic import AliasChoices, BaseModel, Field
 from typing import Dict, List, Optional, Union
@@ -376,14 +377,19 @@ def get_all_presets():
 def get_default_sampler_value(key, fallback=None):
     """Gets an overridden default sampler value"""
 
-    return unwrap(overrides_container.overrides.get(key, {}).get("override"), fallback)
+    default_value = unwrap(
+        deepcopy(overrides_container.overrides.get(key, {}).get("override")),
+        fallback,
+    )
+
+    return default_value
 
 
 def apply_forced_sampler_overrides(params: BaseSamplerRequest):
     """Forcefully applies overrides if specified by the user"""
 
     for var, value in overrides_container.overrides.items():
-        override = value.get("override")
+        override = deepcopy(value.get("override"))
         original_value = getattr(params, var, None)
 
         # Force takes precedence over additive
