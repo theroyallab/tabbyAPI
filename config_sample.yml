@@ -156,4 +156,4 @@ model:
     # List of loras to load and associated scaling factors (default: 1.0). Comment out unused entries or add more rows as needed.
     #loras:
     #- name: lora1
-    #- scaling: 1.0
+    #  scaling: 1.0
