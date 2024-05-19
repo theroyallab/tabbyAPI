@@ -8,8 +8,6 @@ from loguru import logger
 from pydantic import BaseModel
 from typing import Optional
 
-from common.concurrency import release_semaphore
-
 
 class TabbyRequestErrorMessage(BaseModel):
     """Common request error type."""
@@ -53,7 +51,6 @@ def handle_request_error(message: str, exc_info: bool = True):
 def handle_request_disconnect(message: str):
     """Wrapper for handling for request disconnection."""
 
-    release_semaphore()
     logger.error(message)
 
 

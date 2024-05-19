@@ -36,10 +36,6 @@ async def iterate_in_threadpool(generator: Generator) -> AsyncGenerator:
             break
 
 
-def release_semaphore():
-    generate_semaphore.release()
-
-
 async def generate_with_semaphore(generator: Union[AsyncGenerator, Generator]):
     """Generate with a semaphore."""
 
