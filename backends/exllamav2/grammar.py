@@ -1,10 +1,10 @@
 import traceback
 from exllamav2 import ExLlamaV2, ExLlamaV2Tokenizer
-from exllamav2.generator import ExLlamaV2Sampler
 from exllamav2.generator.filters import ExLlamaV2Filter, ExLlamaV2PrefixFilter
 from lmformatenforcer import JsonSchemaParser, RegexParser
 from lmformatenforcer.integrations.exllamav2 import ExLlamaV2TokenEnforcerFilter
 from loguru import logger
+from typing import List
 
 
 class OutlinesTokenizerWrapper:
@@ -54,10 +54,14 @@ class ExLlamaV2EbnfFilter(ExLlamaV2Filter):
 class ExLlamaV2Grammar:
     """ExLlamaV2 class for various grammar filters/parsers."""
 
+    filters: List[ExLlamaV2Filter]
+
+    def __init__(self):
+        self.filters = []
+
     def add_json_schema_filter(
         self,
         json_schema: dict,
-        gen_settings: ExLlamaV2Sampler.Settings,
         model: ExLlamaV2,
         tokenizer: ExLlamaV2Tokenizer,
     ):
@@ -79,13 +83,11 @@ class ExLlamaV2Grammar:
         prefix_filter = ExLlamaV2PrefixFilter(model, tokenizer, "{")
 
         # Append the filters
-        gen_settings.filters.extend([lmfilter, prefix_filter])
-        gen_settings.filter_prefer_eos = True
+        self.filters.extend([lmfilter, prefix_filter])
 
     def add_regex_filter(
         self,
         pattern: str,
-        gen_settings: ExLlamaV2Sampler.Settings,
         tokenizer: ExLlamaV2Tokenizer,
     ):
         """Adds an ExllamaV2 filter based on regular expressions."""
@@ -105,13 +107,11 @@ class ExLlamaV2Grammar:
         lmfilter = ExLlamaV2TokenEnforcerFilter(pattern_parser, tokenizer)
 
         # Append the filters
-        gen_settings.filters.extend([lmfilter])
-        gen_settings.filter_prefer_eos = True
+        self.filters.extend([lmfilter])
 
     def add_ebnf_filter(
         self,
         ebnf_string: str,
-        gen_settings: ExLlamaV2Sampler.Settings,
         model: ExLlamaV2,
         tokenizer: ExLlamaV2Tokenizer,
     ):
@@ -132,5 +132,4 @@ class ExLlamaV2Grammar:
 
             return
 
-        gen_settings.filters.append(ebnf_filter)
-        gen_settings.filter_prefer_eos = True
+        self.filters.append(ebnf_filter)

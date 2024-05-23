@@ -856,28 +856,23 @@ class ExllamaV2Container:
 
         # Initialize grammar handler
         grammar_handler = ExLlamaV2Grammar()
-        gen_settings.filters = []
 
         # Add JSON schema filter if it exists
         json_schema = unwrap(kwargs.get("json_schema"))
         if json_schema:
             grammar_handler.add_json_schema_filter(
-                json_schema, gen_settings, self.model, self.tokenizer
+                json_schema, self.model, self.tokenizer
             )
 
         # Add regex filter if it exists
         regex_pattern = unwrap(kwargs.get("regex_pattern"))
         if regex_pattern:
-            grammar_handler.add_regex_filter(
-                regex_pattern, gen_settings, self.tokenizer
-            )
+            grammar_handler.add_regex_filter(regex_pattern, self.tokenizer)
 
         # Add EBNF filter if it exists
         grammar_string = unwrap(kwargs.get("grammar_string"))
         if grammar_string:
-            grammar_handler.add_ebnf_filter(
-                grammar_string, gen_settings, self.model, self.tokenizer
-            )
+            grammar_handler.add_ebnf_filter(grammar_string, self.model, self.tokenizer)
 
         # Fetch EOS tokens from generation_config if they exist
         eos_tokens = (
@@ -971,6 +966,7 @@ class ExllamaV2Container:
             banned_tokens=banned_tokens,
             banned_strings=banned_strings,
             logit_bias=logit_bias,
+            filters=grammar_handler.filters,
         )
 
         # Log prompt to console
@@ -994,6 +990,8 @@ class ExllamaV2Container:
             gen_settings=gen_settings,
             stop_conditions=stop_conditions,
             decode_special_tokens=decode_special_tokens,
+            filters=grammar_handler.filters,
+            filter_prefer_eos=bool(grammar_handler.filters),
             return_probs=request_logprobs > 0,
             return_top_tokens=request_logprobs,
             return_logits=request_logprobs > 0,
