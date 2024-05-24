@@ -2,7 +2,6 @@
 
 import pathlib
 from asyncio import CancelledError
-import threading
 from fastapi import HTTPException
 from typing import Optional
 
@@ -65,10 +64,8 @@ async def stream_generate_completion(data: CompletionRequest, model_path: pathli
     """Streaming generation for completions."""
 
     try:
-        abort_event = threading.Event()
-
         new_generation = model.container.generate_gen(
-            data.prompt, abort_event, **data.to_gen_params()
+            data.prompt, **data.to_gen_params()
         )
         async for generation in new_generation:
             response = _create_response(generation, model_path.name)
@@ -81,7 +78,6 @@ async def stream_generate_completion(data: CompletionRequest, model_path: pathli
     except CancelledError:
         # Get out if the request gets disconnected
 
-        abort_event.set()
         handle_request_disconnect("Completion generation cancelled by user.")
     except Exception:
         yield get_generator_error(
