@@ -20,11 +20,11 @@ def load_progress(module, modules):
     yield module, modules
 
 
-async def unload_model():
+async def unload_model(skip_wait: bool = False):
     """Unloads a model"""
     global container
 
-    container.unload()
+    await container.unload(skip_wait=skip_wait)
     container = None
 
 
@@ -49,7 +49,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     container = ExllamaV2Container(model_path.resolve(), False, **kwargs)
 
     model_type = "draft" if container.draft_config else "model"
-    load_status = container.load_gen(load_progress)
+    load_status = container.load_gen(load_progress, **kwargs)
 
     progress = get_loading_progress_bar()
     progress.start()
@@ -81,12 +81,12 @@ async def load_model(model_path: pathlib.Path, **kwargs):
 
 async def load_loras(lora_dir, **kwargs):
     """Wrapper to load loras."""
-    if len(container.active_loras) > 0:
-        unload_loras()
+    if len(container.get_loras()) > 0:
+        await unload_loras()
 
     return await container.load_loras(lora_dir, **kwargs)
 
 
-def unload_loras():
+async def unload_loras():
     """Wrapper to unload loras"""
-    container.unload(loras_only=True)
+    await container.unload(loras_only=True)

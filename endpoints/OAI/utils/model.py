@@ -43,7 +43,9 @@ async def stream_model_load(
     if draft_model_path:
         load_data["draft"]["draft_model_dir"] = draft_model_path
 
-    load_status = model.load_model_gen(model_path, **load_data)
+    load_status = model.load_model_gen(
+        model_path, skip_wait=data.skip_queue, **load_data
+    )
     try:
         async for module, modules, model_type in load_status:
             if module != 0:
