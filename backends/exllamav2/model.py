@@ -937,6 +937,7 @@ class ExllamaV2Container:
             self.generator,
             input_ids=input_ids,
             max_new_tokens=max_tokens,
+            min_new_tokens=min_tokens,
             gen_settings=gen_settings,
             stop_conditions=stop_conditions,
             decode_special_tokens=decode_special_tokens,
