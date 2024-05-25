@@ -1,12 +1,8 @@
 """Concurrency handling"""
 
 import asyncio
-import inspect
 from fastapi.concurrency import run_in_threadpool  # noqa
-from functools import partialmethod
-from typing import AsyncGenerator, Generator, Union
-
-generate_semaphore = asyncio.Semaphore(1)
+from typing import AsyncGenerator, Generator
 
 
 # Originally from https://github.com/encode/starlette/blob/master/starlette/concurrency.py
@@ -34,24 +30,3 @@ async def iterate_in_threadpool(generator: Generator) -> AsyncGenerator:
             yield await asyncio.to_thread(gen_next, generator)
         except _StopIteration:
             break
-
-
-async def generate_with_semaphore(generator: Union[AsyncGenerator, Generator]):
-    """Generate with a semaphore."""
-
-    async with generate_semaphore:
-        if not inspect.isasyncgenfunction:
-            generator = iterate_in_threadpool(generator())
-
-        async for result in generator():
-            yield result
-
-
-async def call_with_semaphore(callback: partialmethod):
-    """Call with a semaphore."""
-
-    async with generate_semaphore:
-        if not inspect.iscoroutinefunction:
-            callback = run_in_threadpool(callback)
-
-        return await callback()
