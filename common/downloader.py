@@ -63,15 +63,13 @@ def _get_repo_info(repo_id, revision, token):
 
     api_client = HfApi()
     repo_tree = api_client.list_repo_files(repo_id, revision=revision, token=token)
-    return list(
-        map(
-            lambda filename: {
-                "filename": filename,
-                "url": hf_hub_url(repo_id, filename, revision=revision),
-            },
-            repo_tree,
-        )
-    )
+    return [
+        {
+            "filename": filename,
+            "url": hf_hub_url(repo_id, filename, revision=revision),
+        }
+        for filename in repo_tree
+    ]
 
 
 def _get_download_folder(repo_id: str, repo_type: str, folder_name: Optional[str]):
