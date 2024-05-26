@@ -85,7 +85,7 @@ def add_model_args(parser: argparse.ArgumentParser):
     model_group.add_argument(
         "--cache-size",
         type=int,
-        help="The size of the prompt cache (in number of tokens) to allocate"
+        help="The size of the prompt cache (in number of tokens) to allocate",
     )
     model_group.add_argument(
         "--rope-scale", type=float, help="Sets rope_scale or compress_pos_emb"

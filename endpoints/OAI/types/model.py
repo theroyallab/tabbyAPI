@@ -74,9 +74,7 @@ class ModelLoadRequest(BaseModel):
         examples=[4096],
     )
     cache_size: Optional[int] = Field(
-        description=(
-            "Number in tokens, must be greater than or equal to max_seq_len"
-        ),
+        description=("Number in tokens, must be greater than or equal to max_seq_len"),
         default=None,
         examples=[4096],
     )
