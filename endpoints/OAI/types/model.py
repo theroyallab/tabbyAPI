@@ -15,6 +15,7 @@ class ModelCardParameters(BaseModel):
     max_seq_len: Optional[int] = None
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
+    cache_size: Optional[int] = None
     cache_mode: Optional[str] = "FP16"
     chunk_size: Optional[int] = 2048
     prompt_template: Optional[str] = None
@@ -68,6 +69,13 @@ class ModelLoadRequest(BaseModel):
     override_base_seq_len: Optional[int] = Field(
         description=(
             "Overrides the model's base sequence length. " "Leave blank if unsure"
+        ),
+        default=None,
+        examples=[4096],
+    )
+    cache_size: Optional[int] = Field(
+        description=(
+            "Number in tokens, must be greater than or equal to max_seq_len"
         ),
         default=None,
         examples=[4096],
