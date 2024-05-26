@@ -191,7 +191,7 @@ async def unload_model():
 @router.get("/v1/template/list", dependencies=[Depends(check_api_key)])
 async def get_templates():
     templates = get_all_templates()
-    template_strings = list(map(lambda template: template.stem, templates))
+    template_strings = [template.stem for template in templates]
     return TemplateList(data=template_strings)
 
 

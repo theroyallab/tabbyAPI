@@ -134,12 +134,9 @@ class ExllamaV2Container:
             self.gpu_split_auto = gpu_split_auto
 
             autosplit_reserve_megabytes = unwrap(kwargs.get("autosplit_reserve"), [96])
-            self.autosplit_reserve = list(
-                map(
-                    lambda value: int(math.ceil(value * 1024**2)),
-                    autosplit_reserve_megabytes,
-                )
-            )
+            self.autosplit_reserve = [
+                int(math.ceil(value * 1024**2)) for value in autosplit_reserve_megabytes
+            ]
         elif gpu_count > 1:
             # Manual GPU split
             self.gpu_split = kwargs.get("gpu_split")
@@ -681,21 +678,19 @@ class ExllamaV2Container:
         }
 
     def get_logprobs(self, token_ids: torch.Tensor, token_probs: torch.Tensor):
-        top_tokens = list(
-            map(
-                lambda index: self.tokenizer.extended_id_to_piece.get(
-                    index, self.tokenizer.id_to_piece[index]
-                ),
-                token_ids.flatten().tolist(),
+        top_tokens = [
+            self.tokenizer.extended_id_to_piece.get(
+                index, self.tokenizer.id_to_piece[index]
             )
-        )
+            for index in token_ids.flatten().tolist()
+        ]
 
         top_values = torch.log(token_probs).flatten().tolist()
 
         # Cannot return -inf in JSON
-        cleaned_values = list(
-            map(lambda value: -1000 if value == float("-inf") else value, top_values)
-        )
+        cleaned_values = [
+            -1000 if value == float("-inf") else value for value in top_values
+        ]
 
         return dict(zip_longest(top_tokens, cleaned_values))
 

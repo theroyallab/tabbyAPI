@@ -367,7 +367,7 @@ def get_all_presets():
     """Fetches all sampler override presets from the overrides directory"""
 
     override_directory = pathlib.Path("sampler_overrides")
-    preset_files = map(lambda file: file.stem, override_directory.glob("*.yml"))
+    preset_files = [file.stem for file in override_directory.glob("*.yml")]
 
     return preset_files
 
