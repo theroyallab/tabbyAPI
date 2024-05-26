@@ -11,6 +11,7 @@ from common.networking import (
     get_generator_error,
     handle_request_disconnect,
     handle_request_error,
+    request_disconnect_loop,
 )
 from common.utils import unwrap
 from endpoints.OAI.types.completion import (
@@ -72,10 +73,14 @@ async def stream_generate_completion(
         new_generation = model.container.generate_gen(
             data.prompt, abort_event, **data.to_gen_params()
         )
+
+        # Create a background task to avoid blocking the loop
+        disconnect_task = asyncio.create_task(request_disconnect_loop(request))
+
         async for generation in new_generation:
             # Sometimes this fires, and sometimes a CancelledError will fire
             # Keep both implementations in to avoid the headache
-            if await request.is_disconnected():
+            if disconnect_task.done():
                 abort_event.set()
                 handle_request_disconnect("Completion generation cancelled by user.")
 
