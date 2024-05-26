@@ -107,7 +107,7 @@ class ExLlamaV2Grammar:
         lmfilter = ExLlamaV2TokenEnforcerFilter(pattern_parser, tokenizer)
 
         # Append the filters
-        self.filters.extend([lmfilter])
+        self.filters.append(lmfilter)
 
     def add_ebnf_filter(
         self,
