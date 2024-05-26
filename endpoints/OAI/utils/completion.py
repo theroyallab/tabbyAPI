@@ -1,8 +1,9 @@
 """Completion utilities for OAI server."""
 
+import asyncio
 import pathlib
 from asyncio import CancelledError
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from typing import Optional
 
 from common import model
@@ -60,14 +61,24 @@ def _create_response(generation: dict, model_name: Optional[str]):
     return response
 
 
-async def stream_generate_completion(data: CompletionRequest, model_path: pathlib.Path):
+async def stream_generate_completion(
+    data: CompletionRequest, request: Request, model_path: pathlib.Path
+):
     """Streaming generation for completions."""
+
+    abort_event = asyncio.Event()
 
     try:
         new_generation = model.container.generate_gen(
-            data.prompt, **data.to_gen_params()
+            data.prompt, abort_event, **data.to_gen_params()
         )
         async for generation in new_generation:
+            # Sometimes this fires, and sometimes a CancelledError will fire
+            # Keep both implementations in to avoid the headache
+            if await request.is_disconnected():
+                abort_event.set()
+                handle_request_disconnect("Completion generation cancelled by user.")
+
             response = _create_response(generation, model_path.name)
             yield response.model_dump_json()
 
@@ -78,6 +89,7 @@ async def stream_generate_completion(data: CompletionRequest, model_path: pathli
     except CancelledError:
         # Get out if the request gets disconnected
 
+        abort_event.set()
         handle_request_disconnect("Completion generation cancelled by user.")
     except Exception:
         yield get_generator_error(

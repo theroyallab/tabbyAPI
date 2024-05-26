@@ -469,7 +469,7 @@ async def completion_request(request: Request, data: CompletionRequest):
 
     if data.stream and not disable_request_streaming:
         return EventSourceResponse(
-            stream_generate_completion(data, model_path),
+            stream_generate_completion(data, request, model_path),
             ping=maxsize,
         )
     else:
@@ -516,7 +516,7 @@ async def chat_completion_request(request: Request, data: ChatCompletionRequest)
 
     if data.stream and not disable_request_streaming:
         return EventSourceResponse(
-            stream_generate_chat_completion(prompt, data, model_path),
+            stream_generate_chat_completion(prompt, data, request, model_path),
             ping=maxsize,
         )
     else:

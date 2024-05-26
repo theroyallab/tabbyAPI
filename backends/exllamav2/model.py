@@ -749,7 +749,9 @@ class ExllamaV2Container:
 
         return kwargs
 
-    async def generate_gen(self, prompt: str, **kwargs):
+    async def generate_gen(
+        self, prompt: str, abort_event: Optional[asyncio.Event] = None, **kwargs
+    ):
         """
         Create generator function for prompt completion.
 
@@ -1034,9 +1036,14 @@ class ExllamaV2Container:
         generated_tokens = 0
         full_response = ""
 
+        # Get the generation status once it's ready
         try:
-            # Get the generation status once it's ready
             async for result in job:
+                # Abort if the event is set while streaming
+                if abort_event and abort_event.is_set():
+                    await job.cancel()
+                    break
+
                 stage = result.get("stage")
                 result_id = result.get("identifier")
 
