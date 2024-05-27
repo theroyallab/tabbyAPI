@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from common.sampling import BaseSamplerRequest
+from common.sampling import BaseSamplerRequest, get_default_sampler_value
 
 
 class UsageStats(BaseModel):
@@ -27,10 +27,13 @@ class CommonCompletionRequest(BaseSamplerRequest):
 
     # Generation info (remainder is in BaseSamplerRequest superclass)
     stream: Optional[bool] = False
-    logprobs: Optional[int] = 0
+    logprobs: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("logprobs", 0)
+    )
     response_format: Optional[CompletionResponseFormat] = Field(
         default_factory=CompletionResponseFormat
     )
+    n: Optional[int] = Field(default_factory=lambda: get_default_sampler_value("n", 1))
 
     # Extra OAI request stuff
     best_of: Optional[int] = Field(
@@ -38,9 +41,6 @@ class CommonCompletionRequest(BaseSamplerRequest):
     )
     echo: Optional[bool] = Field(
         description="Not parsed. Only used for OAI compliance.", default=False
-    )
-    n: Optional[int] = Field(
-        description="Not parsed. Only used for OAI compliance.", default=1
     )
     suffix: Optional[str] = Field(
         description="Not parsed. Only used for OAI compliance.", default=None
