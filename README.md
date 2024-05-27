@@ -1,5 +1,7 @@
 # TabbyAPI
 
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/I2I3BDTSW)
+
 > [!IMPORTANT]
 >
 >  In addition to the README, please read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started) page for information about getting started!
@@ -34,15 +36,17 @@ TabbyAPI uses Exllamav2 as a powerful and fast backend for model inference, load
 
 - FP16 (using Exllamav2's loader)
 
+In addition, TabbyAPI supports parallel batching using paged attention for Nvidia Ampere GPUs and higher.
+
 #### Alternative Loaders/Backends
 
 If you want to use a different model type or quantization method than the ones listed above, here are some alternative backends with their own APIs:
 
 - GGUF + GGML - [KoboldCPP](https://github.com/lostruins/KoboldCPP)
 
-- Production ready + Many other quants + batching [Aphrodite Engine](https://github.com/PygmalionAI/Aphrodite-engine)
+- Production ready + Many other quants + batching - [Aphrodite Engine](https://github.com/PygmalionAI/Aphrodite-engine)
 
-- Production ready + batching [VLLM](https://github.com/vllm-project/vllm)
+- Production ready + batching - [VLLM](https://github.com/vllm-project/vllm)
 
 - [Text Generation WebUI](https://github.com/oobabooga/text-generation-webui)
 
