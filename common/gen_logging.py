@@ -94,7 +94,8 @@ def log_metrics(
         else round((prompt_tokens - cached_tokens) / prompt_time, 2)
     )
     itemization.append(
-        f"Process: {cached_tokens} cached tokens and {prompt_tokens - cached_tokens} new tokens at {prompt_ts} T/s"
+        f"Process: {cached_tokens} cached tokens and "
+        f"{prompt_tokens - cached_tokens} new tokens at {prompt_ts} T/s"
     )
 
     generate_ts = (
