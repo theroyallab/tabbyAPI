@@ -77,12 +77,6 @@ model:
   # Only use this if the model's base sequence length in config.json is incorrect (ex. Mistral 7B)
   #override_base_seq_len:
 
-  # Size of the prompt cache to allocate (in number of tokens, must be a multiple of 256)
-  # Larger cache uses more VRAM, but allows for more prompts to be cached and a larger batch of gens to proceed simultanously
-  # The minimum size is max_seq_len, but we recommend setting this to the highest value that will fit on your GPU
-  # Recommend setting this to at least max_seq_len * 2 if you want to use CFG with full-length positive and negative prompts
-  #cache_size:
-
   # Automatically allocate resources to GPUs (default: True)
   # NOTE: Not parsed for single GPU users
   #gpu_split_auto: True
@@ -109,6 +103,12 @@ model:
   # Enable different cache modes for VRAM savings (slight performance hit).
   # Possible values FP16, FP8, Q4. (default: FP16)
   #cache_mode: FP16
+
+  # Size of the prompt cache to allocate (default: max_seq_len)
+  # This must be a multiple of 256. A larger cache uses more VRAM, but allows for more prompts to be processed at once.
+  # NOTE: Cache size should not be less than max_seq_len.
+  # For CFG, set this to 2 * max_seq_len to make room for both positive and negative prompts.
+  #cache_size:
 
   # Chunk size for prompt ingestion. A lower value reduces VRAM usage at the cost of ingestion speed (default: 2048)
   # NOTE: Effects vary depending on the model. An ideal value is between 512 and 4096
