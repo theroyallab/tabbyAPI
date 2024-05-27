@@ -72,6 +72,7 @@ def log_response(response: str):
 def log_metrics(
     queue_time: float,
     prompt_tokens: int,
+    cached_tokens: int,
     prompt_time: float,
     generated_tokens: int,
     generate_time: float,
@@ -88,9 +89,13 @@ def log_metrics(
     itemization.append(f"Queue: {round(queue_time, 2)} s")
 
     prompt_ts = (
-        "Indeterminate" if prompt_time == 0 else round(prompt_tokens / prompt_time, 2)
+        "Indeterminate"
+        if prompt_time == 0
+        else round((prompt_tokens - cached_tokens) / prompt_time, 2)
     )
-    itemization.append(f"Process: {prompt_ts} T/s")
+    itemization.append(
+        f"Process: {cached_tokens} cached tokens and {prompt_tokens - cached_tokens} new tokens at {prompt_ts} T/s"
+    )
 
     generate_ts = (
         "Indeterminate"

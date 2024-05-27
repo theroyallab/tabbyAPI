@@ -1125,6 +1125,7 @@ class ExllamaV2Container:
                         log_metrics(
                             result.get("time_enqueued"),
                             result.get("prompt_tokens"),
+                            result.get("cached_tokens"),
                             result.get("time_prefill"),
                             result.get("new_tokens"),
                             result.get("time_generate"),
