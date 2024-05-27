@@ -7,6 +7,8 @@ import pathlib
 import platform
 import subprocess
 import sys
+from shutil import copyfile
+
 from common.args import convert_args_to_dict, init_argparser
 
 
@@ -128,6 +130,20 @@ if __name__ == "__main__":
     parser = init_argparser()
     add_start_args(parser)
     args = parser.parse_args()
+
+    # Create a config if it doesn't exist
+    # This is not necessary to run TabbyAPI, but is new user proof
+    config_path = (
+        pathlib.Path(args.config) if args.config else pathlib.Path("config.yml")
+    )
+    if not config_path.exists():
+        sample_config_path = pathlib.Path("config_sample.yml")
+        copyfile(sample_config_path, config_path)
+
+        print(
+            "A config.yml wasn't found.\n"
+            f"Created one at {str(config_path.resolve())}"
+        )
 
     if args.ignore_upgrade:
         print("Ignoring pip dependency upgrade due to user request.")
