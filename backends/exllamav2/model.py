@@ -58,6 +58,7 @@ class ExllamaV2Container:
     paged: bool = True
 
     # Internal config vars
+    cache_size: int = None
     cache_mode: str = "FP16"
     max_batch_size: int = 20
     generation_config: Optional[GenerationConfig] = None
@@ -91,9 +92,11 @@ class ExllamaV2Container:
                              loading_draft: bool)
             **kwargs:
                 `cache_mode` (str): Sets cache mode, "FP16" or "FP8"
-                    (defaulf: "FP16")
+                    (default: "FP16")
                 'max_seq_len' (int): Override model's default max sequence
                     length (default: 4096)
+                'cache_size' (int): Num of tokens to allocate space for in the k/v cache
+                    (default: max_seq_len)
                 'rope_scale' (float): Set RoPE scaling factor for model
                     (default: 1.0)
                 'rope_alpha' (float): Set RoPE alpha (NTK) factor for model
@@ -188,6 +191,16 @@ class ExllamaV2Container:
         self.config.scale_alpha_value = unwrap(
             kwargs.get("rope_alpha"), self.calculate_rope_alpha(base_seq_len)
         )
+
+        # Set k/v cache size
+        self.cache_size = unwrap(kwargs.get("cache_size"), self.config.max_seq_len)
+        if self.cache_size < self.config.max_seq_len:
+            logger.warning(
+                "Your specified cache_size is smaller than your "
+                "desired context length. \n"
+                "Defaulting cache_size to max_seq_len."
+            )
+            self.cache_size = self.config.max_seq_len
 
         # Enable fasttensors loading if present
         self.config.fasttensors = unwrap(kwargs.get("fasttensors"), False)
@@ -359,6 +372,7 @@ class ExllamaV2Container:
             "rope_scale": self.config.scale_pos_emb,
             "rope_alpha": self.config.scale_alpha_value,
             "max_seq_len": self.config.max_seq_len,
+            "cache_size": self.cache_size,
             "cache_mode": self.cache_mode,
             "chunk_size": self.config.max_input_len,
             "num_experts_per_token": self.config.num_experts_per_token,
@@ -484,7 +498,11 @@ class ExllamaV2Container:
             if not self.quiet:
                 logger.info("Loading draft model: " + self.draft_config.model_dir)
 
-            self.draft_cache = ExLlamaV2Cache(self.draft_model, lazy=True)
+            self.draft_cache = ExLlamaV2Cache(
+                self.draft_model,
+                max_seq_len=self.cache_size,
+                lazy=True,
+            )
             for value in self.draft_model.load_autosplit_gen(
                 self.draft_cache,
                 reserve_vram=autosplit_reserve,
@@ -516,15 +534,24 @@ class ExllamaV2Container:
 
         if self.cache_mode == "Q4":
             self.cache = ExLlamaV2Cache_Q4(
-                self.model, lazy=self.gpu_split_auto, batch_size=1
+                self.model,
+                max_seq_len=self.cache_size,
+                lazy=self.gpu_split_auto,
+                batch_size=1,
             )
         elif self.cache_mode == "FP8":
             self.cache = ExLlamaV2Cache_8bit(
-                self.model, lazy=self.gpu_split_auto, batch_size=1
+                self.model,
+                max_seq_len=self.cache_size,
+                lazy=self.gpu_split_auto,
+                batch_size=1,
             )
         else:
             self.cache = ExLlamaV2Cache(
-                self.model, lazy=self.gpu_split_auto, batch_size=1
+                self.model,
+                max_seq_len=self.cache_size,
+                lazy=self.gpu_split_auto,
+                batch_size=1,
             )
 
         # Load model with autosplit
