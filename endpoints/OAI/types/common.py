@@ -49,6 +49,13 @@ class CommonCompletionRequest(BaseSamplerRequest):
         description="Not parsed. Only used for OAI compliance.", default=None
     )
 
+    def validate_params(self):
+        # Temperature
+        if self.n < 1:
+            raise ValueError(f"n must be greater than or equal to 1. Got {self.n}")
+
+        return super().validate_params()
+
     def to_gen_params(self):
         extra_gen_params = {
             "stream": self.stream,
