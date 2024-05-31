@@ -237,7 +237,10 @@ class ExllamaV2Container:
         else:
             try:
                 import flash_attn
-                flash_attn_ver = [int(t) for t in flash_attn.__version__.split(".") if t.isdigit()]
+
+                flash_attn_ver = [
+                    int(t) for t in flash_attn.__version__.split(".") if t.isdigit()
+                ]
 
                 # Disable paged mode if the user's flash attention version < 2.5.7
                 if flash_attn_ver < [2, 5, 7]:
