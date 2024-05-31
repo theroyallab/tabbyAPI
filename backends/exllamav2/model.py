@@ -254,7 +254,7 @@ class ExllamaV2Container:
                     self.paged = False
                     self.max_batch_size = 1
                 else:
-                    # Disable paged mode if the user's min GPU isn't supported (ampere and up)
+                    # Disable paged mode if the user's min GPU isn't supported (ampere+)
                     min_compute_capability = min(
                         torch.cuda.get_device_capability(device=device_idx)[0]
                         for device_idx in gpu_device_list
