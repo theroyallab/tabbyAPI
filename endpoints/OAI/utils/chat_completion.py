@@ -211,17 +211,14 @@ async def _stream_collector(
 ):
     """Collects a stream and places results in a common queue"""
 
-    try:
-        new_generation = model.container.generate_gen(prompt, abort_event, **kwargs)
-        async for generation in new_generation:
-            generation["index"] = task_idx
+    new_generation = model.container.generate_gen(prompt, abort_event, **kwargs)
+    async for generation in new_generation:
+        generation["index"] = task_idx
 
-            await gen_queue.put(generation)
+        await gen_queue.put(generation)
 
-            if "finish_reason" in generation:
-                break
-    except Exception as e:
-        await gen_queue.put(e)
+        if "finish_reason" in generation:
+            break
 
 
 async def stream_generate_chat_completion(
@@ -256,11 +253,6 @@ async def stream_generate_chat_completion(
                 handle_request_disconnect("Completion generation cancelled by user.")
 
             generation = await gen_queue.get()
-
-            # Stream collector will push an exception to the queue if it fails
-            if isinstance(generation, Exception):
-                raise generation
-
             response = _create_stream_chunk(const_id, generation, model_path.name)
             yield response.model_dump_json()
 
