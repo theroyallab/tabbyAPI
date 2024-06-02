@@ -62,14 +62,15 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 )
             else:
                 progress.advance(loading_task)
+
+            yield module, modules, model_type
+
             if module == modules:
                 # Switch to model progress if the draft model is loaded
                 if model_type == "draft":
                     model_type = "model"
                 else:
                     progress.stop()
-
-            yield module, modules, model_type
     finally:
         progress.stop()
 
