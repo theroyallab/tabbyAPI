@@ -1,5 +1,6 @@
 import asyncio
 import pathlib
+from loguru import logger
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from sse_starlette import EventSourceResponse
 from sys import maxsize
@@ -490,6 +491,12 @@ async def completion_request(request: Request, data: CompletionRequest):
 )
 async def chat_completion_request(request: Request, data: ChatCompletionRequest):
     """Generates a chat completion from a prompt."""
+
+    if data.model is not None and model.container.get_model_path().name != data.model:
+        logger.info(f"New request for {data.model} which is not loaded, loading it")
+        modelLoadRequest = ModelLoadRequest()
+        modelLoadRequest.name = data.model
+        await load_model(modelLoadRequest)
 
     if model.container.prompt_template is None:
         error_message = handle_request_error(
