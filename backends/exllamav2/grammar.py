@@ -79,8 +79,11 @@ class ExLlamaV2Grammar:
 
             return
 
+        # Allow JSON objects or JSON arrays at the top level
+        json_prefixes = ["[", "{"]
+
         lmfilter = ExLlamaV2TokenEnforcerFilter(schema_parser, tokenizer)
-        prefix_filter = ExLlamaV2PrefixFilter(model, tokenizer, "{")
+        prefix_filter = ExLlamaV2PrefixFilter(model, tokenizer, json_prefixes)
 
         # Append the filters
         self.filters.extend([lmfilter, prefix_filter])
