@@ -503,7 +503,6 @@ async def chat_completion_request(request: Request, data: ChatCompletionRequest)
 
         if not adminValid and "authorization" in request.headers.keys():
             try:
-
                 await check_admin_key(x_admin_key=None, authorization=request.headers.get("authorization"))
                 adminValid = True
             except HTTPException:
@@ -517,7 +516,7 @@ async def chat_completion_request(request: Request, data: ChatCompletionRequest)
 
             if not model_path.exists():
                 error_message = handle_request_error(
-                    "Could not find the model path for load. Check model name or config.yml?",
+                    "Could not find the model path for load. Check model name.",
                     exc_info=False,
                 ).error.message
 
