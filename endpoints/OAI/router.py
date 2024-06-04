@@ -497,7 +497,6 @@ async def chat_completion_request(request: Request, data: ChatCompletionRequest)
         if "x_admin_key" in request.headers.keys():
             try:
                 await check_admin_key(x_admin_key=request.headers.get("x_admin_key"), authorization=None)
-                print(f"Check admin success")
                 adminValid = True
             except HTTPException:
                 pass
