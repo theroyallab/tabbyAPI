@@ -193,43 +193,6 @@ class ExllamaV2Container:
             kwargs.get("rope_alpha"), self.calculate_rope_alpha(base_seq_len)
         )
 
-        # Set k/v cache size
-        cache_size = unwrap(kwargs.get("cache_size"), self.config.max_seq_len)
-
-        if cache_size < self.config.max_seq_len:
-            logger.warning(
-                f"The given cache_size ({cache_size}) is smaller than the "
-                "desired context length.\n"
-                "Overriding cache_size to max_seq_len. "
-            )
-
-            cache_size = self.config.max_seq_len
-
-        # Enforce a multiple of 256 for cache size
-        # Overestimate to ensure that the cache isn't below max_seq_len
-        cache_remainder = cache_size % 256
-        if cache_remainder != 0:
-            rounded_cache_size = int(256 * ((cache_size - cache_remainder) / 256 + 1))
-
-            logger.warning(
-                f"The given cache size ({cache_size}) is "
-                "not a multiple of 256.\n"
-                "Overriding cache_size with an overestimated value of "
-                f"{rounded_cache_size} tokens."
-            )
-
-            cache_size = rounded_cache_size
-
-        # Warn user if cache size may be inadequate for CFG
-        if cache_size < 2 * self.config.max_seq_len:
-            logger.warning(
-                f"The given cache_size ({cache_size}) is less than 2 * max_seq_len "
-                "and may be too small for requests using CFG. \n"
-                "Ignore this warning if you do not plan on using CFG."
-            )
-
-        self.cache_size = cache_size
-
         # Enable fasttensors loading if present
         self.config.fasttensors = unwrap(kwargs.get("fasttensors"), False)
 
@@ -274,6 +237,49 @@ class ExllamaV2Container:
             )
             self.paged = False
             self.max_batch_size = 1
+
+        # Set k/v cache size
+        # cache_size is only relevant when paged mode is enabled
+        if self.paged:
+            cache_size = unwrap(kwargs.get("cache_size"), self.config.max_seq_len)
+
+            if cache_size < self.config.max_seq_len:
+                logger.warning(
+                    f"The given cache_size ({cache_size}) is smaller than the "
+                    "desired context length.\n"
+                    "Overriding cache_size to max_seq_len. "
+                )
+
+                cache_size = self.config.max_seq_len
+
+            # Enforce a multiple of 256 for cache size
+            # Overestimate to ensure that the cache isn't below max_seq_len
+            cache_remainder = cache_size % 256
+            if cache_remainder != 0:
+                rounded_cache_size = int(
+                    256 * ((cache_size - cache_remainder) / 256 + 1)
+                )
+
+                logger.warning(
+                    f"The given cache size ({cache_size}) is "
+                    "not a multiple of 256.\n"
+                    "Overriding cache_size with an overestimated value of "
+                    f"{rounded_cache_size} tokens."
+                )
+
+                cache_size = rounded_cache_size
+
+            # Warn user if cache size may be inadequate for CFG
+            if cache_size < 2 * self.config.max_seq_len:
+                logger.warning(
+                    f"The given cache_size ({cache_size}) is less than 2 * max_seq_len "
+                    "and may be too small for requests using CFG. \n"
+                    "Ignore this warning if you do not plan on using CFG."
+                )
+
+            self.cache_size = cache_size
+        else:
+            self.cache_size = self.config.max_seq_len
 
         # Try to set prompt template
         self.prompt_template = self.find_prompt_template(
