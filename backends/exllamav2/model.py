@@ -219,6 +219,14 @@ class ExllamaV2Container:
 
             cache_size = rounded_cache_size
 
+        # Warn user if cache size may be inadequate for CFG
+        if cache_size < 2 * self.config.max_seq_len:
+            logger.warning(
+                f"The given cache_size ({cache_size}) is less than 2 * max_seq_len "
+                "and may be too small for requests using CFG. \n"
+                "Ignore this warning if you do not plan on using CFG."
+            )
+
         self.cache_size = cache_size
 
         # Enable fasttensors loading if present
