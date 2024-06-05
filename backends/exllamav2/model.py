@@ -5,6 +5,7 @@ import gc
 import math
 import pathlib
 import traceback
+from backends.exllamav2.utils import hardware_supports_flash_attn, supports_paged_attn
 import torch
 import uuid
 from exllamav2 import (
@@ -242,62 +243,37 @@ class ExllamaV2Container:
             )
             self.paged = False
             self.max_batch_size = 1
-        else:
-            try:
-                # Disable paged mode if the user's min GPU isn't supported (ampere+)
-                min_compute_capability = min(
-                    torch.cuda.get_device_capability(device=device_idx)[0]
-                    for device_idx in gpu_device_list
-                )
-
-                # Compute capability < 8 is not supported by FA2
-                # AMD is also unsupported until ROCm updates its FA2 fork
-                if torch.version.hip or min_compute_capability < 8:
-                    logger.warning(
-                        "An unsupported GPU is found in this configuration. "
-                        "Switching to compatibility mode. \n"
-                        "This disables parallel batching "
-                        "and features that rely on it (ex. CFG). \n"
-                        "To disable compatability mode, all GPUs must be ampere "
-                        "(30 series) or newer. AMD GPUs are not supported."
-                    )
-                    self.config.no_flash_attn = True
-                    self.paged = False
-                    self.max_batch_size = 1
-                else:
-                    import flash_attn
-
-                    flash_attn_ver = [
-                        int(t) for t in flash_attn.__version__.split(".") if t.isdigit()
-                    ]
-
-                    # Disable paged mode if the user's flash attention version < 2.5.7
-                    if flash_attn_ver < [2, 5, 7]:
-                        logger.warning(
-                            "Flash attention version is older than 2.5.7 "
-                            "which is required for paged attention. "
-                            "Switching to compatibility mode. \n"
-                            "This disables parallel batching "
-                            "and features that rely on it (ex. CFG). \n"
-                            "Please run start.bat or start.sh to update. \n"
-                            "NOTE: Windows users must select CUDA 12.x to use FA2."
-                        )
-                        self.paged = False
-                        self.max_batch_size = 1
-
-            except ModuleNotFoundError:
-                # Disable paged mode if flash attention is not installed
-                logger.warning(
-                    "Flash attention is not installed. "
-                    "Switching to compatibility mode. \n"
-                    "This disables parallel batching "
-                    "and features that rely on it (ex. CFG)."
-                    "Please run start.bat or start.sh to install. \n"
-                    "NOTE: Windows users must select CUDA 12.x to use FA2."
-                )
-                self.config.no_flash_attn = True
-                self.paged = False
-                self.max_batch_size = 1
+        elif not hardware_supports_flash_attn(gpu_device_list):
+            logger.warning(
+                "An unsupported GPU is found in this configuration. "
+                "Switching to compatibility mode. \n"
+                "This disables parallel batching "
+                "and features that rely on it (ex. CFG). \n"
+                "To disable compatability mode, all GPUs must be ampere "
+                "(30 series) or newer. AMD GPUs are not supported."
+            )
+            self.config.no_flash_attn = True
+            self.paged = False
+            self.max_batch_size = 1
+        elif not supports_paged_attn():
+            logger.warning(
+                "Flash attention version >=2.5.7 "
+                "is required to use paged attention. "
+                "Switching to compatibility mode. \n"
+                "This disables parallel batching "
+                "and features that rely on it (ex. CFG). \n"
+                "Please upgrade your environment by running a start script "
+                "(start.bat or start.sh)\n\n"
+                "Or you can manually run a requirements update "
+                "using the following command:\n\n"
+                "For CUDA 12.1:\n"
+                "pip install --upgrade .[cu121]\n\n"
+                "For CUDA 11.8:\n"
+                "pip install --upgrade .[cu118]\n\n"
+                "NOTE: Windows users must use CUDA 12.x to use flash-attn."
+            )
+            self.paged = False
+            self.max_batch_size = 1
 
         # Try to set prompt template
         self.prompt_template = self.find_prompt_template(
