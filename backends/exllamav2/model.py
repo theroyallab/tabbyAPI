@@ -197,6 +197,8 @@ class ExllamaV2Container:
         self.config.fasttensors = unwrap(kwargs.get("fasttensors"), False)
 
         # Check whether the user's configuration supports paged attention
+        self.config.no_flash_attn = unwrap(kwargs.get("no_flash_attention"), False)
+
         if self.config.no_flash_attn:
             logger.warning(
                 "Flash attention is disabled via config. "
