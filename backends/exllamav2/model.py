@@ -197,18 +197,7 @@ class ExllamaV2Container:
         self.config.fasttensors = unwrap(kwargs.get("fasttensors"), False)
 
         # Check whether the user's configuration supports paged attention
-        self.config.no_flash_attn = unwrap(kwargs.get("no_flash_attention"), False)
-
-        if self.config.no_flash_attn:
-            logger.warning(
-                "Flash attention is disabled via config. "
-                "Switching to compatibility mode. \n"
-                "This disables parallel batching "
-                "and features that rely on it (ex. CFG)."
-            )
-            self.paged = False
-            self.max_batch_size = 1
-        elif not hardware_supports_flash_attn(gpu_device_list):
+        if not hardware_supports_flash_attn(gpu_device_list):
             logger.warning(
                 "An unsupported GPU is found in this configuration. "
                 "Switching to compatibility mode. \n"
@@ -217,7 +206,6 @@ class ExllamaV2Container:
                 "To disable compatability mode, all GPUs must be ampere "
                 "(30 series) or newer. AMD GPUs are not supported."
             )
-            self.config.no_flash_attn = True
             self.paged = False
             self.max_batch_size = 1
         elif not supports_paged_attn():
