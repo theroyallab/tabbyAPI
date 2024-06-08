@@ -60,6 +60,7 @@ class ExllamaV2Container:
     # Internal config vars
     cache_size: int = None
     cache_mode: str = "FP16"
+    draft_cache_mode: str = "FP16"
     max_batch_size: int = 20
     generation_config: Optional[GenerationConfig] = None
 
@@ -116,6 +117,8 @@ class ExllamaV2Container:
                     model. By default, the draft model's alpha value is
                     calculated automatically to scale to the size of the
                     full model.
+                'draft_cache_mode' (str): Sets draft cache mode, "FP16", "Q8", or "Q4"
+                    (default: "FP16")
                 'lora_dir' (str): LoRA directory
                 'loras' (list[dict]): List of loras to be loaded, consisting of
                     'name' and 'scaling'
@@ -373,6 +376,7 @@ class ExllamaV2Container:
                 self.calculate_rope_alpha(self.draft_config.max_seq_len),
             )
             self.draft_config.max_seq_len = self.config.max_seq_len
+            self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
 
             if chunk_size:
                 self.draft_config.max_input_len = chunk_size
@@ -460,6 +464,7 @@ class ExllamaV2Container:
                 "rope_scale": self.draft_config.scale_pos_emb,
                 "rope_alpha": self.draft_config.scale_alpha_value,
                 "max_seq_len": self.draft_config.max_seq_len,
+                "cache_mode": self.draft_cache_mode,
             }
 
             model_params["draft"] = draft_model_params
@@ -571,11 +576,24 @@ class ExllamaV2Container:
             if not self.quiet:
                 logger.info("Loading draft model: " + self.draft_config.model_dir)
 
-            self.draft_cache = ExLlamaV2Cache(
-                self.draft_model,
-                max_seq_len=self.cache_size,
-                lazy=True,
-            )
+            if self.draft_cache_mode == "Q4":
+                self.draft_cache = ExLlamaV2Cache_Q4(
+                    self.draft_model,
+                    max_seq_len=self.cache_size,
+                    lazy=True,
+                )
+            elif self.draft_cache_mode == "Q8":
+                self.draft_cache = ExLlamaV2Cache_Q8(
+                    self.draft_model,
+                    max_seq_len=self.cache_size,
+                    lazy=True,
+                )
+            else:
+                self.draft_cache = ExLlamaV2Cache(
+                    self.draft_model,
+                    max_seq_len=self.cache_size,
+                    lazy=True,
+                )
             for value in self.draft_model.load_autosplit_gen(
                 self.draft_cache,
                 reserve_vram=autosplit_reserve,
