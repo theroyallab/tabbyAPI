@@ -11,8 +11,8 @@ from exllamav2 import (
     ExLlamaV2,
     ExLlamaV2Config,
     ExLlamaV2Cache,
-    ExLlamaV2Cache_8bit,
     ExLlamaV2Cache_Q4,
+    ExLlamaV2Cache_Q8,
     ExLlamaV2Tokenizer,
     ExLlamaV2Lora,
 )
@@ -91,7 +91,7 @@ class ExllamaV2Container:
                 def progress(loaded_modules: int, total_modules: int,
                              loading_draft: bool)
             **kwargs:
-                `cache_mode` (str): Sets cache mode, "FP16" or "FP8"
+                `cache_mode` (str): Sets cache mode, "FP16", "Q8", or "Q4"
                     (default: "FP16")
                 'max_seq_len' (int): Override model's default max sequence
                     length (default: 4096)
@@ -612,8 +612,8 @@ class ExllamaV2Container:
                 lazy=self.gpu_split_auto,
                 batch_size=1,
             )
-        elif self.cache_mode == "FP8":
-            self.cache = ExLlamaV2Cache_8bit(
+        elif self.cache_mode == "Q8":
+            self.cache = ExLlamaV2Cache_Q8(
                 self.model,
                 max_seq_len=self.cache_size,
                 lazy=self.gpu_split_auto,

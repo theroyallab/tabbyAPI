@@ -101,7 +101,7 @@ model:
   #rope_alpha: 1.0
 
   # Enable different cache modes for VRAM savings (slight performance hit).
-  # Possible values FP16, FP8, Q4. (default: FP16)
+  # Possible values FP16, Q8, Q4. (default: FP16)
   #cache_mode: FP16
 
   # Size of the prompt cache to allocate (default: max_seq_len)
