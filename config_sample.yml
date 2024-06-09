@@ -101,7 +101,7 @@ model:
   #rope_alpha: 1.0
 
   # Enable different cache modes for VRAM savings (slight performance hit).
-  # Possible values FP16, Q8, Q4. (default: FP16)
+  # Possible values FP16, Q8, Q6, Q4. (default: FP16)
   #cache_mode: FP16
 
   # Size of the prompt cache to allocate (default: max_seq_len)
@@ -152,6 +152,10 @@ model:
     # Same thing as alpha_value
     # Leave blank to automatically calculate alpha value
     #draft_rope_alpha: 1.0
+
+    # Enable different draft model cache modes for VRAM savings (slight performance hit).
+    # Possible values FP16, Q8, Q6, Q4. (default: FP16)
+    #draft_cache_mode: FP16
   
   # Options for loras
   #lora:
