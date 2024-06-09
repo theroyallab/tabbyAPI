@@ -94,7 +94,6 @@ class ModelLoadRequest(BaseModel):
         default=None,
         examples=[1.0],
     )
-    no_flash_attention: Optional[bool] = False
     # low_mem: Optional[bool] = False
     cache_mode: Optional[str] = "FP16"
     chunk_size: Optional[int] = 2048
