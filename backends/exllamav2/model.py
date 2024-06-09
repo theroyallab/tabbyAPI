@@ -12,6 +12,7 @@ from exllamav2 import (
     ExLlamaV2Config,
     ExLlamaV2Cache,
     ExLlamaV2Cache_Q4,
+    ExLlamaV2Cache_Q6,
     ExLlamaV2Cache_Q8,
     ExLlamaV2Tokenizer,
     ExLlamaV2Lora,
@@ -92,7 +93,7 @@ class ExllamaV2Container:
                 def progress(loaded_modules: int, total_modules: int,
                              loading_draft: bool)
             **kwargs:
-                `cache_mode` (str): Sets cache mode, "FP16", "Q8", or "Q4"
+                `cache_mode` (str): Sets cache mode: "FP16"/"Q8"/"Q6"/"Q4"
                     (default: "FP16")
                 'max_seq_len' (int): Override model's default max sequence
                     length (default: 4096)
@@ -117,7 +118,7 @@ class ExllamaV2Container:
                     model. By default, the draft model's alpha value is
                     calculated automatically to scale to the size of the
                     full model.
-                'draft_cache_mode' (str): Sets draft cache mode, "FP16", "Q8", or "Q4"
+                'draft_cache_mode' (str): Sets draft cache mode: "FP16"/"Q8"/"Q6"/"Q4"
                     (default: "FP16")
                 'lora_dir' (str): LoRA directory
                 'loras' (list[dict]): List of loras to be loaded, consisting of
@@ -582,6 +583,12 @@ class ExllamaV2Container:
                     max_seq_len=self.cache_size,
                     lazy=True,
                 )
+            elif self.draft_cache_mode == "Q6":
+                self.draft_cache = ExLlamaV2Cache_Q6(
+                    self.draft_model,
+                    max_seq_len=self.cache_size,
+                    lazy=True,
+                )
             elif self.draft_cache_mode == "Q8":
                 self.draft_cache = ExLlamaV2Cache_Q8(
                     self.draft_model,
@@ -625,6 +632,13 @@ class ExllamaV2Container:
 
         if self.cache_mode == "Q4":
             self.cache = ExLlamaV2Cache_Q4(
+                self.model,
+                max_seq_len=self.cache_size,
+                lazy=self.gpu_split_auto,
+                batch_size=1,
+            )
+        elif self.cache_mode == "Q6":
+            self.cache = ExLlamaV2Cache_Q6(
                 self.model,
                 max_seq_len=self.cache_size,
                 lazy=self.gpu_split_auto,
