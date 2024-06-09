@@ -53,6 +53,7 @@ class DraftModelLoadRequest(BaseModel):
         default=None,
         examples=[1.0],
     )
+    draft_cache_mode: Optional[str] = "FP16"
 
 
 class ModelLoadRequest(BaseModel):
