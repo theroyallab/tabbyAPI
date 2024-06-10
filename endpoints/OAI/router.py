@@ -487,12 +487,12 @@ async def completion_request(request: Request, data: CompletionRequest):
 # Chat completions endpoint
 @router.post(
     "/v1/chat/completions",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[Depends(check_api_key)],
 )
 async def chat_completion_request(request: Request, data: ChatCompletionRequest):
     """Generates a chat completion from a prompt."""
 
-    if data.model is not None and model.container.get_model_path().name != data.model:
+    if data.model is not None and (model.container is None or model.container.get_model_path().name != data.model):
         adminValid = False
         if "x_admin_key" in request.headers.keys():
             try:
@@ -525,6 +525,8 @@ async def chat_completion_request(request: Request, data: ChatCompletionRequest)
             await model.load_model(model_path)
         else:
             logger.info(f"No valid admin key found to change loaded model, ignoring")
+    else:
+        await check_model_container()
 
     if model.container.prompt_template is None:
         error_message = handle_request_error(
