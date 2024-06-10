@@ -5,14 +5,16 @@ import gc
 import math
 import pathlib
 import traceback
+from backends.exllamav2.utils import hardware_supports_flash_attn, supports_paged_attn
 import torch
 import uuid
 from exllamav2 import (
     ExLlamaV2,
     ExLlamaV2Config,
     ExLlamaV2Cache,
-    ExLlamaV2Cache_8bit,
     ExLlamaV2Cache_Q4,
+    ExLlamaV2Cache_Q6,
+    ExLlamaV2Cache_Q8,
     ExLlamaV2Tokenizer,
     ExLlamaV2Lora,
 )
@@ -60,6 +62,7 @@ class ExllamaV2Container:
     # Internal config vars
     cache_size: int = None
     cache_mode: str = "FP16"
+    draft_cache_mode: str = "FP16"
     max_batch_size: int = 20
     generation_config: Optional[GenerationConfig] = None
 
@@ -91,7 +94,7 @@ class ExllamaV2Container:
                 def progress(loaded_modules: int, total_modules: int,
                              loading_draft: bool)
             **kwargs:
-                `cache_mode` (str): Sets cache mode, "FP16" or "FP8"
+                `cache_mode` (str): Sets cache mode: "FP16"/"Q8"/"Q6"/"Q4"
                     (default: "FP16")
                 'max_seq_len' (int): Override model's default max sequence
                     length (default: 4096)
@@ -116,6 +119,8 @@ class ExllamaV2Container:
                     model. By default, the draft model's alpha value is
                     calculated automatically to scale to the size of the
                     full model.
+                'draft_cache_mode' (str): Sets draft cache mode: "FP16"/"Q8"/"Q6"/"Q4"
+                    (default: "FP16")
                 'lora_dir' (str): LoRA directory
                 'loras' (list[dict]): List of loras to be loaded, consisting of
                     'name' and 'scaling'
@@ -192,47 +197,11 @@ class ExllamaV2Container:
             kwargs.get("rope_alpha"), self.calculate_rope_alpha(base_seq_len)
         )
 
-        # Set k/v cache size
-        cache_size = unwrap(kwargs.get("cache_size"), self.config.max_seq_len)
-
-        if cache_size < self.config.max_seq_len:
-            logger.warning(
-                f"The given cache_size ({cache_size}) is smaller than the "
-                "desired context length.\n"
-                "Overriding cache_size to max_seq_len. "
-            )
-
-            cache_size = self.config.max_seq_len
-
-        # Enforce a multiple of 256 for cache size
-        # Overestimate to ensure that the cache isn't below max_seq_len
-        cache_remainder = cache_size % 256
-        if cache_remainder != 0:
-            rounded_cache_size = int(256 * ((cache_size - cache_remainder) / 256 + 1))
-
-            logger.warning(
-                f"The given cache size ({cache_size}) is "
-                "not a multiple of 256.\n"
-                "Overriding cache_size with an overestimated value of "
-                f"{rounded_cache_size} tokens."
-            )
-
-            cache_size = rounded_cache_size
-
-        self.cache_size = cache_size
-
         # Enable fasttensors loading if present
         self.config.fasttensors = unwrap(kwargs.get("fasttensors"), False)
 
-        # Disable paged mode if the user's min GPU isn't supported (ampere and up)
-        min_compute_capability = min(
-            torch.cuda.get_device_capability(device=device_idx)[0]
-            for device_idx in gpu_device_list
-        )
-
-        # Compute capability < 8 is not supported by FA2
-        # AMD is also unsupported until ROCm updates its FA2 fork
-        if torch.version.hip or min_compute_capability < 8:
+        # Check whether the user's configuration supports paged attention
+        if not hardware_supports_flash_attn(gpu_device_list):
             logger.warning(
                 "An unsupported GPU is found in this configuration. "
                 "Switching to compatibility mode. \n"
@@ -241,9 +210,70 @@ class ExllamaV2Container:
                 "To disable compatability mode, all GPUs must be ampere "
                 "(30 series) or newer. AMD GPUs are not supported."
             )
-            self.config.no_flash_attn = True
             self.paged = False
             self.max_batch_size = 1
+        elif not supports_paged_attn():
+            logger.warning(
+                "Flash attention version >=2.5.7 "
+                "is required to use paged attention. "
+                "Switching to compatibility mode. \n"
+                "This disables parallel batching "
+                "and features that rely on it (ex. CFG). \n"
+                "Please upgrade your environment by running a start script "
+                "(start.bat or start.sh)\n\n"
+                "Or you can manually run a requirements update "
+                "using the following command:\n\n"
+                "For CUDA 12.1:\n"
+                "pip install --upgrade .[cu121]\n\n"
+                "For CUDA 11.8:\n"
+                "pip install --upgrade .[cu118]\n\n"
+                "NOTE: Windows users must use CUDA 12.x to use flash-attn."
+            )
+            self.paged = False
+            self.max_batch_size = 1
+
+        # Set k/v cache size
+        # cache_size is only relevant when paged mode is enabled
+        if self.paged:
+            cache_size = unwrap(kwargs.get("cache_size"), self.config.max_seq_len)
+
+            if cache_size < self.config.max_seq_len:
+                logger.warning(
+                    f"The given cache_size ({cache_size}) is smaller than the "
+                    "desired context length.\n"
+                    "Overriding cache_size to max_seq_len. "
+                )
+
+                cache_size = self.config.max_seq_len
+
+            # Enforce a multiple of 256 for cache size
+            # Overestimate to ensure that the cache isn't below max_seq_len
+            cache_remainder = cache_size % 256
+            if cache_remainder != 0:
+                rounded_cache_size = int(
+                    256 * ((cache_size - cache_remainder) / 256 + 1)
+                )
+
+                logger.warning(
+                    f"The given cache size ({cache_size}) is "
+                    "not a multiple of 256.\n"
+                    "Overriding cache_size with an overestimated value of "
+                    f"{rounded_cache_size} tokens."
+                )
+
+                cache_size = rounded_cache_size
+
+            # Warn user if cache size may be inadequate for CFG
+            if cache_size < 2 * self.config.max_seq_len:
+                logger.warning(
+                    f"The given cache_size ({cache_size}) is less than 2 * max_seq_len "
+                    "and may be too small for requests using CFG. \n"
+                    "Ignore this warning if you do not plan on using CFG."
+                )
+
+            self.cache_size = cache_size
+        else:
+            self.cache_size = self.config.max_seq_len
 
         # Try to set prompt template
         self.prompt_template = self.find_prompt_template(
@@ -319,6 +349,7 @@ class ExllamaV2Container:
                 self.calculate_rope_alpha(self.draft_config.max_seq_len),
             )
             self.draft_config.max_seq_len = self.config.max_seq_len
+            self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
 
             if chunk_size:
                 self.draft_config.max_input_len = chunk_size
@@ -406,6 +437,7 @@ class ExllamaV2Container:
                 "rope_scale": self.draft_config.scale_pos_emb,
                 "rope_alpha": self.draft_config.scale_alpha_value,
                 "max_seq_len": self.draft_config.max_seq_len,
+                "cache_mode": self.draft_cache_mode,
             }
 
             model_params["draft"] = draft_model_params
@@ -517,11 +549,30 @@ class ExllamaV2Container:
             if not self.quiet:
                 logger.info("Loading draft model: " + self.draft_config.model_dir)
 
-            self.draft_cache = ExLlamaV2Cache(
-                self.draft_model,
-                max_seq_len=self.cache_size,
-                lazy=True,
-            )
+            if self.draft_cache_mode == "Q4":
+                self.draft_cache = ExLlamaV2Cache_Q4(
+                    self.draft_model,
+                    max_seq_len=self.cache_size,
+                    lazy=True,
+                )
+            elif self.draft_cache_mode == "Q6":
+                self.draft_cache = ExLlamaV2Cache_Q6(
+                    self.draft_model,
+                    max_seq_len=self.cache_size,
+                    lazy=True,
+                )
+            elif self.draft_cache_mode == "Q8":
+                self.draft_cache = ExLlamaV2Cache_Q8(
+                    self.draft_model,
+                    max_seq_len=self.cache_size,
+                    lazy=True,
+                )
+            else:
+                self.draft_cache = ExLlamaV2Cache(
+                    self.draft_model,
+                    max_seq_len=self.cache_size,
+                    lazy=True,
+                )
             for value in self.draft_model.load_autosplit_gen(
                 self.draft_cache,
                 reserve_vram=autosplit_reserve,
@@ -558,8 +609,15 @@ class ExllamaV2Container:
                 lazy=self.gpu_split_auto,
                 batch_size=1,
             )
-        elif self.cache_mode == "FP8":
-            self.cache = ExLlamaV2Cache_8bit(
+        elif self.cache_mode == "Q6":
+            self.cache = ExLlamaV2Cache_Q6(
+                self.model,
+                max_seq_len=self.cache_size,
+                lazy=self.gpu_split_auto,
+                batch_size=1,
+            )
+        elif self.cache_mode == "Q8":
+            self.cache = ExLlamaV2Cache_Q8(
                 self.model,
                 max_seq_len=self.cache_size,
                 lazy=self.gpu_split_auto,
