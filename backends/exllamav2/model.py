@@ -210,6 +210,7 @@ class ExllamaV2Container:
                 "To disable compatability mode, all GPUs must be ampere "
                 "(30 series) or newer. AMD GPUs are not supported."
             )
+            self.config.no_flash_attn = True
             self.paged = False
             self.max_batch_size = 1
         elif not supports_paged_attn():
@@ -229,6 +230,7 @@ class ExllamaV2Container:
                 "pip install --upgrade .[cu118]\n\n"
                 "NOTE: Windows users must use CUDA 12.x to use flash-attn."
             )
+            self.config.no_flash_attn = True
             self.paged = False
             self.max_batch_size = 1
 
