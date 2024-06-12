@@ -213,6 +213,7 @@ class ExllamaV2Container:
             self.config.no_flash_attn = True
             self.paged = False
             self.max_batch_size = 1
+            torch.backends.cuda.enable_flash_sdp(False)
         elif not supports_paged_attn():
             logger.warning(
                 "Flash attention version >=2.5.7 "
@@ -233,6 +234,7 @@ class ExllamaV2Container:
             self.config.no_flash_attn = True
             self.paged = False
             self.max_batch_size = 1
+            torch.backends.cuda.enable_flash_sdp(False)
 
         # Set k/v cache size
         # cache_size is only relevant when paged mode is enabled
