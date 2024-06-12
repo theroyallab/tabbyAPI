@@ -333,6 +333,7 @@ class ExllamaV2Container:
 
         if enable_draft:
             self.draft_config = ExLlamaV2Config()
+            self.draft_config.no_flash_attn = self.config.no_flash_attn
             draft_model_path = pathlib.Path(
                 unwrap(draft_args.get("draft_model_dir"), "models")
             )
