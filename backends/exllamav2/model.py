@@ -739,8 +739,9 @@ class ExllamaV2Container:
                 self.tokenizer = None
 
                 # Cleanup the generator from any pending jobs
-                await self.generator.close()
-                self.generator = None
+                if self.generator is not None:
+                    await self.generator.close()
+                    self.generator = None
 
                 # Set all model state variables to False
                 self.model_is_loading = False
