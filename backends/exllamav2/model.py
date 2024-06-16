@@ -202,35 +202,11 @@ class ExllamaV2Container:
 
         # Check whether the user's configuration supports paged attention
         if not hardware_supports_flash_attn(gpu_device_list):
-            logger.warning(
-                "An unsupported GPU is found in this configuration. "
-                "Switching to compatibility mode. \n"
-                "This disables parallel batching "
-                "and features that rely on it (ex. CFG). \n"
-                "To disable compatability mode, all GPUs must be ampere "
-                "(30 series) or newer. AMD GPUs are not supported."
-            )
             self.config.no_flash_attn = True
             self.paged = False
             self.max_batch_size = 1
             torch.backends.cuda.enable_flash_sdp(False)
         elif not supports_paged_attn():
-            logger.warning(
-                "Flash attention version >=2.5.7 "
-                "is required to use paged attention. "
-                "Switching to compatibility mode. \n"
-                "This disables parallel batching "
-                "and features that rely on it (ex. CFG). \n"
-                "Please upgrade your environment by running a start script "
-                "(start.bat or start.sh)\n\n"
-                "Or you can manually run a requirements update "
-                "using the following command:\n\n"
-                "For CUDA 12.1:\n"
-                "pip install --upgrade .[cu121]\n\n"
-                "For CUDA 11.8:\n"
-                "pip install --upgrade .[cu118]\n\n"
-                "NOTE: Windows users must use CUDA 12.x to use flash-attn."
-            )
             self.config.no_flash_attn = True
             self.paged = False
             self.max_batch_size = 1
