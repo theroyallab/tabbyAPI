@@ -1,6 +1,20 @@
 # TabbyAPI
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/I2I3BDTSW)
+<p align="left">
+    <img src="https://img.shields.io/badge/Python-3.10-blue.svg" alt="Swift 5.2"/>
+    <a href="/LICENSE">
+        <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"/>
+    </a>
+    <a href="https://discord.gg/sYQxnuD7Fj">
+        <img src="https://img.shields.io/discord/545740643247456267.svg?logo=discord&color=blue" alt="Discord Server"/>
+    </a>
+</p>
+
+<p align="left">
+    <a href="https://ko-fi.com/I2I3BDTSW">
+        <img src="https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?logo=ko-fi&style=for-the-badge&logoColor=white" alt="Support on Ko-Fi">
+    </a>
+</p>
 
 > [!IMPORTANT]
 >
