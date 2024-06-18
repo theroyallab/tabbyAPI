@@ -96,9 +96,9 @@ cu118 = [
 ]
 amd = [
     # Torch triton for ROCm
-    "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-2.2.0-cp312-cp312-linux_x86_64.whl ; python_version == '3.12'",
-    "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-2.2.0-cp311-cp311-linux_x86_64.whl ; python_version == '3.11'",
-    "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-2.2.0-cp310-cp310-linux_x86_64.whl ; python_version == '3.10'",
+    "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-2.3.1-cp312-cp312-linux_x86_64.whl ; python_version == '3.12'",
+    "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-2.3.1-cp311-cp311-linux_x86_64.whl ; python_version == '3.11'",
+    "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-2.3.1-cp310-cp310-linux_x86_64.whl ; python_version == '3.10'",
 
     # Torch
     "torch @ https://download.pytorch.org/whl/rocm6.0/torch-2.3.1%2Brocm6.0-cp312-cp312-linux_x86_64.whl ; python_version == '3.12'",
