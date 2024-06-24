@@ -29,6 +29,9 @@ dependencies = [
     "lm-format-enforcer >= 0.9.6",
     "aiofiles",
 
+    # TEMP: Remove once 2.x is fixed in upstream
+    "numpy < 2.0.0",
+
     # TODO: Maybe move these to a downloader feature?
     "aiohttp",
     "huggingface_hub",
