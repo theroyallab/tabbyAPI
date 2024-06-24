@@ -1,9 +1,9 @@
 # TabbyAPI
 
 <p align="left">
-    <img src="https://img.shields.io/badge/Python-3.10-blue.svg" alt="Swift 5.2"/>
+    <img src="https://img.shields.io/badge/Python-3.10%20|%203.11%20|%203.12-blue" alt="Python 3.10, 3.11, and 3.12">
     <a href="/LICENSE">
-        <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"/>
+        <img src="https://img.shields.io/badge/License-AGPLv3-blue.svg" alt="License: AGPL v3"/>
     </a>
     <a href="https://discord.gg/sYQxnuD7Fj">
         <img src="https://img.shields.io/discord/545740643247456267.svg?logo=discord&color=blue" alt="Discord Server"/>
