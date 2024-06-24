@@ -7,7 +7,7 @@ assignees: ''
 
 ---
 
-**Disclaimer:** Github Issues are **only** for code related bugs. If you do not understand how to startup or use TabbyAPI, please ask in the [Discord Server](https://discord.com/sYQxnuD7Fj)
+**Disclaimer:** Github Issues are **only** for code related bugs. If you do not understand how to startup or use TabbyAPI, please ask in the [Discord Server](https://discord.gg/sYQxnuD7Fj)
 
 **Describe the bug**
 A clear and concise description of what the bug is.
