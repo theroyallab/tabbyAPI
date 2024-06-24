@@ -22,6 +22,7 @@ from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionLogprobs,
     ChatCompletionLogprob,
+    ChatCompletionLogprobChoice,
     ChatCompletionMessage,
     ChatCompletionRequest,
     ChatCompletionRespChoice,
@@ -46,22 +47,24 @@ def _create_response(generations: List[dict], model_name: Optional[str]):
 
         logprob_response = None
 
-        token_probs = unwrap(generation.get("token_probs"), {})
+        tokens = unwrap(generation.get("tokens"), [])
+        token_probs = unwrap(generation.get("token_probs"), [])
+        logprobs = unwrap(generation.get("logprobs"), [])
         if token_probs:
-            logprobs = unwrap(generation.get("logprobs"), [])
-
             collected_token_probs = []
-            for index, token in enumerate(token_probs.keys()):
-                top_logprobs = [
-                    ChatCompletionLogprob(token=token, logprob=logprob)
-                    for token, logprob in logprobs[index].items()
+            for output_token, token_logprob, top_logprobs in zip(
+                tokens, token_probs, logprobs, strict=True
+            ):
+                completion_logprobs = [
+                    ChatCompletionLogprob(token=token, logprob=token_logprob)
+                    for token, token_logprob in top_logprobs.items()
                 ]
 
                 collected_token_probs.append(
-                    ChatCompletionLogprob(
-                        token=token,
-                        logprob=token_probs[token],
-                        top_logprobs=top_logprobs,
+                    ChatCompletionLogprobChoice(
+                        token=output_token,
+                        logprob=token_logprob,
+                        top_logprobs=completion_logprobs,
                     )
                 )
 

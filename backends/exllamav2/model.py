@@ -767,21 +767,25 @@ class ExllamaV2Container:
         }
 
     def get_logprobs(self, token_ids: torch.Tensor, token_probs: torch.Tensor):
-        top_tokens = [
-            self.tokenizer.extended_id_to_piece.get(
-                index, self.tokenizer.id_to_piece[index]
-            )
-            for index in token_ids.flatten().tolist()
-        ]
+        logprobs = []
+        for token_idx in range(token_ids.shape[1]):
+            top_tokens = [
+                self.tokenizer.extended_id_to_piece.get(
+                    index, self.tokenizer.id_to_piece[index]
+                )
+                for index in token_ids[0, token_idx].tolist()
+            ]
 
-        top_values = torch.log(token_probs).flatten().tolist()
+            top_values = torch.log(token_probs[0, token_idx]).tolist()
 
-        # Cannot return -inf in JSON
-        cleaned_values = [
-            -1000 if value == float("-inf") else value for value in top_values
-        ]
+            # Cannot return -inf in JSON
+            cleaned_values = [
+                -1000 if value == float("-inf") else value for value in top_values
+            ]
 
-        return dict(zip_longest(top_tokens, cleaned_values))
+            logprobs.append(dict(zip_longest(top_tokens, cleaned_values)))
+
+        return logprobs
 
     async def generate(self, prompt: str, **kwargs):
         """Generate a response to a prompt"""
@@ -793,8 +797,9 @@ class ExllamaV2Container:
             "text": "",
             "prompt_tokens": 0,
             "generation_tokens": 0,
+            "tokens": [],
             "offset": [],
-            "token_probs": {},
+            "token_probs": [],
             "logprobs": [],
         }
 
@@ -811,13 +816,14 @@ class ExllamaV2Container:
         if len(generations) > 0:
             for generation in generations:
                 joined_generation["text"] += unwrap(generation.get("text"), "")
-                joined_generation["offset"].append(unwrap(generation.get("offset"), -1))
-                joined_generation["token_probs"].update(
-                    unwrap(generation.get("token_probs"), {})
+                joined_generation["tokens"].extend(unwrap(generation.get("tokens"), []))
+                joined_generation["offset"].extend(unwrap(generation.get("offset"), []))
+                joined_generation["token_probs"].extend(
+                    unwrap(generation.get("token_probs"), [])
                 )
 
                 # Include empty logprob dicts for index preservation
-                joined_generation["logprobs"].append(
+                joined_generation["logprobs"].extend(
                     unwrap(generation.get("logprobs"), {})
                 )
 
@@ -1145,7 +1151,6 @@ class ExllamaV2Container:
                         "text": chunk,
                         "prompt_tokens": context_len,
                         "generated_tokens": generated_tokens,
-                        "offset": len(full_response),
                     }
 
                     if request_logprobs > 0:
@@ -1164,11 +1169,41 @@ class ExllamaV2Container:
                             logprobs = self.get_logprobs(top_tokens, top_probs)
                             generation["logprobs"] = logprobs
 
-                            # The first logprob is the selected token prob
-                            generation["token_probs"] = {
-                                token: logprobs[token]
-                                for token in list(logprobs.keys())[:1]
-                            }
+                        token_ids = unwrap(
+                            result.get("token_ids"),
+                            torch.empty(0),
+                        )
+
+                        token_probs = unwrap(
+                            result.get("token_probs"),
+                            torch.empty(0),
+                        )
+
+                        if token_ids.numel() > 0 and token_probs.numel() > 0:
+                            token_ids = token_ids.flatten().tolist()
+                            token_probs = token_probs.flatten().tolist()
+
+                            tokens = [
+                                self.tokenizer.extended_id_to_piece.get(
+                                    index, self.tokenizer.id_to_piece[index]
+                                )
+                                for index in token_ids
+                            ]
+
+                            generation["tokens"] = tokens
+                            generation["token_probs"] = [
+                                math.log(prob) for prob in token_probs
+                            ]
+
+                            # Calculate the offset of each token in the output,
+                            # working backwards from the end.
+                            offsets = []
+                            token_offset = 0
+                            for token in tokens:
+                                token_offset += len(token)
+                                offsets.append(len(full_response) - token_offset)
+                            offsets.reverse()
+                            generation["offset"] = offsets
 
                     yield generation
 

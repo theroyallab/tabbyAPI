@@ -9,11 +9,14 @@ from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
 class ChatCompletionLogprob(BaseModel):
     token: str
     logprob: float
+
+
+class ChatCompletionLogprobChoice(ChatCompletionLogprob):
     top_logprobs: Optional[List["ChatCompletionLogprob"]] = None
 
 
 class ChatCompletionLogprobs(BaseModel):
-    content: List[ChatCompletionLogprob] = Field(default_factory=list)
+    content: List[ChatCompletionLogprobChoice] = Field(default_factory=list)
 
 
 class ChatCompletionMessage(BaseModel):
