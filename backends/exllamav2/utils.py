@@ -7,7 +7,7 @@ import torch
 def check_exllama_version():
     """Verifies the exllama version"""
 
-    required_version = version.parse("0.1.5")
+    required_version = version.parse("0.1.6")
     current_version = version.parse(package_version("exllamav2").split("+")[0])
 
     unsupported_message = (
