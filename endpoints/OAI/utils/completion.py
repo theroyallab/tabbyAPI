@@ -35,15 +35,16 @@ def _create_response(generations: Union[dict, List[dict]], model_name: str = "")
     for index, generation in enumerate(generations):
         logprob_response = None
 
-        token_probs = unwrap(generation.get("token_probs"), {})
+        tokens = unwrap(generation.get("tokens"), [])
+        token_probs = unwrap(generation.get("token_probs"), [])
         if token_probs:
             logprobs = unwrap(generation.get("logprobs"), [])
             offset = unwrap(generation.get("offset"), [])
 
             logprob_response = CompletionLogProbs(
                 text_offset=offset if isinstance(offset, list) else [offset],
-                token_logprobs=token_probs.values(),
-                tokens=token_probs.keys(),
+                token_logprobs=token_probs,
+                tokens=tokens,
                 top_logprobs=logprobs if isinstance(logprobs, list) else [logprobs],
             )
 
