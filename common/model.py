@@ -9,7 +9,9 @@ from loguru import logger
 from typing import Optional
 
 from backends.exllamav2.model import ExllamaV2Container
+from common import config
 from common.logger import get_loading_progress_bar
+from common.utils import unwrap
 
 # Global model container
 container: Optional[ExllamaV2Container] = None
@@ -91,3 +93,19 @@ async def load_loras(lora_dir, **kwargs):
 async def unload_loras():
     """Wrapper to unload loras"""
     await container.unload(loras_only=True)
+
+
+def get_config_default(key, fallback=None, is_draft=False):
+    """Fetches a default value from model config if allowed by the user."""
+
+    model_config = config.model_config()
+    default_keys = unwrap(model_config.get("use_as_default"), [])
+    if key in default_keys:
+        # Is this a draft model load parameter?
+        if is_draft:
+            draft_config = config.draft_model_config()
+            return unwrap(draft_config.get(key), fallback)
+        else:
+            return unwrap(model_config.get(key), fallback)
+    else:
+        return fallback

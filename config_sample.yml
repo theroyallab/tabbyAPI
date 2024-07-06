@@ -51,19 +51,29 @@ developer:
   #cuda_malloc_backend: False
 
 # Options for model overrides and loading
+# Please read the comments to understand how arguments are handled between initial and API loads
 model:
   # Overrides the directory to look for models (default: models)
   # Windows users, DO NOT put this path in quotes! This directory will be invalid otherwise.
   model_dir: models
+
+  # Sends dummy model names when the models endpoint is queried
+  # Enable this if the program is looking for a specific OAI model
+  #use_dummy_models: False
 
   # An initial model to load. Make sure the model is located in the model directory!
   # A model can be loaded later via the API.
   # REQUIRED: This must be filled out to load a model on startup!
   model_name:
 
-  # Sends dummy model names when the models endpoint is queried
-  # Enable this if the program is looking for a specific OAI model
-  #use_dummy_models: False
+  # The below parameters only apply for initial loads
+  # All API based loads do NOT inherit these settings unless specified in use_as_default
+
+  # Names of args to use as a default fallback for API load requests (default: [])
+  # For example, if you always want cache_mode to be Q4 instead of on the inital model load,
+  # Add "cache_mode" to this array
+  # Ex. ["max_seq_len", "cache_mode"]
+  #use_as_default: []
 
   # The below parameters apply only if model_name is set
 
@@ -143,6 +153,9 @@ model:
     # A draft model can be loaded later via the API.
     #draft_model_name: A model name
   
+    # The below parameters only apply for initial loads
+    # All API based loads do NOT inherit these settings unless specified in use_as_default
+
     # Rope scale for draft models (default: 1.0)
     # Same thing as compress_pos_emb
     # Only use if your draft model was trained on long context with rope (check config.json)
