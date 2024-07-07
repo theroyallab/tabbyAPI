@@ -178,7 +178,10 @@ class ExllamaV2Container:
         self.config.prepare()
 
         # Check if the model arch is compatible with various exl2 features
-        self.config.arch_compat_overrides()
+        try:
+            self.config.arch_compat_overrides()
+        except AttributeError:
+            pass
 
         # Then override the base_seq_len if present
         override_base_seq_len = kwargs.get("override_base_seq_len")
