@@ -56,6 +56,11 @@ class ExLlamaV2EbnfFilter(ExLlamaV2Filter):
 def _get_lmfe_tokenizer_data(tokenizer: ExLlamaV2Tokenizer):
     return build_token_enforcer_tokenizer_data(tokenizer)
 
+def clear_grammar_func_cache():
+    """Flush tokenizer_data cache to avoid holding references to tokenizers after unloading a model"""
+
+    _get_lmfe_tokenizer_data.clear_cache()
+
 
 class ExLlamaV2Grammar:
     """ExLlamaV2 class for various grammar filters/parsers."""
