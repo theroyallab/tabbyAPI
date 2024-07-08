@@ -4,7 +4,6 @@ Manages the storage and utility of model containers.
 Containers exist as a common interface for backends.
 """
 
-import os
 import pathlib
 from loguru import logger
 from typing import Optional
