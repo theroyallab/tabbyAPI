@@ -29,7 +29,7 @@ async def entrypoint(args: Optional[dict] = None):
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    if os.getenv("EXPORT_OPENAPI"):
+    if os.getenv("EXPORT_OPENAPI").lower() in ("true", "1"):
         openapi_json = export_openapi()
 
         async with aiofiles.open("openapi.json", "w") as f:
