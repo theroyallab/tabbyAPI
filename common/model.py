@@ -4,17 +4,20 @@ Manages the storage and utility of model containers.
 Containers exist as a common interface for backends.
 """
 
+import os
 import pathlib
 from loguru import logger
 from typing import Optional
 
-from backends.exllamav2.model import ExllamaV2Container
 from common import config
 from common.logger import get_loading_progress_bar
 from common.utils import unwrap
 
-# Global model container
-container: Optional[ExllamaV2Container] = None
+if not os.getenv("EXPORT_OPENAPI"):
+    from backends.exllamav2.model import ExllamaV2Container
+
+    # Global model container
+    container: Optional[ExllamaV2Container] = None
 
 
 def load_progress(module, modules):

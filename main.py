@@ -1,6 +1,8 @@
 """The main tabbyAPI module. Contains the FastAPI server and endpoints."""
 
 import asyncio
+import aiofiles
+import json
 import os
 import pathlib
 import signal
@@ -15,7 +17,7 @@ from common.logger import setup_logger
 from common.networking import is_port_in_use
 from common.signals import signal_handler
 from common.utils import unwrap
-from endpoints.server import start_api
+from endpoints.server import export_openapi, start_api
 
 
 async def entrypoint(args: Optional[dict] = None):
@@ -26,6 +28,15 @@ async def entrypoint(args: Optional[dict] = None):
     # Set up signal aborting
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
+
+    if os.getenv("EXPORT_OPENAPI"):
+        openapi_json = export_openapi()
+
+        async with aiofiles.open("openapi.json", "w") as f:
+            await f.write(json.dumps(openapi_json))
+            logger.info("Successfully wrote OpenAPI spec to openapi.json")
+
+        return
 
     # Load from YAML config
     config.from_file(pathlib.Path("config.yml"))

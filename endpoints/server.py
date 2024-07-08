@@ -26,7 +26,16 @@ app.add_middleware(
 
 
 def setup_app():
+    """Includes the correct routers for startup"""
+
     app.include_router(OAIRouter)
+
+
+def export_openapi():
+    """Function to return the OpenAPI JSON from the API server"""
+
+    setup_app()
+    return app.openapi()
 
 
 async def start_api(host: str, port: int):
