@@ -199,3 +199,6 @@ sampler_overrides/*
 
 # Gpu lib preferences file
 gpu_lib.txt
+
+# OpenAPI JSON
+openapi.json

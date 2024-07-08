@@ -25,6 +25,10 @@ app.add_middleware(
 )
 
 
+def setup_app():
+    app.include_router(OAIRouter)
+
+
 async def start_api(host: str, port: int):
     """Isolated function to start the API server"""
 
@@ -33,8 +37,8 @@ async def start_api(host: str, port: int):
     logger.info(f"Completions: http://{host}:{port}/v1/completions")
     logger.info(f"Chat completions: http://{host}:{port}/v1/chat/completions")
 
-    # Add OAI router
-    app.include_router(OAIRouter)
+    # Setup app
+    setup_app()
 
     config = uvicorn.Config(
         app,
