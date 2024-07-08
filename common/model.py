@@ -13,7 +13,7 @@ from common import config
 from common.logger import get_loading_progress_bar
 from common.utils import unwrap
 
-if not os.getenv("EXPORT_OPENAPI"):
+if not os.getenv("EXPORT_OPENAPI", "").lower() in ("true", "1"):
     from backends.exllamav2.model import ExllamaV2Container
 
     # Global model container
