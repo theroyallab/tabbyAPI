@@ -61,7 +61,8 @@ def _get_lmfe_tokenizer_data(tokenizer: ExLlamaV2Tokenizer):
 
 
 def clear_grammar_func_cache():
-    """Flush tokenizer_data cache to avoid holding references to tokenizers after unloading a model"""
+    """Flush tokenizer_data cache to avoid holding references to
+    tokenizers after unloading a model"""
 
     _get_lmfe_tokenizer_data.clear_cache()
 
