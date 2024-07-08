@@ -12,8 +12,9 @@ from typing import Optional
 from common import config
 from common.logger import get_loading_progress_bar
 from common.utils import unwrap
+from endpoints.utils import do_export_openapi
 
-if os.getenv("EXPORT_OPENAPI", "").lower() not in ("true", "1"):
+if not do_export_openapi:
     from backends.exllamav2.model import ExllamaV2Container
 
     # Global model container

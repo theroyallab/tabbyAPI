@@ -9,7 +9,6 @@ import signal
 from loguru import logger
 from typing import Optional
 
-from backends.exllamav2.utils import check_exllama_version
 from common import config, gen_logging, sampling, model
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
@@ -18,6 +17,10 @@ from common.networking import is_port_in_use
 from common.signals import signal_handler
 from common.utils import unwrap
 from endpoints.server import export_openapi, start_api
+from endpoints.utils import do_export_openapi
+
+if not do_export_openapi:
+    from backends.exllamav2.utils import check_exllama_version
 
 
 async def entrypoint(args: Optional[dict] = None):
