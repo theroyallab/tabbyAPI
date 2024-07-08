@@ -11,6 +11,12 @@
 </p>
 
 <p align="left">
+    <a href="https://theroyallab.github.io/tabbyAPI">
+        <img src="https://img.shields.io/badge/Documentation-API-orange" alt="Developer facing API documentation">
+    </a>
+</p>
+
+<p align="left">
     <a href="https://ko-fi.com/I2I3BDTSW">
         <img src="https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?logo=ko-fi&style=for-the-badge&logoColor=white" alt="Support on Ko-Fi">
     </a>
