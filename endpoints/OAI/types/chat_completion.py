@@ -64,3 +64,4 @@ class ChatCompletionStreamChunk(BaseModel):
     created: int = Field(default_factory=lambda: int(time()))
     model: str
     object: str = "chat.completion.chunk"
+    usage: Optional[UsageStats] = None
