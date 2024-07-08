@@ -2,9 +2,13 @@ import traceback
 from exllamav2 import ExLlamaV2, ExLlamaV2Tokenizer
 from exllamav2.generator.filters import ExLlamaV2Filter, ExLlamaV2PrefixFilter
 from lmformatenforcer import JsonSchemaParser, RegexParser
-from lmformatenforcer.integrations.exllamav2 import ExLlamaV2TokenEnforcerFilter
+from lmformatenforcer.integrations.exllamav2 import (
+    ExLlamaV2TokenEnforcerFilter,
+    build_token_enforcer_tokenizer_data,
+)
 from loguru import logger
 from typing import List
+from functools import lru_cache
 
 
 class OutlinesTokenizerWrapper:
@@ -51,6 +55,18 @@ class ExLlamaV2EbnfFilter(ExLlamaV2Filter):
         return self.fsm.allowed_token_ids(self.state), set()
 
 
+@lru_cache(10)
+def _get_lmfe_tokenizer_data(tokenizer: ExLlamaV2Tokenizer):
+    return build_token_enforcer_tokenizer_data(tokenizer)
+
+
+def clear_grammar_func_cache():
+    """Flush tokenizer_data cache to avoid holding references to
+    tokenizers after unloading a model"""
+
+    _get_lmfe_tokenizer_data.clear_cache()
+
+
 class ExLlamaV2Grammar:
     """ExLlamaV2 class for various grammar filters/parsers."""
 
@@ -82,7 +98,9 @@ class ExLlamaV2Grammar:
         # Allow JSON objects or JSON arrays at the top level
         json_prefixes = ["[", "{"]
 
-        lmfilter = ExLlamaV2TokenEnforcerFilter(schema_parser, tokenizer)
+        lmfilter = ExLlamaV2TokenEnforcerFilter(
+            schema_parser, _get_lmfe_tokenizer_data(tokenizer)
+        )
         prefix_filter = ExLlamaV2PrefixFilter(model, tokenizer, json_prefixes)
 
         # Append the filters
@@ -107,7 +125,9 @@ class ExLlamaV2Grammar:
 
             return
 
-        lmfilter = ExLlamaV2TokenEnforcerFilter(pattern_parser, tokenizer)
+        lmfilter = ExLlamaV2TokenEnforcerFilter(
+            pattern_parser, _get_lmfe_tokenizer_data(tokenizer)
+        )
 
         # Append the filters
         self.filters.append(lmfilter)

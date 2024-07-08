@@ -26,7 +26,10 @@ from itertools import zip_longest
 from loguru import logger
 from typing import List, Optional, Union
 
-from backends.exllamav2.grammar import ExLlamaV2Grammar
+from backends.exllamav2.grammar import (
+    ExLlamaV2Grammar,
+    clear_grammar_func_cache,
+)
 from backends.exllamav2.utils import (
     exllama_disabled_flash_attn,
     hardware_supports_flash_attn,
@@ -704,6 +707,10 @@ class ExllamaV2Container:
             # Wait for other jobs to finish
             await self.wait_for_jobs(kwargs.get("skip_wait"))
 
+            # Delete references held in the grammar module
+            clear_grammar_func_cache()
+
+            # Unload LoRAs
             if self.generator and self.generator.generator.current_loras:
                 for lora in self.generator.generator.current_loras:
                     lora.unload()
