@@ -158,7 +158,6 @@ extend-select = [
     "E501",  # line-too-long
     "W291",  # trailing-whitespace
     "PLC0414",  # useless-import-alias
-    "E999",  # syntax-error
     "PLE0101",  # return-in-init
     "F706",  # return-outside-function
     "F704",  # yield-outside-function
