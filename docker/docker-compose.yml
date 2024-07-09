@@ -12,7 +12,9 @@ services:
       - NAME=TabbyAPI
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
-      - ./models:/usr/src/app/models
+      - ./models:/app/models
+# Example bind mount to allow for a easily editable config from the host
+#      - ../config.yml:/app/config.yml 
     deploy:
       resources:
         reservations:
