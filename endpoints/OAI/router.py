@@ -192,7 +192,7 @@ async def list_models() -> ModelList:
     "/v1/model",
     dependencies=[Depends(check_api_key), Depends(check_model_container)],
 )
-async def get_current_model() -> ModelCard:
+async def current_model() -> ModelCard:
     """Returns the currently loaded model."""
     model_params = model.container.get_model_parameters()
     draft_model_params = model_params.pop("draft", {})
@@ -313,7 +313,7 @@ async def download_model(request: Request, data: DownloadRequest) -> DownloadRes
 # Lora list endpoint
 @router.get("/v1/loras", dependencies=[Depends(check_api_key)])
 @router.get("/v1/lora/list", dependencies=[Depends(check_api_key)])
-async def get_all_loras() -> LoraList:
+async def list_all_loras() -> LoraList:
     """Lists all LoRAs in the lora directory."""
     lora_path = pathlib.Path(unwrap(config.lora_config().get("lora_dir"), "loras"))
     loras = get_lora_list(lora_path.resolve())
@@ -326,9 +326,9 @@ async def get_all_loras() -> LoraList:
     "/v1/lora",
     dependencies=[Depends(check_api_key), Depends(check_model_container)],
 )
-async def get_active_loras() -> LoraList:
+async def active_loras() -> LoraList:
     """Returns the currently loaded loras."""
-    active_loras = LoraList(
+    loras = LoraList(
         data=[
             LoraCard(
                 id=pathlib.Path(lora.lora_path).parent.name,
@@ -338,7 +338,7 @@ async def get_active_loras() -> LoraList:
         ]
     )
 
-    return active_loras
+    return loras
 
 
 # Load lora endpoint
@@ -452,7 +452,7 @@ async def key_permission(request: Request) -> AuthPermissionResponse:
 
 @router.get("/v1/templates", dependencies=[Depends(check_api_key)])
 @router.get("/v1/template/list", dependencies=[Depends(check_api_key)])
-async def get_templates() -> TemplateList:
+async def list_templates() -> TemplateList:
     templates = get_all_templates()
     template_strings = [template.stem for template in templates]
     return TemplateList(data=template_strings)
