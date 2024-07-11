@@ -5,10 +5,12 @@ application, it should be fine.
 
 import secrets
 import yaml
-from fastapi import Header, HTTPException
+from fastapi import Header, HTTPException, Request
 from pydantic import BaseModel
 from loguru import logger
 from typing import Optional
+
+from common.utils import coalesce
 
 
 class AuthKeys(BaseModel):
@@ -75,7 +77,23 @@ def load_auth_keys(disable_from_config: bool):
     )
 
 
-async def validate_key_permission(test_key: str):
+def get_key_permission(request: Request):
+    """
+    Gets the key permission from a request.
+
+    Internal only! Use the depends functions for incoming requests.
+    """
+
+    # Hyphens are okay here
+    test_key = coalesce(
+        request.headers.get("authorization"),
+        request.headers.get("x-admin-key"),
+        request.headers.get("x-api-key"),
+    )
+
+    if test_key is None:
+        raise ValueError("The provided authentication key is missing.")
+
     if test_key.lower().startswith("bearer"):
         test_key = test_key.split(" ")[1]
 
@@ -88,7 +106,9 @@ async def validate_key_permission(test_key: str):
 
 
 async def check_api_key(
-    x_api_key: str = Header(None), authorization: str = Header(None)
+    x_api_key: str = Header(None),
+    x_admin_key: str = Header(None),
+    authorization: str = Header(None),
 ):
     """Check if the API key is valid."""
 
@@ -100,6 +120,11 @@ async def check_api_key(
         if not AUTH_KEYS.verify_key(x_api_key, "api_key"):
             raise HTTPException(401, "Invalid API key")
         return x_api_key
+
+    if x_admin_key:
+        if not AUTH_KEYS.verify_key(x_admin_key, "admin_key"):
+            raise HTTPException(401, "Invalid API key")
+        return x_admin_key
 
     if authorization:
         split_key = authorization.split(" ")
