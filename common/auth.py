@@ -107,8 +107,7 @@ def get_key_permission(request: Request):
 
 async def check_api_key(
     x_api_key: str = Header(None),
-    x_admin_key: str = Header(None),
-    authorization: str = Header(None),
+    authorization: str = Header(None)
 ):
     """Check if the API key is valid."""
 
@@ -120,11 +119,6 @@ async def check_api_key(
         if not AUTH_KEYS.verify_key(x_api_key, "api_key"):
             raise HTTPException(401, "Invalid API key")
         return x_api_key
-
-    if x_admin_key:
-        if not AUTH_KEYS.verify_key(x_admin_key, "admin_key"):
-            raise HTTPException(401, "Invalid API key")
-        return x_admin_key
 
     if authorization:
         split_key = authorization.split(" ")
