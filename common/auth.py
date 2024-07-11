@@ -106,8 +106,7 @@ def get_key_permission(request: Request):
 
 
 async def check_api_key(
-    x_api_key: str = Header(None),
-    authorization: str = Header(None)
+    x_api_key: str = Header(None), authorization: str = Header(None)
 ):
     """Check if the API key is valid."""
 

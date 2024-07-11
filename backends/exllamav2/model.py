@@ -405,6 +405,9 @@ class ExllamaV2Container:
     def get_model_path(self, is_draft: bool = False):
         """Get the path for this model."""
 
+        if is_draft and not self.draft_config:
+            return None
+
         model_path = pathlib.Path(
             self.draft_config.model_dir if is_draft else self.config.model_dir
         )
