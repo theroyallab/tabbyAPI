@@ -12,7 +12,7 @@ services:
       - NAME=TabbyAPI
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
-      - ./models:/usr/src/app/models
+      - ./models:/app/models
     deploy:
       resources:
         reservations:
