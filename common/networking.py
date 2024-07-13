@@ -8,6 +8,9 @@ from loguru import logger
 from pydantic import BaseModel
 from typing import Optional
 
+from common import config
+from common.utils import unwrap
+
 
 class TabbyRequestErrorMessage(BaseModel):
     """Common request error type."""
@@ -33,15 +36,18 @@ def get_generator_error(message: str, exc_info: bool = True):
 def handle_request_error(message: str, exc_info: bool = True):
     """Log a request error to the console."""
 
+    trace = traceback.format_exc()
+    send_trace = unwrap(config.network_config().get("send_tracebacks"), False)
+
     error_message = TabbyRequestErrorMessage(
-        message=message, trace=traceback.format_exc()
+        message=message, trace=trace if send_trace else None
     )
 
     request_error = TabbyRequestError(error=error_message)
 
     # Log the error and provided message to the console
-    if error_message.trace and exc_info:
-        logger.error(error_message.trace)
+    if trace and exc_info:
+        logger.error(trace)
 
     logger.error(f"Sent to request: {message}")
 

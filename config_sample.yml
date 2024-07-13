@@ -19,6 +19,10 @@ network:
   # Turn on this option if you are ONLY connecting from localhost
   disable_auth: False
 
+  # Send tracebacks over the API to clients (default: False)
+  # NOTE: Only enable this for debug purposes
+  send_tracebacks: False
+
 # Options for logging
 logging:
   # Enable prompt logging (default: False)
