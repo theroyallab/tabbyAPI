@@ -488,15 +488,7 @@ class ExllamaV2Container:
                 yield value
 
             # Create async generator
-            self.generator = ExLlamaV2DynamicGeneratorAsync(
-                model=self.model,
-                cache=self.cache,
-                draft_model=self.draft_model,
-                draft_cache=self.draft_cache,
-                tokenizer=self.tokenizer,
-                max_batch_size=self.max_batch_size,
-                paged=self.paged,
-            )
+            await self.create_generator()
 
             # Clean up any extra vram usage from torch and cuda
             # (Helps reduce VRAM bottlenecking on Windows)
@@ -644,6 +636,34 @@ class ExllamaV2Container:
         # Test VRAM allocation with a full-length forward pass
         input_ids = torch.zeros((1, self.config.max_input_len), dtype=torch.long)
         self.model.forward(input_ids, cache=self.cache, preprocess_only=True)
+
+    async def create_generator(self):
+        try:
+            # Don't acquire locks unless a model is loaded
+            if self.model_loaded:
+                await self.load_lock.acquire()
+
+                # Immediately cancel all jobs
+                await self.wait_for_jobs(skip_wait=True)
+
+            # Create new generator
+            self.generator = ExLlamaV2DynamicGeneratorAsync(
+                model=self.model,
+                cache=self.cache,
+                draft_model=self.draft_model,
+                draft_cache=self.draft_cache,
+                tokenizer=self.tokenizer,
+                max_batch_size=self.max_batch_size,
+                paged=self.paged,
+            )
+        finally:
+            # This means the generator is being recreated
+            # The load lock is already released in the load function
+            if self.model_loaded:
+                self.load_lock.release()
+
+                async with self.load_condition:
+                    self.load_condition.notify_all()
 
     def get_loras(self):
         """Convenience function to get all loras."""
@@ -1223,3 +1243,14 @@ class ExllamaV2Container:
                         break
         except asyncio.CancelledError:
             await job.cancel()
+        except Exception as ex:
+            # Create a new generator since the current state is broken
+            # No need to wait for this to finish
+            logger.error(
+                "FATAL ERROR with generation. "
+                "Attempting to recreate the generator. "
+                "If this fails, please restart the server.\n"
+            )
+            asyncio.ensure_future(self.create_generator())
+
+            raise ex
