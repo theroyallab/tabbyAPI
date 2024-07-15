@@ -3,7 +3,7 @@
 import asyncio
 import socket
 import traceback
-from fastapi import Request
+from fastapi import HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel
 from typing import Optional
@@ -84,8 +84,9 @@ async def run_with_request_disconnect(
 
     try:
         return call_task.result()
-    except (asyncio.CancelledError, asyncio.InvalidStateError):
+    except (asyncio.CancelledError, asyncio.InvalidStateError) as ex:
         handle_request_disconnect(disconnect_message)
+        raise HTTPException(422, disconnect_message) from ex
 
 
 def is_port_in_use(port: int) -> bool:
