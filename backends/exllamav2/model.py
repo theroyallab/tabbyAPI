@@ -449,6 +449,11 @@ class ExllamaV2Container:
 
         # Immediately abort all jobs if asked
         if skip_wait:
+            logger.warning(
+                "Immediately terminating all jobs. "
+                "Clients will have their requests cancelled.\n"
+            )
+
             # Requires a copy to avoid errors during iteration
             jobs_copy = self.generator.jobs.copy()
             for job in jobs_copy.values():
