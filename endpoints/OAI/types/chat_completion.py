@@ -4,7 +4,7 @@ from typing import Union, List, Optional, Dict
 from uuid import uuid4
 
 from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
-
+from endpoints.OAI.types.tools import ToolCall, Tool
 
 class ChatCompletionLogprob(BaseModel):
     token: str
@@ -19,12 +19,14 @@ class ChatCompletionLogprobs(BaseModel):
 class ChatCompletionMessage(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
+    tool_calls: Optional[List[ToolCall]] = None
 
 
 class ChatCompletionRespChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
     finish_reason: Optional[str] = None
+    stop_str: Optional[str] = None # let's us understand why it stopped and if we need to generate a tool_call
     message: ChatCompletionMessage
     logprobs: Optional[ChatCompletionLogprobs] = None
 
@@ -47,6 +49,15 @@ class ChatCompletionRequest(CommonCompletionRequest):
     add_generation_prompt: Optional[bool] = True
     template_vars: Optional[dict] = {}
     response_prefix: Optional[str] = None
+
+    # Tools is follows the format OAI schema, functions allows a list of function schemas to be passed. Chat template will determine which is used.
+    tools: Optional[List[Tool]] = None
+    functions: Optional[List[Dict]] = None
+
+    # Typically collected from Chat Template.
+    tool_call_start: Optional[str] = None # string/token that precedes tool calls
+    tool_call_end: Optional[str] = None # string/token that might be placed after the tool calls
+    tool_call_schema: Optional[dict] = None # schema to be used when generating tool calls
 
 
 class ChatCompletionResponse(BaseModel):
