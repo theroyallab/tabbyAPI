@@ -192,6 +192,7 @@ templates/*
 !templates/place_your_templates_here.txt
 !templates/alpaca.jinja
 !templates/chatml.jinja
+!templates/llama3_fire_function_v2.jinja
 
 # Sampler overrides folder
 sampler_overrides/*
