@@ -70,6 +70,7 @@ def _create_response(generations: List[dict], model_name: Optional[str]):
         choice = ChatCompletionRespChoice(
             index=index,
             finish_reason=generation.get("finish_reason"),
+            stop_str=generation.get("stop_str"), # lets check that we are getting the stop str before going forward
             message=message,
             logprobs=logprob_response,
         )
@@ -189,6 +190,8 @@ def format_prompt_with_template(data: ChatCompletionRequest):
             {
                 "messages": data.messages,
                 "add_generation_prompt": data.add_generation_prompt,
+                "tools": data.tools,
+                "functions": data.functions,
                 **special_tokens_dict,
             }
         )
@@ -196,6 +199,16 @@ def format_prompt_with_template(data: ChatCompletionRequest):
         prompt, template_stop_strings = model.container.prompt_template.render(
             data.template_vars
         )
+
+        tool_start, tool_end = model.container.prompt_template.tool_params(
+            data.template_vars
+        )
+
+        if data.tool_call_start is None and tool_start is not None:
+            data.tool_call_start = tool_start
+
+        if data.tool_call_end is None and tool_end is not None:
+            data.tool_call_end = tool_end
 
         # Append response prefix if present
         if data.response_prefix:
@@ -219,6 +232,10 @@ def format_prompt_with_template(data: ChatCompletionRequest):
         else:
             data.stop += template_stop_strings
 
+        # Adds the string to stop generation before the model generates a toolcall
+        if tool_start:
+            data.stop.append(tool_start)
+        
         return prompt
 
     except KeyError as exc:
