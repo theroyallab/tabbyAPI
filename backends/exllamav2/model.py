@@ -850,6 +850,9 @@ class ExllamaV2Container:
                 joined_generation["finish_reason"] = finish_reason_gen.get(
                     "finish_reason"
                 )
+                joined_generation["stop_str"] = finish_reason_gen.get(
+                    "stop_str"
+                )
             else:
                 joined_generation["finish_reason"] = "stop"
 
@@ -1222,9 +1225,18 @@ class ExllamaV2Container:
                         log_response(full_response)
 
                         eos_reason = result.get("eos_reason")
-                        finish_reason = (
-                            "length" if eos_reason == "max_new_tokens" else "stop"
-                        )
+
+                        stop_str = None
+                        if eos_reason == "max_new_tokens":
+                            finish_reason = "length"
+                        else:
+                            finish_reason = "stop"
+                            # Grab stop string if stop was the reason
+                            if eos_reason == 'stop_token':
+                                stop_str = result.get("eos_triggering_token_str")
+                            elif eos_reason == 'stop_string':
+                                stop_str = result.get("eos_triggering_string")
+                            
 
                         log_metrics(
                             result.get("time_enqueued"),
@@ -1242,6 +1254,7 @@ class ExllamaV2Container:
                             "prompt_tokens": generation.get("prompt_tokens"),
                             "generated_tokens": generation.get("generated_tokens"),
                             "finish_reason": finish_reason,
+                            "stop_str": stop_str
                         }
 
                         yield generation
