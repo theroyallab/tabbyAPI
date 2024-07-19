@@ -4,7 +4,7 @@ from typing import Union, List, Optional, Dict
 from uuid import uuid4
 
 from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
-from endpoints.OAI.types.tools import ToolCall, Tool
+from endpoints.OAI.types.tools import Tool, default_tool_call_schema
 
 class ChatCompletionLogprob(BaseModel):
     token: str
@@ -19,7 +19,7 @@ class ChatCompletionLogprobs(BaseModel):
 class ChatCompletionMessage(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
-    tool_calls: Optional[List[ToolCall]] = None
+    tool_calls: Optional[List[Dict]] = None
 
 
 class ChatCompletionRespChoice(BaseModel):
@@ -57,7 +57,7 @@ class ChatCompletionRequest(CommonCompletionRequest):
     # Typically collected from Chat Template.
     tool_call_start: Optional[str] = None # string/token that precedes tool calls
     tool_call_end: Optional[str] = None # string/token that might be placed after the tool calls
-    tool_call_schema: Optional[dict] = None # schema to be used when generating tool calls
+    tool_call_schema: Optional[dict] = default_tool_call_schema # schema to be used when generating tool calls
 
 
 class ChatCompletionResponse(BaseModel):
