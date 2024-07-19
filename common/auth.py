@@ -86,9 +86,9 @@ def get_key_permission(request: Request):
 
     # Hyphens are okay here
     test_key = coalesce(
-        request.headers.get("authorization"),
         request.headers.get("x-admin-key"),
         request.headers.get("x-api-key"),
+        request.headers.get("authorization"),
     )
 
     if test_key is None:

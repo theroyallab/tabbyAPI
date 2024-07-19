@@ -432,9 +432,9 @@ async def key_permission(request: Request) -> AuthPermissionResponse:
     Gets the access level/permission of a provided key in headers.
 
     Priority:
-    - Authorization
     - X-admin-key
     - X-api-key
+    - Authorization
     """
 
     try:
