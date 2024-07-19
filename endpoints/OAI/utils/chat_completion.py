@@ -6,6 +6,7 @@ from asyncio import CancelledError
 from copy import deepcopy
 from typing import List, Optional
 from uuid import uuid4
+import json
 
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
@@ -43,6 +44,11 @@ def _create_response(generations: List[dict], model_name: Optional[str]):
         message = ChatCompletionMessage(
             role="assistant", content=unwrap(generation.get("text"), "")
         )
+
+        tool_calls = generation['tool_calls']
+        if tool_calls:
+            tool_calls_json = json.loads(tool_calls)
+            message.tool_calls = tool_calls_json
 
         logprob_response = None
 
@@ -335,7 +341,6 @@ async def stream_generate_chat_completion(
             "Chat completion aborted. Please check the server console."
         )
 
-
 async def generate_chat_completion(
     prompt: str, data: ChatCompletionRequest, model_path: pathlib.Path
 ):
@@ -356,6 +361,8 @@ async def generate_chat_completion(
             )
 
         generations = await asyncio.gather(*gen_tasks)
+        if data.tool_call_start: # Let's not waste our time if we arn't running a tool model
+            generations = await generate_tool_calls(prompt, data, generations)
         response = _create_response(generations, model_path.name)
 
         return response
@@ -367,3 +374,32 @@ async def generate_chat_completion(
 
         # Server error if there's a generation exception
         raise HTTPException(503, error_message) from exc
+
+async def generate_tool_calls(
+    prompt: str, data: ChatCompletionRequest, generations: List[str]
+):
+    gen_tasks: List[asyncio.Task] = []
+    tool_idx: List[int] = []
+    temp = deepcopy(data) # Do we need to deepcopy this such that we don't 
+                          # modify the upstream data when overwriting json_schema with the tool schema??
+    temp.json_schema = temp.tool_call_schema
+    gen_params = temp.to_gen_params()
+
+    for idx, gen in enumerate(generations):
+        if gen['stop_str'] == temp.tool_call_start:
+            pre_tool_prompt = prompt + gen['text'] + temp.tool_call_start # Need to add the tool start call here as the engine extacts it
+            gen_tasks.append(
+                asyncio.create_task(model.container.generate(pre_tool_prompt, **gen_params))
+            )
+            tool_idx.append(idx)
+
+    tool_calls = await asyncio.gather(*gen_tasks)
+    for outer_idx in range(0, len(tool_idx)):
+        gen_idx = tool_idx[outer_idx]
+        generations[gen_idx]['tool_calls'] = tool_calls[outer_idx]['text']
+
+    return generations
+
+
+
+

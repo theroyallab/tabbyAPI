@@ -838,6 +838,7 @@ class ExllamaV2Container:
             "text": "",
             "prompt_tokens": 0,
             "generation_tokens": 0,
+            "tool_calls": None,
             "offset": [],
             "token_probs": {},
             "logprobs": [],
