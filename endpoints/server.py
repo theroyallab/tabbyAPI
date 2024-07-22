@@ -1,5 +1,6 @@
+from uuid import uuid4
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
@@ -23,6 +24,15 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    """Middleware to append an ID to a request"""
+
+    request.state.id = uuid4().hex
+    response = await call_next(request)
+    return response
 
 
 def setup_app():

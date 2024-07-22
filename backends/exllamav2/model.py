@@ -828,10 +828,10 @@ class ExllamaV2Container:
 
         return dict(zip_longest(top_tokens, cleaned_values))
 
-    async def generate(self, prompt: str, **kwargs):
+    async def generate(self, prompt: str, request_id: str, **kwargs):
         """Generate a response to a prompt"""
         generations = []
-        async for generation in self.generate_gen(prompt, **kwargs):
+        async for generation in self.generate_gen(prompt, request_id, **kwargs):
             generations.append(generation)
 
         joined_generation = {
@@ -881,7 +881,11 @@ class ExllamaV2Container:
         return kwargs
 
     async def generate_gen(
-        self, prompt: str, abort_event: Optional[asyncio.Event] = None, **kwargs
+        self,
+        prompt: str,
+        request_id: str,
+        abort_event: Optional[asyncio.Event] = None,
+        **kwargs,
     ):
         """
         Create generator function for prompt completion.
@@ -1116,6 +1120,7 @@ class ExllamaV2Container:
         # Log generation options to console
         # Some options are too large, so log the args instead
         log_generation_params(
+            request_id=request_id,
             max_tokens=max_tokens,
             min_tokens=min_tokens,
             stream=kwargs.get("stream"),
@@ -1138,9 +1143,10 @@ class ExllamaV2Container:
         )
 
         # Log prompt to console
-        log_prompt(prompt, negative_prompt)
+        log_prompt(prompt, request_id, negative_prompt)
 
         # Create and add a new job
+        # Don't use the request ID here as there can be multiple jobs per request
         job_id = uuid.uuid4().hex
         job = ExLlamaV2DynamicJobAsync(
             self.generator,

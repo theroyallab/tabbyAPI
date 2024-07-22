@@ -107,12 +107,14 @@ async def completion_request(
             ping=maxsize,
         )
     else:
-        generate_task = asyncio.create_task(generate_completion(data, model_path))
+        generate_task = asyncio.create_task(
+            generate_completion(data, request, model_path)
+        )
 
         response = await run_with_request_disconnect(
             request,
             generate_task,
-            disconnect_message="Completion generation cancelled by user.",
+            disconnect_message=f"Completion {request.state.id} cancelled by user.",
         )
         return response
 
@@ -161,13 +163,13 @@ async def chat_completion_request(
         )
     else:
         generate_task = asyncio.create_task(
-            generate_chat_completion(prompt, data, model_path)
+            generate_chat_completion(prompt, data, request, model_path)
         )
 
         response = await run_with_request_disconnect(
             request,
             generate_task,
-            disconnect_message="Chat completion generation cancelled by user.",
+            disconnect_message=f"Chat completion {request.state.id} cancelled by user.",
         )
         return response
 
