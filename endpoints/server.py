@@ -1,10 +1,10 @@
-from uuid import uuid4
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from common.logger import UVICORN_LOG_CONFIG
+from common.networking import add_request_id
 from endpoints.OAI.router import router as OAIRouter
 
 app = FastAPI(
@@ -14,6 +14,7 @@ app = FastAPI(
         "This docs page is not meant to send requests! Please use a service "
         "like Postman or a frontend UI."
     ),
+    dependencies=[Depends(add_request_id)]
 )
 
 # ALlow CORS requests
@@ -24,15 +25,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    """Middleware to append an ID to a request"""
-
-    request.state.id = uuid4().hex
-    response = await call_next(request)
-    return response
 
 
 def setup_app():

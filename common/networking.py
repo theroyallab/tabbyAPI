@@ -7,6 +7,7 @@ from fastapi import HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel
 from typing import Optional
+from uuid import uuid4
 
 from common import config
 from common.utils import unwrap
@@ -100,3 +101,10 @@ def is_port_in_use(port: int) -> bool:
     test_socket.settimeout(1)
     with test_socket:
         return test_socket.connect_ex(("localhost", port)) == 0
+
+
+async def add_request_id(request: Request):
+    """FastAPI depends to add a UUID to a request's state."""
+
+    request.state.id = uuid4().hex
+    return request
