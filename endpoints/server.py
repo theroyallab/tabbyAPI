@@ -14,7 +14,7 @@ app = FastAPI(
         "This docs page is not meant to send requests! Please use a service "
         "like Postman or a frontend UI."
     ),
-    dependencies=[Depends(add_request_id)]
+    dependencies=[Depends(add_request_id)],
 )
 
 # ALlow CORS requests
