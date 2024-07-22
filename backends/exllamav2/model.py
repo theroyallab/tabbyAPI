@@ -1185,12 +1185,14 @@ class ExllamaV2Container:
                 result_id = result.get("identifier")
 
                 if stage == "streaming" and result_id == job_id:
+                    chunk_tokens = result.get("token_ids")
+                    if chunk_tokens is None:
+                        continue
+                    else:
+                        generated_tokens += chunk_tokens.size(dim=0)
+
                     chunk = unwrap(result.get("text"), "")
                     full_response += chunk
-
-                    chunk_tokens = result.get("token_ids")
-                    if chunk_tokens is not None:
-                        generated_tokens += chunk_tokens.size(dim=0)
 
                     generation = {
                         "text": chunk,
