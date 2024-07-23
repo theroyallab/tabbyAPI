@@ -311,8 +311,9 @@ async def stream_generate_chat_completion(
     except CancelledError:
         # Get out if the request gets disconnected
 
-        abort_event.set()
-        handle_request_disconnect("Chat completion generation cancelled by user.")
+        if not disconnect_task.done():
+            abort_event.set()
+            handle_request_disconnect("Chat completion generation cancelled by user.")
     except Exception:
         yield get_generator_error(
             "Chat completion aborted. Please check the server console."

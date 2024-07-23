@@ -162,10 +162,11 @@ async def stream_generate_completion(
     except CancelledError:
         # Get out if the request gets disconnected
 
-        abort_event.set()
-        handle_request_disconnect(
-            f"Completion generation {request.state.id} cancelled by user."
-        )
+        if not disconnect_task.done():
+            abort_event.set()
+            handle_request_disconnect(
+                f"Completion generation {request.state.id} cancelled by user."
+            )
     except Exception:
         yield get_generator_error(
             f"Completion {request.state.id} aborted. Please check the server console."
