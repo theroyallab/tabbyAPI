@@ -7,6 +7,7 @@ from sys import maxsize
 from common import config, model, sampling
 from common.auth import check_admin_key, check_api_key, get_key_permission
 from common.downloader import hf_repo_download
+from common.model import check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.templating import PromptTemplate, get_all_templates
 from common.utils import unwrap
@@ -58,20 +59,6 @@ from endpoints.OAI.utils.lora import get_active_loras, get_lora_list
 
 
 router = APIRouter()
-
-
-async def check_model_container():
-    """FastAPI depends that checks if a model isn't loaded or currently loading."""
-
-    if model.container is None or not (
-        model.container.model_is_loading or model.container.model_loaded
-    ):
-        error_message = handle_request_error(
-            "No models are currently loaded.",
-            exc_info=False,
-        ).error.message
-
-        raise HTTPException(400, error_message)
 
 
 # Completions endpoint
