@@ -97,7 +97,7 @@ async def entrypoint(args: Optional[dict] = None):
     load_auth_keys(unwrap(network_config.get("disable_auth"), False))
 
     # Override the generation log options if given
-    log_config = config.gen_logging_config()
+    log_config = config.logging_config()
     if log_config:
         gen_logging.update_from_dict(log_config)
 
