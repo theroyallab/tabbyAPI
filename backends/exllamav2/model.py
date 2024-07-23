@@ -1080,8 +1080,6 @@ class ExllamaV2Container:
             else [self.tokenizer.eos_token_id]
         )
 
-        print(self.tokenizer.eos_token_id)
-
         # Ban the EOS token if specified. If not, append to stop conditions
         # as well.
         # Set this below logging to avoid polluting the stop strings array

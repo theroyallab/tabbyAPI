@@ -1,4 +1,3 @@
-from typing import List
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,7 +33,7 @@ def setup_app():
         allow_headers=["*"],
     )
 
-    api_servers: List[str] = unwrap(config.network_config().get("api_servers"), [])
+    api_servers = unwrap(config.network_config().get("api_servers"), [])
 
     # Map for API id to server router
     router_mapping = {"oai": OAIRouter}
