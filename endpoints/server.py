@@ -1,10 +1,13 @@
+from typing import List
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from common import config
 from common.logger import UVICORN_LOG_CONFIG
 from common.networking import get_global_depends
+from common.utils import unwrap
 from endpoints.core.router import router as CoreRouter
 from endpoints.OAI.router import router as OAIRouter
 
@@ -31,7 +34,19 @@ def setup_app():
         allow_headers=["*"],
     )
 
-    app.include_router(OAIRouter)
+    api_servers: List[str] = unwrap(config.network_config().get("api_servers"), [])
+
+    # Map for API id to server router
+    router_mapping = {"oai": OAIRouter}
+
+    # Include the OAI api by default
+    if api_servers:
+        for server in api_servers:
+            server_name = server.lower()
+            if server_name in router_mapping:
+                app.include_router(router_mapping[server_name])
+    else:
+        app.include_router(OAIRouter)
 
     # Include core API request paths
     app.include_router(CoreRouter)

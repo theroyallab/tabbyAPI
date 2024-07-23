@@ -23,6 +23,10 @@ network:
   # NOTE: Only enable this for debug purposes
   send_tracebacks: False
 
+  # Select API servers to enable (default: ["OAI"])
+  # Possible values: OAI
+  api_servers: ["OAI"]
+
 # Options for logging
 logging:
   # Enable prompt logging (default: False)
