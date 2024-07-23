@@ -248,7 +248,7 @@ async def stream_generate_chat_completion(
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
 
     try:
-        logger.info(f"Recieved chat completion streaming request {request.state.id}")
+        logger.info(f"Received chat completion streaming request {request.state.id}")
 
         gen_params = data.to_gen_params()
 
