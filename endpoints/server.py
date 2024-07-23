@@ -1,42 +1,44 @@
 import uvicorn
-from fastapi import Depends, FastAPI
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from common.logger import UVICORN_LOG_CONFIG
-from common.networking import add_request_id
+from common.networking import get_global_depends
 from endpoints.OAI.router import router as OAIRouter
-
-app = FastAPI(
-    title="TabbyAPI",
-    summary="An OAI compatible exllamav2 API that's both lightweight and fast",
-    description=(
-        "This docs page is not meant to send requests! Please use a service "
-        "like Postman or a frontend UI."
-    ),
-    dependencies=[Depends(add_request_id)],
-)
-
-# ALlow CORS requests
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 def setup_app():
     """Includes the correct routers for startup"""
 
+    app = FastAPI(
+        title="TabbyAPI",
+        summary="An OAI compatible exllamav2 API that's both lightweight and fast",
+        description=(
+            "This docs page is not meant to send requests! Please use a service "
+            "like Postman or a frontend UI."
+        ),
+        dependencies=get_global_depends(),
+    )
+
+    # ALlow CORS requests
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     app.include_router(OAIRouter)
+
+    return app
 
 
 def export_openapi():
     """Function to return the OpenAPI JSON from the API server"""
 
-    setup_app()
+    app = setup_app()
     return app.openapi()
 
 
@@ -49,7 +51,7 @@ async def start_api(host: str, port: int):
     logger.info(f"Chat completions: http://{host}:{port}/v1/chat/completions")
 
     # Setup app
-    setup_app()
+    app = setup_app()
 
     config = uvicorn.Config(
         app,

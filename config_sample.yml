@@ -31,6 +31,10 @@ logging:
   # Enable generation parameter logging (default: False)
   generation_params: False
 
+  # Enable request logging (default: False)
+  # NOTE: Only use this for debugging!
+  requests: False
+
 # Options for sampling
 sampling:
   # Override preset name. Find this in the sampler-overrides folder (default: None)

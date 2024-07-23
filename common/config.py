@@ -51,10 +51,7 @@ def from_args(args: dict):
         cur_logging_config = logging_config()
         GLOBAL_CONFIG["logging"] = {
             **cur_logging_config,
-            **{
-                k.replace("log_", ""): logging_override[k]
-                for k in logging_override
-            },
+            **{k.replace("log_", ""): logging_override[k] for k in logging_override},
         }
 
     developer_override = args.get("developer")
