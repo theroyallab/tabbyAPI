@@ -1,7 +1,7 @@
 import pathlib
 
 from common import model
-from endpoints.OAI.types.lora import LoraCard, LoraList
+from endpoints.core.types.lora import LoraCard, LoraList
 
 
 def get_lora_list(lora_path: pathlib.Path):

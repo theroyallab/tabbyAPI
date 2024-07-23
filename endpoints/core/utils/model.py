@@ -5,7 +5,7 @@ from typing import Optional
 from common import gen_logging, model
 from common.networking import get_generator_error, handle_request_disconnect
 from common.utils import unwrap
-from endpoints.OAI.types.model import (
+from endpoints.core.types.model import (
     ModelCard,
     ModelCardParameters,
     ModelList,

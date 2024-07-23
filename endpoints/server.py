@@ -5,6 +5,7 @@ from loguru import logger
 
 from common.logger import UVICORN_LOG_CONFIG
 from common.networking import get_global_depends
+from endpoints.core.router import router as CoreRouter
 from endpoints.OAI.router import router as OAIRouter
 
 
@@ -31,6 +32,9 @@ def setup_app():
     )
 
     app.include_router(OAIRouter)
+
+    # Include core API request paths
+    app.include_router(CoreRouter)
 
     return app
 
