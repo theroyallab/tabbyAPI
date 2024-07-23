@@ -171,6 +171,11 @@ def add_logging_args(parser: argparse.ArgumentParser):
         type=str_to_bool,
         help="Enable generation parameter logging",
     )
+    logging_group.add_argument(
+        "--log-requests",
+        type=str_to_bool,
+        help="Enable request logging",
+    )
 
 
 def add_developer_args(parser: argparse.ArgumentParser):
