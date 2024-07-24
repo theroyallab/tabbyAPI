@@ -145,7 +145,8 @@ async def hf_repo_download(
     logger.info(f"Saving {repo_id} to {str(download_path)}")
 
     try:
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=None)  # Turn off timeout
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             tasks = []
             logger.info(f"Starting download for {repo_id}")
 
