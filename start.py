@@ -1,6 +1,5 @@
 """Utility to automatically upgrade and start the API"""
 
-import asyncio
 import argparse
 import os
 import pathlib
@@ -159,4 +158,5 @@ if __name__ == "__main__":
     # Import entrypoint after installing all requirements
     from main import entrypoint
 
-    asyncio.run(entrypoint(convert_args_to_dict(args, parser)))
+    converted_args = convert_args_to_dict(args, parser)
+    entrypoint(converted_args)

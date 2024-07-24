@@ -1,3 +1,4 @@
+import asyncio
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -71,11 +72,15 @@ async def start_api(host: str, port: int):
     # Setup app
     app = setup_app()
 
+    # Get the current event loop
+    loop = asyncio.get_running_loop()
+
     config = uvicorn.Config(
         app,
         host=host,
         port=port,
         log_config=UVICORN_LOG_CONFIG,
+        loop=loop,
     )
     server = uvicorn.Server(config)
 

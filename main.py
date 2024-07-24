@@ -1,10 +1,10 @@
 """The main tabbyAPI module. Contains the FastAPI server and endpoints."""
 
 import asyncio
-import aiofiles
 import json
 import os
 import pathlib
+import platform
 import signal
 from loguru import logger
 from typing import Optional
@@ -23,51 +23,8 @@ if not do_export_openapi:
     from backends.exllamav2.utils import check_exllama_version
 
 
-async def entrypoint(args: Optional[dict] = None):
-    """Entry function for program startup"""
-
-    setup_logger()
-
-    # Set up signal aborting
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    if os.getenv("EXPORT_OPENAPI", "").lower() in ("true", "1"):
-        openapi_json = export_openapi()
-
-        async with aiofiles.open("openapi.json", "w") as f:
-            await f.write(json.dumps(openapi_json))
-            logger.info("Successfully wrote OpenAPI spec to openapi.json")
-
-        return
-
-    # Load from YAML config
-    config.from_file(pathlib.Path("config.yml"))
-
-    # Parse and override config from args
-    if args is None:
-        parser = init_argparser()
-        args = convert_args_to_dict(parser.parse_args(), parser)
-
-    config.from_args(args)
-
-    developer_config = config.developer_config()
-
-    # Check exllamav2 version and give a descriptive error if it's too old
-    # Skip if launching unsafely
-
-    if unwrap(developer_config.get("unsafe_launch"), False):
-        logger.warning(
-            "UNSAFE: Skipping ExllamaV2 version check.\n"
-            "If you aren't a developer, please keep this off!"
-        )
-    else:
-        check_exllama_version()
-
-    # Enable CUDA malloc backend
-    if unwrap(developer_config.get("cuda_malloc_backend"), False):
-        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
-        logger.warning("Enabled the experimental CUDA malloc backend.")
+async def entrypoint_async():
+    """Async entry function for program startup"""
 
     network_config = config.network_config()
 
@@ -131,5 +88,64 @@ async def entrypoint(args: Optional[dict] = None):
     await start_api(host, port)
 
 
+def entrypoint(arguments: Optional[dict] = None):
+    setup_logger()
+
+    # Set up signal aborting
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    if do_export_openapi:
+        openapi_json = export_openapi()
+
+        with open("openapi.json", "w") as f:
+            f.write(json.dumps(openapi_json))
+            logger.info("Successfully wrote OpenAPI spec to openapi.json")
+
+        return
+
+    # Load from YAML config
+    config.from_file(pathlib.Path("config.yml"))
+
+    # Parse and override config from args
+    if arguments is None:
+        parser = init_argparser()
+        arguments = convert_args_to_dict(parser.parse_args(), parser)
+
+    config.from_args(arguments)
+    developer_config = config.developer_config()
+
+    # Check exllamav2 version and give a descriptive error if it's too old
+    # Skip if launching unsafely
+
+    if unwrap(developer_config.get("unsafe_launch"), False):
+        logger.warning(
+            "UNSAFE: Skipping ExllamaV2 version check.\n"
+            "If you aren't a developer, please keep this off!"
+        )
+    else:
+        check_exllama_version()
+
+    # Enable CUDA malloc backend
+    if unwrap(developer_config.get("cuda_malloc_backend"), False):
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
+        logger.warning("EXPERIMENTAL: Enabled the pytorch CUDA malloc backend.")
+
+    # Use Uvloop/Winloop
+    if unwrap(developer_config.get("uvloop"), False):
+        if platform.system() == "Windows":
+            from winloop import install
+        else:
+            from uvloop import install
+
+        # Set loop event policy
+        install()
+
+        logger.warning("EXPERIMENTAL: Running program with Uvloop/Winloop.")
+
+    # Enter into the async event loop
+    asyncio.run(entrypoint_async())
+
+
 if __name__ == "__main__":
-    asyncio.run(entrypoint())
+    entrypoint()

@@ -193,7 +193,12 @@ def add_developer_args(parser: argparse.ArgumentParser):
     developer_group.add_argument(
         "--cuda-malloc-backend",
         type=str_to_bool,
-        help="Disables API request streaming",
+        help="Runs with the pytorch CUDA malloc backend",
+    )
+    developer_group.add_argument(
+        "--uvloop",
+        type=str_to_bool,
+        help="Run asyncio using Uvloop or Winloop",
     )
 
 

@@ -62,6 +62,11 @@ developer:
   # This can save a few MBs of VRAM, but has a risk of errors. Use at your own risk.
   #cuda_malloc_backend: False
 
+  # Enable Uvloop or Winloop (default: False)
+  # Make the program utilize a faster async event loop which can improve performance
+  # NOTE: It's recommended to enable this, but if something breaks, turn this off.
+  #uvloop: False
+
 # Options for model overrides and loading
 # Please read the comments to understand how arguments are handled between initial and API loads
 model:

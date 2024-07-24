@@ -29,6 +29,10 @@ dependencies = [
     "lm-format-enforcer >= 0.9.6",
     "aiofiles",
 
+    # Improved asyncio loops
+    "uvloop ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "winloop ; platform_system == 'Windows'",
+
     # TEMP: Remove once 2.x is fixed in upstream
     "numpy < 2.0.0",
 
