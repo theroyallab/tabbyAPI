@@ -9,6 +9,8 @@ import signal
 from loguru import logger
 from typing import Optional
 
+import psutil
+
 from common import config, gen_logging, sampling, model
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
@@ -142,6 +144,19 @@ def entrypoint(arguments: Optional[dict] = None):
         install()
 
         logger.warning("EXPERIMENTAL: Running program with Uvloop/Winloop.")
+
+    # Set the process priority
+    if unwrap(developer_config.get("realtime_process_priority"), False):
+        current_process = psutil.Process(os.getpid())
+        if platform.system() == "Windows":
+            current_process.nice(psutil.REALTIME_PRIORITY_CLASS)
+        else:
+            current_process.nice(psutil.IOPRIO_CLASS_RT)
+
+        logger.warning(
+            "EXPERIMENTAL: Process priority set to Realtime. \n"
+            "If you're not running on administrator/sudo, the priority is set to high."
+        )
 
     # Enter into the async event loop
     asyncio.run(entrypoint_async())

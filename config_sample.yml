@@ -67,6 +67,11 @@ developer:
   # NOTE: It's recommended to enable this, but if something breaks, turn this off.
   #uvloop: False
 
+  # Set process to use a higher priority
+  # For realtime process priority, run as administrator or sudo
+  # Otherwise, the priority will be set to high
+  #realtime_process_priority: False
+
 # Options for model overrides and loading
 # Please read the comments to understand how arguments are handled between initial and API loads
 model:

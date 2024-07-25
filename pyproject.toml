@@ -28,6 +28,9 @@ dependencies = [
     "tokenizers",
     "lm-format-enforcer >= 0.9.6",
     "aiofiles",
+    "aiohttp",
+    "huggingface_hub",
+    "psutil",
 
     # Improved asyncio loops
     "uvloop ; platform_system == 'Linux' and platform_machine == 'x86_64'",
@@ -35,10 +38,6 @@ dependencies = [
 
     # TEMP: Remove once 2.x is fixed in upstream
     "numpy < 2.0.0",
-
-    # TODO: Maybe move these to a downloader feature?
-    "aiohttp",
-    "huggingface_hub",
 ]
 
 [project.urls]
