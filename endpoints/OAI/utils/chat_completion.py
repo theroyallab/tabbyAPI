@@ -191,13 +191,16 @@ def format_prompt_with_template(data: ChatCompletionRequest):
                     "",
                 )
 
+            if 'tool_calls' in message:
+                message['tool_calls_json'] = json.dumps(message['tool_calls'], indent=2)
+
         # Overwrite any protected vars with their values
         data.template_vars.update(
             {
                 "messages": data.messages,
                 "add_generation_prompt": data.add_generation_prompt,
-                "tools": data.tools,
-                "functions": data.functions,
+                "tools_json": json.dumps(data.tools, indent=2),
+                "functions_json": json.dumps(data.functions, indent=2),
                 **special_tokens_dict,
             }
         )
@@ -312,6 +315,8 @@ async def stream_generate_chat_completion(
                 handle_request_disconnect("Completion generation cancelled by user.")
 
             generation = await gen_queue.get()
+            if data.tool_call_start: # Let's not waste our time if we arn't running a tool model
+                generation = await generate_tool_calls(prompt, data, [generation])[0] # WIP
 
             # Stream collector will push an exception to the queue if it fails
             if isinstance(generation, Exception):

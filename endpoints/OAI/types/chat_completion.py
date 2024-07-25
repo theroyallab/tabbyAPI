@@ -19,7 +19,7 @@ class ChatCompletionLogprobs(BaseModel):
 class ChatCompletionMessage(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
-    tool_calls: Optional[List[Dict]] = None
+    tool_calls: Optional[List[Dict]] = None # WIP - See note on 32
 
 
 class ChatCompletionRespChoice(BaseModel):
@@ -29,6 +29,8 @@ class ChatCompletionRespChoice(BaseModel):
     stop_str: Optional[str] = None # let's us understand why it stopped and if we need to generate a tool_call
     message: ChatCompletionMessage
     logprobs: Optional[ChatCompletionLogprobs] = None
+    tool_calls: Optional[List[Dict]] = None # WIP Could match this to the OAI type in 
+                                            # \Lib\site-packages\openai\types\chat\chat_completion_message_tool_call_param.py
 
 
 class ChatCompletionStreamChoice(BaseModel):
@@ -44,14 +46,15 @@ class ChatCompletionRequest(CommonCompletionRequest):
     # Messages
     # Take in a string as well even though it's not part of the OAI spec
     # support messages.content as a list of dict
-    messages: Union[str, List[Dict[str, Union[str, List[Dict[str, str]]]]]]
+    messages: Union[str, List[Dict]] # WIP this can probably be tightened, or maybe match the OAI lib type 
+                                     # in \Lib\site-packages\openai\types\chat\chat_completion_message_param.py
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
     template_vars: Optional[dict] = {}
     response_prefix: Optional[str] = None
 
     # Tools is follows the format OAI schema, functions allows a list of function schemas to be passed. Chat template will determine which is used.
-    tools: Optional[List[Tool]] = None
+    tools: Optional[List[Dict]] = None # WIP Could match OAI Type here too, undecided.
     functions: Optional[List[Dict]] = None
 
     # Typically collected from Chat Template.

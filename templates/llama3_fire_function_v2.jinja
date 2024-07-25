@@ -3,9 +3,7 @@
 {% set message_roles = ['system', 'user', 'assistant', 'tool'] %}
 {% set tool_start = "functools" %}
 
-{%- set system_prompt_suffix -%}
-Respond using your internal knowledge when possible. If external information is needed, call one or more provided functions.
-
+{%- set system_prompt_suffix -%}Respond using your internal knowledge when possible. If external information is needed, call one or more provided functions.
 To call functions:
 1. Prefix calls with 'functools' (no closing marker)
 2. Generate all calls in a single JSON list:
@@ -15,7 +13,7 @@ To call functions:
 5. Choose functions that best match user intent
 
 Available functions (JSON spec):
-{{ tools }}
+{{ tools_json }}
 {%- endset -%}
 
 {# Template #}
@@ -27,26 +25,19 @@ Available functions (JSON spec):
     {%- endif -%}
     
     {%- set content = message['content'] | default('', true) | trim -%}
-    
     {%- if loop.first -%}
         {{ bos_token }}<|start_header_id|>{{ role }}<|end_header_id|>
 {{ system_prompt_suffix }}
-{{ content }}
-{{ eos_token }}
+{{ content }}{{ eos_token }}
     {%- endif -%}
     
     {%- if not loop.first -%}
         <|start_header_id|>{{ role }}<|end_header_id|>
 {{ content }}
-        {%- if 'tool_calls' in message and message['tool_calls'] -%}
-            {%- set tool_calls = [] -%}
-            {%- for call in message['tool_calls'] -%}
-                {%- set tool_calls = tool_calls + [{'name': call['function']['name'], 'arguments': call['function']['arguments']}] -%}
-            {%- endfor -%}
-            functools{{ tool_calls | tojson }}
+        {%- if 'tool_calls_json' in message and message['tool_calls_json'] -%}
+{{ tool_start }}{{ message['tool_calls_json']}}
         {%- endif -%}
-        {{ eos_token }}
+{{ eos_token }}
     {%- endif -%}
 {%- endfor -%}
-
 <|start_header_id|>assistant<|end_header_id|>
