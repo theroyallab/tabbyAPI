@@ -16,7 +16,7 @@ version = "0.0.1"
 description = "An OAI compatible exllamav2 API that's both lightweight and fast"
 requires-python = ">=3.10"
 dependencies = [
-    "fastapi >= 0.110.0",
+    "fastapi-slim >= 0.110.0",
     "pydantic >= 2.0.0",
     "PyYAML",
     "rich",
@@ -31,6 +31,7 @@ dependencies = [
     "aiohttp",
     "huggingface_hub",
     "psutil",
+    "httptools>=0.5.0",
 
     # Improved asyncio loops
     "uvloop ; platform_system == 'Linux' and platform_machine == 'x86_64'",
