@@ -1,30 +1,18 @@
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
-from common.sampling import BaseSamplerRequest, get_default_sampler_value
+from common.sampling import BaseSamplerRequest
 
 
 class GenerateRequest(BaseSamplerRequest):
     prompt: str
-    use_default_badwordsids: Optional[bool] = False
     genkey: Optional[str] = None
-
-    max_length: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("max_tokens"),
-        examples=[150],
-    )
-    rep_pen_range: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("penalty_range", -1),
-    )
-    rep_pen: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("repetition_penalty", 1.0),
-    )
+    use_default_badwordsids: Optional[bool] = False
 
     def to_gen_params(self, **kwargs):
-        # Swap kobold generation params to OAI/Exl2 ones
-        self.max_tokens = self.max_length
-        self.repetition_penalty = self.rep_pen
-        self.penalty_range = -1 if self.rep_pen_range == 0 else self.rep_pen_range
+        # Exl2 uses -1 to include all tokens in repetition penalty
+        if self.penalty_range == 0:
+            self.penalty_range = -1
 
         return super().to_gen_params(**kwargs)
 

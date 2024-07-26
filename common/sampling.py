@@ -16,11 +16,15 @@ class BaseSamplerRequest(BaseModel):
 
     max_tokens: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("max_tokens"),
+        validation_alias=AliasChoices("max_tokens", "max_length"),
+        description="Aliases: max_length",
         examples=[150],
     )
 
     min_tokens: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("min_tokens", 0),
+        validation_alias=AliasChoices("min_tokens", "min_length"),
+        description="Aliases: min_length",
         examples=[0],
     )
 
@@ -91,6 +95,8 @@ class BaseSamplerRequest(BaseModel):
 
     repetition_penalty: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("repetition_penalty", 1.0),
+        validation_alias=AliasChoices("repetition_penalty", "rep_pen"),
+        description="Aliases: rep_pen",
         examples=[1.0],
     )
 
@@ -118,6 +124,8 @@ class BaseSamplerRequest(BaseModel):
 
     ban_eos_token: Optional[bool] = Field(
         default_factory=lambda: get_default_sampler_value("ban_eos_token", False),
+        validation_alias=AliasChoices("ban_eos_token", "ignore_eos"),
+        description="Aliases: ignore_eos",
         examples=[False],
     )
 
@@ -165,8 +173,12 @@ class BaseSamplerRequest(BaseModel):
             "penalty_range",
             "repetition_range",
             "repetition_penalty_range",
+            "rep_pen_range",
         ),
-        description="Aliases: repetition_range, repetition_penalty_range",
+        description=(
+            "Aliases: repetition_range, repetition_penalty_range, "
+            "rep_pen_range"
+        ),
     )
 
     cfg_scale: Optional[float] = Field(
