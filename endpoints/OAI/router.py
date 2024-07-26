@@ -15,10 +15,7 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionRequest,
     ChatCompletionResponse,
 )
-from endpoints.OAI.types.embedding import (
-    EmbeddingsRequest,
-    EmbeddingsResponse
-)
+from endpoints.OAI.types.embedding import EmbeddingsRequest, EmbeddingsResponse
 from endpoints.OAI.utils.chat_completion import (
     format_prompt_with_template,
     generate_chat_completion,
@@ -132,19 +129,19 @@ async def chat_completion_request(
         )
         return response
 
+
 # Embeddings endpoint
 @router.post(
     "/v1/embeddings",
     dependencies=[Depends(check_api_key), Depends(check_model_container)],
-    response_model=EmbeddingsResponse
+    response_model=EmbeddingsResponse,
 )
 async def handle_embeddings(request: EmbeddingsRequest):
     input = request.input
     if not input:
-        raise JSONResponse(status_code=400,
-                           content={"error": "Missing required argument input"})
+        raise JSONResponse(
+            status_code=400, content={"error": "Missing required argument input"}
+        )
     model = request.model if request.model else None
-    response = await OAIembeddings.embeddings(input, request.encoding_format,
-                                              model)
+    response = await OAIembeddings.embeddings(input, request.encoding_format, model)
     return JSONResponse(response)
-
