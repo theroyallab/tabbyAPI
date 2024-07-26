@@ -19,8 +19,8 @@ class ChatCompletionLogprobs(BaseModel):
 class ChatCompletionMessage(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
-    tool_calls: Optional[List[Dict]] = None # WIP - See note on 32
-
+    tool_calls: Optional[List[Dict]] = None # WIP # WIP Could match this to the OAI type in 
+                                            # \Lib\site-packages\openai\types\chat\chat_completion_message_tool_call_param.py
 
 class ChatCompletionRespChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
@@ -29,9 +29,6 @@ class ChatCompletionRespChoice(BaseModel):
     stop_str: Optional[str] = None # let's us understand why it stopped and if we need to generate a tool_call
     message: ChatCompletionMessage
     logprobs: Optional[ChatCompletionLogprobs] = None
-    tool_calls: Optional[List[Dict]] = None # WIP Could match this to the OAI type in 
-                                            # \Lib\site-packages\openai\types\chat\chat_completion_message_tool_call_param.py
-
 
 class ChatCompletionStreamChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
