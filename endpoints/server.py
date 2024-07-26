@@ -9,6 +9,7 @@ from common.logger import UVICORN_LOG_CONFIG
 from common.networking import get_global_depends
 from common.utils import unwrap
 from endpoints.core.router import router as CoreRouter
+from endpoints.Kobold.router import router as KoboldRouter
 from endpoints.OAI.router import router as OAIRouter
 
 
@@ -37,7 +38,7 @@ def setup_app():
     api_servers = unwrap(config.network_config().get("api_servers"), [])
 
     # Map for API id to server router
-    router_mapping = {"oai": OAIRouter}
+    router_mapping = {"oai": OAIRouter, "kobold": KoboldRouter}
 
     # Include the OAI api by default
     if api_servers:

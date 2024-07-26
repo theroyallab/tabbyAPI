@@ -828,10 +828,14 @@ class ExllamaV2Container:
 
         return dict(zip_longest(top_tokens, cleaned_values))
 
-    async def generate(self, prompt: str, request_id: str, **kwargs):
+    async def generate(
+        self, prompt: str, request_id: str, abort_event: asyncio.Event = None, **kwargs
+    ):
         """Generate a response to a prompt"""
         generations = []
-        async for generation in self.generate_gen(prompt, request_id, **kwargs):
+        async for generation in self.generate_gen(
+            prompt, request_id, abort_event, **kwargs
+        ):
             generations.append(generation)
 
         joined_generation = {
