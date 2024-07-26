@@ -27,7 +27,7 @@ class GenerateRequest(BaseSamplerRequest):
         if self.use_default_badwordsids:
             bad_words_ids = unwrap(
                 model.container.generation_config.bad_words_ids,
-                model.container.hf_config.get_badwordsids()
+                model.container.hf_config.get_badwordsids(),
             )
 
             if bad_words_ids:

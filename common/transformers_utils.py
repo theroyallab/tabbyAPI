@@ -47,9 +47,7 @@ class HuggingFaceConfig(BaseModel):
         """Create an instance from a generation config file."""
 
         hf_config_path = model_directory / "config.json"
-        with open(
-            hf_config_path, "r", encoding="utf8"
-        ) as hf_config_json:
+        with open(hf_config_path, "r", encoding="utf8") as hf_config_json:
             hf_config_dict = json.load(hf_config_json)
             return self.model_validate(hf_config_dict)
 
