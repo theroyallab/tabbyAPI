@@ -1,5 +1,6 @@
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sse_starlette import EventSourceResponse
 from sys import maxsize
 
@@ -8,10 +9,15 @@ from common.auth import check_api_key
 from common.model import check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.utils import unwrap
+import endpoints.OAI.embeddings as OAIembeddings
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionRequest,
     ChatCompletionResponse,
+)
+from endpoints.OAI.types.embedding import (
+    EmbeddingsRequest,
+    EmbeddingsResponse
 )
 from endpoints.OAI.utils.chat_completion import (
     format_prompt_with_template,
@@ -125,3 +131,20 @@ async def chat_completion_request(
             disconnect_message=f"Chat completion {request.state.id} cancelled by user.",
         )
         return response
+
+# Embeddings endpoint
+@router.post(
+    "/v1/embeddings",
+    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    response_model=EmbeddingsResponse
+)
+async def handle_embeddings(request: EmbeddingsRequest):
+    input = request.input
+    if not input:
+        raise JSONResponse(status_code=400,
+                           content={"error": "Missing required argument input"})
+    model = request.model if request.model else None
+    response = await OAIembeddings.embeddings(input, request.encoding_format,
+                                              model)
+    return JSONResponse(response)
+
