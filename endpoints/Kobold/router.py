@@ -22,7 +22,12 @@ from endpoints.Kobold.utils.generation import (
 from endpoints.core.utils.model import get_current_model
 
 
+api_name = "KoboldAI"
 router = APIRouter(prefix="/api")
+urls = {
+    "Generation": "http://{host}:{port}/api/v1/generate",
+    "Streaming": "http://{host}:{port}/api/extra/generate/stream",
+}
 
 
 @router.post(

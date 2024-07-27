@@ -24,7 +24,12 @@ from endpoints.OAI.utils.completion import (
 )
 
 
+api_name = "OAI"
 router = APIRouter()
+urls = {
+    "Completions": "http://{host}:{port}/v1/completions",
+    "Chat completions": "http://{host}:{port}/v1/chat/completions",
+}
 
 
 # Completions endpoint
