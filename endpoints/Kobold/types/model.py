@@ -6,4 +6,4 @@ class CurrentModelResponse(BaseModel):
 
 
 class MaxLengthResponse(BaseModel):
-    value: str
+    value: int
