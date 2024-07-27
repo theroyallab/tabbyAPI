@@ -114,7 +114,7 @@ async def stream_generate_completion(
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
 
     try:
-        logger.info(f"Recieved streaming completion request {request.state.id}")
+        logger.info(f"Received streaming completion request {request.state.id}")
 
         gen_params = data.to_gen_params()
 
