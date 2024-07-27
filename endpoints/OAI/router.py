@@ -32,6 +32,10 @@ urls = {
 }
 
 
+def setup():
+    return router
+
+
 # Completions endpoint
 @router.post(
     "/v1/completions",

@@ -47,14 +47,14 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
             selected_server = router_mapping.get(server.lower())
 
             if selected_server:
-                app.include_router(selected_server.router)
+                app.include_router(selected_server.setup())
 
                 logger.info(f"Starting {selected_server.api_name} API")
                 for path, url in selected_server.urls.items():
                     formatted_url = url.format(host=host, port=port)
                     logger.info(f"{path}: {formatted_url}")
     else:
-        app.include_router(OAIRouter.router)
+        app.include_router(OAIRouter.setup())
         for path, url in OAIRouter.urls.items():
             formatted_url = url.format(host=host, port=port)
             logger.info(f"{path}: {formatted_url}")
