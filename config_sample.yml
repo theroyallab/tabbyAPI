@@ -72,6 +72,13 @@ developer:
   # Otherwise, the priority will be set to high
   #realtime_process_priority: False
 
+embeddings:
+  embeddings_model_dir: models
+
+  embeddings_model_name:
+
+  embeddings_device: cpu
+
 # Options for model overrides and loading
 # Please read the comments to understand how arguments are handled between initial and API loads
 model:

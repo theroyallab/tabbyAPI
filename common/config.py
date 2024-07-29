@@ -95,3 +95,8 @@ def logging_config():
 def developer_config():
     """Returns the developer specific config from the global config"""
     return unwrap(GLOBAL_CONFIG.get("developer"), {})
+
+
+def embeddings_config():
+    """Returns the embeddings config from the global config"""
+    return unwrap(GLOBAL_CONFIG.get("embeddings"), {})

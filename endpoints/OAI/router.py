@@ -135,6 +135,6 @@ async def chat_completion_request(
     dependencies=[Depends(check_api_key), Depends(check_model_container)],
 )
 async def handle_embeddings(data: EmbeddingsRequest) -> EmbeddingsResponse:
-    response = await embeddings(data.input, data.encoding_format, data.model)
+    response = await embeddings(data)
 
     return response
