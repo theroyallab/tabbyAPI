@@ -57,8 +57,6 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 f'Model "{loaded_model_name}" is already loaded! Aborting.'
             )
 
-    # Unload the existing model
-    if container and container.model:
         logger.info("Unloading existing model.")
         await unload_model()
 
@@ -109,24 +107,35 @@ async def unload_loras():
     await container.unload(loras_only=True)
 
 
-async def load_embeddings_model(model_path: pathlib.Path, **kwargs):
+async def load_embedding_model(model_path: pathlib.Path, **kwargs):
     global embeddings_container
 
     # Break out if infinity isn't installed
     if not has_infinity_emb:
-        logger.warning(
+        raise ImportError(
             "Skipping embeddings because infinity-emb is not installed.\n"
             "Please run the following command in your environment "
             "to install extra packages:\n"
             "pip install -U .[extras]"
         )
-        return
+
+    # Check if the model is already loaded
+    if embeddings_container and embeddings_container.engine:
+        loaded_model_name = embeddings_container.model_dir.name
+
+        if loaded_model_name == model_path.name and embeddings_container.model_loaded:
+            raise ValueError(
+                f'Embeddings model "{loaded_model_name}" is already loaded! Aborting.'
+            )
+
+        logger.info("Unloading existing embeddings model.")
+        await unload_embedding_model()
 
     embeddings_container = InfinityContainer(model_path)
     await embeddings_container.load(**kwargs)
 
 
-async def unload_embeddings_model():
+async def unload_embedding_model():
     global embeddings_container
 
     await embeddings_container.unload()
@@ -172,7 +181,7 @@ async def check_embeddings_container():
         embeddings_container.model_is_loading or embeddings_container.model_loaded
     ):
         error_message = handle_request_error(
-            "No embeddings models are currently loaded.",
+            "No embedding models are currently loaded.",
             exc_info=False,
         ).error.message
 

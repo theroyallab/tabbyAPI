@@ -90,14 +90,17 @@ async def entrypoint_async():
     # If an initial embedding model name is specified, create a separate container
     # and load the model
     embedding_config = config.embeddings_config()
-    embedding_model_name = embedding_config.get("embeddings_model_name")
+    embedding_model_name = embedding_config.get("embedding_model_name")
     if embedding_model_name:
         embedding_model_path = pathlib.Path(
-            unwrap(embedding_config.get("embeddings_model_dir"), "models")
+            unwrap(embedding_config.get("embedding_model_dir"), "models")
         )
         embedding_model_path = embedding_model_path / embedding_model_name
 
-        await model.load_embeddings_model(embedding_model_path, **embedding_config)
+        try:
+            await model.load_embedding_model(embedding_model_path, **embedding_config)
+        except ImportError as ex:
+            logger.error(ex.msg)
 
     await start_api(host, port)
 

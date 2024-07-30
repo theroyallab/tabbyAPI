@@ -137,6 +137,11 @@ class ModelLoadRequest(BaseModel):
     skip_queue: Optional[bool] = False
 
 
+class EmbeddingModelLoadRequest(BaseModel):
+    name: str
+    device: Optional[str] = None
+
+
 class ModelLoadResponse(BaseModel):
     """Represents a model load response."""
 

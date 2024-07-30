@@ -73,9 +73,9 @@ developer:
   #realtime_process_priority: False
 
 embeddings:
-  embeddings_model_dir: models
+  embedding_model_dir: models
 
-  embeddings_model_name:
+  embedding_model_name:
 
   embeddings_device: cpu
 
