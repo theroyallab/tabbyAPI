@@ -1,6 +1,7 @@
 import gc
 import pathlib
 import torch
+from loguru import logger
 from typing import List, Optional
 
 from common.utils import unwrap
@@ -49,6 +50,8 @@ class InfinityContainer:
 
         gc.collect()
         torch.cuda.empty_cache()
+
+        logger.info("Embedding model unloaded.")
 
     async def generate(self, sentence_input: List[str]):
         result_embeddings, usage = await self.engine.embed(sentence_input)

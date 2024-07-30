@@ -13,15 +13,18 @@ def signal_handler(*_):
     logger.warning("Shutdown signal called. Exiting gracefully.")
 
     # Run async unloads for model
-    loop = asyncio.get_running_loop()
-    if model.container:
-        loop.create_task(model.container.unload())
-
-    if model.embeddings_container:
-        loop.create_task(model.embeddings_container.unload())
+    asyncio.ensure_future(signal_handler_async())
 
     # Exit the program
     sys.exit(0)
+
+
+async def signal_handler_async(*_):
+    if model.container:
+        await model.container.unload()
+
+    if model.embeddings_container:
+        await model.embeddings_container.unload()
 
 
 def uvicorn_signal_handler(signal_event: signal.Signals):
