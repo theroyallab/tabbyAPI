@@ -72,13 +72,6 @@ developer:
   # Otherwise, the priority will be set to high
   #realtime_process_priority: False
 
-embeddings:
-  embedding_model_dir: models
-
-  embedding_model_name:
-
-  embeddings_device: cpu
-
 # Options for model overrides and loading
 # Please read the comments to understand how arguments are handled between initial and API loads
 model:
@@ -208,3 +201,19 @@ model:
     #loras:
     #- name: lora1
     #  scaling: 1.0
+
+# Options for embedding models and loading.
+# NOTE: Embeddings requires the "extras" feature to be installed
+# Install it via "pip install .[extras]"
+embeddings:
+  # Overrides directory to look for embedding models (default: models)
+  embedding_model_dir: models
+
+  # An initial embedding model to load on the infinity backend (default: None)
+  embedding_model_name:
+
+  # Device to load embedding models on (default: cpu)
+  # Possible values: cpu, auto, cuda
+  # NOTE: It's recommended to load embedding models on the CPU.
+  # If you'd like to load on an AMD gpu, set this value to "cuda" as well.
+  embeddings_device: cpu

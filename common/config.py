@@ -59,6 +59,11 @@ def from_args(args: dict):
         cur_developer_config = developer_config()
         GLOBAL_CONFIG["developer"] = {**cur_developer_config, **developer_override}
 
+    embeddings_override = args.get("embeddings")
+    if embeddings_override:
+        cur_embeddings_config = embeddings_config()
+        GLOBAL_CONFIG["embeddings"] = {**cur_embeddings_config, **embeddings_override}
+
 
 def sampling_config():
     """Returns the sampling parameter config from the global config"""

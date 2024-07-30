@@ -139,7 +139,7 @@ class ModelLoadRequest(BaseModel):
 
 class EmbeddingModelLoadRequest(BaseModel):
     name: str
-    device: Optional[str] = None
+    embeddings_device: Optional[str] = None
 
 
 class ModelLoadResponse(BaseModel):

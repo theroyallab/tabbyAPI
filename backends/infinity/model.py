@@ -35,7 +35,7 @@ class InfinityContainer:
         self.model_is_loading = True
 
         # Use cpu by default
-        device = unwrap(kwargs.get("device"), "cpu")
+        device = unwrap(kwargs.get("embeddings_device"), "cpu")
 
         engine_args = EngineArgs(
             model_name_or_path=str(self.model_dir),
