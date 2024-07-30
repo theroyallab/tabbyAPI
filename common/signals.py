@@ -1,13 +1,26 @@
+import asyncio
 import signal
 import sys
 from loguru import logger
 from types import FrameType
+
+from common import model
 
 
 def signal_handler(*_):
     """Signal handler for main function. Run before uvicorn starts."""
 
     logger.warning("Shutdown signal called. Exiting gracefully.")
+
+    # Run async unloads for model
+    loop = asyncio.get_running_loop()
+    if model.container:
+        loop.create_task(model.container.unload())
+
+    if model.embeddings_container:
+        loop.create_task(model.embeddings_container.unload())
+
+    # Exit the program
     sys.exit(0)
 
 

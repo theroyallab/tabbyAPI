@@ -23,7 +23,7 @@ from endpoints.OAI.utils.completion import (
     generate_completion,
     stream_generate_completion,
 )
-from endpoints.OAI.utils.embeddings import embeddings
+from endpoints.OAI.utils.embeddings import get_embeddings
 
 
 router = APIRouter()
@@ -134,7 +134,12 @@ async def chat_completion_request(
     "/v1/embeddings",
     dependencies=[Depends(check_api_key), Depends(check_model_container)],
 )
-async def handle_embeddings(data: EmbeddingsRequest) -> EmbeddingsResponse:
-    response = await embeddings(data)
+async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsResponse:
+    embeddings_task = asyncio.create_task(get_embeddings(data, request))
+    response = await run_with_request_disconnect(
+        request,
+        embeddings_task,
+        f"Embeddings request {request.state.id} cancelled by user.",
+    )
 
     return response

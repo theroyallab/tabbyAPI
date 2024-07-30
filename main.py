@@ -87,6 +87,18 @@ async def entrypoint_async():
             lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
             await model.container.load_loras(lora_dir.resolve(), **lora_config)
 
+    # If an initial embedding model name is specified, create a separate container
+    # and load the model
+    embedding_config = config.embeddings_config()
+    embedding_model_name = embedding_config.get("embeddings_model_name")
+    if embedding_model_name:
+        embedding_model_path = pathlib.Path(
+            unwrap(embedding_config.get("embeddings_model_dir"), "models")
+        )
+        embedding_model_path = embedding_model_path / embedding_model_name
+
+        await model.load_embeddings_model(embedding_model_path, **embedding_config)
+
     await start_api(host, port)
 
 
