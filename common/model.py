@@ -162,9 +162,15 @@ async def check_model_container():
 
 
 async def check_embeddings_container():
-    """FastAPI depends that checks if an embeddings model is loaded."""
+    """
+    FastAPI depends that checks if an embeddings model is loaded.
 
-    if embeddings_container is None:
+    This is the same as the model container check, but with embeddings instead.
+    """
+
+    if embeddings_container is None or not (
+        embeddings_container.model_is_loading or embeddings_container.model_loaded
+    ):
         error_message = handle_request_error(
             "No embeddings models are currently loaded.",
             exc_info=False,
