@@ -84,11 +84,15 @@ def get_key_permission(request: Request):
     Internal only! Use the depends functions for incoming requests.
     """
 
+    # Give full admin permissions if auth is disabled
+    if DISABLE_AUTH:
+        return "admin"
+
     # Hyphens are okay here
     test_key = coalesce(
-        request.headers.get("authorization"),
         request.headers.get("x-admin-key"),
         request.headers.get("x-api-key"),
+        request.headers.get("authorization"),
     )
 
     if test_key is None:

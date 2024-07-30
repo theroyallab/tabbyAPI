@@ -1,12 +1,14 @@
 """Common utility functions"""
 
 import asyncio
+import json
 import socket
 import traceback
-from fastapi import HTTPException, Request
+from fastapi import Depends, HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel
 from typing import Optional
+from uuid import uuid4
 
 from common import config
 from common.utils import unwrap
@@ -100,3 +102,39 @@ def is_port_in_use(port: int) -> bool:
     test_socket.settimeout(1)
     with test_socket:
         return test_socket.connect_ex(("localhost", port)) == 0
+
+
+async def add_request_id(request: Request):
+    """FastAPI depends to add a UUID to a request's state."""
+
+    request.state.id = uuid4().hex
+    return request
+
+
+async def log_request(request: Request):
+    """FastAPI depends to log a request to the user."""
+
+    log_message = [f"Information for {request.method} request {request.state.id}:"]
+
+    log_message.append(f"URL: {request.url}")
+    log_message.append(f"Headers: {dict(request.headers)}")
+
+    if request.method != "GET":
+        body_bytes = await request.body()
+        if body_bytes:
+            body = json.loads(body_bytes.decode("utf-8"))
+
+            log_message.append(f"Body: {dict(body)}")
+
+    logger.info("\n".join(log_message))
+
+
+def get_global_depends():
+    """Returns global dependencies for a FastAPI app."""
+
+    depends = [Depends(add_request_id)]
+
+    if config.logging_config().get("requests"):
+        depends.append(Depends(log_request))
+
+    return depends

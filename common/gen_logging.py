@@ -51,11 +51,13 @@ def log_generation_params(**kwargs):
         logger.info(f"Generation options: {kwargs}\n")
 
 
-def log_prompt(prompt: str, negative_prompt: Optional[str]):
+def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str]):
     """Logs the prompt to console."""
     if PREFERENCES.prompt:
         formatted_prompt = "\n" + prompt
-        logger.info(f"Prompt: {formatted_prompt if prompt else 'Empty'}\n")
+        logger.info(
+            f"Prompt (ID: {request_id}): {formatted_prompt if prompt else 'Empty'}\n"
+        )
 
         if negative_prompt:
             formatted_negative_prompt = "\n" + negative_prompt

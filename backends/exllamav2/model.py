@@ -47,7 +47,7 @@ from common.templating import (
     TemplateLoadError,
     find_template_from_model,
 )
-from common.transformers_utils import GenerationConfig
+from common.transformers_utils import GenerationConfig, HuggingFaceConfig
 from common.utils import coalesce, unwrap
 
 
@@ -72,6 +72,7 @@ class ExllamaV2Container:
     draft_cache_mode: str = "FP16"
     max_batch_size: int = 20
     generation_config: Optional[GenerationConfig] = None
+    hf_config: Optional[HuggingFaceConfig] = None
 
     # GPU split vars
     gpu_split: Optional[list] = None
@@ -186,6 +187,9 @@ class ExllamaV2Container:
         except AttributeError:
             pass
 
+        # Create the hf_config
+        self.hf_config = HuggingFaceConfig.from_file(model_directory)
+
         # Then override the base_seq_len if present
         override_base_seq_len = kwargs.get("override_base_seq_len")
         if override_base_seq_len:
@@ -268,15 +272,8 @@ class ExllamaV2Container:
         else:
             self.cache_size = self.config.max_seq_len
 
-        # Try to set prompt template
-        self.prompt_template = self.find_prompt_template(
-            kwargs.get("prompt_template"), model_directory
-        )
-
         # Load generation config overrides
-        generation_config_path = (
-            pathlib.Path(self.config.model_dir) / "generation_config.json"
-        )
+        generation_config_path = model_directory / "generation_config.json"
         if generation_config_path.exists():
             try:
                 self.generation_config = GenerationConfig.from_file(
@@ -287,6 +284,11 @@ class ExllamaV2Container:
                 logger.warning(
                     "Skipping generation config load because of an unexpected error."
                 )
+
+        # Try to set prompt template
+        self.prompt_template = self.find_prompt_template(
+            kwargs.get("prompt_template"), model_directory
+        )
 
         # Catch all for template lookup errors
         if self.prompt_template:
@@ -828,10 +830,14 @@ class ExllamaV2Container:
 
         return dict(zip_longest(top_tokens, cleaned_values))
 
-    async def generate(self, prompt: str, **kwargs):
+    async def generate(
+        self, prompt: str, request_id: str, abort_event: asyncio.Event = None, **kwargs
+    ):
         """Generate a response to a prompt"""
         generations = []
-        async for generation in self.generate_gen(prompt, **kwargs):
+        async for generation in self.generate_gen(
+            prompt, request_id, abort_event, **kwargs
+        ):
             generations.append(generation)
 
         joined_generation = {
@@ -885,7 +891,11 @@ class ExllamaV2Container:
         return kwargs
 
     async def generate_gen(
-        self, prompt: str, abort_event: Optional[asyncio.Event] = None, **kwargs
+        self,
+        prompt: str,
+        request_id: str,
+        abort_event: Optional[asyncio.Event] = None,
+        **kwargs,
     ):
         """
         Create generator function for prompt completion.
@@ -1120,6 +1130,7 @@ class ExllamaV2Container:
         # Log generation options to console
         # Some options are too large, so log the args instead
         log_generation_params(
+            request_id=request_id,
             max_tokens=max_tokens,
             min_tokens=min_tokens,
             stream=kwargs.get("stream"),
@@ -1142,9 +1153,10 @@ class ExllamaV2Container:
         )
 
         # Log prompt to console
-        log_prompt(prompt, negative_prompt)
+        log_prompt(prompt, request_id, negative_prompt)
 
         # Create and add a new job
+        # Don't use the request ID here as there can be multiple jobs per request
         job_id = uuid.uuid4().hex
         job = ExLlamaV2DynamicJobAsync(
             self.generator,

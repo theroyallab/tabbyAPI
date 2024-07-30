@@ -23,6 +23,10 @@ network:
   # NOTE: Only enable this for debug purposes
   send_tracebacks: False
 
+  # Select API servers to enable (default: ["OAI"])
+  # Possible values: OAI
+  api_servers: ["OAI"]
+
 # Options for logging
 logging:
   # Enable prompt logging (default: False)
@@ -30,6 +34,10 @@ logging:
 
   # Enable generation parameter logging (default: False)
   generation_params: False
+
+  # Enable request logging (default: False)
+  # NOTE: Only use this for debugging!
+  requests: False
 
 # Options for sampling
 sampling:
@@ -53,6 +61,16 @@ developer:
   # Enable the torch CUDA malloc backend (default: False)
   # This can save a few MBs of VRAM, but has a risk of errors. Use at your own risk.
   #cuda_malloc_backend: False
+
+  # Enable Uvloop or Winloop (default: False)
+  # Make the program utilize a faster async event loop which can improve performance
+  # NOTE: It's recommended to enable this, but if something breaks, turn this off.
+  #uvloop: False
+
+  # Set process to use a higher priority
+  # For realtime process priority, run as administrator or sudo
+  # Otherwise, the priority will be set to high
+  #realtime_process_priority: False
 
 # Options for model overrides and loading
 # Please read the comments to understand how arguments are handled between initial and API loads

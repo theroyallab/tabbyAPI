@@ -101,6 +101,7 @@ async def hf_repo_download(
     chunk_limit: Optional[float],
     include: Optional[List[str]],
     exclude: Optional[List[str]],
+    timeout: Optional[int],
     repo_type: Optional[str] = "model",
 ):
     """Gets a repo's information from HuggingFace and downloads it locally."""
@@ -145,7 +146,8 @@ async def hf_repo_download(
     logger.info(f"Saving {repo_id} to {str(download_path)}")
 
     try:
-        async with aiohttp.ClientSession() as session:
+        client_timeout = aiohttp.ClientTimeout(total=timeout)  # Turn off timeout
+        async with aiohttp.ClientSession(timeout=client_timeout) as session:
             tasks = []
             logger.info(f"Starting download for {repo_id}")
 

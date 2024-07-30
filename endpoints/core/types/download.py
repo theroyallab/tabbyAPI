@@ -17,6 +17,7 @@ class DownloadRequest(BaseModel):
     include: List[str] = Field(default_factory=_generate_include_list)
     exclude: List[str] = Field(default_factory=list)
     chunk_limit: Optional[int] = None
+    timeout: Optional[int] = None
 
 
 class DownloadResponse(BaseModel):

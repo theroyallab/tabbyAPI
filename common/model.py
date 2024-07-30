@@ -5,11 +5,13 @@ Containers exist as a common interface for backends.
 """
 
 import pathlib
+from fastapi import HTTPException
 from loguru import logger
 from typing import Optional
 
 from common import config
 from common.logger import get_loading_progress_bar
+from common.networking import handle_request_error
 from common.utils import unwrap
 from endpoints.utils import do_export_openapi
 
@@ -112,3 +114,15 @@ def get_config_default(key, fallback=None, is_draft=False):
             return unwrap(model_config.get(key), fallback)
     else:
         return fallback
+
+
+async def check_model_container():
+    """FastAPI depends that checks if a model isn't loaded or currently loading."""
+
+    if container is None or not (container.model_is_loading or container.model_loaded):
+        error_message = handle_request_error(
+            "No models are currently loaded.",
+            exc_info=False,
+        ).error.message
+
+        raise HTTPException(400, error_message)
