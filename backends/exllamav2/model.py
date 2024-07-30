@@ -70,7 +70,7 @@ class ExllamaV2Container:
     cache_size: int = None
     cache_mode: str = "FP16"
     draft_cache_mode: str = "FP16"
-    max_batch_size: int = 20
+    max_batch_size: Optional[int] = None
     generation_config: Optional[GenerationConfig] = None
     hf_config: Optional[HuggingFaceConfig] = None
 
@@ -216,6 +216,9 @@ class ExllamaV2Container:
 
         # Enable fasttensors loading if present
         self.config.fasttensors = unwrap(kwargs.get("fasttensors"), False)
+
+        # Set max batch size to the config override
+        self.max_batch_size = unwrap(kwargs.get("max_batch_size"))
 
         # Check whether the user's configuration supports flash/paged attention
         # Also check if exl2 has disabled flash attention
