@@ -64,14 +64,18 @@ def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str]):
             logger.info(f"Negative Prompt: {formatted_negative_prompt}\n")
 
 
-def log_response(response: str):
+def log_response(request_id: str, response: str):
     """Logs the response to console."""
     if PREFERENCES.prompt:
         formatted_response = "\n" + response
-        logger.info(f"Response: {formatted_response if response else 'Empty'}\n")
+        logger.info(
+            f"Response (ID: {request_id}): "
+            f"{formatted_response if response else 'Empty'}\n"
+        )
 
 
 def log_metrics(
+    request_id: str,
     queue_time: float,
     prompt_tokens: int,
     cached_tokens: int,
@@ -82,7 +86,7 @@ def log_metrics(
     max_seq_len: int,
 ):
     initial_response = (
-        f"Metrics: {generated_tokens} tokens generated in "
+        f"Metrics (ID: {request_id}): {generated_tokens} tokens generated in "
         f"{round(queue_time + prompt_time + generate_time, 2)} seconds"
     )
     itemization = []

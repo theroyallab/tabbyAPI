@@ -1210,7 +1210,7 @@ class ExllamaV2Container:
 
                     # Second yield if eos is true
                     if result.get("eos"):
-                        log_response(full_response)
+                        log_response(request_id, full_response)
 
                         eos_reason = result.get("eos_reason")
                         finish_reason = (
@@ -1271,6 +1271,7 @@ class ExllamaV2Container:
             # Log the metrics if present
             if metrics_result:
                 log_metrics(
+                    request_id,
                     metrics_result.get("time_enqueued"),
                     metrics_result.get("prompt_tokens"),
                     metrics_result.get("cached_tokens"),
