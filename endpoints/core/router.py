@@ -279,10 +279,11 @@ async def list_embedding_models(request: Request) -> ModelList:
     "/v1/model/embedding",
     dependencies=[Depends(check_api_key), Depends(check_embeddings_container)],
 )
-async def get_embedding_model() -> ModelList:
+async def get_embedding_model() -> ModelCard:
     """Returns the currently loaded embedding model."""
+    models = await get_current_model_list(model_type="embedding")
 
-    return get_current_model_list(model_type="embedding")[0]
+    return models.data[0]
 
 
 @router.post("/v1/model/embedding/load", dependencies=[Depends(check_admin_key)])
