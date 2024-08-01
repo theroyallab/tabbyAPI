@@ -5,6 +5,7 @@ Containers exist as a common interface for backends.
 """
 
 import pathlib
+from enum import Enum
 from fastapi import HTTPException
 from loguru import logger
 from typing import Optional
@@ -29,6 +30,12 @@ if not do_export_openapi:
         from backends.infinity.model import InfinityContainer
 
         embeddings_container: Optional[InfinityContainer] = None
+
+
+class ModelType(Enum):
+    MODEL = "model"
+    DRAFT = "draft"
+    EMBEDDING = "embedding"
 
 
 def load_progress(module, modules):
@@ -142,16 +149,23 @@ async def unload_embedding_model():
     embeddings_container = None
 
 
-def get_config_default(key, fallback=None, is_draft=False):
+def get_config_default(key: str, fallback=None, model_type: str = "model"):
     """Fetches a default value from model config if allowed by the user."""
 
     model_config = config.model_config()
     default_keys = unwrap(model_config.get("use_as_default"), [])
+
+    # Add extra keys to defaults
+    default_keys.append("embeddings_device")
+
     if key in default_keys:
         # Is this a draft model load parameter?
-        if is_draft:
+        if model_type == "draft":
             draft_config = config.draft_model_config()
             return unwrap(draft_config.get(key), fallback)
+        elif model_type == "embedding":
+            embeddings_config = config.embeddings_config()
+            return unwrap(embeddings_config.get(key), fallback)
         else:
             return unwrap(model_config.get(key), fallback)
     else:

@@ -209,11 +209,14 @@ embeddings:
   # Overrides directory to look for embedding models (default: models)
   embedding_model_dir: models
 
-  # An initial embedding model to load on the infinity backend (default: None)
-  embedding_model_name:
-
   # Device to load embedding models on (default: cpu)
   # Possible values: cpu, auto, cuda
   # NOTE: It's recommended to load embedding models on the CPU.
   # If you'd like to load on an AMD gpu, set this value to "cuda" as well.
   embeddings_device: cpu
+
+  # The below parameters only apply for initial loads
+  # All API based loads do NOT inherit these settings unless specified in use_as_default
+
+  # An initial embedding model to load on the infinity backend (default: None)
+  embedding_model_name:
