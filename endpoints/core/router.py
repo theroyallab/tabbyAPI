@@ -7,7 +7,7 @@ from sse_starlette import EventSourceResponse
 from common import config, model, sampling
 from common.auth import check_admin_key, check_api_key, get_key_permission
 from common.downloader import hf_repo_download
-from common.model import check_model_container
+from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.templating import PromptTemplate, get_all_templates
 from common.utils import unwrap
@@ -15,6 +15,7 @@ from endpoints.core.types.auth import AuthPermissionResponse
 from endpoints.core.types.download import DownloadRequest, DownloadResponse
 from endpoints.core.types.lora import LoraList, LoraLoadRequest, LoraLoadResponse
 from endpoints.core.types.model import (
+    EmbeddingModelLoadRequest,
     ModelCard,
     ModelList,
     ModelLoadRequest,
@@ -251,6 +252,93 @@ async def unload_loras():
     """Unloads the currently loaded loras."""
 
     await model.unload_loras()
+
+
+@router.get("/v1/model/embedding/list", dependencies=[Depends(check_api_key)])
+async def list_embedding_models(request: Request) -> ModelList:
+    """
+    Lists all embedding models in the model directory.
+
+    Requires an admin key to see all embedding models.
+    """
+
+    if get_key_permission(request) == "admin":
+        embedding_model_dir = unwrap(
+            config.embeddings_config().get("embedding_model_dir"), "models"
+        )
+        embedding_model_path = pathlib.Path(embedding_model_dir)
+
+        models = get_model_list(embedding_model_path.resolve())
+    else:
+        models = await get_current_model_list(model_type="embedding")
+
+    return models
+
+
+@router.get(
+    "/v1/model/embedding",
+    dependencies=[Depends(check_api_key), Depends(check_embeddings_container)],
+)
+async def get_embedding_model() -> ModelList:
+    """Returns the currently loaded embedding model."""
+
+    return get_current_model_list(model_type="embedding")[0]
+
+
+@router.post("/v1/model/embedding/load", dependencies=[Depends(check_admin_key)])
+async def load_embedding_model(
+    request: Request, data: EmbeddingModelLoadRequest
+) -> ModelLoadResponse:
+    # Verify request parameters
+    if not data.name:
+        error_message = handle_request_error(
+            "A model name was not provided for load.",
+            exc_info=False,
+        ).error.message
+
+        raise HTTPException(400, error_message)
+
+    embedding_model_dir = pathlib.Path(
+        unwrap(config.model_config().get("embedding_model_dir"), "models")
+    )
+    embedding_model_path = embedding_model_dir / data.name
+
+    if not embedding_model_path.exists():
+        error_message = handle_request_error(
+            "Could not find the embedding model path for load. "
+            + "Check model name or config.yml?",
+            exc_info=False,
+        ).error.message
+
+        raise HTTPException(400, error_message)
+
+    try:
+        load_task = asyncio.create_task(
+            model.load_embedding_model(embedding_model_path, **data.model_dump())
+        )
+        await run_with_request_disconnect(
+            request, load_task, "Embedding model load request cancelled by user."
+        )
+    except Exception as exc:
+        error_message = handle_request_error(str(exc)).error.message
+
+        raise HTTPException(400, error_message) from exc
+
+    response = ModelLoadResponse(
+        model_type="embedding_model", module=1, modules=1, status="finished"
+    )
+
+    return response
+
+
+@router.post(
+    "/v1/model/embedding/unload",
+    dependencies=[Depends(check_admin_key), Depends(check_embeddings_container)],
+)
+async def unload_embedding_model():
+    """Unloads the current embedding model."""
+
+    await model.unload_embedding_model()
 
 
 # Encode tokens endpoint

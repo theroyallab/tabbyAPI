@@ -32,15 +32,26 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = N
     return model_card_list
 
 
-async def get_current_model_list(is_draft: bool = False):
-    """Gets the current model in list format and with path only."""
+async def get_current_model_list(model_type: str = "model"):
+    """
+    Gets the current model in list format and with path only.
+
+    Unified for fetching both models and embedding models.
+    """
+
     current_models = []
+    model_path = None
 
     # Make sure the model container exists
-    if model.container:
-        model_path = model.container.get_model_path(is_draft)
-        if model_path:
-            current_models.append(ModelCard(id=model_path.name))
+    if model_type == "model" or model_type == "draft":
+        if model.container:
+            model_path = model.container.get_model_path(model_type == "draft")
+    elif model_type == "embedding":
+        if model.embeddings_container:
+            model_path = model.embeddings_container.model_dir
+
+    if model_path:
+        current_models.append(ModelCard(id=model_path.name))
 
     return ModelList(data=current_models)
 

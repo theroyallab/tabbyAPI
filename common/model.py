@@ -20,6 +20,15 @@ if not do_export_openapi:
 
     # Global model container
     container: Optional[ExllamaV2Container] = None
+    embeddings_container = None
+
+    # Type hint the infinity emb container if it exists
+    from backends.infinity.model import has_infinity_emb
+
+    if has_infinity_emb:
+        from backends.infinity.model import InfinityContainer
+
+        embeddings_container: Optional[InfinityContainer] = None
 
 
 def load_progress(module, modules):
@@ -48,8 +57,6 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 f'Model "{loaded_model_name}" is already loaded! Aborting.'
             )
 
-    # Unload the existing model
-    if container and container.model:
         logger.info("Unloading existing model.")
         await unload_model()
 
@@ -100,6 +107,41 @@ async def unload_loras():
     await container.unload(loras_only=True)
 
 
+async def load_embedding_model(model_path: pathlib.Path, **kwargs):
+    global embeddings_container
+
+    # Break out if infinity isn't installed
+    if not has_infinity_emb:
+        raise ImportError(
+            "Skipping embeddings because infinity-emb is not installed.\n"
+            "Please run the following command in your environment "
+            "to install extra packages:\n"
+            "pip install -U .[extras]"
+        )
+
+    # Check if the model is already loaded
+    if embeddings_container and embeddings_container.engine:
+        loaded_model_name = embeddings_container.model_dir.name
+
+        if loaded_model_name == model_path.name and embeddings_container.model_loaded:
+            raise ValueError(
+                f'Embeddings model "{loaded_model_name}" is already loaded! Aborting.'
+            )
+
+        logger.info("Unloading existing embeddings model.")
+        await unload_embedding_model()
+
+    embeddings_container = InfinityContainer(model_path)
+    await embeddings_container.load(**kwargs)
+
+
+async def unload_embedding_model():
+    global embeddings_container
+
+    await embeddings_container.unload()
+    embeddings_container = None
+
+
 def get_config_default(key, fallback=None, is_draft=False):
     """Fetches a default value from model config if allowed by the user."""
 
@@ -122,6 +164,24 @@ async def check_model_container():
     if container is None or not (container.model_is_loading or container.model_loaded):
         error_message = handle_request_error(
             "No models are currently loaded.",
+            exc_info=False,
+        ).error.message
+
+        raise HTTPException(400, error_message)
+
+
+async def check_embeddings_container():
+    """
+    FastAPI depends that checks if an embeddings model is loaded.
+
+    This is the same as the model container check, but with embeddings instead.
+    """
+
+    if embeddings_container is None or not (
+        embeddings_container.model_is_loading or embeddings_container.model_loaded
+    ):
+        error_message = handle_request_error(
+            "No embedding models are currently loaded.",
             exc_info=False,
         ).error.message
 

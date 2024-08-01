@@ -23,6 +23,7 @@ def init_argparser():
     )
     add_network_args(parser)
     add_model_args(parser)
+    add_embeddings_args(parser)
     add_logging_args(parser)
     add_developer_args(parser)
     add_sampling_args(parser)
@@ -208,4 +209,23 @@ def add_sampling_args(parser: argparse.ArgumentParser):
     sampling_group = parser.add_argument_group("sampling")
     sampling_group.add_argument(
         "--override-preset", type=str, help="Select a sampler override preset"
+    )
+
+
+def add_embeddings_args(parser: argparse.ArgumentParser):
+    """Adds arguments specific to embeddings"""
+
+    embeddings_group = parser.add_argument_group("embeddings")
+    embeddings_group.add_argument(
+        "--embedding-model-dir",
+        type=str,
+        help="Overrides the directory to look for models",
+    )
+    embeddings_group.add_argument(
+        "--embedding-model-name", type=str, help="An initial model to load"
+    )
+    embeddings_group.add_argument(
+        "--embeddings-device",
+        type=str,
+        help="Device to use for embeddings. Options: (cpu, auto, cuda)",
     )
