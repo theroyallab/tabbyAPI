@@ -44,7 +44,7 @@ class PromptTemplate:
                 )
 
         return extra_stop_strings
-    
+
     def tool_params(self, template_vars: dict):
         """grabs tool params from the template"""
 
@@ -73,9 +73,8 @@ class PromptTemplate:
             )
 
         rendered_template = self.template.render(**template_vars)
-        template_stop_strings = self.stop_strings(template_vars)
 
-        return rendered_template, template_stop_strings
+        return rendered_template
 
     def compile(self, template_str: str):
         """Compiles and stores a jinja2 template"""

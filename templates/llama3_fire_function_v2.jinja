@@ -2,18 +2,46 @@
 {% set stop_strings = ["<|im_start|>", "<|im_end|>"] %}
 {% set message_roles = ['system', 'user', 'assistant', 'tool'] %}
 {% set tool_start = "functools" %}
+{%- set example_tool_call -%}[
+    {
+        "id": "call_FthC9",
+        "function": {
+        "arguments": "{"location": "San Francisco, CA"}",
+        "name": "get_rain_probability"
+        },
+        "type": "function"
+    },
+    {
+        "id": "call_RpEDo",
+        "function": {
+        "arguments": "{"location": "San Francisco, CA", "unit": "Fahrenheit"}",
+        "name": "get_current_temperature"
+        },
+        "type": "function"
+    }
+]
+{%- endset -%}
 
-{%- set system_prompt_suffix -%}Respond using your internal knowledge when possible. If external information is needed, call one or more provided functions.
+{%- set inital_system_prompt -%}Respond using your internal knowledge when possible. If external information is needed, call one or more provided functions.
 To call functions:
-1. Prefix calls with 'functools' (no closing marker)
-2. Generate all calls in a single JSON list:
-   functools[{"name": "function_name", "arguments": {key: value, ...}}, ...]
-3. Follow the JSON schema exactly - don't invent arguments or values
-4. Format argument types correctly (e.g. 7.0 for float)
-5. Choose functions that best match user intent
+1. Prefix calls with '{{ tool_start}}' (no closing marker)
+2. Generate all calls using the following example structure:
 
-Available functions (JSON spec):
+{{ tool_start}}{{ example_tool_call }}
+
+
+3. Format argument types correctly (e.g. 7.0 for float)
+4. Choose functions that best match user intent
+
+Here are the tools available for you to call:
 {{ tools_json }}
+{%- endset -%}
+
+{%- set tool_reminder -%}Available Tools:
+{{ tools_json }}
+
+Tool Call Format Example:
+{{ tool_start}}{{ example_tool_call }}
 {%- endset -%}
 
 {# Template #}
@@ -26,18 +54,29 @@ Available functions (JSON spec):
     
     {%- set content = message['content'] | default('', true) | trim -%}
     {%- if loop.first -%}
-        {{ bos_token }}<|start_header_id|>{{ role }}<|end_header_id|>
-{{ system_prompt_suffix }}
+{{ bos_token }}<|start_header_id|>{{ role }}<|end_header_id|>
+{{ inital_system_prompt }}
+
 {{ content }}{{ eos_token }}
     {%- endif -%}
     
     {%- if not loop.first -%}
-        <|start_header_id|>{{ role }}<|end_header_id|>
+<|start_header_id|>{{ role }}<|end_header_id|>
 {{ content }}
         {%- if 'tool_calls_json' in message and message['tool_calls_json'] -%}
 {{ tool_start }}{{ message['tool_calls_json']}}
         {%- endif -%}
 {{ eos_token }}
+
     {%- endif -%}
 {%- endfor -%}
+
+{%- if tool_precursor -%}
+<|start_header_id|>system<|end_header_id|>
+{{ tool_reminder }}{{ eos_token }}
 <|start_header_id|>assistant<|end_header_id|>
+{{ tool_precursor }}{{ tool_start }}
+
+{%- else -%}
+<|start_header_id|>assistant<|end_header_id|>
+{%- endif -%}
