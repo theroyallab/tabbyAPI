@@ -1,0 +1,83 @@
+{# Metadata #} 
+{% set stop_strings = ["<|im_start|>", "<|im_end|>"] %}
+{% set message_roles = ['system', 'user', 'assistant', 'tool'] %}
+{% set tool_start = "<|tool_start|>" %}
+{% set tool_end = "<|tool_end|>" %}
+{%- set example_tool_call -%}[
+    {
+        "id": "tool_id_1342",
+        "function": {
+        "arguments": "{"arg_name": "value"}",
+        "name": "name of tool"
+        },
+        "type": "function"
+    },
+    {
+        "id": "example_id_13f42",
+        "function": {
+        "arguments": "{"name of arg": "that args value", "name of arg": "that args value"}",
+        "name": "name of tool"
+        },
+        "type": "function"
+    }
+]
+{%- endset -%}
+
+{%- set inital_system_prompt -%}Respond using your internal knowledge when possible. If external information is needed, call one or more provided functions.
+To call functions:
+1. Prefix calls with '{{ tool_start }}' and end calls with '{{ tool_end }}'
+2. Generate all calls using the following example structure:
+
+{{ tool_start }}{{ example_tool_call }}{{ tool_end }}
+
+
+3. Format argument types correctly (e.g. 7.0 for float)
+4. Choose functions that best match user intent
+
+Here are the tools available for you to call:
+{{ tools_json }}
+{%- endset -%}
+
+{%- set tool_reminder -%}Available Tools:
+{{ tools_json }}
+
+Tool Call Format Example:
+{{ tool_start }}{{ example_tool_call }}
+{%- endset -%}
+
+{# Template #}
+
+{%- for message in messages -%}
+    {%- set role = message['role'] | lower -%}
+    {%- if role not in message_roles -%}
+        {{ raise_exception('Invalid role ' + message['role'] + '. Only ' + message_roles | join(', ') + ' are supported.') }}
+    {%- endif -%}
+    
+    {%- set content = message['content'] | default('', true) | trim -%}
+    {%- if loop.first -%}
+{{ bos_token }}<|start_header_id|>{{ role }}<|end_header_id|>
+{{ inital_system_prompt }}
+
+{{ content }}{{ eos_token }}
+    {%- endif -%}
+    
+    {%- if not loop.first -%}
+<|start_header_id|>{{ role }}<|end_header_id|>
+{{ content }}
+        {%- if 'tool_calls_json' in message and message['tool_calls_json'] -%}
+{{ tool_start }}{{ message['tool_calls_json']}}{{ tool_end }}
+        {%- endif -%}
+{{ eos_token }}
+
+    {%- endif -%}
+{%- endfor -%}
+
+{%- if tool_precursor -%}
+<|start_header_id|>system<|end_header_id|>
+{{ tool_reminder }}{{ eos_token }}
+<|start_header_id|>assistant<|end_header_id|>
+{{ tool_precursor }}{{ tool_start }}
+
+{%- else -%}
+<|start_header_id|>assistant<|end_header_id|>
+{%- endif -%}
