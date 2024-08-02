@@ -53,19 +53,19 @@ class DraftModelLoadRequest(BaseModel):
     # Config arguments
     draft_rope_scale: Optional[float] = Field(
         default_factory=lambda: get_config_default(
-            "draft_rope_scale", 1.0, is_draft=True
+            "draft_rope_scale", 1.0, model_type="draft"
         )
     )
     draft_rope_alpha: Optional[float] = Field(
         description="Automatically calculated if not present",
         default_factory=lambda: get_config_default(
-            "draft_rope_alpha", None, is_draft=True
+            "draft_rope_alpha", None, model_type="draft"
         ),
         examples=[1.0],
     )
     draft_cache_mode: Optional[str] = Field(
         default_factory=lambda: get_config_default(
-            "draft_cache_mode", "FP16", is_draft=True
+            "draft_cache_mode", "FP16", model_type="draft"
         )
     )
 
@@ -135,6 +135,15 @@ class ModelLoadRequest(BaseModel):
     # Non-config arguments
     draft: Optional[DraftModelLoadRequest] = None
     skip_queue: Optional[bool] = False
+
+
+class EmbeddingModelLoadRequest(BaseModel):
+    name: str
+    embeddings_device: Optional[str] = Field(
+        default_factory=lambda: get_config_default(
+            "embeddings_device", model_type="embedding"
+        )
+    )
 
 
 class ModelLoadResponse(BaseModel):

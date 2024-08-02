@@ -70,7 +70,7 @@ class ExllamaV2Container:
     cache_size: int = None
     cache_mode: str = "FP16"
     draft_cache_mode: str = "FP16"
-    max_batch_size: int = 20
+    max_batch_size: Optional[int] = None
     generation_config: Optional[GenerationConfig] = None
     hf_config: Optional[HuggingFaceConfig] = None
 
@@ -216,6 +216,9 @@ class ExllamaV2Container:
 
         # Enable fasttensors loading if present
         self.config.fasttensors = unwrap(kwargs.get("fasttensors"), False)
+
+        # Set max batch size to the config override
+        self.max_batch_size = unwrap(kwargs.get("max_batch_size"))
 
         # Check whether the user's configuration supports flash/paged attention
         # Also check if exl2 has disabled flash attention
@@ -1125,31 +1128,6 @@ class ExllamaV2Container:
         # This is an inverse of skip_special_tokens
         decode_special_tokens = unwrap(not kwargs.get("skip_special_tokens"), False)
 
-        # Log generation options to console
-        # Some options are too large, so log the args instead
-        log_generation_params(
-            request_id=request_id,
-            max_tokens=max_tokens,
-            min_tokens=min_tokens,
-            stream=kwargs.get("stream"),
-            **gen_settings_log_dict,
-            token_healing=token_healing,
-            auto_scale_penalty_range=auto_scale_penalty_range,
-            generate_window=generate_window,
-            bos_token_id=self.tokenizer.bos_token_id,
-            eos_token_id=eos_tokens,
-            add_bos_token=add_bos_token,
-            ban_eos_token=ban_eos_token,
-            skip_special_tokens=not decode_special_tokens,
-            speculative_ngram=self.generator.speculative_ngram,
-            logprobs=request_logprobs,
-            stop_conditions=stop_conditions,
-            banned_tokens=banned_tokens,
-            banned_strings=banned_strings,
-            logit_bias=logit_bias,
-            filters=grammar_handler.filters,
-        )
-
         # Log prompt to console
         log_prompt(prompt, request_id, negative_prompt)
 
@@ -1180,6 +1158,7 @@ class ExllamaV2Container:
         max_seq_len = self.config.max_seq_len
         generated_tokens = 0
         full_response = ""
+        metrics_result = {}
 
         # Get the generation status once it's ready
         try:
@@ -1233,7 +1212,7 @@ class ExllamaV2Container:
 
                     # Second yield if eos is true
                     if result.get("eos"):
-                        log_response(full_response)
+                        log_response(request_id, full_response)
 
                         eos_reason = result.get("eos_reason")
 
@@ -1248,16 +1227,8 @@ class ExllamaV2Container:
                             elif eos_reason == "stop_string":
                                 stop_str = result.get("eos_triggering_string")
 
-                        log_metrics(
-                            result.get("time_enqueued"),
-                            result.get("prompt_tokens"),
-                            result.get("cached_tokens"),
-                            result.get("time_prefill"),
-                            result.get("new_tokens"),
-                            result.get("time_generate"),
-                            context_len,
-                            max_seq_len,
-                        )
+                        # Save the final result for metrics logging
+                        metrics_result = result
 
                         # Remove the token text
                         generation = {
@@ -1282,3 +1253,42 @@ class ExllamaV2Container:
             asyncio.ensure_future(self.create_generator())
 
             raise ex
+        finally:
+            # Log generation options to console
+            # Some options are too large, so log the args instead
+            log_generation_params(
+                request_id=request_id,
+                max_tokens=max_tokens,
+                min_tokens=min_tokens,
+                stream=kwargs.get("stream"),
+                **gen_settings_log_dict,
+                token_healing=token_healing,
+                auto_scale_penalty_range=auto_scale_penalty_range,
+                generate_window=generate_window,
+                bos_token_id=self.tokenizer.bos_token_id,
+                eos_token_id=eos_tokens,
+                add_bos_token=add_bos_token,
+                ban_eos_token=ban_eos_token,
+                skip_special_tokens=not decode_special_tokens,
+                speculative_ngram=self.generator.speculative_ngram,
+                logprobs=request_logprobs,
+                stop_conditions=stop_conditions,
+                banned_tokens=banned_tokens,
+                banned_strings=banned_strings,
+                logit_bias=logit_bias,
+                filters=grammar_handler.filters,
+            )
+
+            # Log the metrics if present
+            if metrics_result:
+                log_metrics(
+                    request_id,
+                    metrics_result.get("time_enqueued"),
+                    metrics_result.get("prompt_tokens"),
+                    metrics_result.get("cached_tokens"),
+                    metrics_result.get("time_prefill"),
+                    metrics_result.get("new_tokens"),
+                    metrics_result.get("time_generate"),
+                    context_len,
+                    max_seq_len,
+                )

@@ -5,7 +5,7 @@ from sys import maxsize
 
 from common import config, model
 from common.auth import check_api_key
-from common.model import check_model_container
+from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.utils import unwrap
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
@@ -13,6 +13,7 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionRequest,
     ChatCompletionResponse,
 )
+from endpoints.OAI.types.embedding import EmbeddingsRequest, EmbeddingsResponse
 from endpoints.OAI.utils.chat_completion import (
     format_prompt_with_template,
     update_stop_strings,
@@ -24,6 +25,7 @@ from endpoints.OAI.utils.completion import (
     generate_completion,
     stream_generate_completion,
 )
+from endpoints.OAI.utils.embeddings import get_embeddings
 
 
 api_name = "OAI"
@@ -139,3 +141,19 @@ async def chat_completion_request(
             disconnect_message=f"Chat completion {request.state.id} cancelled by user.",
         )
         return response
+
+
+# Embeddings endpoint
+@router.post(
+    "/v1/embeddings",
+    dependencies=[Depends(check_api_key), Depends(check_embeddings_container)],
+)
+async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsResponse:
+    embeddings_task = asyncio.create_task(get_embeddings(data, request))
+    response = await run_with_request_disconnect(
+        request,
+        embeddings_task,
+        f"Embeddings request {request.state.id} cancelled by user.",
+    )
+
+    return response
