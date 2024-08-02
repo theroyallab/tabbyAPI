@@ -48,7 +48,7 @@ dependencies = [
 extras = [
     # Heavy dependencies that aren't for everyday use
     "outlines",
-    "sentence-transformers"
+    "infinity-emb"
 ]
 dev = [
     "ruff == 0.3.2"
