@@ -26,7 +26,7 @@
 {%- set inital_system_prompt -%}Respond using your internal knowledge when possible. If external information is needed, call one or more provided functions.
 To call functions:
 1. Prefix calls with '{{ tool_start }}' and end calls with '{{ tool_end }}'
-2. Generate all calls using the following example structure:
+2. Generate all calls using the following tool call format. This example includes multiple calls:
 
 {{ tool_start }}{{ example_tool_call }}{{ tool_end }}
 
