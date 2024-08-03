@@ -203,6 +203,7 @@ if __name__ == "__main__":
         install_command = f"pip install -U .{features}"
         print(f"Running install command: {install_command}")
         subprocess.run(install_command.split(" "))
+        print("\n")
 
         if args.update_deps:
             print(
