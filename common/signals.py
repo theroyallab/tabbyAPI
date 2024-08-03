@@ -29,7 +29,7 @@ async def signal_handler_async(*_):
     """Internal signal handler. Runs all async code to shut down the program."""
 
     if model.container:
-        await model.unload_model(skip_wait=True)
+        await model.unload_model(skip_wait=True, shutdown=True)
 
     if model.embeddings_container:
         await model.unload_embedding_model()
