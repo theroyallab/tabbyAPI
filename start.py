@@ -139,6 +139,7 @@ def migrate_gpu_lib():
         "The old file has been deleted."
     )
 
+
 if __name__ == "__main__":
     subprocess.run(["pip", "-V"])
 
@@ -224,8 +225,8 @@ if __name__ == "__main__":
 
         print(
             "Successfully wrote your start script options to `start_options.json`. \n"
-            "If something goes wrong, editing or deleting the file will reinstall TabbyAPI "
-            "as a first-time user."
+            "If something goes wrong, editing or deleting the file "
+            "will reinstall TabbyAPI as a first-time user."
         )
 
     # Import entrypoint after installing all requirements
