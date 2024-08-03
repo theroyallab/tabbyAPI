@@ -39,6 +39,10 @@ dependencies = [
 
     # TEMP: Remove once 2.x is fixed in upstream
     "numpy < 2.0.0",
+
+    # For python 3.12
+    "fastparquet @ https://github.com/theroyallab/fastparquet/releases/download/v2024.5.0/fastparquet-0.1.dev837-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
+    "setuptools ; python_version == '3.12'"
 ]
 
 [project.urls]
