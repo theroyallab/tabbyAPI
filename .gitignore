@@ -205,3 +205,6 @@ start_options.json
 
 # OpenAPI JSON
 openapi.json
+
+# Infinity-emb cache
+.infinity_cache/
