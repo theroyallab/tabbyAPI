@@ -734,11 +734,15 @@ class ExllamaV2Container:
         Free all VRAM resources used by this model
         """
 
-        try:
-            await self.load_lock.acquire()
+        # Shutdown immediately unloads and bypasses all locks
+        do_shutdown = kwargs.get("shutdown")
 
-            # Wait for other jobs to finish
-            await self.wait_for_jobs(kwargs.get("skip_wait"))
+        try:
+            if not do_shutdown:
+                await self.load_lock.acquire()
+
+                # Wait for other jobs to finish
+                await self.wait_for_jobs(kwargs.get("skip_wait"))
 
             # Delete references held in the grammar module
             clear_grammar_func_cache()
@@ -778,10 +782,11 @@ class ExllamaV2Container:
 
             logger.info("Loras unloaded." if loras_only else "Model unloaded.")
         finally:
-            self.load_lock.release()
+            if not do_shutdown:
+                self.load_lock.release()
 
-            async with self.load_condition:
-                self.load_condition.notify_all()
+                async with self.load_condition:
+                    self.load_condition.notify_all()
 
     def encode_tokens(self, text: str, **kwargs):
         """Wrapper to encode tokens from a text string"""

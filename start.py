@@ -1,6 +1,7 @@
 """Utility to automatically upgrade and start the API"""
 
 import argparse
+import json
 import os
 import pathlib
 import platform
@@ -9,6 +10,9 @@ import sys
 from shutil import copyfile
 
 from common.args import convert_args_to_dict, init_argparser
+
+
+start_options = {}
 
 
 def get_user_choice(question: str, options_dict: dict):
@@ -39,36 +43,24 @@ def get_install_features(lib_name: str = None):
     """Fetches the appropriate requirements file depending on the GPU"""
     install_features = None
     possible_features = ["cu121", "cu118", "amd"]
-    saved_lib_path = pathlib.Path("gpu_lib.txt")
 
-    if lib_name:
-        print("Overriding GPU lib name from args.")
-    else:
-        # Try getting the GPU lib from file
-        if saved_lib_path.exists():
-            with open(saved_lib_path.resolve(), "r") as f:
-                lib_name = f.readline().strip()
-        else:
-            # Ask the user for the GPU lib
-            gpu_lib_choices = {
-                "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu121"},
-                "B": {"pretty": "NVIDIA Cuda 11.8", "internal": "cu118"},
-                "C": {"pretty": "AMD", "internal": "amd"},
-            }
-            user_input = get_user_choice(
-                "Select your GPU. If you don't know, select Cuda 12.x (A)",
-                gpu_lib_choices,
-            )
+    if not lib_name:
+        # Ask the user for the GPU lib
+        gpu_lib_choices = {
+            "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu121"},
+            "B": {"pretty": "NVIDIA Cuda 11.8", "internal": "cu118"},
+            "C": {"pretty": "AMD", "internal": "amd"},
+        }
+        user_input = get_user_choice(
+            "Select your GPU. If you don't know, select Cuda 12.x (A)",
+            gpu_lib_choices,
+        )
 
-            lib_name = gpu_lib_choices.get(user_input, {}).get("internal")
+        lib_name = gpu_lib_choices.get(user_input, {}).get("internal")
 
-            # Write to a file for subsequent runs
-            with open(saved_lib_path.resolve(), "w") as f:
-                f.write(lib_name)
-                print(
-                    "Saving your choice to gpu_lib.txt. "
-                    "Delete this file and restart if you want to change your selection."
-                )
+        # Write to start options
+        start_options["gpu_lib"] = lib_name
+        print("Saving your choice to start options.")
 
     # Assume default if the file is invalid
     if lib_name and lib_name in possible_features:
@@ -104,10 +96,16 @@ def add_start_args(parser: argparse.ArgumentParser):
     """Add start script args to the provided parser"""
     start_group = parser.add_argument_group("start")
     start_group.add_argument(
-        "-iu",
-        "--ignore-upgrade",
+        "-ur",
+        "--update-repository",
         action="store_true",
-        help="Ignore requirements upgrade",
+        help="Update local git repository to latest",
+    )
+    start_group.add_argument(
+        "-ud",
+        "--update-deps",
+        action="store_true",
+        help="Update all pip dependencies",
     )
     start_group.add_argument(
         "-nw",
@@ -122,6 +120,26 @@ def add_start_args(parser: argparse.ArgumentParser):
     )
 
 
+def migrate_gpu_lib():
+    gpu_lib_path = pathlib.Path("gpu_lib.txt")
+
+    if not gpu_lib_path.exists():
+        return
+
+    print("Migrating gpu_lib.txt to the new start_options.json")
+    with open("gpu_lib.txt", "r") as gpu_lib_file:
+        start_options["gpu_lib"] = gpu_lib_file.readline().strip()
+        start_options["first_run_done"] = True
+
+    # Remove the old file
+    gpu_lib_path.unlink()
+
+    print(
+        "Successfully migrated gpu lib options to start_options. "
+        "The old file has been deleted."
+    )
+
+
 if __name__ == "__main__":
     subprocess.run(["pip", "-V"])
 
@@ -129,6 +147,34 @@ if __name__ == "__main__":
     parser = init_argparser()
     add_start_args(parser)
     args = parser.parse_args()
+    script_ext = "bat" if platform.system() == "Windows" else "sh"
+
+    start_options_path = pathlib.Path("start_options.json")
+    if start_options_path.exists():
+        with open(start_options_path) as start_options_file:
+            start_options = json.load(start_options_file)
+
+        if start_options.get("first_run_done"):
+            first_run = False
+    else:
+        print(
+            "It looks like you're running TabbyAPI for the first time. "
+            "Getting things ready..."
+        )
+
+    # Migrate from old setting storage
+    migrate_gpu_lib()
+
+    # Set variables that rely on start options
+    first_run = not start_options.get("first_run_done")
+
+    if args.gpu_lib:
+        print("Overriding GPU lib name from args.")
+        gpu_lib = args.gpu_lib
+    elif "gpu_lib" in start_options:
+        gpu_lib = start_options.get("gpu_lib")
+    else:
+        gpu_lib = None
 
     # Create a config if it doesn't exist
     # This is not necessary to run TabbyAPI, but is new user proof
@@ -144,19 +190,50 @@ if __name__ == "__main__":
             f"Created one at {str(config_path.resolve())}"
         )
 
-    if args.ignore_upgrade:
-        print("Ignoring pip dependency upgrade due to user request.")
-    else:
-        install_features = None if args.nowheel else get_install_features(args.gpu_lib)
+    if args.update_repository:
+        print("Pulling latest changes from Github.")
+        pull_command = "git pull"
+        subprocess.run(pull_command.split(" "))
+
+    if first_run or args.update_deps:
+        install_features = None if args.nowheel else get_install_features(gpu_lib)
         features = f"[{install_features}]" if install_features else ""
 
         # pip install .[features]
         install_command = f"pip install -U .{features}"
         print(f"Running install command: {install_command}")
         subprocess.run(install_command.split(" "))
+        print("\n")
+
+        if args.update_deps:
+            print(
+                f"Dependencies updated. Please run TabbyAPI with `start.{script_ext}`. "
+                "Exiting."
+            )
+            sys.exit(0)
+        else:
+            print(
+                f"Dependencies installed. Update them with `update_deps.{script_ext}` "
+                "inside the `update_scripts` folder."
+            )
+
+    if first_run:
+        start_options["first_run_done"] = True
+
+    # Save start options
+    with open("start_options.json", "w") as start_file:
+        start_file.write(json.dumps(start_options))
+
+        print(
+            "Successfully wrote your start script options to `start_options.json`. \n"
+            "If something goes wrong, editing or deleting the file "
+            "will reinstall TabbyAPI as a first-time user."
+        )
 
     # Import entrypoint after installing all requirements
     from main import entrypoint
 
     converted_args = convert_args_to_dict(args, parser)
+
+    print("Starting TabbyAPI...")
     entrypoint(converted_args)
