@@ -109,6 +109,12 @@ def add_start_args(parser: argparse.ArgumentParser):
         help="Update all pip dependencies",
     )
     start_group.add_argument(
+        "-fr",
+        "--force-reinstall",
+        action="store_true",
+        help="Forces a reinstall of dependencies. Only works with --update-deps",
+    )
+    start_group.add_argument(
         "-nw",
         "--nowheel",
         action="store_true",
@@ -198,13 +204,19 @@ if __name__ == "__main__":
         subprocess.run(pull_command.split(" "))
 
     if first_run or args.update_deps:
+        install_command = ["pip", "install", "-U"]
+
+        # Force a reinstall of the updated dependency if needed
+        if args.force_reinstall:
+            install_command.append("--force-reinstall")
+
         install_features = None if args.nowheel else get_install_features(gpu_lib)
-        features = f"[{install_features}]" if install_features else ""
+        features = f".[{install_features}]" if install_features else "."
+        install_command.append(features)
 
         # pip install .[features]
-        install_command = f"pip install -U .{features}"
-        print(f"Running install command: {install_command}")
-        subprocess.run(install_command.split(" "))
+        print(f"Running install command: {' '.join(install_command)}")
+        subprocess.run(install_command)
         print()
 
         if args.update_deps:
