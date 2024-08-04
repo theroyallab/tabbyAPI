@@ -8,6 +8,7 @@ import platform
 import subprocess
 import sys
 from shutil import copyfile
+import traceback
 
 from common.args import convert_args_to_dict, init_argparser
 
@@ -231,9 +232,18 @@ if __name__ == "__main__":
         )
 
     # Import entrypoint after installing all requirements
-    from main import entrypoint
+    try:
+        from main import entrypoint
 
-    converted_args = convert_args_to_dict(args, parser)
+        converted_args = convert_args_to_dict(args, parser)
 
-    print("Starting TabbyAPI...")
-    entrypoint(converted_args)
+        print("Starting TabbyAPI...")
+        entrypoint(converted_args)
+    except (ModuleNotFoundError, ImportError):
+        traceback.print_exc()
+        print(
+            "\n"
+            "This error was raised because a package was not found.\n"
+            "Update your dependencies by running update_scripts/"
+            f"update_deps.{'bat' if platform.system == 'Windows' else 'sh'}\n\n"
+        )
