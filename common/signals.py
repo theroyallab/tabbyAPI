@@ -7,24 +7,35 @@ from types import FrameType
 from common import model
 
 
+SHUTTING_DOWN: bool = False
+
+
 def signal_handler(*_):
     """Signal handler for main function. Run before uvicorn starts."""
 
+    global SHUTTING_DOWN
+
+    if SHUTTING_DOWN:
+        return
+
     logger.warning("Shutdown signal called. Exiting gracefully.")
+    SHUTTING_DOWN = True
 
     # Run async unloads for model
     asyncio.ensure_future(signal_handler_async())
 
-    # Exit the program
-    sys.exit(0)
-
 
 async def signal_handler_async(*_):
+    """Internal signal handler. Runs all async code to shut down the program."""
+
     if model.container:
-        await model.container.unload()
+        await model.unload_model(skip_wait=True, shutdown=True)
 
     if model.embeddings_container:
-        await model.embeddings_container.unload()
+        await model.unload_embedding_model()
+
+    # Exit the program
+    sys.exit(0)
 
 
 def uvicorn_signal_handler(signal_event: signal.Signals):

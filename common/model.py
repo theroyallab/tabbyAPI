@@ -43,11 +43,11 @@ def load_progress(module, modules):
     yield module, modules
 
 
-async def unload_model(skip_wait: bool = False):
+async def unload_model(skip_wait: bool = False, shutdown: bool = False):
     """Unloads a model"""
     global container
 
-    await container.unload(skip_wait=skip_wait)
+    await container.unload(skip_wait=skip_wait, shutdown=shutdown)
     container = None
 
 
