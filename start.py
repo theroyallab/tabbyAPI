@@ -71,7 +71,7 @@ def get_install_features(lib_name: str = None):
         print(
             f"WARN: GPU library {lib_name} not found. "
             "Skipping GPU-specific dependencies.\n"
-            "WARN: Please delete gpu_lib.txt and restart "
+            "WARN: Please remove the `gpu_lib` key from start_options.json and restart "
             "if you want to change your selection."
         )
         return
@@ -154,6 +154,7 @@ if __name__ == "__main__":
     if start_options_path.exists():
         with open(start_options_path) as start_options_file:
             start_options = json.load(start_options_file)
+            print("Loaded your saved preferences from `start_options.json`")
 
         if start_options.get("first_run_done"):
             first_run = False
@@ -201,10 +202,12 @@ if __name__ == "__main__":
         features = f"[{install_features}]" if install_features else ""
 
         # pip install .[features]
-        install_command = f"pip install -U .{features}"
+        # Make sure to use eager upgrade strategy
+        # to push packages to their latest versions
+        install_command = f"pip install -U --upgrade-strategy eager .{features}"
         print(f"Running install command: {install_command}")
         subprocess.run(install_command.split(" "))
-        print("\n")
+        print()
 
         if args.update_deps:
             print(
@@ -245,5 +248,5 @@ if __name__ == "__main__":
             "\n"
             "This error was raised because a package was not found.\n"
             "Update your dependencies by running update_scripts/"
-            f"update_deps.{'bat' if platform.system == 'Windows' else 'sh'}\n\n"
+            f"update_deps.{'bat' if platform.system() == 'Windows' else 'sh'}\n\n"
         )
