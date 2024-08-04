@@ -202,9 +202,7 @@ if __name__ == "__main__":
         features = f"[{install_features}]" if install_features else ""
 
         # pip install .[features]
-        # Make sure to use eager upgrade strategy
-        # to push packages to their latest versions
-        install_command = f"pip install -U --upgrade-strategy eager .{features}"
+        install_command = f"pip install -U .{features}"
         print(f"Running install command: {install_command}")
         subprocess.run(install_command.split(" "))
         print()
