@@ -3,6 +3,8 @@
 {% set message_roles = ['system', 'user', 'assistant', 'tool'] %}
 {% set tool_start = "<|tool_start|>" %}
 {% set tool_end = "<|tool_end|>" %}
+{%- set start_header = "<|start_header_id|>" -%}
+{%- set end_header = "<|end_header_id|>\n" -%}
 {%- set example_tool_call -%}[
     {
         "id": "tool_id_1342",
@@ -55,14 +57,14 @@ Tool Call Format Example:
     
     {%- set content = message['content'] | default('', true) | trim -%}
     {%- if loop.first -%}
-{{ bos_token }}<|start_header_id|>{{ role }}<|end_header_id|>
+{{ bos_token }}{{ start_header }}{{ role }}{{ end_header }}
 {{ inital_system_prompt }}
 
 {{ content }}{{ eos_token }}
     {%- endif -%}
     
     {%- if not loop.first -%}
-<|start_header_id|>{{ role }}<|end_header_id|>
+{{ start_header }}{{ role }}{{ end_header }}
 {{ content }}
         {%- if 'tool_calls_json' in message and message['tool_calls_json'] -%}
 {{ tool_start }}{{ message['tool_calls_json']}}{{ tool_end }}
@@ -73,11 +75,11 @@ Tool Call Format Example:
 {%- endfor -%}
 
 {%- if tool_precursor -%}
-<|start_header_id|>system<|end_header_id|>
+{{ start_header }}system{{ end_header }}
 {{ tool_reminder }}{{ eos_token }}
-<|start_header_id|>assistant<|end_header_id|>
+{{ start_header }}assistant{{ end_header }}
 {{ tool_precursor }}{{ tool_start }}
 
 {%- else -%}
-<|start_header_id|>assistant<|end_header_id|>
+{{ start_header }}assistant{{ end_header }}
 {%- endif -%}
