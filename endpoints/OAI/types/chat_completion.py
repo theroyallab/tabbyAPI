@@ -67,8 +67,7 @@ class ChatCompletionRequest(CommonCompletionRequest):
     functions: Optional[List[Dict]] = None
 
     # Typically collected from Chat Template.
-    tool_call_start: Optional[str] = None  # string that precedes tool calls
-    tool_call_token: Optional[int] = None  # token that precedes tool calls
+    tool_call_start: Optional[List[Union[str, int]]] = None  # toks or strs preceeding
     # string that might be placed after the tool calls
     tool_call_end: Optional[str] = None
     # schema to be used when generating tool calls

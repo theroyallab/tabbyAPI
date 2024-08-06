@@ -272,18 +272,15 @@ def update_stop_strings(data: ChatCompletionRequest):
 
 def update_tool_data(data: ChatCompletionRequest):
     # Same as update_stop_strings
-    tool_start, tool_end = model.container.prompt_template.tool_params(
+    tool_starts = model.container.prompt_template.tool_params(
         data.template_vars
     )
 
-    if data.tool_call_start is None and tool_start is not None:
-        data.tool_call_start = tool_start
+    if data.tool_call_start is None and len(tool_starts) > 0:
+        data.tool_call_start = tool_starts
 
-    if data.tool_call_end is None and tool_end is not None:
-        data.tool_call_end = tool_end
-
-    if tool_start:
-        data.stop.append(tool_start)
+    if len(tool_starts) > 0:
+        data.stop.extend(tool_starts)
 
 async def stream_generate_chat_completion(
     prompt: str, data: ChatCompletionRequest, request: Request, model_path: pathlib.Path
@@ -329,14 +326,12 @@ async def stream_generate_chat_completion(
                 )
 
             generation = await gen_queue.get()
-            if (
-                data.tool_call_start and "text" in generation
-            ):  # lets only append the text if we need it for tool calls later
+            # lets only append the text if we need it for tool calls later
+            if data.tool_call_start and "text" in generation:
                 current_generation_text += generation["text"]
 
-            if (
-                data.tool_call_start and "stop_str" in generation
-            ):  # check if we are running a tool model, and that we are at stop
+            # check if we are running a tool model, and that we are at stop
+            if data.tool_call_start and "stop_str" in generation:
                 generations = await generate_tool_calls(
                     data,
                     [generation],
@@ -390,6 +385,13 @@ async def generate_chat_completion(
     gen_tasks: List[asyncio.Task] = []
     gen_params = data.to_gen_params()
 
+    # save prompt to disk
+    with open("prompt.txt", "w") as f:
+        f.write(prompt)
+
+    print(f"stop conditions: {data.stop}")
+    print(f"temp: {data.temperature}")
+
     try:
         for n in range(0, data.n):
             # Deepcopy gen params above the first index
@@ -442,7 +444,7 @@ async def generate_tool_calls(
     gen_params = temp.to_gen_params()
 
     for idx, gen in enumerate(generations):
-        if gen["stop_str"] == temp.tool_call_start:
+        if gen["stop_str"] in temp.tool_call_start:
             if (
                 "text" in gen
             ):  # non streaming, all generations will have the text they generated

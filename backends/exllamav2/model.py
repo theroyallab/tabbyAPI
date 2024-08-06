@@ -1041,6 +1041,13 @@ class ExllamaV2Container:
             gen_settings.top_p = 0
             gen_settings.typical = 0
 
+            logger.warning(
+                "".join([
+                    "Temperature is set to 0. Overriding temp, ",
+                    "top_k, top_p, and typical to 1.0, 1, 0, and 0."
+                ])
+            )
+
         # Store the gen settings for logging purposes
         gen_settings_log_dict = vars(gen_settings)
 

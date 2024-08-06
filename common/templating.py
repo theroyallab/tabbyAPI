@@ -46,21 +46,20 @@ class PromptTemplate:
         return extra_stop_strings
 
     def tool_params(self, template_vars: dict):
-        """grabs tool params from the template"""
+        """grabs tool start params from the template"""
 
-        tool_start = None
-        tool_end = None
+        tool_starts = []
         template_module = self.template.make_module(template_vars)
 
         if hasattr(template_module, "tool_start"):
             if isinstance(template_module.tool_start, str):
-                tool_start = template_module.tool_start
+                tool_starts.append(template_module.tool_start)
 
-        if hasattr(template_module, "tool_end"):
-            if isinstance(template_module.tool_end, str):
-                tool_end = template_module.tool_end
+        if hasattr(template_module, "tool_start_token"):
+            if isinstance(template_module.tool_start_token, int):
+                tool_starts.append(template_module.tool_start_token)
 
-        return tool_start, tool_end
+        return tool_starts
 
     def render(self, template_vars: dict):
         """Get a prompt from a template and a list of messages."""

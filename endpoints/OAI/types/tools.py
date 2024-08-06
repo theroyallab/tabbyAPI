@@ -25,8 +25,7 @@ openai_tool_call_schema = {
             "type": "string"
           },
           "arguments": {
-            "type": "object",
-            "additionalProperties": True
+            "type": "string"
           }
         },
         "required": ["name", "arguments"]
@@ -53,7 +52,8 @@ class ToolSpec(BaseModel):
 
 class Tool(BaseModel):
     name: str
-    arguments: str
+    arguments: str # Seems illogical but OAI actually specifies this as a string
+    #arguments: Dict[str, object]
 
 
 class ToolCall(BaseModel):
