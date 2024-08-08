@@ -47,12 +47,17 @@ jobs:
         run: |
           npm install @redocly/cli -g
       - name: Export OpenAPI docs
-        run: EXPORT_OPENAPI=1 python main.py
+        run: |
+          EXPORT_OPENAPI=1 python main.py
+          mv openapi.json openapi-oai.json
+          EXPORT_OPENAPI=1 python main.py --api-servers kobold
+          mv openapi.json openapi-kobold.json
       - name: Build and store Redocly site
         run: |
-          redocly build-docs openapi.json
           mkdir static
-          mv redoc-static.html static/index.html
+          mkdir static/kobold
+          redocly build-docs openapi-oai.json -o static/index.html
+          redocly build-docs openapi-kobold.json -o static/kobold/index.html
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
