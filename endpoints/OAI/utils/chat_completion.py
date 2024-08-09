@@ -21,6 +21,7 @@ from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionLogprobs,
     ChatCompletionLogprob,
+    ChatCompletionLogprobChoice,
     ChatCompletionMessage,
     ChatCompletionRequest,
     ChatCompletionRespChoice,
@@ -48,22 +49,24 @@ def _create_response(
 
         logprob_response = None
 
-        token_probs = unwrap(generation.get("token_probs"), {})
+        token_probs = unwrap(generation.get("token_probs"), [])
         if token_probs:
+            tokens = unwrap(generation.get("tokens"), [])
             logprobs = unwrap(generation.get("logprobs"), [])
-
             collected_token_probs = []
-            for index, token in enumerate(token_probs.keys()):
-                top_logprobs = [
-                    ChatCompletionLogprob(token=token, logprob=logprob)
-                    for token, logprob in logprobs[index].items()
+            for generated_token, generated_token_logprob, top_logprobs in zip(
+                tokens, token_probs, logprobs, strict=True
+            ):
+                completion_logprobs = [
+                    ChatCompletionLogprob(token=token, logprob=token_logprob)
+                    for token, token_logprob in top_logprobs.items()
                 ]
 
                 collected_token_probs.append(
-                    ChatCompletionLogprob(
-                        token=token,
-                        logprob=token_probs[token],
-                        top_logprobs=top_logprobs,
+                    ChatCompletionLogprobChoice(
+                        token=generated_token,
+                        logprob=generated_token_logprob,
+                        top_logprobs=completion_logprobs,
                     )
                 )
 
@@ -129,20 +132,26 @@ def _create_stream_chunk(
 
         token_probs = unwrap(generation.get("token_probs"), {})
         if token_probs:
-            logprobs = unwrap(generation.get("logprobs"), {})
-            top_logprobs = [
-                ChatCompletionLogprob(token=token, logprob=logprob)
-                for token, logprob in logprobs.items()
-            ]
+            tokens = unwrap(generation.get("tokens"), [])
+            logprobs = unwrap(generation.get("logprobs"), [])
+            collected_token_probs = []
+            for generated_token, generated_token_logprob, top_logprobs in zip(
+                tokens, token_probs, logprobs, strict=True
+            ):
+                completion_logprobs = [
+                    ChatCompletionLogprob(token=token, logprob=token_logprob)
+                    for token, token_logprob in top_logprobs.items()
+                ]
 
-            generated_token = next(iter(token_probs))
-            token_prob_response = ChatCompletionLogprob(
-                token=generated_token,
-                logprob=token_probs[generated_token],
-                top_logprobs=top_logprobs,
-            )
+                collected_token_probs.append(
+                    ChatCompletionLogprobChoice(
+                        token=generated_token,
+                        logprob=generated_token_logprob,
+                        top_logprobs=completion_logprobs,
+                    )
+                )
 
-            logprob_response = ChatCompletionLogprobs(content=[token_prob_response])
+            logprob_response = ChatCompletionLogprobs(content=collected_token_probs)
 
         choice = ChatCompletionStreamChoice(
             index=index,
