@@ -16,6 +16,8 @@ from endpoints.OAI.types.chat_completion import (
 from endpoints.OAI.types.embedding import EmbeddingsRequest, EmbeddingsResponse
 from endpoints.OAI.utils.chat_completion import (
     format_prompt_with_template,
+    update_stop_strings,
+    update_tool_data,
     generate_chat_completion,
     stream_generate_chat_completion,
 )
@@ -111,6 +113,9 @@ async def chat_completion_request(
         prompt = data.messages
     else:
         prompt = format_prompt_with_template(data)
+        update_stop_strings(data)
+        update_tool_data(data)
+
 
     # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":

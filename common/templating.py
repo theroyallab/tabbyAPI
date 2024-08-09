@@ -45,6 +45,22 @@ class PromptTemplate:
 
         return extra_stop_strings
 
+    def tool_params(self, template_vars: dict):
+        """grabs tool start params from the template"""
+
+        tool_starts = []
+        template_module = self.template.make_module(template_vars)
+
+        if hasattr(template_module, "tool_start"):
+            if isinstance(template_module.tool_start, str):
+                tool_starts.append(template_module.tool_start)
+
+        if hasattr(template_module, "tool_start_token"):
+            if isinstance(template_module.tool_start_token, int):
+                tool_starts.append(template_module.tool_start_token)
+
+        return tool_starts
+
     def render(self, template_vars: dict):
         """Get a prompt from a template and a list of messages."""
         if version.parse(package_version("jinja2")) < version.parse("3.0.0"):
@@ -56,9 +72,8 @@ class PromptTemplate:
             )
 
         rendered_template = self.template.render(**template_vars)
-        template_stop_strings = self.stop_strings(template_vars)
 
-        return rendered_template, template_stop_strings
+        return rendered_template
 
     def compile(self, template_str: str):
         """Compiles and stores a jinja2 template"""

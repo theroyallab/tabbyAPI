@@ -5,6 +5,7 @@ import pathlib
 from asyncio import CancelledError
 from copy import deepcopy
 from typing import List, Optional
+import json
 
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
@@ -30,6 +31,7 @@ from endpoints.OAI.types.chat_completion import (
 )
 from endpoints.OAI.types.common import UsageStats
 from endpoints.OAI.utils.completion import _stream_collector
+from endpoints.OAI.types.tools import ToolCall
 
 
 def _create_response(
@@ -45,6 +47,12 @@ def _create_response(
         message = ChatCompletionMessage(
             role="assistant", content=unwrap(generation.get("text"), "")
         )
+
+        tool_calls = generation["tool_calls"]
+        if tool_calls:
+            json_tool_calls = json.loads(tool_calls)
+            tool_calls_obj = [ToolCall(**tool_call) for tool_call in json_tool_calls]
+            message.tool_calls = tool_calls_obj
 
         logprob_response = None
 
@@ -72,6 +80,8 @@ def _create_response(
         choice = ChatCompletionRespChoice(
             index=index,
             finish_reason=generation.get("finish_reason"),
+            # lets check that we are getting the stop str before going forward
+            stop_str=generation.get("stop_str"),
             message=message,
             logprobs=logprob_response,
         )
@@ -119,7 +129,16 @@ def _create_stream_chunk(
             finish_reason=generation.get("finish_reason"),
         )
 
+        # lets check if we have tool calls since we are at the end of the generation
+        if "tool_calls" in generation:
+            tool_calls = generation["tool_calls"]
+            json_tool_calls = json.loads(tool_calls)
+            tool_calls_obj = [ToolCall(**tool_call) for tool_call in json_tool_calls]
+            message = ChatCompletionMessage(tool_calls=tool_calls_obj)
+            choice.delta = message
+
         choices.append(choice)
+
     else:
         message = ChatCompletionMessage(
             role="assistant", content=unwrap(generation.get("text"), "")
@@ -162,7 +181,9 @@ def _create_stream_chunk(
     return chunk
 
 
-def format_prompt_with_template(data: ChatCompletionRequest):
+def format_prompt_with_template(
+        data: ChatCompletionRequest, tool_precursor: Optional[str] = None
+    ):
     """
     Compile the prompt and get any additional stop strings from the template.
     Template stop strings can be overriden by sampler overrides if force is true.
@@ -187,16 +208,22 @@ def format_prompt_with_template(data: ChatCompletionRequest):
                     "",
                 )
 
+            if "tool_calls" in message:
+                message["tool_calls_json"] = json.dumps(message["tool_calls"], indent=2)
+
         # Overwrite any protected vars with their values
         data.template_vars.update(
             {
                 "messages": data.messages,
                 "add_generation_prompt": data.add_generation_prompt,
+                "tools_json": json.dumps(data.model_dump()['tools'], indent=2),
+                "functions_json": json.dumps(data.functions, indent=2),
+                "tool_precursor": tool_precursor,
                 **special_tokens_dict,
             }
         )
 
-        prompt, template_stop_strings = model.container.prompt_template.render(
+        prompt = model.container.prompt_template.render(
             data.template_vars
         )
 
@@ -210,20 +237,15 @@ def format_prompt_with_template(data: ChatCompletionRequest):
                     "add_generation_prompt is False"
                 )
 
+        
         # Removes the starting BOS token if present
         # This is to prevent add_bos_token from adding multiple bos tokens
         bos_token = special_tokens_dict.get("bos_token")
         if bos_token and prompt.startswith(bos_token):
             prompt = prompt.removeprefix(bos_token)
 
-        # Append template stop strings
-        if isinstance(data.stop, str):
-            data.stop = [data.stop] + template_stop_strings
-        else:
-            data.stop += template_stop_strings
-
         return prompt
-
+    
     except KeyError as exc:
         error_message = handle_request_error(
             "Could not find a Conversation from prompt template "
@@ -237,6 +259,28 @@ def format_prompt_with_template(data: ChatCompletionRequest):
 
         raise HTTPException(400, error_message) from exc
 
+def update_stop_strings(data: ChatCompletionRequest):
+    # Moved out of format_prompt_with_template since this can be called multiple
+    # times when a tool call is initiated
+    template_stop_strings = model.container.prompt_template.stop_strings(
+        data.template_vars
+    )
+    if isinstance(data.stop, str):
+        data.stop = [data.stop] + template_stop_strings
+    else:
+        data.stop += template_stop_strings
+
+def update_tool_data(data: ChatCompletionRequest):
+    # Same as update_stop_strings
+    tool_starts = model.container.prompt_template.tool_params(
+        data.template_vars
+    )
+
+    if data.tool_call_start is None and len(tool_starts) > 0:
+        data.tool_call_start = tool_starts
+
+    if len(tool_starts) > 0:
+        data.stop.extend(tool_starts)
 
 async def stream_generate_chat_completion(
     prompt: str, data: ChatCompletionRequest, request: Request, model_path: pathlib.Path
@@ -271,6 +315,8 @@ async def stream_generate_chat_completion(
 
             gen_tasks.append(gen_task)
 
+        # We need to keep track of the text generated so we can resume the tool calls
+        current_generation_text = ""
         # Consumer loop
         while True:
             if disconnect_task.done():
@@ -280,6 +326,19 @@ async def stream_generate_chat_completion(
                 )
 
             generation = await gen_queue.get()
+            # lets only append the text if we need it for tool calls later
+            if data.tool_call_start and "text" in generation:
+                current_generation_text += generation["text"]
+
+            # check if we are running a tool model, and that we are at stop
+            if data.tool_call_start and "stop_str" in generation:
+                generations = await generate_tool_calls(
+                    data,
+                    [generation],
+                    request,
+                    current_generations=current_generation_text,
+                )
+                generation = generations[0]  # We only have one generation in this case
 
             # Stream collector will push an exception to the queue if it fails
             if isinstance(generation, Exception):
@@ -326,6 +385,13 @@ async def generate_chat_completion(
     gen_tasks: List[asyncio.Task] = []
     gen_params = data.to_gen_params()
 
+    # save prompt to disk
+    with open("prompt.txt", "w") as f:
+        f.write(prompt)
+
+    print(f"stop conditions: {data.stop}")
+    print(f"temp: {data.temperature}")
+
     try:
         for n in range(0, data.n):
             # Deepcopy gen params above the first index
@@ -344,6 +410,11 @@ async def generate_chat_completion(
             )
 
         generations = await asyncio.gather(*gen_tasks)
+
+        # Let's not waste our time if we arn't running a tool model
+        if data.tool_call_start:
+            generations = await generate_tool_calls(data, generations, request)
+
         response = _create_response(request.state.id, generations, model_path.name)
 
         logger.info(f"Finished chat completion request {request.state.id}")
@@ -358,3 +429,55 @@ async def generate_chat_completion(
 
         # Server error if there's a generation exception
         raise HTTPException(503, error_message) from exc
+    
+async def generate_tool_calls(
+    data: ChatCompletionRequest,
+    generations: List[str],
+    request: Request,
+    current_generations: str = None,
+):
+    gen_tasks: List[asyncio.Task] = []
+    tool_idx: List[int] = []
+    temp = deepcopy(data)  # Do we need to deepcopy this such that we don't
+    # modify the upstream data when overwriting json_schema with the tool schema??
+    temp.json_schema = temp.tool_call_schema
+    gen_params = temp.to_gen_params()
+
+    for idx, gen in enumerate(generations):
+        if gen["stop_str"] in temp.tool_call_start:
+            if (
+                "text" in gen
+            ):  # non streaming, all generations will have the text they generated
+                pre_tool_prompt = format_prompt_with_template(data, gen["text"])
+            elif current_generations:
+                # streaming, we wont have text in the generation,
+                #we'll have to use the current_generations
+                pre_tool_prompt = format_prompt_with_template(data, current_generations)
+            else:
+                raise Exception(
+                    "No text found in generation to append to prompt, and no current_generations provided"
+                )
+            
+            # save pre_tool_prompt to disk
+            with open("pre_tool_prompt.txt", "w") as f:
+                f.write(pre_tool_prompt)
+
+            
+            gen_tasks.append(
+                asyncio.create_task(
+                    model.container.generate(
+                        pre_tool_prompt,
+                        request.state.id,
+                        **gen_params
+                    )
+                )
+            )
+            tool_idx.append(idx)
+
+    tool_calls = await asyncio.gather(*gen_tasks)
+    for outer_idx in range(0, len(tool_idx)):
+        gen_idx = tool_idx[outer_idx]
+        generations[gen_idx]["tool_calls"] = tool_calls[outer_idx]["text"]
+
+    return generations
+
