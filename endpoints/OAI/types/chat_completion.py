@@ -51,26 +51,22 @@ class ChatCompletionRequest(CommonCompletionRequest):
     # WIP this can probably be tightened, or maybe match the OAI lib type
     # in openai\types\chat\chat_completion_message_param.py
     messages: Union[
-        str, List
+        str, List[Dict]
     ]
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
     template_vars: Optional[dict] = {}
     response_prefix: Optional[str] = None
 
-    # Tools is follows the format OAI schema, functions allows a list of function
-    # schemas to be passed. Chat template will determine which is used.
+    # tools is follows the format OAI schema, functions is more flexible
+    # both are available in the chat template.
 
-    # TODO ensure tools matches the oai format then ensure in util/chat_comp its
-    # properly converted to json/str for template
     tools: Optional[List[ToolSpec]] = None
     functions: Optional[List[Dict]] = None
 
     # Typically collected from Chat Template.
-    tool_call_start: Optional[List[Union[str, int]]] = None  # toks or strs preceeding
-    # string that might be placed after the tool calls
+    tool_call_start: Optional[List[Union[str, int]]] = None
     tool_call_end: Optional[str] = None
-    # schema to be used when generating tool calls
     tool_call_schema: Optional[dict] = openai_tool_call_schema
 
 
