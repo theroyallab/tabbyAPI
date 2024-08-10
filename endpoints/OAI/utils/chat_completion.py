@@ -50,9 +50,7 @@ def _create_response(
 
         tool_calls = generation["tool_calls"]
         if tool_calls:
-            json_tool_calls = json.loads(tool_calls)
-            tool_calls_obj = [ToolCall(**tool_call) for tool_call in json_tool_calls]
-            message.tool_calls = tool_calls_obj
+            message.tool_calls = postprocess_tool_call(tool_calls)
 
         logprob_response = None
 
@@ -132,9 +130,7 @@ def _create_stream_chunk(
         # lets check if we have tool calls since we are at the end of the generation
         if "tool_calls" in generation:
             tool_calls = generation["tool_calls"]
-            json_tool_calls = json.loads(tool_calls)
-            tool_calls_obj = [ToolCall(**tool_call) for tool_call in json_tool_calls]
-            message = ChatCompletionMessage(tool_calls=tool_calls_obj)
+            message = ChatCompletionMessage(tool_calls=postprocess_tool_call(tool_calls))
             choice.delta = message
 
         choices.append(choice)
@@ -389,9 +385,6 @@ async def generate_chat_completion(
     with open("prompt.txt", "w") as f:
         f.write(prompt)
 
-    print(f"stop conditions: {data.stop}")
-    print(f"temp: {data.temperature}")
-
     try:
         for n in range(0, data.n):
             # Deepcopy gen params above the first index
@@ -481,3 +474,10 @@ async def generate_tool_calls(
 
     return generations
 
+def postprocess_tool_call(call_str:str) -> List[ToolCall]:
+    tool_calls = json.loads(call_str)
+    for tool_call in tool_calls:
+        tool_call["function"]["arguments"] = json.dumps(
+            tool_call["function"]["arguments"]
+        )
+    return [ToolCall(**tool_call) for tool_call in tool_calls]

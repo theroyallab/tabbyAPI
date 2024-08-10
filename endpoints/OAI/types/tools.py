@@ -25,7 +25,7 @@ openai_tool_call_schema = {
             "type": "string"
           },
           "arguments": {
-            "type": "string"
+            "type": "object"
           }
         },
         "required": ["name", "arguments"]
