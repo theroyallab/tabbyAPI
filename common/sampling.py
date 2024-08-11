@@ -33,7 +33,7 @@ class BaseSamplerRequest(BaseModel):
         examples=[512],
     )
 
-    stop: Optional[Union[str, List[str]]] = Field(
+    stop: Optional[Union[str, List[Union[str, int]]]] = Field(
         default_factory=lambda: get_default_sampler_value("stop", []),
         validation_alias=AliasChoices("stop", "stop_sequence"),
         description="Aliases: stop_sequence",
