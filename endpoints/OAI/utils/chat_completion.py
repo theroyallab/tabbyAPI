@@ -130,7 +130,9 @@ def _create_stream_chunk(
         # lets check if we have tool calls since we are at the end of the generation
         if "tool_calls" in generation:
             tool_calls = generation["tool_calls"]
-            message = ChatCompletionMessage(tool_calls=postprocess_tool_call(tool_calls))
+            message = ChatCompletionMessage(
+                tool_calls=postprocess_tool_call(tool_calls)
+            )
             choice.delta = message
 
         choices.append(choice)
@@ -422,7 +424,7 @@ async def generate_chat_completion(
 
         # Server error if there's a generation exception
         raise HTTPException(503, error_message) from exc
-    
+
 async def generate_tool_calls(
     data: ChatCompletionRequest,
     generations: List[str],
@@ -431,24 +433,24 @@ async def generate_tool_calls(
 ):
     gen_tasks: List[asyncio.Task] = []
     tool_idx: List[int] = []
-    temp = deepcopy(data)  # Do we need to deepcopy this such that we don't
-    # modify the upstream data when overwriting json_schema with the tool schema??
-    temp.json_schema = temp.tool_call_schema
-    gen_params = temp.to_gen_params()
+    tool_data = deepcopy(data)  # Do we need to deepcopy this such that we don't
+    # modify the upstream data when overwriting json_schema with the tool schema?
+    tool_data.json_schema = tool_data.tool_call_schema
+    gen_params = tool_data.to_gen_params()
 
     for idx, gen in enumerate(generations):
-        if gen["stop_str"] in temp.tool_call_start:
+        if gen["stop_str"] in tool_data.tool_call_start:
             if (
                 "text" in gen
             ):  # non streaming, all generations will have the text they generated
                 pre_tool_prompt = format_prompt_with_template(data, gen["text"])
-            elif current_generations:
+            elif current_generations is not None:
                 # streaming, we wont have text in the generation,
                 #we'll have to use the current_generations
                 pre_tool_prompt = format_prompt_with_template(data, current_generations)
             else:
                 raise Exception(
-                    "No text found in generation to append to prompt, and no current_generations provided"
+                    "No text found in generation and no current_generations provided"
                 )
             
             # save pre_tool_prompt to disk
