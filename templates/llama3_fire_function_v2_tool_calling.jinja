@@ -2,36 +2,35 @@
 {% set stop_strings = ["<|im_start|>", "<|im_end|>"] %}
 {% set message_roles = ['system', 'user', 'assistant', 'tool'] %}
 {% set tool_start = "functools" %}
+{%- set start_header = "<|start_header_id|>" -%} 
+{%- set end_header = "<|end_header_id|>\n" -%}
+
 {%- set example_tool_call -%}[
     {
-        "id": "call_FthC9",
+        "id": "tool_id_1342",
         "function": {
-        "arguments": "{"location": "San Francisco, CA"}",
-        "name": "get_rain_probability"
+        "arguments": "arg_name": 3,
+        "name": "tool_name"
         },
         "type": "function"
     },
     {
-        "id": "call_RpEDo",
+        "id": "example_id_13f42",
         "function": {
-        "arguments": "{"location": "San Francisco, CA", "unit": "Fahrenheit"}",
-        "name": "get_current_temperature"
+        "arguments": "example_arg": 1.0, "another_example_arg": true,
+        "name": "another_tool_name"
         },
         "type": "function"
     }
 ]
 {%- endset -%}
 
-{%- set inital_system_prompt -%}Respond using your internal knowledge when possible. If external information is needed, call one or more provided functions.
-To call functions:
-1. Prefix calls with '{{ tool_start}}' (no closing marker)
-2. Generate all calls using the following example structure:
+{%- set inital_system_prompt -%}You are an assistant that has access to the following set of tools, to call a tool:
+1. Prefix calls with '{{ tool_start }}' and end calls with '{{ tool_end }}'
+2. Ensure you use the correct type for arguments. For example, if the argument is a string, ensure it is enclosed in quotes, otherwise, it should not be.
+3. Generate all calls using the following json tool call format. Here is a multi tool call example:
 
 {{ tool_start}}{{ example_tool_call }}
-
-
-3. Format argument types correctly (e.g. 7.0 for float)
-4. Choose functions that best match user intent
 
 Here are the tools available for you to call:
 {{ tools_json }}
@@ -42,6 +41,9 @@ Here are the tools available for you to call:
 
 Tool Call Format Example:
 {{ tool_start}}{{ example_tool_call }}
+
+Prefix & Suffix: Begin tool calls with {{ tool_start }} and end with {{ tool_end }}.
+Argument Types: Use correct data types for arguments (e.g., strings in quotes, numbers without).
 {%- endset -%}
 
 {# Template #}
@@ -54,14 +56,14 @@ Tool Call Format Example:
     
     {%- set content = message['content'] | default('', true) | trim -%}
     {%- if loop.first -%}
-{{ bos_token }}<|start_header_id|>{{ role }}<|end_header_id|>
+{{ bos_token }}{{ start_header }}{{ role }}{{ end_header }}
 {{ inital_system_prompt }}
 
 {{ content }}{{ eos_token }}
     {%- endif -%}
     
     {%- if not loop.first -%}
-<|start_header_id|>{{ role }}<|end_header_id|>
+{{ start_header }}{{ role }}{{ end_header }}
 {{ content }}
         {%- if 'tool_calls_json' in message and message['tool_calls_json'] -%}
 {{ tool_start }}{{ message['tool_calls_json']}}
@@ -72,11 +74,10 @@ Tool Call Format Example:
 {%- endfor -%}
 
 {%- if tool_precursor -%}
-<|start_header_id|>system<|end_header_id|>
+{{ start_header }}system{{ end_header }}
 {{ tool_reminder }}{{ eos_token }}
-<|start_header_id|>assistant<|end_header_id|>
+{{ start_header }}assistant{{ end_header }}
 {{ tool_precursor }}{{ tool_start }}
-
 {%- else -%}
-<|start_header_id|>assistant<|end_header_id|>
+{{ start_header }}assistant{{ end_header }}
 {%- endif -%}

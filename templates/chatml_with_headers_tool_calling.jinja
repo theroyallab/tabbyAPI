@@ -5,6 +5,7 @@
 {% set tool_end = "<|tool_end|>" %}
 {%- set start_header = "<|start_header_id|>" -%}
 {%- set end_header = "<|end_header_id|>\n" -%}
+
 {%- set example_tool_call -%}[
     {
         "id": "tool_id_1342",
@@ -25,16 +26,12 @@
 ]
 {%- endset -%}
 
-{%- set inital_system_prompt -%}Respond using your internal knowledge when possible. If external information is needed, call one or more provided functions.
-To call functions:
+{%- set inital_system_prompt -%}You are an assistant that has access to the following set of tools, to call a tool:
 1. Prefix calls with '{{ tool_start }}' and end calls with '{{ tool_end }}'
-2. Generate all calls using the following tool call format. This example includes multiple calls:
+2. Ensure you use the correct type for arguments. For example, if the argument is a string, ensure it is enclosed in quotes, otherwise, it should not be.
+3. Generate all calls using the following json tool call format. Here is a multi tool call example:
 
 {{ tool_start }}{{ example_tool_call }}{{ tool_end }}
-
-
-3. Format argument types correctly (e.g. 7.0 for float)
-4. Choose functions that best match user intent
 
 Here are the tools available for you to call:
 {{ tools_json }}
@@ -45,6 +42,9 @@ Here are the tools available for you to call:
 
 Tool Call Format Example:
 {{ tool_start }}{{ example_tool_call }}
+
+Prefix & Suffix: Begin tool calls with {{ tool_start }} and end with {{ tool_end }}.
+Argument Types: Use correct data types for arguments (e.g., strings in quotes, numbers without).
 {%- endset -%}
 
 {# Template #}
@@ -79,7 +79,6 @@ Tool Call Format Example:
 {{ tool_reminder }}{{ eos_token }}
 {{ start_header }}assistant{{ end_header }}
 {{ tool_precursor }}{{ tool_start }}
-
 {%- else -%}
 {{ start_header }}assistant{{ end_header }}
 {%- endif -%}
