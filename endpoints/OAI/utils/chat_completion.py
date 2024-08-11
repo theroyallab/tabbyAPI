@@ -78,7 +78,6 @@ def _create_response(
         choice = ChatCompletionRespChoice(
             index=index,
             finish_reason=generation.get("finish_reason"),
-            # lets check that we are getting the stop str before going forward
             stop_str=generation.get("stop_str"),
             message=message,
             logprobs=logprob_response,
@@ -384,6 +383,7 @@ async def generate_chat_completion(
     gen_params = data.to_gen_params()
 
     # save prompt to disk
+    # TODO Remove before flagging as ready to review
     with open("prompt.txt", "w") as f:
         f.write(prompt)
 
@@ -440,20 +440,22 @@ async def generate_tool_calls(
 
     for idx, gen in enumerate(generations):
         if gen["stop_str"] in tool_data.tool_call_start:
-            if (
-                "text" in gen
-            ):  # non streaming, all generations will have the text they generated
+            if "text" in gen:
+                # non streaming, all generations will have the text they generated
                 pre_tool_prompt = format_prompt_with_template(data, gen["text"])
+
             elif current_generations is not None:
                 # streaming, we wont have text in the generation,
-                #we'll have to use the current_generations
+                # we'll have to use the current_generations
                 pre_tool_prompt = format_prompt_with_template(data, current_generations)
+
             else:
                 raise Exception(
                     "No text found in generation and no current_generations provided"
                 )
             
             # save pre_tool_prompt to disk
+            # TODO Remove before flagging to be reviewed
             with open("pre_tool_prompt.txt", "w") as f:
                 f.write(pre_tool_prompt)
 

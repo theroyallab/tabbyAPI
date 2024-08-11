@@ -1,15 +1,7 @@
 from pydantic import BaseModel
 from typing import Dict, Literal
 
-import string
-import random
-
-def build_tool_id():
-    alphabet = string.ascii_lowercase + string.digits
-    return random.choices(alphabet, k=8)
-
-
-openai_tool_call_schema = {
+tool_call_schema = {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "array",
   "items": {
@@ -26,6 +18,7 @@ openai_tool_call_schema = {
           },
           "arguments": {
             "type": "object"
+            # ^ Converted to string in post processing, format enforced while inf
           }
         },
         "required": ["name", "arguments"]
@@ -52,8 +45,10 @@ class ToolSpec(BaseModel):
 
 class Tool(BaseModel):
     name: str
-    arguments: str # Seems illogical but OAI actually specifies this as a string
-    #arguments: Dict[str, object]
+    arguments: str
+    #  ^ Seems illogical (we'd imagine this is Dict[str, object]) but
+    # OAI lib types actually specifies this as a string, handled by post
+    # processing tool call
 
 
 class ToolCall(BaseModel):
