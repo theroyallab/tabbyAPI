@@ -17,13 +17,16 @@ def init_argparser():
     """Creates an argument parser that any function can use"""
 
     parser = argparse.ArgumentParser(
-        epilog="These args are only for a subset of the config. "
-        + "Please edit config.yml for all options!"
+        epilog="NOTE: These args serve to override parts of the config. "
+        + "It's highly recommended to edit config.yml for all options and "
+        + "better descriptions!"
     )
     add_network_args(parser)
     add_model_args(parser)
+    add_embeddings_args(parser)
     add_logging_args(parser)
     add_developer_args(parser)
+    add_sampling_args(parser)
     add_config_args(parser)
 
     return parser
@@ -64,6 +67,17 @@ def add_network_args(parser: argparse.ArgumentParser):
         type=str_to_bool,
         help="Disable HTTP token authenticaion with requests",
     )
+    network_group.add_argument(
+        "--send-tracebacks",
+        type=str_to_bool,
+        help="Decide whether to send error tracebacks over the API",
+    )
+    network_group.add_argument(
+        "--api-servers",
+        type=str,
+        nargs="+",
+        help="API servers to enable. Options: (OAI, Kobold)",
+    )
 
 
 def add_model_args(parser: argparse.ArgumentParser):
@@ -75,6 +89,17 @@ def add_model_args(parser: argparse.ArgumentParser):
     )
     model_group.add_argument("--model-name", type=str, help="An initial model to load")
     model_group.add_argument(
+        "--use-dummy-models",
+        type=str_to_bool,
+        help="Add dummy OAI model names for API queries",
+    )
+    model_group.add_argument(
+        "--use-as-default",
+        type=str,
+        nargs="+",
+        help="Names of args to use as a default fallback for API load requests ",
+    )
+    model_group.add_argument(
         "--max-seq-len", type=int, help="Override the maximum model sequence length"
     )
     model_group.add_argument(
@@ -83,23 +108,15 @@ def add_model_args(parser: argparse.ArgumentParser):
         help="Overrides base model context length",
     )
     model_group.add_argument(
-        "--cache-size",
-        type=int,
-        help="The size of the prompt cache (in number of tokens) to allocate",
-    )
-    model_group.add_argument(
-        "--rope-scale", type=float, help="Sets rope_scale or compress_pos_emb"
-    )
-    model_group.add_argument("--rope-alpha", type=float, help="Sets rope_alpha for NTK")
-    model_group.add_argument(
-        "--prompt-template",
-        type=str,
-        help="Set the prompt template for chat completions",
-    )
-    model_group.add_argument(
         "--gpu-split-auto",
         type=str_to_bool,
         help="Automatically allocate resources to GPUs",
+    )
+    model_group.add_argument(
+        "--autosplit-reserve",
+        type=int,
+        nargs="+",
+        help="Reserve VRAM used for autosplit loading (in MBs) ",
     )
     model_group.add_argument(
         "--gpu-split",
@@ -109,14 +126,43 @@ def add_model_args(parser: argparse.ArgumentParser):
         + "Ignored if gpu_split_auto is true",
     )
     model_group.add_argument(
+        "--rope-scale", type=float, help="Sets rope_scale or compress_pos_emb"
+    )
+    model_group.add_argument("--rope-alpha", type=float, help="Sets rope_alpha for NTK")
+    model_group.add_argument(
+        "--cache-mode",
+        type=str,
+        help="Set the quantization level of the K/V cache. Options: (FP16, Q8, Q6, Q4)",
+    )
+    model_group.add_argument(
+        "--cache-size",
+        type=int,
+        help="The size of the prompt cache (in number of tokens) to allocate",
+    )
+    model_group.add_argument(
+        "--chunk-size",
+        type=int,
+        help="Chunk size for prompt ingestion",
+    )
+    model_group.add_argument(
+        "--max-batch-size",
+        type=int,
+        help="Maximum amount of prompts to process at one time",
+    )
+    model_group.add_argument(
+        "--prompt-template",
+        type=str,
+        help="Set the jinja2 prompt template for chat completions",
+    )
+    model_group.add_argument(
         "--num-experts-per-token",
         type=int,
         help="Number of experts to use per token in MoE models",
     )
     model_group.add_argument(
-        "--use-cfg",
+        "--fasttensors",
         type=str_to_bool,
-        help="Enables CFG support",
+        help="Possibly increases model loading speeds",
     )
 
 
@@ -131,6 +177,11 @@ def add_logging_args(parser: argparse.ArgumentParser):
         "--log-generation-params",
         type=str_to_bool,
         help="Enable generation parameter logging",
+    )
+    logging_group.add_argument(
+        "--log-requests",
+        type=str_to_bool,
+        help="Enable request logging",
     )
 
 
@@ -149,5 +200,38 @@ def add_developer_args(parser: argparse.ArgumentParser):
     developer_group.add_argument(
         "--cuda-malloc-backend",
         type=str_to_bool,
-        help="Disables API request streaming",
+        help="Runs with the pytorch CUDA malloc backend",
+    )
+    developer_group.add_argument(
+        "--uvloop",
+        type=str_to_bool,
+        help="Run asyncio using Uvloop or Winloop",
+    )
+
+
+def add_sampling_args(parser: argparse.ArgumentParser):
+    """Adds sampling-specific arguments"""
+
+    sampling_group = parser.add_argument_group("sampling")
+    sampling_group.add_argument(
+        "--override-preset", type=str, help="Select a sampler override preset"
+    )
+
+
+def add_embeddings_args(parser: argparse.ArgumentParser):
+    """Adds arguments specific to embeddings"""
+
+    embeddings_group = parser.add_argument_group("embeddings")
+    embeddings_group.add_argument(
+        "--embedding-model-dir",
+        type=str,
+        help="Overrides the directory to look for models",
+    )
+    embeddings_group.add_argument(
+        "--embedding-model-name", type=str, help="An initial model to load"
+    )
+    embeddings_group.add_argument(
+        "--embeddings-device",
+        type=str,
+        help="Device to use for embeddings. Options: (cpu, auto, cuda)",
     )

@@ -16,11 +16,15 @@ class BaseSamplerRequest(BaseModel):
 
     max_tokens: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("max_tokens"),
+        validation_alias=AliasChoices("max_tokens", "max_length"),
+        description="Aliases: max_length",
         examples=[150],
     )
 
     min_tokens: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("min_tokens", 0),
+        validation_alias=AliasChoices("min_tokens", "min_length"),
+        description="Aliases: min_length",
         examples=[0],
     )
 
@@ -30,11 +34,20 @@ class BaseSamplerRequest(BaseModel):
     )
 
     stop: Optional[Union[str, List[str]]] = Field(
-        default_factory=lambda: get_default_sampler_value("stop", [])
+        default_factory=lambda: get_default_sampler_value("stop", []),
+        validation_alias=AliasChoices("stop", "stop_sequence"),
+        description="Aliases: stop_sequence",
     )
 
     banned_strings: Optional[Union[str, List[str]]] = Field(
         default_factory=lambda: get_default_sampler_value("banned_strings", [])
+    )
+
+    banned_tokens: Optional[Union[List[int], str]] = Field(
+        default_factory=lambda: get_default_sampler_value("banned_tokens", []),
+        validation_alias=AliasChoices("banned_tokens", "custom_token_bans"),
+        description="Aliases: custom_token_bans",
+        examples=[[128, 330]],
     )
 
     token_healing: Optional[bool] = Field(
@@ -76,6 +89,13 @@ class BaseSamplerRequest(BaseModel):
         examples=[1.0],
     )
 
+    typical: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("typical", 1.0),
+        validation_alias=AliasChoices("typical", "typical_p"),
+        description="Aliases: typical_p",
+        examples=[1.0],
+    )
+
     skew: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("skew", 0.0),
         examples=[0.0],
@@ -91,7 +111,22 @@ class BaseSamplerRequest(BaseModel):
 
     repetition_penalty: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("repetition_penalty", 1.0),
+        validation_alias=AliasChoices("repetition_penalty", "rep_pen"),
+        description="Aliases: rep_pen",
         examples=[1.0],
+    )
+
+    penalty_range: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("penalty_range", -1),
+        validation_alias=AliasChoices(
+            "penalty_range",
+            "repetition_range",
+            "repetition_penalty_range",
+            "rep_pen_range",
+        ),
+        description=(
+            "Aliases: repetition_range, repetition_penalty_range, " "rep_pen_range"
+        ),
     )
 
     repetition_decay: Optional[int] = Field(
@@ -118,6 +153,8 @@ class BaseSamplerRequest(BaseModel):
 
     ban_eos_token: Optional[bool] = Field(
         default_factory=lambda: get_default_sampler_value("ban_eos_token", False),
+        validation_alias=AliasChoices("ban_eos_token", "ignore_eos"),
+        description="Aliases: ignore_eos",
         examples=[False],
     )
 
@@ -151,24 +188,6 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("speculative_ngram"),
     )
 
-    # Aliased variables
-    typical: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("typical", 1.0),
-        validation_alias=AliasChoices("typical", "typical_p"),
-        description="Aliases: typical_p",
-        examples=[1.0],
-    )
-
-    penalty_range: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("penalty_range", -1),
-        validation_alias=AliasChoices(
-            "penalty_range",
-            "repetition_range",
-            "repetition_penalty_range",
-        ),
-        description="Aliases: repetition_range, repetition_penalty_range",
-    )
-
     cfg_scale: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("cfg_scale", 1.0),
         validation_alias=AliasChoices("cfg_scale", "guidance_scale"),
@@ -194,13 +213,6 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("temp_exponent", 1.0),
         validation_alias=AliasChoices("temp_exponent", "dynatemp_exponent"),
         examples=[1.0],
-    )
-
-    banned_tokens: Optional[Union[List[int], str]] = Field(
-        default_factory=lambda: get_default_sampler_value("banned_tokens", []),
-        validation_alias=AliasChoices("banned_tokens", "custom_token_bans"),
-        description="Aliases: custom_token_bans",
-        examples=[[128, 330]],
     )
 
     # TODO: Return back to adaptable class-based validation But that's just too much

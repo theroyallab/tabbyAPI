@@ -1,12 +1,17 @@
 """Common utility functions"""
 
 import asyncio
+import json
 import socket
 import traceback
-from fastapi import Request
+from fastapi import Depends, HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel
 from typing import Optional
+from uuid import uuid4
+
+from common import config
+from common.utils import unwrap
 
 
 class TabbyRequestErrorMessage(BaseModel):
@@ -33,15 +38,18 @@ def get_generator_error(message: str, exc_info: bool = True):
 def handle_request_error(message: str, exc_info: bool = True):
     """Log a request error to the console."""
 
+    trace = traceback.format_exc()
+    send_trace = unwrap(config.network_config().get("send_tracebacks"), False)
+
     error_message = TabbyRequestErrorMessage(
-        message=message, trace=traceback.format_exc()
+        message=message, trace=trace if send_trace else None
     )
 
     request_error = TabbyRequestError(error=error_message)
 
     # Log the error and provided message to the console
-    if error_message.trace and exc_info:
-        logger.error(error_message.trace)
+    if trace and exc_info:
+        logger.error(trace)
 
     logger.error(f"Sent to request: {message}")
 
@@ -78,8 +86,9 @@ async def run_with_request_disconnect(
 
     try:
         return call_task.result()
-    except (asyncio.CancelledError, asyncio.InvalidStateError):
+    except (asyncio.CancelledError, asyncio.InvalidStateError) as ex:
         handle_request_disconnect(disconnect_message)
+        raise HTTPException(422, disconnect_message) from ex
 
 
 def is_port_in_use(port: int) -> bool:
@@ -93,3 +102,39 @@ def is_port_in_use(port: int) -> bool:
     test_socket.settimeout(1)
     with test_socket:
         return test_socket.connect_ex(("localhost", port)) == 0
+
+
+async def add_request_id(request: Request):
+    """FastAPI depends to add a UUID to a request's state."""
+
+    request.state.id = uuid4().hex
+    return request
+
+
+async def log_request(request: Request):
+    """FastAPI depends to log a request to the user."""
+
+    log_message = [f"Information for {request.method} request {request.state.id}:"]
+
+    log_message.append(f"URL: {request.url}")
+    log_message.append(f"Headers: {dict(request.headers)}")
+
+    if request.method != "GET":
+        body_bytes = await request.body()
+        if body_bytes:
+            body = json.loads(body_bytes.decode("utf-8"))
+
+            log_message.append(f"Body: {dict(body)}")
+
+    logger.info("\n".join(log_message))
+
+
+def get_global_depends():
+    """Returns global dependencies for a FastAPI app."""
+
+    depends = [Depends(add_request_id)]
+
+    if config.logging_config().get("requests"):
+        depends.append(Depends(log_request))
+
+    return depends

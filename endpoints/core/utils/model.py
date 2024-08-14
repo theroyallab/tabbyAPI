@@ -2,11 +2,12 @@ import pathlib
 from asyncio import CancelledError
 from typing import Optional
 
-from common import model
+from common import gen_logging, model
 from common.networking import get_generator_error, handle_request_disconnect
-
-from endpoints.OAI.types.model import (
+from common.utils import unwrap
+from endpoints.core.types.model import (
     ModelCard,
+    ModelCardParameters,
     ModelList,
     ModelLoadRequest,
     ModelLoadResponse,
@@ -29,6 +30,61 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = N
             model_card_list.data.append(model_card)  # pylint: disable=no-member
 
     return model_card_list
+
+
+async def get_current_model_list(model_type: str = "model"):
+    """
+    Gets the current model in list format and with path only.
+
+    Unified for fetching both models and embedding models.
+    """
+
+    current_models = []
+    model_path = None
+
+    # Make sure the model container exists
+    if model_type == "model" or model_type == "draft":
+        if model.container:
+            model_path = model.container.get_model_path(model_type == "draft")
+    elif model_type == "embedding":
+        if model.embeddings_container:
+            model_path = model.embeddings_container.model_dir
+
+    if model_path:
+        current_models.append(ModelCard(id=model_path.name))
+
+    return ModelList(data=current_models)
+
+
+def get_current_model():
+    """Gets the current model with all parameters."""
+
+    model_params = model.container.get_model_parameters()
+    draft_model_params = model_params.pop("draft", {})
+
+    if draft_model_params:
+        model_params["draft"] = ModelCard(
+            id=unwrap(draft_model_params.get("name"), "unknown"),
+            parameters=ModelCardParameters.model_validate(draft_model_params),
+        )
+    else:
+        draft_model_params = None
+
+    model_card = ModelCard(
+        id=unwrap(model_params.pop("name", None), "unknown"),
+        parameters=ModelCardParameters.model_validate(model_params),
+        logging=gen_logging.PREFERENCES,
+    )
+
+    if draft_model_params:
+        draft_card = ModelCard(
+            id=unwrap(draft_model_params.pop("name", None), "unknown"),
+            parameters=ModelCardParameters.model_validate(draft_model_params),
+        )
+
+        model_card.parameters.draft = draft_card
+
+    return model_card
 
 
 async def stream_model_load(

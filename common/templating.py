@@ -51,7 +51,7 @@ class PromptTemplate:
             raise ImportError(
                 "Parsing these chat completion messages requires jinja2 3.0.0 "
                 f"or greater. Current version: {package_version('jinja2')}\n"
-                "Please upgrade jinja by running the following command: "
+                "Please update jinja by running the following command: "
                 "pip install --upgrade jinja2"
             )
 

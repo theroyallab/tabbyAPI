@@ -18,6 +18,10 @@ class CompletionResponseFormat(BaseModel):
     type: str = "text"
 
 
+class ChatCompletionStreamOptions(BaseModel):
+    include_usage: Optional[bool] = False
+
+
 class CommonCompletionRequest(BaseSamplerRequest):
     """Represents a common completion request."""
 
@@ -27,6 +31,7 @@ class CommonCompletionRequest(BaseSamplerRequest):
 
     # Generation info (remainder is in BaseSamplerRequest superclass)
     stream: Optional[bool] = False
+    stream_options: Optional[ChatCompletionStreamOptions] = None
     logprobs: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("logprobs", 0)
     )

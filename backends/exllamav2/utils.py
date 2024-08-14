@@ -1,20 +1,22 @@
+import platform
+import torch
 from packaging import version
 from importlib.metadata import PackageNotFoundError, version as package_version
 from loguru import logger
-import torch
 
 
 def check_exllama_version():
     """Verifies the exllama version"""
 
-    required_version = version.parse("0.1.6")
+    required_version = version.parse("0.1.7")
     current_version = version.parse(package_version("exllamav2").split("+")[0])
 
     unsupported_message = (
         f"ERROR: TabbyAPI requires ExLlamaV2 {required_version} "
         f"or greater. Your current version is {current_version}.\n"
-        "Please upgrade your environment by running a start script "
-        "(start.bat or start.sh)\n\n"
+        "Please update your environment by running an update script "
+        "(update_scripts/"
+        f"update_deps.{'bat' if platform.system() == 'Windows' else 'sh'})\n\n"
         "Or you can manually run a requirements update "
         "using the following command:\n\n"
         "For CUDA 12.1:\n"
@@ -71,8 +73,9 @@ def supports_paged_attn():
         "Switching to compatibility mode. \n"
         "This disables parallel batching "
         "and features that rely on it (ex. CFG). \n"
-        "Please upgrade your environment by running a start script "
-        "(start.bat or start.sh)\n\n"
+        "Please upgrade your environment by running an update script "
+        "(update_scripts/"
+        f"update_deps.{'bat' if platform.system() == 'Windows' else 'sh'})\n\n"
         "Or you can manually run a requirements update "
         "using the following command:\n\n"
         "For CUDA 12.1:\n"

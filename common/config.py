@@ -46,21 +46,23 @@ def from_args(args: dict):
         GLOBAL_CONFIG["model"] = {**cur_model_config, **model_override}
 
     # Generation Logging config
-    gen_logging_override = args.get("logging")
-    if gen_logging_override:
-        cur_gen_logging_config = gen_logging_config()
+    logging_override = args.get("logging")
+    if logging_override:
+        cur_logging_config = logging_config()
         GLOBAL_CONFIG["logging"] = {
-            **cur_gen_logging_config,
-            **{
-                k.replace("log_", ""): gen_logging_override[k]
-                for k in gen_logging_override
-            },
+            **cur_logging_config,
+            **{k.replace("log_", ""): logging_override[k] for k in logging_override},
         }
 
     developer_override = args.get("developer")
     if developer_override:
         cur_developer_config = developer_config()
         GLOBAL_CONFIG["developer"] = {**cur_developer_config, **developer_override}
+
+    embeddings_override = args.get("embeddings")
+    if embeddings_override:
+        cur_embeddings_config = embeddings_config()
+        GLOBAL_CONFIG["embeddings"] = {**cur_embeddings_config, **embeddings_override}
 
 
 def sampling_config():
@@ -90,11 +92,16 @@ def network_config():
     return unwrap(GLOBAL_CONFIG.get("network"), {})
 
 
-def gen_logging_config():
-    """Returns the generation logging config from the global config"""
+def logging_config():
+    """Returns the logging config from the global config"""
     return unwrap(GLOBAL_CONFIG.get("logging"), {})
 
 
 def developer_config():
     """Returns the developer specific config from the global config"""
     return unwrap(GLOBAL_CONFIG.get("developer"), {})
+
+
+def embeddings_config():
+    """Returns the embeddings config from the global config"""
+    return unwrap(GLOBAL_CONFIG.get("embeddings"), {})

@@ -18,3 +18,9 @@ def prune_dict(input_dict):
     """Trim out instances of None from a dictionary."""
 
     return {k: v for k, v in input_dict.items() if v is not None}
+
+
+def flat_map(input_list):
+    """Flattens a list of lists into a single list."""
+
+    return [item for sublist in input_list for item in sublist]
