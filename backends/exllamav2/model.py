@@ -50,6 +50,14 @@ from common.templating import (
 from common.transformers_utils import GenerationConfig, HuggingFaceConfig
 from common.utils import coalesce, unwrap
 
+# Dynamic imports
+try:
+    from exllamav2 import ExLlamaV2Cache_TP
+
+    has_tp = True
+except ImportError:
+    has_tp = False
+
 
 class ExllamaV2Container:
     """The model container class for ExLlamaV2 models."""
@@ -78,6 +86,7 @@ class ExllamaV2Container:
     gpu_split: Optional[list] = None
     gpu_split_auto: bool = True
     autosplit_reserve: List[float] = [96 * 1024**2]
+    use_tp: bool = False
 
     # Load state
     model_is_loading: bool = False
@@ -144,30 +153,52 @@ class ExllamaV2Container:
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
         gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
+        use_tp = unwrap(kwargs.get("tensor_parallel"), False)
+        gpu_split = kwargs.get("gpu_split")
         gpu_device_list = list(range(0, gpu_count))
 
-        if gpu_count > 1 and gpu_split_auto:
-            # Auto GPU split parameters
-            self.gpu_split_auto = gpu_split_auto
-
-            autosplit_reserve_megabytes = unwrap(kwargs.get("autosplit_reserve"), [96])
-            self.autosplit_reserve = [
-                int(math.ceil(value * 1024**2)) for value in autosplit_reserve_megabytes
-            ]
-        elif gpu_count > 1:
-            # Manual GPU split
-            self.gpu_split = kwargs.get("gpu_split")
-            self.gpu_split_auto = False
-
-            gpu_device_list = [
-                device_idx
-                for device_idx, memory in enumerate(self.gpu_split)
-                if memory > 0
-            ]
-        else:
-            # One GPU setup
+        # Set GPU split options
+        if gpu_count == 1:
             self.gpu_split_auto = False
             logger.info("Disabling GPU split because one GPU is in use.")
+        else:
+            # Set tensor parallel
+            if use_tp:
+                if has_tp:
+                    self.use_tp = True
+
+                    # TP has its own autosplit loader
+                    self.gpu_split_auto = False
+                else:
+                    # TODO: Remove conditional with exl2 v0.1.9 release
+                    logger.warning(
+                        "Tensor parallelism is not supported in the "
+                        "current ExllamaV2 version."
+                    )
+
+            # Enable manual GPU split if provided
+            if gpu_split:
+                self.gpu_split_auto = False
+                self.gpu_split = gpu_split
+
+                gpu_device_list = [
+                    device_idx
+                    for device_idx, memory in enumerate(self.gpu_split)
+                    if memory > 0
+                ]
+            elif gpu_split_auto and not self.use_tp:
+                # Otherwise fallback to autosplit settings
+                self.gpu_split_auto = gpu_split_auto
+
+                autosplit_reserve_megabytes = unwrap(
+                    kwargs.get("autosplit_reserve"), [96]
+                )
+
+                # Reserve VRAM for each GPU
+                self.autosplit_reserve = [
+                    int(math.ceil(value * 1024**2))
+                    for value in autosplit_reserve_megabytes
+                ]
 
         self.config = ExLlamaV2Config()
         self.config.model_dir = str(model_directory.resolve())
@@ -182,10 +213,7 @@ class ExllamaV2Container:
         self.config.prepare()
 
         # Check if the model arch is compatible with various exl2 features
-        try:
-            self.config.arch_compat_overrides()
-        except AttributeError:
-            pass
+        self.config.arch_compat_overrides()
 
         # Create the hf_config
         self.hf_config = HuggingFaceConfig.from_file(model_directory)
@@ -548,9 +576,11 @@ class ExllamaV2Container:
             if not self.quiet:
                 logger.info("Loading draft model: " + self.draft_config.model_dir)
 
+            # Draft uses the autosplit loader, so create a cache that reflects this
             self.draft_cache = self.create_cache(
                 cache_mode=self.draft_cache_mode,
                 autosplit=True,
+                use_tp=False,
             )
 
             for value in self.draft_model.load_autosplit_gen(
@@ -572,7 +602,17 @@ class ExllamaV2Container:
 
         # Load model with manual split
         # Entrypoint for single GPU users
-        if not self.gpu_split_auto:
+        if self.use_tp:
+            logger.info("Loading with tensor parallel")
+
+            for value in self.model.load_tp_gen(
+                self.gpu_split,
+                callback_gen=progress_callback,
+                expect_cache_tokens=self.cache_size,
+            ):
+                if value:
+                    yield value
+        elif not self.gpu_split_auto:
             logger.info("Loading with a manual GPU split (or a one GPU setup)")
 
             for value in self.model.load_gen(
@@ -582,13 +622,15 @@ class ExllamaV2Container:
                 if value:
                     yield value
 
+        # Create the model cache
         self.cache = self.create_cache(
             cache_mode=self.cache_mode,
             autosplit=self.gpu_split_auto,
+            use_tp=self.use_tp,
         )
 
-        # Load model with autosplit
-        if self.gpu_split_auto:
+        # Load model with autosplit (without TP)
+        if self.gpu_split_auto and not self.use_tp:
             logger.info("Loading with autosplit")
 
             for value in self.model.load_autosplit_gen(
@@ -604,36 +646,35 @@ class ExllamaV2Container:
         input_ids = torch.zeros((1, self.config.max_input_len), dtype=torch.long)
         self.model.forward(input_ids, cache=self.cache, preprocess_only=True)
 
-    def create_cache(self, cache_mode: str, autosplit: bool):
+    def create_cache(self, cache_mode: str, autosplit: bool, use_tp: bool):
+        if has_tp and use_tp:
+            if self.cache_mode != "FP16":
+                logger.warning(
+                    "Tensor parallel does not currently allow for use of "
+                    "a quantized K/V cache. Using the specialized TP cache."
+                )
+
+            return ExLlamaV2Cache_TP(
+                self.model,
+                max_seq_len=self.cache_size,
+                batch_size=1,
+            )
+
+        cache_type = ExLlamaV2Cache
         match cache_mode:
             case "Q4":
-                return ExLlamaV2Cache_Q4(
-                    self.model,
-                    max_seq_len=self.cache_size,
-                    lazy=autosplit,
-                    batch_size=1,
-                )
+                cache_type = ExLlamaV2Cache_Q4
             case "Q6":
-                return ExLlamaV2Cache_Q6(
-                    self.model,
-                    max_seq_len=self.cache_size,
-                    lazy=self.gpu_split_auto,
-                    batch_size=1,
-                )
+                cache_type = ExLlamaV2Cache_Q6
             case "Q8":
-                return ExLlamaV2Cache_Q8(
-                    self.model,
-                    max_seq_len=self.cache_size,
-                    lazy=autosplit,
-                    batch_size=1,
-                )
-            case _:
-                return ExLlamaV2Cache(
-                    self.model,
-                    max_seq_len=self.cache_size,
-                    lazy=self.gpu_split_auto,
-                    batch_size=1,
-                )
+                cache_type = ExLlamaV2Cache_Q8
+
+        return cache_type(
+            self.model,
+            max_seq_len=self.cache_size,
+            lazy=autosplit,
+            batch_size=1,
+        )
 
     async def create_generator(self):
         try:
