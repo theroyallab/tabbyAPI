@@ -72,6 +72,12 @@ def add_network_args(parser: argparse.ArgumentParser):
         type=str_to_bool,
         help="Decide whether to send error tracebacks over the API",
     )
+    network_group.add_argument(
+        "--api-servers",
+        type=str,
+        nargs="+",
+        help="API servers to enable. Options: (OAI, Kobold)",
+    )
 
 
 def add_model_args(parser: argparse.ArgumentParser):

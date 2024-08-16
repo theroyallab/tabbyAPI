@@ -8,6 +8,7 @@ import platform
 import subprocess
 import sys
 from shutil import copyfile
+import traceback
 
 from common.args import convert_args_to_dict, init_argparser
 
@@ -70,7 +71,7 @@ def get_install_features(lib_name: str = None):
         print(
             f"WARN: GPU library {lib_name} not found. "
             "Skipping GPU-specific dependencies.\n"
-            "WARN: Please delete gpu_lib.txt and restart "
+            "WARN: Please remove the `gpu_lib` key from start_options.json and restart "
             "if you want to change your selection."
         )
         return
@@ -106,6 +107,12 @@ def add_start_args(parser: argparse.ArgumentParser):
         "--update-deps",
         action="store_true",
         help="Update all pip dependencies",
+    )
+    start_group.add_argument(
+        "-fr",
+        "--force-reinstall",
+        action="store_true",
+        help="Forces a reinstall of dependencies. Only works with --update-deps",
     )
     start_group.add_argument(
         "-nw",
@@ -153,6 +160,7 @@ if __name__ == "__main__":
     if start_options_path.exists():
         with open(start_options_path) as start_options_file:
             start_options = json.load(start_options_file)
+            print("Loaded your saved preferences from `start_options.json`")
 
         if start_options.get("first_run_done"):
             first_run = False
@@ -196,14 +204,20 @@ if __name__ == "__main__":
         subprocess.run(pull_command.split(" "))
 
     if first_run or args.update_deps:
+        install_command = ["pip", "install", "-U"]
+
+        # Force a reinstall of the updated dependency if needed
+        if args.force_reinstall:
+            install_command.append("--force-reinstall")
+
         install_features = None if args.nowheel else get_install_features(gpu_lib)
-        features = f"[{install_features}]" if install_features else ""
+        features = f".[{install_features}]" if install_features else "."
+        install_command.append(features)
 
         # pip install .[features]
-        install_command = f"pip install -U .{features}"
-        print(f"Running install command: {install_command}")
-        subprocess.run(install_command.split(" "))
-        print("\n")
+        print(f"Running install command: {' '.join(install_command)}")
+        subprocess.run(install_command)
+        print()
 
         if args.update_deps:
             print(
@@ -231,9 +245,18 @@ if __name__ == "__main__":
         )
 
     # Import entrypoint after installing all requirements
-    from main import entrypoint
+    try:
+        from main import entrypoint
 
-    converted_args = convert_args_to_dict(args, parser)
+        converted_args = convert_args_to_dict(args, parser)
 
-    print("Starting TabbyAPI...")
-    entrypoint(converted_args)
+        print("Starting TabbyAPI...")
+        entrypoint(converted_args)
+    except (ModuleNotFoundError, ImportError):
+        traceback.print_exc()
+        print(
+            "\n"
+            "This error was raised because a package was not found.\n"
+            "Update your dependencies by running update_scripts/"
+            f"update_deps.{'bat' if platform.system() == 'Windows' else 'sh'}\n\n"
+        )

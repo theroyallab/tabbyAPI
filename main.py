@@ -9,8 +9,6 @@ import signal
 from loguru import logger
 from typing import Optional
 
-import psutil
-
 from common import config, gen_logging, sampling, model
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
@@ -112,15 +110,6 @@ def entrypoint(arguments: Optional[dict] = None):
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    if do_export_openapi:
-        openapi_json = export_openapi()
-
-        with open("openapi.json", "w") as f:
-            f.write(json.dumps(openapi_json))
-            logger.info("Successfully wrote OpenAPI spec to openapi.json")
-
-        return
-
     # Load from YAML config
     config.from_file(pathlib.Path("config.yml"))
 
@@ -130,6 +119,16 @@ def entrypoint(arguments: Optional[dict] = None):
         arguments = convert_args_to_dict(parser.parse_args(), parser)
 
     config.from_args(arguments)
+
+    if do_export_openapi:
+        openapi_json = export_openapi()
+
+        with open("openapi.json", "w") as f:
+            f.write(json.dumps(openapi_json))
+            logger.info("Successfully wrote OpenAPI spec to openapi.json")
+
+        return
+
     developer_config = config.developer_config()
 
     # Check exllamav2 version and give a descriptive error if it's too old
@@ -162,6 +161,8 @@ def entrypoint(arguments: Optional[dict] = None):
 
     # Set the process priority
     if unwrap(developer_config.get("realtime_process_priority"), False):
+        import psutil
+
         current_process = psutil.Process(os.getpid())
         if platform.system() == "Windows":
             current_process.nice(psutil.REALTIME_PRIORITY_CLASS)

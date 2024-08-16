@@ -32,19 +32,40 @@
 
 A FastAPI based application that allows for generating text using an LLM (large language model) using the [Exllamav2 backend](https://github.com/turboderp/exllamav2)
 
+TabbyAPI is also the official API backend server for ExllamaV2.
+
 ## Disclaimer
 
-This project is marked rolling release. There may be bugs and changes down the line. Please be aware that you might need to reinstall dependencies if needed.
+This project is marked as rolling release. There may be bugs and changes down the line. Please be aware that you might need to reinstall dependencies if needed.
 
-TabbyAPI is a hobby project solely for a small amount of users. It is not meant to run on production servers. For that, please look at other backends that support those workloads.
+TabbyAPI is a hobby project made for a small amount of users. It is not meant to run on production servers. For that, please look at other solutions that support those workloads.
 
 ## Getting Started
 
 > [!IMPORTANT]
 > 
->  This README is not for getting started. Please read the Wiki.
+>  This README does not have instructions for setting up. Please read the Wiki.
 
 Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started) for more information. It contains user-facing documentation for installation, configuration, sampling, API usage, and so much more.
+
+## Features
+
+- OpenAI compatible API
+- Loading/unloading models
+- HuggingFace model downloading
+- Embedding model support
+- JSON schema + Regex + EBNF support
+- AI Horde support
+- Speculative decoding via draft models
+- Multi-lora with independent scaling (ex. a weight of 0.9)
+- Inbuilt proxy to override client request parameters/samplers
+- Flexible Jinja2 template engine for chat completions that conforms to HuggingFace
+- Concurrent inference with asyncio
+- Utilizes modern python paradigms
+- Continuous batching engine using paged attention
+- Fast classifer-free guidance
+
+And much more. If something is missing here, PR it in!
 
 ## Supported Model Types
 
@@ -57,18 +78,6 @@ TabbyAPI uses Exllamav2 as a powerful and fast backend for model inference, load
 - FP16 (using Exllamav2's loader)
 
 In addition, TabbyAPI supports parallel batching using paged attention for Nvidia Ampere GPUs and higher.
-
-#### Alternative Loaders/Backends
-
-If you want to use a different model type or quantization method than the ones listed above, here are some alternative backends with their own APIs:
-
-- GGUF + GGML - [KoboldCPP](https://github.com/lostruins/KoboldCPP)
-
-- Production ready + Many other quants + batching - [Aphrodite Engine](https://github.com/PygmalionAI/Aphrodite-engine)
-
-- Production ready + batching - [VLLM](https://github.com/vllm-project/vllm)
-
-- [Text Generation WebUI](https://github.com/oobabooga/text-generation-webui)
 
 ## Contributing
 
@@ -83,6 +92,17 @@ If you have issues with the project:
 If you have a Pull Request
 
 - Describe the pull request in detail, what, and why you are changing something
+
+## Acknowldgements
+
+TabbyAPI would not exist without the work of other contributors and FOSS projects:
+
+- [ExllamaV2](https://github.com/turboderp/exllamav2)
+- [Aphrodite Engine](https://github.com/PygmalionAI/Aphrodite-engine)
+- [infinity-emb](https://github.com/michaelfeil/infinity)
+- [FastAPI](https://github.com/fastapi/fastapi)
+- [Text Generation WebUI](https://github.com/oobabooga/text-generation-webui)
+- [SillyTavern](https://github.com/SillyTavern/SillyTavern)
 
 ## Developers and Permissions
 
