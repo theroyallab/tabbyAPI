@@ -381,12 +381,7 @@ async def generate_chat_completion(
 ):
     gen_tasks: List[asyncio.Task] = []
     gen_params = data.to_gen_params()
-
-    # save prompt to disk
-    # TODO Remove before flagging as ready to review
-    with open("prompt.txt", "w") as f:
-        f.write(prompt)
-
+    
     try:
         for n in range(0, data.n):
             # Deepcopy gen params above the first index
@@ -453,13 +448,7 @@ async def generate_tool_calls(
                 raise Exception(
                     "No text found in generation and no current_generations provided"
                 )
-            
-            # save pre_tool_prompt to disk
-            # TODO Remove before flagging to be reviewed
-            with open("pre_tool_prompt.txt", "w") as f:
-                f.write(pre_tool_prompt)
 
-            
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
