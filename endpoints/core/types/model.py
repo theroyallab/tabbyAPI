@@ -96,6 +96,9 @@ class ModelLoadRequest(BaseModel):
         default_factory=lambda: get_config_default("cache_size"),
         examples=[4096],
     )
+    tensor_parallel: Optional[bool] = Field(
+        default_factory=lambda: get_config_default("tensor_parallel", False)
+    )
     gpu_split_auto: Optional[bool] = Field(
         default_factory=lambda: get_config_default("gpu_split_auto", True)
     )

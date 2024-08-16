@@ -108,6 +108,11 @@ def add_model_args(parser: argparse.ArgumentParser):
         help="Overrides base model context length",
     )
     model_group.add_argument(
+        "--tensor-parallel",
+        type=str_to_bool,
+        help="Use tensor parallelism to load models",
+    )
+    model_group.add_argument(
         "--gpu-split-auto",
         type=str_to_bool,
         help="Automatically allocate resources to GPUs",
