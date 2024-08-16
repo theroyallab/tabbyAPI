@@ -35,7 +35,9 @@
 {{ tool_start }}{{ example_tool_call }}{{ tool_end }}
 
 Here are the tools available for you to call:
+<tools>
 {{ tools_json }}
+</tools>
 {%- endset -%}
 
 {%- set tool_reminder -%}Available Tools:
@@ -66,7 +68,11 @@ Argument Types: Use correct data types for arguments (e.g., strings in quotes, n
     
     {%- if not loop.first -%}
 {{ start_header }}{{ role }}{{ end_header }}
+        {%- if role == 'tool' -%}
+<tool_response>{{ content }}</tool_response>
+        {%- else -%}
 {{ content }}
+        {%- endif -%}
         {%- if 'tool_calls_json' in message and message['tool_calls_json'] -%}
 {{ tool_start }}{{ message['tool_calls_json']}}{{ tool_end }}
         {%- endif -%}
