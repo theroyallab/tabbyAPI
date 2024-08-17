@@ -3,7 +3,7 @@
 import json
 import pathlib
 from importlib.metadata import version as package_version
-from typing import Optional
+from typing import List, Optional
 from jinja2 import Template, TemplateError
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from loguru import logger
@@ -18,6 +18,13 @@ class TemplateLoadError(Exception):
     pass
 
 
+class TemplateMetadata:
+    """Represents the parsed metadata from a template."""
+
+    stop_strings: List[str] = []
+    tool_starts: List[str] = []
+
+
 class PromptTemplate:
     """A template for chat completion prompts."""
 
@@ -27,23 +34,33 @@ class PromptTemplate:
     environment: ImmutableSandboxedEnvironment = ImmutableSandboxedEnvironment(
         trim_blocks=True, lstrip_blocks=True
     )
+    metadata: TemplateMetadata
 
-    def stop_strings(self, template_vars: dict):
-        """Appends extra stop strings if present in a chat template."""
+    def extract_metadata(self):
+        """Returns deserialized template metadata from a chat template."""
 
-        extra_stop_strings = []
-        template_module = self.template.make_module(template_vars)
+        template_metadata = TemplateMetadata()
+
+        template_module = self.template.make_module()
 
         if hasattr(template_module, "stop_strings"):
             if isinstance(template_module.stop_strings, list):
-                extra_stop_strings += template_module.stop_strings
+                template_metadata.stop_strings += template_module.stop_strings
             else:
                 logger.warning(
                     "Skipping append of stopping strings from chat template "
                     "because stop_strings isn't a list."
                 )
 
-        return extra_stop_strings
+        if hasattr(template_module, "tool_start"):
+            if isinstance(template_module.tool_start, str):
+                template_metadata.tool_starts.append(template_module.tool_start)
+
+        if hasattr(template_module, "tool_start_token"):
+            if isinstance(template_module.tool_start_token, int):
+                template_metadata.tool_starts.append(template_module.tool_start_token)
+
+        return template_metadata
 
     def render(self, template_vars: dict):
         """Get a prompt from a template and a list of messages."""
@@ -56,9 +73,8 @@ class PromptTemplate:
             )
 
         rendered_template = self.template.render(**template_vars)
-        template_stop_strings = self.stop_strings(template_vars)
 
-        return rendered_template, template_stop_strings
+        return rendered_template
 
     def compile(self, template_str: str):
         """Compiles and stores a jinja2 template"""
@@ -77,6 +93,7 @@ class PromptTemplate:
         self.name = name
         self.raw_template = raw_template
         self.template = self.compile(raw_template)
+        self.metadata = self.extract_metadata()
 
     @classmethod
     def from_file(self, prompt_template_name: str):

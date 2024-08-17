@@ -852,6 +852,7 @@ class ExllamaV2Container:
             "text": "",
             "prompt_tokens": 0,
             "generation_tokens": 0,
+            "tool_calls": None,
             "offset": [],
             "token_probs": {},
             "logprobs": [],
@@ -864,6 +865,7 @@ class ExllamaV2Container:
                 joined_generation["finish_reason"] = finish_reason_gen.get(
                     "finish_reason"
                 )
+                joined_generation["stop_str"] = finish_reason_gen.get("stop_str")
             else:
                 joined_generation["finish_reason"] = "stop"
 
@@ -1068,6 +1070,15 @@ class ExllamaV2Container:
             gen_settings.top_p = 0
             gen_settings.typical = 0
 
+            logger.warning(
+                "".join(
+                    [
+                        "Temperature is set to 0. Overriding temp, ",
+                        "top_k, top_p, and typical to 1.0, 1, 0, and 0.",
+                    ]
+                )
+            )
+
         # Store the gen settings for logging purposes
         gen_settings_log_dict = vars(gen_settings)
 
@@ -1227,9 +1238,17 @@ class ExllamaV2Container:
                         log_response(request_id, full_response)
 
                         eos_reason = result.get("eos_reason")
-                        finish_reason = (
-                            "length" if eos_reason == "max_new_tokens" else "stop"
-                        )
+
+                        stop_str = None
+                        if eos_reason == "max_new_tokens":
+                            finish_reason = "length"
+                        else:
+                            finish_reason = "stop"
+                            # Grab stop string if stop was the reason
+                            if eos_reason == "stop_token":
+                                stop_str = result.get("eos_triggering_token_str")
+                            elif eos_reason == "stop_string":
+                                stop_str = result.get("eos_triggering_string")
 
                         # Save the final result for metrics logging
                         metrics_result = result
@@ -1239,6 +1258,7 @@ class ExllamaV2Container:
                             "prompt_tokens": generation.get("prompt_tokens"),
                             "generated_tokens": generation.get("generated_tokens"),
                             "finish_reason": finish_reason,
+                            "stop_str": stop_str,
                         }
 
                         yield generation
