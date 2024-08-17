@@ -13,8 +13,8 @@ tool_call_schema = {
                 "properties": {
                     "name": {"type": "string"},
                     "arguments": {
+                        # Converted to OAI's string in post process
                         "type": "object"
-                        # ^ Converted to string in post processing, format enforced while inf
                     },
                 },
                 "required": ["name", "arguments"],
@@ -27,25 +27,32 @@ tool_call_schema = {
 
 
 class Function(BaseModel):
+    """Represents a description of a tool function."""
+
     name: str
     description: str
     parameters: Dict[str, object]
 
 
 class ToolSpec(BaseModel):
+    """Wrapper for an inner tool function."""
+
     function: Function
     type: Literal["function"]
 
 
 class Tool(BaseModel):
+    """Represents an OAI tool description."""
+
     name: str
+
+    # Makes more sense to be a dict, but OAI knows best
     arguments: str
-    #  ^ Seems illogical (we'd imagine this is Dict[str, object]) but
-    # OAI lib types actually specifies this as a string, handled by post
-    # processing tool call
 
 
 class ToolCall(BaseModel):
+    """Represents an OAI tool description."""
+
     id: str
     function: Tool
     type: Literal["function"]

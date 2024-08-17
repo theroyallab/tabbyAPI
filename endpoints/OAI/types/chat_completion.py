@@ -65,7 +65,7 @@ class ChatCompletionRequest(CommonCompletionRequest):
 
     # Typically collected from Chat Template.
     # Don't include this in the OpenAPI docs
-    # TODO: Maybe move this out of the request model
+    # TODO: Use these custom parameters
     tool_call_start: SkipJsonSchema[Optional[List[Union[str, int]]]] = None
     tool_call_end: SkipJsonSchema[Optional[str]] = None
     tool_call_schema: SkipJsonSchema[Optional[dict]] = tool_call_schema

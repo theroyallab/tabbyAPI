@@ -428,8 +428,10 @@ async def generate_tool_calls(
 ):
     gen_tasks: List[asyncio.Task] = []
     tool_idx: List[int] = []
-    tool_data = deepcopy(data)  # Do we need to deepcopy this such that we don't
-    # modify the upstream data when overwriting json_schema with the tool schema?
+
+    # Copy to make sure the parent JSON schema doesn't get modified
+    # FIXME: May not be necessary depending on how the codebase evolves
+    tool_data = deepcopy(data)
     tool_data.json_schema = tool_data.tool_call_schema
     gen_params = tool_data.to_gen_params()
 
@@ -438,16 +440,10 @@ async def generate_tool_calls(
             if "text" in gen:
                 # non streaming, all generations will have the text they generated
                 pre_tool_prompt = format_prompt_with_template(data, gen["text"])
-
             elif current_generations is not None:
                 # streaming, we wont have text in the generation,
                 # we'll have to use the current_generations
                 pre_tool_prompt = format_prompt_with_template(data, current_generations)
-
-            else:
-                raise Exception(
-                    "No text found in generation and no current_generations provided"
-                )
 
             gen_tasks.append(
                 asyncio.create_task(
