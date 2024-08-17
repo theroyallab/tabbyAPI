@@ -110,7 +110,7 @@ async def chat_completion_request(
     if isinstance(data.messages, str):
         prompt = data.messages
     else:
-        prompt = format_prompt_with_template(data)
+        prompt = await format_prompt_with_template(data)
 
     # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":
