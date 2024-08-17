@@ -178,6 +178,26 @@ def _create_stream_chunk(
     return chunk
 
 
+def _append_template_metadata(data: ChatCompletionRequest):
+    """Adding metadata is a one-time process."""
+
+    template_metadata = model.container.prompt_template.metadata
+
+    # Stop strings
+    if isinstance(data.stop, str):
+        data.stop = [data.stop] + template_metadata.stop_strings
+    else:
+        data.stop += template_metadata.stop_strings
+
+    # Tool call start strings
+    if template_metadata.tool_starts:
+        if data.tool_call_start is None:
+            data.tool_call_start = template_metadata.tool_starts
+
+        # Append to stop strings to halt for a tool call generation
+        data.stop.extend(template_metadata.tool_starts)
+
+
 def format_prompt_with_template(
     data: ChatCompletionRequest, tool_precursor: Optional[str] = None
 ):
@@ -238,6 +258,9 @@ def format_prompt_with_template(
         if bos_token and prompt.startswith(bos_token):
             prompt = prompt.removeprefix(bos_token)
 
+        # Add template metadata
+        _append_template_metadata(data)
+
         return prompt
 
     except KeyError as exc:
@@ -252,29 +275,6 @@ def format_prompt_with_template(
         error_message = handle_request_error(f"TemplateError: {str(exc)}").error.message
 
         raise HTTPException(400, error_message) from exc
-
-
-def update_stop_strings(data: ChatCompletionRequest):
-    # Moved out of format_prompt_with_template since this can be called multiple
-    # times when a tool call is initiated
-    template_stop_strings = model.container.prompt_template.stop_strings(
-        data.template_vars
-    )
-    if isinstance(data.stop, str):
-        data.stop = [data.stop] + template_stop_strings
-    else:
-        data.stop += template_stop_strings
-
-
-def update_tool_data(data: ChatCompletionRequest):
-    # Same as update_stop_strings
-    tool_starts = model.container.prompt_template.tool_params(data.template_vars)
-
-    if data.tool_call_start is None and len(tool_starts) > 0:
-        data.tool_call_start = tool_starts
-
-    if len(tool_starts) > 0:
-        data.stop.extend(tool_starts)
 
 
 async def stream_generate_chat_completion(

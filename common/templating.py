@@ -3,7 +3,7 @@
 import json
 import pathlib
 from importlib.metadata import version as package_version
-from typing import Optional
+from typing import List, Optional
 from jinja2 import Template, TemplateError
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from loguru import logger
@@ -18,6 +18,13 @@ class TemplateLoadError(Exception):
     pass
 
 
+class TemplateMetadata:
+    """Represents the parsed metadata from a template."""
+
+    stop_strings: List[str] = []
+    tool_starts: List[str] = []
+
+
 class PromptTemplate:
     """A template for chat completion prompts."""
 
@@ -27,39 +34,33 @@ class PromptTemplate:
     environment: ImmutableSandboxedEnvironment = ImmutableSandboxedEnvironment(
         trim_blocks=True, lstrip_blocks=True
     )
+    metadata: TemplateMetadata
 
-    def stop_strings(self, template_vars: dict):
-        """Appends extra stop strings if present in a chat template."""
+    def extract_metadata(self):
+        """Returns deserialized template metadata from a chat template."""
 
-        extra_stop_strings = []
-        template_module = self.template.make_module(template_vars)
+        template_metadata = TemplateMetadata()
+
+        template_module = self.template.make_module()
 
         if hasattr(template_module, "stop_strings"):
             if isinstance(template_module.stop_strings, list):
-                extra_stop_strings += template_module.stop_strings
+                template_metadata.stop_strings += template_module.stop_strings
             else:
                 logger.warning(
                     "Skipping append of stopping strings from chat template "
                     "because stop_strings isn't a list."
                 )
 
-        return extra_stop_strings
-
-    def tool_params(self, template_vars: dict):
-        """grabs tool start params from the template"""
-
-        tool_starts = []
-        template_module = self.template.make_module(template_vars)
-
         if hasattr(template_module, "tool_start"):
             if isinstance(template_module.tool_start, str):
-                tool_starts.append(template_module.tool_start)
+                template_metadata.tool_starts.append(template_module.tool_start)
 
         if hasattr(template_module, "tool_start_token"):
             if isinstance(template_module.tool_start_token, int):
-                tool_starts.append(template_module.tool_start_token)
+                template_metadata.tool_starts.append(template_module.tool_start_token)
 
-        return tool_starts
+        return template_metadata
 
     def render(self, template_vars: dict):
         """Get a prompt from a template and a list of messages."""
@@ -92,6 +93,7 @@ class PromptTemplate:
         self.name = name
         self.raw_template = raw_template
         self.template = self.compile(raw_template)
+        self.metadata = self.extract_metadata()
 
     @classmethod
     def from_file(self, prompt_template_name: str):
