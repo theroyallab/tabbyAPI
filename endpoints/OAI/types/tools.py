@@ -2,35 +2,29 @@ from pydantic import BaseModel
 from typing import Dict, Literal
 
 tool_call_schema = {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "array",
-  "items": {
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "function": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "array",
+    "items": {
         "type": "object",
         "properties": {
-          "name": {
-            "type": "string"
-          },
-          "arguments": {
-            "type": "object"
-            # ^ Converted to string in post processing, format enforced while inf
-          }
+            "id": {"type": "string"},
+            "function": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "arguments": {
+                        "type": "object"
+                        # ^ Converted to string in post processing, format enforced while inf
+                    },
+                },
+                "required": ["name", "arguments"],
+            },
+            "type": {"type": "string", "enum": ["function"]},
         },
-        "required": ["name", "arguments"]
-      },
-      "type": {
-        "type": "string",
-        "enum": ["function"]
-      }
+        "required": ["id", "function", "type"],
     },
-    "required": ["id", "function", "type"]
-  }
 }
+
 
 class Function(BaseModel):
     name: str

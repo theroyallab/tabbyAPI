@@ -6,6 +6,7 @@ from uuid import uuid4
 from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
 from endpoints.OAI.types.tools import ToolSpec, ToolCall, tool_call_schema
 
+
 class ChatCompletionLogprob(BaseModel):
     token: str
     logprob: float
@@ -20,7 +21,6 @@ class ChatCompletionMessage(BaseModel):
     role: Optional[str] = None
     content: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
-    
 
 
 class ChatCompletionRespChoice(BaseModel):
@@ -50,9 +50,7 @@ class ChatCompletionRequest(CommonCompletionRequest):
 
     # WIP this can probably be tightened, or maybe match the OAI lib type
     # in openai\types\chat\chat_completion_message_param.py
-    messages: Union[
-        str, List[Dict]
-    ]
+    messages: Union[str, List[Dict]]
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
     template_vars: Optional[dict] = {}

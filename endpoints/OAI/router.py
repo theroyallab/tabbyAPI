@@ -116,7 +116,6 @@ async def chat_completion_request(
         update_stop_strings(data)
         update_tool_data(data)
 
-
     # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":
         data.json_schema = {"type": "object"}

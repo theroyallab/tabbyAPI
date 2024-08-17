@@ -179,8 +179,8 @@ def _create_stream_chunk(
 
 
 def format_prompt_with_template(
-        data: ChatCompletionRequest, tool_precursor: Optional[str] = None
-    ):
+    data: ChatCompletionRequest, tool_precursor: Optional[str] = None
+):
     """
     Compile the prompt and get any additional stop strings from the template.
     Template stop strings can be overriden by sampler overrides if force is true.
@@ -213,16 +213,14 @@ def format_prompt_with_template(
             {
                 "messages": data.messages,
                 "add_generation_prompt": data.add_generation_prompt,
-                "tools_json": json.dumps(data.model_dump()['tools'], indent=2),
+                "tools_json": json.dumps(data.model_dump()["tools"], indent=2),
                 "functions_json": json.dumps(data.functions, indent=2),
                 "tool_precursor": tool_precursor,
                 **special_tokens_dict,
             }
         )
 
-        prompt = model.container.prompt_template.render(
-            data.template_vars
-        )
+        prompt = model.container.prompt_template.render(data.template_vars)
 
         # Append response prefix if present
         if data.response_prefix:
@@ -234,7 +232,6 @@ def format_prompt_with_template(
                     "add_generation_prompt is False"
                 )
 
-        
         # Removes the starting BOS token if present
         # This is to prevent add_bos_token from adding multiple bos tokens
         bos_token = special_tokens_dict.get("bos_token")
@@ -242,7 +239,7 @@ def format_prompt_with_template(
             prompt = prompt.removeprefix(bos_token)
 
         return prompt
-    
+
     except KeyError as exc:
         error_message = handle_request_error(
             "Could not find a Conversation from prompt template "
@@ -256,6 +253,7 @@ def format_prompt_with_template(
 
         raise HTTPException(400, error_message) from exc
 
+
 def update_stop_strings(data: ChatCompletionRequest):
     # Moved out of format_prompt_with_template since this can be called multiple
     # times when a tool call is initiated
@@ -267,17 +265,17 @@ def update_stop_strings(data: ChatCompletionRequest):
     else:
         data.stop += template_stop_strings
 
+
 def update_tool_data(data: ChatCompletionRequest):
     # Same as update_stop_strings
-    tool_starts = model.container.prompt_template.tool_params(
-        data.template_vars
-    )
+    tool_starts = model.container.prompt_template.tool_params(data.template_vars)
 
     if data.tool_call_start is None and len(tool_starts) > 0:
         data.tool_call_start = tool_starts
 
     if len(tool_starts) > 0:
         data.stop.extend(tool_starts)
+
 
 async def stream_generate_chat_completion(
     prompt: str, data: ChatCompletionRequest, request: Request, model_path: pathlib.Path
@@ -314,6 +312,7 @@ async def stream_generate_chat_completion(
 
         # We need to keep track of the text generated so we can resume the tool calls
         current_generation_text = ""
+
         # Consumer loop
         while True:
             if disconnect_task.done():
@@ -381,7 +380,7 @@ async def generate_chat_completion(
 ):
     gen_tasks: List[asyncio.Task] = []
     gen_params = data.to_gen_params()
-    
+
     try:
         for n in range(0, data.n):
             # Deepcopy gen params above the first index
@@ -420,6 +419,7 @@ async def generate_chat_completion(
         # Server error if there's a generation exception
         raise HTTPException(503, error_message) from exc
 
+
 async def generate_tool_calls(
     data: ChatCompletionRequest,
     generations: List[str],
@@ -452,9 +452,7 @@ async def generate_tool_calls(
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
-                        pre_tool_prompt,
-                        request.state.id,
-                        **gen_params
+                        pre_tool_prompt, request.state.id, **gen_params
                     )
                 )
             )
@@ -467,7 +465,8 @@ async def generate_tool_calls(
 
     return generations
 
-def postprocess_tool_call(call_str:str) -> List[ToolCall]:
+
+def postprocess_tool_call(call_str: str) -> List[ToolCall]:
     tool_calls = json.loads(call_str)
     for tool_call in tool_calls:
         tool_call["function"]["arguments"] = json.dumps(
