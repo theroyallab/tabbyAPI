@@ -181,7 +181,9 @@ def _create_stream_chunk(
 def _append_template_metadata(data: ChatCompletionRequest):
     """Adding metadata is a one-time process."""
 
-    template_metadata = model.container.prompt_template.metadata
+    template_metadata = model.container.prompt_template.extract_metadata(
+        data.template_vars
+    )
 
     # Stop strings
     if isinstance(data.stop, str):
