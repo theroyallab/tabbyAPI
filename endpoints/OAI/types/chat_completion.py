@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from pydantic.json_schema import SkipJsonSchema
 from time import time
 from typing import Union, List, Optional, Dict
 from uuid import uuid4
@@ -63,9 +64,11 @@ class ChatCompletionRequest(CommonCompletionRequest):
     functions: Optional[List[Dict]] = None
 
     # Typically collected from Chat Template.
-    tool_call_start: Optional[List[Union[str, int]]] = None
-    tool_call_end: Optional[str] = None
-    tool_call_schema: Optional[dict] = tool_call_schema
+    # Don't include this in the OpenAPI docs
+    # TODO: Maybe move this out of the request model
+    tool_call_start: SkipJsonSchema[Optional[List[Union[str, int]]]] = None
+    tool_call_end: SkipJsonSchema[Optional[str]] = None
+    tool_call_schema: SkipJsonSchema[Optional[dict]] = tool_call_schema
 
 
 class ChatCompletionResponse(BaseModel):
