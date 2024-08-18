@@ -2,3 +2,5 @@ models/
 loras/
 .ruff_cache/
 **/__pycache__/
+config.yml
+api_tokens.yml
