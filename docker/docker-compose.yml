@@ -12,7 +12,7 @@ services:
       - NAME=TabbyAPI
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
-      # - /path/to/models:/app/models                       # Change me
+      - ./models:/app/models                                # Change me
       # - /path/to/config.yml:/app/config.yml               # Change me
       # - /path/to/api_tokens.yml:/app/api_tokens.yml       # Change me
     deploy:
