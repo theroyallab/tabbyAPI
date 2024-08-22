@@ -262,7 +262,6 @@ async def format_prompt_with_template(
 
         # Add template metadata
         await _append_template_metadata(data)
-        print(prompt)
         print(model.container.prompt_template.metadata.tool_starts)
 
         return prompt
@@ -406,6 +405,7 @@ async def generate_chat_completion(
 
         # Let's not waste our time if we arn't running a tool model
         if data.tool_call_start:
+            print(data.tools)
             generations = await generate_tool_calls(data, generations, request)
 
         response = _create_response(request.state.id, generations, model_path.name)
