@@ -112,7 +112,6 @@ model:
   # Load model with tensor parallelism
   # If a GPU split isn't provided, the TP loader will fallback to autosplit
   # Enabling ignores the gpu_split_auto and autosplit_reserve values
-  # NOTE: Requires a development build of exllamav2
   #tensor_parallel: False
 
   # Automatically allocate resources to GPUs (default: True)
