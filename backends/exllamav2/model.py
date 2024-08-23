@@ -585,6 +585,7 @@ class ExllamaV2Container:
                 cache_class=draft_cache_class,
                 autosplit=True,
                 use_tp=False,
+                model=self.draft_model
             )
 
             for value in self.draft_model.load_autosplit_gen(
@@ -635,6 +636,7 @@ class ExllamaV2Container:
             cache_class=cache_class,
             autosplit=self.gpu_split_auto,
             use_tp=self.use_tp,
+            model=self.model
         )
 
         # Load model with autosplit (without TP)
@@ -669,20 +671,20 @@ class ExllamaV2Container:
                 return ExLlamaV2Cache
 
     def create_cache(
-        self, cache_class: ExLlamaV2CacheBase, autosplit: bool, use_tp: bool
+        self, cache_class: ExLlamaV2CacheBase, autosplit: bool, use_tp: bool, model: ExLlamaV2
     ):
         """Utility function to create a model cache."""
 
         if has_tp and use_tp:
             return ExLlamaV2Cache_TP(
-                self.model,
+                model,
                 base=cache_class,
                 max_seq_len=self.cache_size,
                 batch_size=1,
             )
         else:
             return cache_class(
-                self.model,
+                model,
                 max_seq_len=self.cache_size,
                 lazy=autosplit,
                 batch_size=1,
