@@ -682,7 +682,7 @@ class ExllamaV2Container:
             )
         else:
             return cache_class(
-                self.model,
+                self.model or self.draft_model,
                 max_seq_len=self.cache_size,
                 lazy=autosplit,
                 batch_size=1,
