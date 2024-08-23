@@ -871,7 +871,7 @@ class ExllamaV2Container:
     def get_logprobs(self, token_ids: torch.Tensor, token_probs: torch.Tensor):
         top_tokens = [
             self.tokenizer.extended_id_to_piece.get(
-                index, self.tokenizer.id_to_piece[index]
+                index, self.tokenizer.get_id_to_piece_list(True)[index]
             )
             for index in token_ids.flatten().tolist()
         ]
@@ -1146,7 +1146,7 @@ class ExllamaV2Container:
 
             # Map logits to the tensor with their biases
             for token_id, bias in logit_bias.items():
-                if 0 <= token_id < len(self.tokenizer.id_to_piece):
+                if 0 <= token_id < len(self.tokenizer.get_id_to_piece_list(True)):
                     gen_settings.token_bias[token_id] = bias
                 else:
                     logger.warning(
