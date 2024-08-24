@@ -262,8 +262,6 @@ async def format_prompt_with_template(
 
         # Add template metadata
         await _append_template_metadata(data)
-        print(prompt)
-        print(model.container.prompt_template.metadata.tool_starts)
 
         return prompt
 
