@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
 
 from common import config, model, sampling
-from common.auth import check_admin_key, check_api_key, get_key_permission
+from common.auth import check_admin_key, check_api_key, get_key_permission, check_localhost
 from common.downloader import hf_repo_download
 from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
@@ -519,3 +519,12 @@ async def unload_sampler_override():
     """Unloads the currently selected override preset"""
 
     sampling.overrides_from_dict({})
+
+
+@router.get(
+    "/healthcheck",
+    dependencies=[Depends(check_localhost)],
+    # include_in_schema=False
+)
+async def healthcheck() :
+    return {"status": "healthy"}

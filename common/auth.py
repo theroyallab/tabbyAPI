@@ -162,3 +162,13 @@ async def check_admin_key(
         return authorization
 
     raise HTTPException(401, "Please provide an admin key")
+
+async def check_localhost(request: Request):
+    """
+    Dependency that raises an HTTP 403 Forbidden error if the request does not come from localhost.
+    """
+    client_host = request.client.host
+    if client_host not in ["127.0.0.1", "localhost", "::1"]:
+        raise HTTPException(
+            status_code=401, detail="Access forbidden: Localhost only"
+        )
