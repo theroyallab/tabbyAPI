@@ -1,11 +1,7 @@
 version: '3.8'
 services:
   tabbyapi:
-    build:
-      context: ..
-      dockerfile: ./docker/Dockerfile
-      args:
-        - DO_PULL=true
+    image: ghcr.io/theroyallab/tabbyapi:latest
     ports:
       - "5000:5000"
     healthcheck:
