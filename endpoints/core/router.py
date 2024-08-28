@@ -43,13 +43,13 @@ from endpoints.core.utils.model import (
 
 router = APIRouter()
 
+
 # Healthcheck endpoint
-@router.get(
-    "/health",
-)
-async def healthcheck() :
+@router.get("/health")
+async def healthcheck():
     """Get the current service health status"""
     return {"status": "healthy"}
+
 
 # Model list endpoint
 @router.get("/v1/models", dependencies=[Depends(check_api_key)])
@@ -526,4 +526,3 @@ async def unload_sampler_override():
     """Unloads the currently selected override preset"""
 
     sampling.overrides_from_dict({})
-
