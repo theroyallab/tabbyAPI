@@ -50,6 +50,13 @@ class BaseSamplerRequest(BaseModel):
         examples=[[128, 330]],
     )
 
+    allowed_token_ids: Optional[Union[List[int], str]] = Field(
+        default_factory=lambda: get_default_sampler_value("banned_token_ids", []),
+        validation_alias=AliasChoices("allowed_token_ids", "allowed_tokens"),
+        description="Aliases: allowed_tokens",
+        examples=[[128, 330]],
+    )
+
     token_healing: Optional[bool] = Field(
         default_factory=lambda: get_default_sampler_value("token_healing", False)
     )
@@ -293,12 +300,19 @@ class BaseSamplerRequest(BaseModel):
                 int(x) for x in self.banned_tokens.split(",") if x.isdigit()
             ]
 
+        # Convert string allowed tokens to an integer list
+        if self.allowed_token_ids and isinstance(self.allowed_token_ids, str):
+            self.allowed_token_ids = [
+                int(x) for x in self.allowed_token_ids.split(",") if x.isdigit()
+            ]
+
         gen_params = {
             "max_tokens": self.max_tokens,
             "min_tokens": self.min_tokens,
             "generate_window": self.generate_window,
             "stop": self.stop,
             "banned_strings": self.banned_strings,
+            "allowed_token_ids": self.allowed_token_ids,
             "add_bos_token": self.add_bos_token,
             "ban_eos_token": self.ban_eos_token,
             "skip_special_tokens": self.skip_special_tokens,

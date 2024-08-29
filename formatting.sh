@@ -23,15 +23,6 @@ builtin cd "$ROOT" || exit 1
 
 RUFF_VERSION=$(ruff --version | head -n 1 | awk '{print $2}')
 
-# params: tool name, tool version, required version
-tool_version_check() {
-    if [[ $2 != $3 ]]; then
-        echo "Wrong $1 version installed: $3 is required, not $2."
-        exit 1
-    fi
-}
-
-tool_version_check "ruff" $RUFF_VERSION "$(grep "ruff==" requirements-dev.txt | cut -d'=' -f3)"
 
 # Format and lint all files
 format_and_lint() {

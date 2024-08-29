@@ -126,6 +126,10 @@ banned_tokens:
   override: []
   force: false
   additive: false
+allowed_token_ids:
+  override: []
+  force: false
+  additive: false
 
 # MARK: CFG scale
 cfg_scale:
