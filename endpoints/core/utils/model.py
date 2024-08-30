@@ -95,8 +95,10 @@ async def stream_model_load(
 ):
     """Request generation wrapper for the loading process."""
 
+    # Get trimmed load data
+    load_data = data.model_dump(exclude_none=True)
+
     # Set the draft model path if it exists
-    load_data = data.model_dump()
     if draft_model_path:
         load_data["draft"]["draft_model_dir"] = draft_model_path
 
