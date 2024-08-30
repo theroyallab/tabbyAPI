@@ -361,6 +361,8 @@ class ExllamaV2Container:
                 self.draft_config.max_attention_size = chunk_size**2
 
     def set_model_overrides(self, **kwargs):
+        """Sets overrides from a model folder's config yaml."""
+
         override_config_path = self.model_dir / "tabby_config.yml"
 
         if not override_config_path.exists():
