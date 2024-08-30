@@ -27,6 +27,8 @@ from itertools import zip_longest
 from loguru import logger
 from typing import List, Optional, Union
 
+import yaml
+
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
     clear_grammar_func_cache,
@@ -166,6 +168,9 @@ class ExllamaV2Container:
                 logger.warning(
                     "Skipping generation config load because of an unexpected error."
                 )
+
+        # Apply a model's config overrides while respecting user settings
+        kwargs = self.set_model_overrides(**kwargs)
 
         # MARK: User configuration
 
@@ -354,6 +359,18 @@ class ExllamaV2Container:
             if chunk_size:
                 self.draft_config.max_input_len = chunk_size
                 self.draft_config.max_attention_size = chunk_size**2
+
+    def set_model_overrides(self, **kwargs):
+        override_config_path = self.model_dir / "tabby_config.yml"
+
+        if not override_config_path.exists():
+            return kwargs
+
+        with open(override_config_path, "r", encoding="utf8") as override_config_file:
+            override_config = unwrap(yaml.safe_load(override_config_file), {})
+            merged_kwargs = {**override_config, **kwargs}
+
+            return merged_kwargs
 
     def find_prompt_template(self, prompt_template_name, model_directory):
         """Tries to find a prompt template using various methods."""
