@@ -1099,6 +1099,11 @@ class ExllamaV2Container:
         if banned_tokens:
             gen_settings.disallow_tokens(self.tokenizer, banned_tokens)
 
+        # Set allowed tokens
+        allowed_tokens = unwrap(kwargs.get("allowed_tokens"), [])
+        if allowed_tokens:
+            gen_settings.allow_tokens(self.tokenizer, allowed_tokens)
+
         # Set logit bias
         if logit_bias:
             # Create a vocab tensor if it doesn't exist for token biasing
@@ -1167,7 +1172,7 @@ class ExllamaV2Container:
         log_prompt(
             f"{self.tokenizer.bos_token if add_bos_token else ''}{prompt}",
             request_id,
-            negative_prompt
+            negative_prompt,
         )
 
         # Create and add a new job
@@ -1313,6 +1318,7 @@ class ExllamaV2Container:
                 logprobs=request_logprobs,
                 stop_conditions=stop_conditions,
                 banned_tokens=banned_tokens,
+                allowed_tokens=allowed_tokens,
                 banned_strings=banned_strings,
                 logit_bias=logit_bias,
                 filters=grammar_handler.filters,
