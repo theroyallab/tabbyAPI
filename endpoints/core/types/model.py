@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field, ConfigDict
 from time import time
-from typing import List, Optional
+from typing import List, Literal, Optional, Union
 
 from common.gen_logging import GenLogPreferences
 from common.model import get_config_default
@@ -56,8 +56,8 @@ class DraftModelLoadRequest(BaseModel):
             "draft_rope_scale", model_type="draft"
         )
     )
-    draft_rope_alpha: Optional[float] = Field(
-        description="Automatically calculated if not present",
+    draft_rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
+        description='Automatically calculated if set to "auto"',
         default_factory=lambda: get_config_default(
             "draft_rope_alpha", model_type="draft"
         ),
@@ -114,8 +114,8 @@ class ModelLoadRequest(BaseModel):
         default_factory=lambda: get_config_default("rope_scale"),
         examples=[1.0],
     )
-    rope_alpha: Optional[float] = Field(
-        description="Automatically calculated if not present",
+    rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
+        description='Automatically calculated if set to "auto"',
         default_factory=lambda: get_config_default("rope_alpha"),
         examples=[1.0],
     )

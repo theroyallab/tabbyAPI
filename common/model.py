@@ -149,6 +149,7 @@ async def unload_embedding_model():
     embeddings_container = None
 
 
+# FIXME: Maybe make this a one-time function instead of a dynamic default
 def get_config_default(key: str, model_type: str = "model"):
     """Fetches a default value from model config if allowed by the user."""
 
