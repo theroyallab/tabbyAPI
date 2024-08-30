@@ -1163,8 +1163,12 @@ class ExllamaV2Container:
         # This is an inverse of skip_special_tokens
         decode_special_tokens = unwrap(not kwargs.get("skip_special_tokens"), False)
 
-        # Log prompt to console
-        log_prompt(prompt, request_id, negative_prompt)
+        # Log prompt to console. Add the BOS token if specified
+        log_prompt(
+            f"{self.tokenizer.bos_token if add_bos_token else ''}{prompt}",
+            request_id,
+            negative_prompt
+        )
 
         # Create and add a new job
         # Don't use the request ID here as there can be multiple jobs per request
