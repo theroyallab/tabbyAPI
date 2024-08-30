@@ -135,7 +135,8 @@ model:
 
   # Rope alpha (default: 1.0)
   # Same thing as alpha_value
-  # Leave blank to automatically calculate alpha
+  # Set to "auto" to automatically calculate
+  # Leave blank to pull the value from the model
   #rope_alpha: 1.0
 
   # Enable different cache modes for VRAM savings (slight performance hit).
