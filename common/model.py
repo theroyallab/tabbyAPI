@@ -57,7 +57,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
 
     # Check if the model is already loaded
     if container and container.model:
-        loaded_model_name = container.get_model_path().name
+        loaded_model_name = container.model_dir.name
 
         if loaded_model_name == model_path.name and container.model_loaded:
             raise ValueError(

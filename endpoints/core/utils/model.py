@@ -43,11 +43,12 @@ async def get_current_model_list(model_type: str = "model"):
     model_path = None
 
     # Make sure the model container exists
-    if model_type == "model" or model_type == "draft":
-        if model.container:
-            model_path = model.container.get_model_path(model_type == "draft")
-    elif model_type == "embedding":
-        if model.embeddings_container:
+    match model_type:
+        case "model":
+            model_path = model.container.model_dir
+        case "draft":
+            model_path = model.container.draft_model_dir
+        case "embedding":
             model_path = model.embeddings_container.model_dir
 
     if model_path:
