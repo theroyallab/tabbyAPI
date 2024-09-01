@@ -45,11 +45,14 @@ async def get_current_model_list(model_type: str = "model"):
     # Make sure the model container exists
     match model_type:
         case "model":
-            model_path = model.container.model_dir
+            if model.container:
+                model_path = model.container.model_dir
         case "draft":
-            model_path = model.container.draft_model_dir
+            if model.container:
+                model_path = model.container.draft_model_dir
         case "embedding":
-            model_path = model.embeddings_container.model_dir
+            if model.embeddings_container:
+                model_path = model.embeddings_container.model_dir
 
     if model_path:
         current_models.append(ModelCard(id=model_path.name))
