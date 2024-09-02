@@ -27,6 +27,8 @@ from itertools import zip_longest
 from loguru import logger
 from typing import List, Optional, Union
 
+import yaml
+
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
     clear_grammar_func_cache,
@@ -62,6 +64,10 @@ except ImportError:
 
 class ExllamaV2Container:
     """The model container class for ExLlamaV2 models."""
+
+    # Model directories
+    model_dir: pathlib.Path = pathlib.Path("models")
+    draft_model_dir: pathlib.Path = pathlib.Path("models")
 
     # Exl2 vars
     config: Optional[ExLlamaV2Config] = None
@@ -101,54 +107,72 @@ class ExllamaV2Container:
 
     def __init__(self, model_directory: pathlib.Path, quiet=False, **kwargs):
         """
-        Create model container
+        Primary initializer for model container.
 
-        Args:
-            model_dir (int): Model directory containing config.json,
-                tokenizer.model etc.
-            quiet (bool): Suppress console output
-            load_progress_callback (function, optional): A function to call for
-                each module loaded. Prototype:
-                def progress(loaded_modules: int, total_modules: int,
-                             loading_draft: bool)
-            **kwargs:
-                `cache_mode` (str): Sets cache mode: "FP16"/"Q8"/"Q6"/"Q4"
-                    (default: "FP16")
-                'max_seq_len' (int): Override model's default max sequence
-                    length (default: 4096)
-                'cache_size' (int): Num of tokens to allocate space for in the k/v cache
-                    (default: max_seq_len)
-                'rope_scale' (float): Set RoPE scaling factor for model
-                    (default: 1.0)
-                'rope_alpha' (float): Set RoPE alpha (NTK) factor for model
-                    (default: 1.0)
-                'prompt_template' (str): Manually sets the prompt template for
-                    this model (default: None)
-                'chunk_size' (int): Sets the maximum chunk size for the model
-                    (default: 2048)
-                    Inferencing in chunks reduces overall VRAM overhead by
-                    processing very long sequences in smaller batches. This
-                    limits the size of temporary buffers needed for the hidden
-                    state and attention weights.
-                'draft_model_dir' (str): Draft model directory
-                'draft_rope_scale' (float): Set RoPE scaling factor for draft
-                    model (default: 1.0)
-                'draft_rope_alpha' (float): RoPE alpha (NTK) factor for draft
-                    model. By default, the draft model's alpha value is
-                    calculated automatically to scale to the size of the
-                    full model.
-                'draft_cache_mode' (str): Sets draft cache mode: "FP16"/"Q8"/"Q6"/"Q4"
-                    (default: "FP16")
-                'lora_dir' (str): LoRA directory
-                'loras' (list[dict]): List of loras to be loaded, consisting of
-                    'name' and 'scaling'
-                'gpu_split_auto' (bool): Automatically split model across
-                    available devices (default: True)
-                'gpu_split' (list[float]): Allocation for weights and (some)
-                    tensors, per device
+        Kwargs are located in config_sample.yml
         """
 
         self.quiet = quiet
+
+        # Initialize config
+        self.config = ExLlamaV2Config()
+        self.model_dir = model_directory
+        self.config.model_dir = str(model_directory.resolve())
+
+        # Make the max seq len 4096 before preparing the config
+        # This is a better default than 2048
+        self.config.max_seq_len = 4096
+
+        self.config.prepare()
+
+        # Check if the model arch is compatible with various exl2 features
+        self.config.arch_compat_overrides()
+
+        # Prepare the draft model config if necessary
+        draft_args = unwrap(kwargs.get("draft"), {})
+        draft_model_name = draft_args.get("draft_model_name")
+        enable_draft = draft_args and draft_model_name
+
+        # Always disable draft if params are incorrectly configured
+        if draft_args and draft_model_name is None:
+            logger.warning(
+                "Draft model is disabled because a model name "
+                "wasn't provided. Please check your config.yml!"
+            )
+            enable_draft = False
+
+        if enable_draft:
+            self.draft_config = ExLlamaV2Config()
+            self.draft_config.no_flash_attn = self.config.no_flash_attn
+            draft_model_path = pathlib.Path(
+                unwrap(draft_args.get("draft_model_dir"), "models")
+            )
+            draft_model_path = draft_model_path / draft_model_name
+
+            self.draft_model_dir = draft_model_path
+            self.draft_config.model_dir = str(draft_model_path.resolve())
+            self.draft_config.prepare()
+
+        # Create the hf_config
+        self.hf_config = HuggingFaceConfig.from_file(model_directory)
+
+        # Load generation config overrides
+        generation_config_path = model_directory / "generation_config.json"
+        if generation_config_path.exists():
+            try:
+                self.generation_config = GenerationConfig.from_file(
+                    generation_config_path.parent
+                )
+            except Exception:
+                logger.error(traceback.format_exc())
+                logger.warning(
+                    "Skipping generation config load because of an unexpected error."
+                )
+
+        # Apply a model's config overrides while respecting user settings
+        kwargs = self.set_model_overrides(**kwargs)
+
+        # MARK: User configuration
 
         # Get cache mode
         self.cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
@@ -203,23 +227,8 @@ class ExllamaV2Container:
                     for value in autosplit_reserve_megabytes
                 ]
 
-        self.config = ExLlamaV2Config()
-        self.config.model_dir = str(model_directory.resolve())
-
-        # Make the max seq len 4096 before preparing the config
-        # This is a better default than 2048
-        self.config.max_seq_len = 4096
-
         # Hardcode max output length to 16
         self.config.max_output_len = 16
-
-        self.config.prepare()
-
-        # Check if the model arch is compatible with various exl2 features
-        self.config.arch_compat_overrides()
-
-        # Create the hf_config
-        self.hf_config = HuggingFaceConfig.from_file(model_directory)
 
         # Then override the base_seq_len if present
         override_base_seq_len = kwargs.get("override_base_seq_len")
@@ -240,10 +249,13 @@ class ExllamaV2Container:
             kwargs.get("rope_scale"), self.config.scale_pos_emb
         )
 
-        # Automatically calculate rope alpha
-        self.config.scale_alpha_value = unwrap(
-            kwargs.get("rope_alpha"), self.calculate_rope_alpha(base_seq_len)
-        )
+        # Sets rope alpha value.
+        # Automatically calculate if unset or defined as an "auto" literal.
+        rope_alpha = unwrap(kwargs.get("rope_alpha"), "auto")
+        if rope_alpha == "auto":
+            self.config.scale_alpha_value = self.calculate_rope_alpha(base_seq_len)
+        else:
+            self.config.scale_alpha_value = rope_alpha
 
         # Enable fasttensors loading if present
         self.config.fasttensors = unwrap(kwargs.get("fasttensors"), False)
@@ -306,19 +318,6 @@ class ExllamaV2Container:
         else:
             self.cache_size = self.config.max_seq_len
 
-        # Load generation config overrides
-        generation_config_path = model_directory / "generation_config.json"
-        if generation_config_path.exists():
-            try:
-                self.generation_config = GenerationConfig.from_file(
-                    generation_config_path.parent
-                )
-            except Exception:
-                logger.error(traceback.format_exc())
-                logger.warning(
-                    "Skipping generation config load because of an unexpected error."
-                )
-
         # Try to set prompt template
         self.prompt_template = self.find_prompt_template(
             kwargs.get("prompt_template"), model_directory
@@ -346,47 +345,55 @@ class ExllamaV2Container:
         self.config.max_input_len = chunk_size
         self.config.max_attention_size = chunk_size**2
 
-        draft_args = unwrap(kwargs.get("draft"), {})
-        draft_model_name = draft_args.get("draft_model_name")
-        enable_draft = draft_args and draft_model_name
-
-        # Always disable draft if params are incorrectly configured
-        if draft_args and draft_model_name is None:
-            logger.warning(
-                "Draft model is disabled because a model name "
-                "wasn't provided. Please check your config.yml!"
-            )
-            enable_draft = False
-
+        # Set user-configured draft model values
         if enable_draft:
-            self.draft_config = ExLlamaV2Config()
-            self.draft_config.no_flash_attn = self.config.no_flash_attn
-            draft_model_path = pathlib.Path(
-                unwrap(draft_args.get("draft_model_dir"), "models")
-            )
-            draft_model_path = draft_model_path / draft_model_name
+            # Fetch from the updated kwargs
+            draft_args = unwrap(kwargs.get("draft"), {})
 
-            self.draft_config.model_dir = str(draft_model_path.resolve())
-            self.draft_config.prepare()
+            self.draft_config.max_seq_len = self.config.max_seq_len
 
             self.draft_config.scale_pos_emb = unwrap(
                 draft_args.get("draft_rope_scale"), 1.0
             )
 
-            # Automatically calculate draft rope alpha
-            self.draft_config.scale_alpha_value = unwrap(
-                draft_args.get("draft_rope_alpha"),
-                self.calculate_rope_alpha(self.draft_config.max_seq_len),
-            )
-            self.draft_config.max_seq_len = self.config.max_seq_len
+            # Set draft rope alpha. Follows same behavior as model rope alpha.
+            draft_rope_alpha = unwrap(draft_args.get("draft_rope_alpha"), "auto")
+            if draft_rope_alpha == "auto":
+                self.draft_config.scale_alpha_value = self.calculate_rope_alpha(
+                    self.draft_config.max_seq_len
+                )
+            else:
+                self.draft_config.scale_alpha_value = draft_rope_alpha
+
+            # Set draft cache mode
             self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
 
             if chunk_size:
                 self.draft_config.max_input_len = chunk_size
                 self.draft_config.max_attention_size = chunk_size**2
 
+    def set_model_overrides(self, **kwargs):
+        """Sets overrides from a model folder's config yaml."""
+
+        override_config_path = self.model_dir / "tabby_config.yml"
+
+        if not override_config_path.exists():
+            return kwargs
+
+        with open(override_config_path, "r", encoding="utf8") as override_config_file:
+            override_args = unwrap(yaml.safe_load(override_config_file), {})
+
+            # Merge draft overrides beforehand
+            draft_override_args = unwrap(override_args.get("draft"), {})
+            if self.draft_config and draft_override_args:
+                kwargs["draft"] = {**draft_override_args, **kwargs.get("draft")}
+
+            # Merge the override and model kwargs
+            merged_kwargs = {**override_args, **kwargs}
+            return merged_kwargs
+
     def find_prompt_template(self, prompt_template_name, model_directory):
-        """Tries to find a prompt template using various methods"""
+        """Tries to find a prompt template using various methods."""
 
         logger.info("Attempting to load a prompt template if present.")
 
@@ -428,6 +435,7 @@ class ExllamaV2Container:
 
     def calculate_rope_alpha(self, base_seq_len):
         """Calculate the rope alpha value for a given sequence length."""
+
         ratio = self.config.max_seq_len / base_seq_len
 
         # Default to a 1 alpha if the sequence length is ever less
@@ -438,20 +446,9 @@ class ExllamaV2Container:
             alpha = -0.13436 + 0.80541 * ratio + 0.28833 * ratio**2
         return alpha
 
-    def get_model_path(self, is_draft: bool = False):
-        """Get the path for this model."""
-
-        if is_draft and not self.draft_config:
-            return None
-
-        model_path = pathlib.Path(
-            self.draft_config.model_dir if is_draft else self.config.model_dir
-        )
-        return model_path
-
     def get_model_parameters(self):
         model_params = {
-            "name": self.get_model_path().name,
+            "name": self.model_dir.name,
             "rope_scale": self.config.scale_pos_emb,
             "rope_alpha": self.config.scale_alpha_value,
             "max_seq_len": self.config.max_seq_len,
@@ -466,7 +463,7 @@ class ExllamaV2Container:
 
         if self.draft_config:
             draft_model_params = {
-                "name": self.get_model_path(is_draft=True).name,
+                "name": self.draft_model_dir.name,
                 "rope_scale": self.draft_config.scale_pos_emb,
                 "rope_alpha": self.draft_config.scale_alpha_value,
                 "max_seq_len": self.draft_config.max_seq_len,
@@ -504,7 +501,9 @@ class ExllamaV2Container:
 
         Args:
             progress_callback (function, optional): A function to call for each
-                module loaded. Prototype:
+                module loaded.
+
+                Prototype:
                 def progress(loaded_modules: int, total_modules: int)
         """
 
@@ -549,11 +548,13 @@ class ExllamaV2Container:
     @torch.inference_mode()
     def load_model_sync(self, progress_callback=None):
         """
-        Load model, generator function
+        Synchronous generator for loading.
 
         Args:
             progress_callback (function, optional): A function to call for each
-                module loaded. Prototype:
+                module loaded.
+
+                Prototype:
                 def progress(loaded_modules: int, total_modules: int)
 
         Runs under a shared inference mode context.
@@ -695,6 +696,8 @@ class ExllamaV2Container:
             )
 
     async def create_generator(self):
+        """Create and save a Exllama generator class."""
+
         try:
             # Don't acquire locks unless a model is loaded
             if self.model_loaded:
@@ -728,9 +731,7 @@ class ExllamaV2Container:
         return unwrap(self.generator.generator.current_loras, [])
 
     async def load_loras(self, lora_directory: pathlib.Path, **kwargs):
-        """
-        Load loras
-        """
+        """Load loras."""
 
         loras = unwrap(kwargs.get("loras"), [])
 
@@ -777,9 +778,7 @@ class ExllamaV2Container:
                 self.load_condition.notify_all()
 
     async def unload(self, loras_only: bool = False, **kwargs):
-        """
-        Free all VRAM resources used by this model
-        """
+        """Free all VRAM resources used by the model (and loras)."""
 
         # Shutdown immediately unloads and bypasses all locks
         do_shutdown = kwargs.get("shutdown")
@@ -836,7 +835,7 @@ class ExllamaV2Container:
                     self.load_condition.notify_all()
 
     def encode_tokens(self, text: str, **kwargs):
-        """Wrapper to encode tokens from a text string"""
+        """Wrapper to encode tokens from a text string."""
 
         return (
             self.tokenizer.encode(
@@ -888,7 +887,7 @@ class ExllamaV2Container:
     async def generate(
         self, prompt: str, request_id: str, abort_event: asyncio.Event = None, **kwargs
     ):
-        """Generate a response to a prompt"""
+        """Generate a response to a prompt."""
         generations = []
         async for generation in self.generate_gen(
             prompt, request_id, abort_event, **kwargs
@@ -939,7 +938,11 @@ class ExllamaV2Container:
         return joined_generation
 
     def check_unsupported_settings(self, **kwargs):
-        """Check and warn the user if a sampler is unsupported. Meant for dev wheels!"""
+        """
+        Check and warn the user if a sampler is unsupported.
+
+        Meant for dev wheels!
+        """
 
         return kwargs
 
@@ -1141,6 +1144,11 @@ class ExllamaV2Container:
         if banned_tokens:
             gen_settings.disallow_tokens(self.tokenizer, banned_tokens)
 
+        # Set allowed tokens
+        allowed_tokens = unwrap(kwargs.get("allowed_tokens"), [])
+        if allowed_tokens:
+            gen_settings.allow_tokens(self.tokenizer, allowed_tokens)
+
         # Set logit bias
         if logit_bias:
             # Create a vocab tensor if it doesn't exist for token biasing
@@ -1205,8 +1213,12 @@ class ExllamaV2Container:
         # This is an inverse of skip_special_tokens
         decode_special_tokens = unwrap(not kwargs.get("skip_special_tokens"), False)
 
-        # Log prompt to console
-        log_prompt(prompt, request_id, negative_prompt)
+        # Log prompt to console. Add the BOS token if specified
+        log_prompt(
+            f"{self.tokenizer.bos_token if add_bos_token else ''}{prompt}",
+            request_id,
+            negative_prompt,
+        )
 
         # Create and add a new job
         # Don't use the request ID here as there can be multiple jobs per request
@@ -1351,6 +1363,7 @@ class ExllamaV2Container:
                 logprobs=request_logprobs,
                 stop_conditions=stop_conditions,
                 banned_tokens=banned_tokens,
+                allowed_tokens=allowed_tokens,
                 banned_strings=banned_strings,
                 logit_bias=logit_bias,
                 filters=grammar_handler.filters,

@@ -50,6 +50,13 @@ class BaseSamplerRequest(BaseModel):
         examples=[[128, 330]],
     )
 
+    allowed_tokens: Optional[Union[List[int], str]] = Field(
+        default_factory=lambda: get_default_sampler_value("allowed_tokens", []),
+        validation_alias=AliasChoices("allowed_tokens", "allowed_token_ids"),
+        description="Aliases: allowed_token_ids",
+        examples=[[128, 330]],
+    )
+
     token_healing: Optional[bool] = Field(
         default_factory=lambda: get_default_sampler_value("token_healing", False)
     )
@@ -291,10 +298,15 @@ class BaseSamplerRequest(BaseModel):
         if self.banned_strings and isinstance(self.banned_strings, str):
             self.banned_strings = [self.banned_strings]
 
-        # Convert string banned tokens to an integer list
+        # Convert string banned and allowed tokens to an integer list
         if self.banned_tokens and isinstance(self.banned_tokens, str):
             self.banned_tokens = [
                 int(x) for x in self.banned_tokens.split(",") if x.isdigit()
+            ]
+
+        if self.allowed_tokens and isinstance(self.allowed_tokens, str):
+            self.allowed_tokens = [
+                int(x) for x in self.allowed_tokens.split(",") if x.isdigit()
             ]
 
         gen_params = {
@@ -309,6 +321,7 @@ class BaseSamplerRequest(BaseModel):
             "token_healing": self.token_healing,
             "logit_bias": self.logit_bias,
             "banned_tokens": self.banned_tokens,
+            "allowed_tokens": self.allowed_tokens,
             "temperature": self.temperature,
             "temperature_last": self.temperature_last,
             "min_temp": self.min_temp,

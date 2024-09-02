@@ -52,7 +52,7 @@ async def completion_request(
     If stream = true, this returns an SSE stream.
     """
 
-    model_path = model.container.get_model_path()
+    model_path = model.container.model_dir
 
     if isinstance(data.prompt, list):
         data.prompt = "\n".join(data.prompt)
@@ -105,7 +105,7 @@ async def chat_completion_request(
 
         raise HTTPException(422, error_message)
 
-    model_path = model.container.get_model_path()
+    model_path = model.container.model_dir
 
     if isinstance(data.messages, str):
         prompt = data.messages

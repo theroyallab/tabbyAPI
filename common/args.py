@@ -13,6 +13,24 @@ def str_to_bool(value):
     raise ValueError(f"{value} is not a valid boolean value")
 
 
+def argument_with_auto(value):
+    """
+    Argparse type wrapper for any argument that has an automatic option.
+
+    Ex. rope_alpha
+    """
+
+    if value == "auto":
+        return "auto"
+
+    try:
+        return float(value)
+    except ValueError as ex:
+        raise argparse.ArgumentTypeError(
+            'This argument only takes a type of float or "auto"'
+        ) from ex
+
+
 def init_argparser():
     """Creates an argument parser that any function can use"""
 
@@ -133,7 +151,11 @@ def add_model_args(parser: argparse.ArgumentParser):
     model_group.add_argument(
         "--rope-scale", type=float, help="Sets rope_scale or compress_pos_emb"
     )
-    model_group.add_argument("--rope-alpha", type=float, help="Sets rope_alpha for NTK")
+    model_group.add_argument(
+        "--rope-alpha",
+        type=argument_with_auto,
+        help="Sets rope_alpha for NTK",
+    )
     model_group.add_argument(
         "--cache-mode",
         type=str,
