@@ -4,12 +4,13 @@ import asyncio
 import pathlib
 from asyncio import CancelledError
 from copy import deepcopy
-from typing import List, Optional
+from typing import List, Optional, Type
 import json
 
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
 from loguru import logger
+from pydantic import BaseModel, create_model
 
 from common import model
 from common.networking import (
@@ -433,6 +434,7 @@ async def generate_tool_calls(
 
     # Copy to make sure the parent JSON schema doesn't get modified
     # FIXME: May not be necessary depending on how the codebase evolves
+    create_tool_call_model(data)
     tool_data = deepcopy(data)
     tool_data.json_schema = tool_data.tool_call_schema
     gen_params = tool_data.to_gen_params()
@@ -465,6 +467,45 @@ async def generate_tool_calls(
 
     return generations
 
+def create_tool_call_model(data: ChatCompletionRequest):
+    """Create a tool call model to guide model based on the tools spec provided"""
+    dtypes = {
+        "integer": int,
+        "string": str,
+        "boolean": bool,
+        "object": dict,
+        "array": list
+    }
+
+    tool_response_models = []
+    for tool in data.tools:
+
+        name = tool.function.name
+        params = tool.function.parameters.get('properties', {})
+        required_params = tool.function.parameters.get('required', [])
+
+        model_fields = {}
+        if params:
+            for arg_key, arg_val in params.items():
+                arg_name = arg_key
+                arg_dtype = dtypes[arg_val['type']]
+                required = arg_name in required_params
+                model_fields["name"] = name # this need to be a string with a strict value of name
+                model_fields["arguments"] = {}
+
+                # Use Field to set whether the argument is required or not
+                if required:
+                    model_fields["arguments"][arg_name] = (arg_dtype, ...)
+                else:
+                    model_fields["arguments"][arg_name] = (arg_dtype, None)
+
+        # Create the Pydantic model for the tool
+        tool_response_model = create_model(name, **model_fields)
+        tool_response_models.append(tool_response_model)
+
+    print(tool_response_models) # these tool_response_model will go into the tool_call as a union of them, need to format correctly
+
+    
 
 def postprocess_tool_call(call_str: str) -> List[ToolCall]:
     tool_calls = json.loads(call_str)
