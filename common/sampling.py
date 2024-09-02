@@ -5,7 +5,7 @@ import yaml
 from copy import deepcopy
 from loguru import logger
 from pydantic import AliasChoices, BaseModel, Field
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Type
 
 from common.utils import unwrap, prune_dict
 
@@ -176,6 +176,10 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("json_schema"),
     )
 
+    pydantic_model: Optional[Type[BaseModel]] = Field(
+        default_factory=lambda: get_default_sampler_value("pydantic_model"),
+    )
+
     regex_pattern: Optional[str] = Field(
         default_factory=lambda: get_default_sampler_value("regex_pattern"),
     )
@@ -329,6 +333,7 @@ class BaseSamplerRequest(BaseModel):
             "cfg_scale": self.cfg_scale,
             "negative_prompt": self.negative_prompt,
             "json_schema": self.json_schema,
+            "pydantic_model": self.pydantic_model,
             "regex_pattern": self.regex_pattern,
             "grammar_string": self.grammar_string,
             "speculative_ngram": self.speculative_ngram,

@@ -7,8 +7,9 @@ from lmformatenforcer.integrations.exllamav2 import (
     build_token_enforcer_tokenizer_data,
 )
 from loguru import logger
-from typing import List
+from typing import List, Type
 from functools import lru_cache
+from pydantic import BaseModel
 
 
 class OutlinesTokenizerWrapper:
@@ -104,6 +105,34 @@ class ExLlamaV2Grammar:
         prefix_filter = ExLlamaV2PrefixFilter(model, tokenizer, json_prefixes)
 
         # Append the filters
+        self.filters.extend([lmfilter, prefix_filter])
+
+    def add_pydantic_filter(
+            self,
+            pydantic_model: Type[BaseModel],
+            model: ExLlamaV2,
+            tokenizer:ExLlamaV2Tokenizer
+    ):
+        """Adds an ExllamaV2 filter based on a Pydantic model"""
+        # Create the parser
+        try:
+            schema_parser = JsonSchemaParser(pydantic_model.model_json_schema())
+        except Exception:
+            traceback.print_exc()
+            logger.error(
+                "Skipping because the pydantic model couldn't be used. "
+                "Please read the above error for more information."
+            )
+
+            return
+        
+        json_prefixes = ["[", "{"]
+
+        lmfilter = ExLlamaV2TokenEnforcerFilter(
+            schema_parser, _get_lmfe_tokenizer_data(tokenizer)
+        )
+        prefix_filter = ExLlamaV2PrefixFilter(model, tokenizer, json_prefixes)
+
         self.filters.extend([lmfilter, prefix_filter])
 
     def add_regex_filter(
