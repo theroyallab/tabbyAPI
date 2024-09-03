@@ -3,7 +3,7 @@
 import json
 import pathlib
 from importlib.metadata import version as package_version
-from typing import Optional
+from typing import List, Optional
 from jinja2 import Template, TemplateError
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from loguru import logger
@@ -18,6 +18,13 @@ class TemplateLoadError(Exception):
     pass
 
 
+class TemplateMetadata:
+    """Represents the parsed metadata from a template."""
+
+    stop_strings: List[str] = []
+    tool_starts: List[str] = []
+
+
 class PromptTemplate:
     """A template for chat completion prompts."""
 
@@ -25,27 +32,48 @@ class PromptTemplate:
     raw_template: str
     template: Template
     environment: ImmutableSandboxedEnvironment = ImmutableSandboxedEnvironment(
-        trim_blocks=True, lstrip_blocks=True
+        trim_blocks=True, lstrip_blocks=True, enable_async=True
     )
+    metadata: Optional[TemplateMetadata] = None
 
-    def stop_strings(self, template_vars: dict):
-        """Appends extra stop strings if present in a chat template."""
+    async def extract_metadata(self, template_vars: dict):
+        """
+        Returns deserialized template metadata from a chat template.
 
-        extra_stop_strings = []
-        template_module = self.template.make_module(template_vars)
+        NOTE: Requires all template vars to be passed in since the template
+        is run once to make a module and errors can result.
+        """
+
+        # No need to extract new metadata if it already exists
+        # This might be removed if stored metadata becomes arbitrary
+        if self.metadata:
+            return self.metadata
+
+        template_metadata = TemplateMetadata()
+
+        template_module = await self.template.make_module_async(template_vars)
 
         if hasattr(template_module, "stop_strings"):
             if isinstance(template_module.stop_strings, list):
-                extra_stop_strings += template_module.stop_strings
+                template_metadata.stop_strings += template_module.stop_strings
             else:
                 logger.warning(
                     "Skipping append of stopping strings from chat template "
                     "because stop_strings isn't a list."
                 )
 
-        return extra_stop_strings
+        if hasattr(template_module, "tool_start"):
+            if isinstance(template_module.tool_start, str):
+                template_metadata.tool_starts.append(template_module.tool_start)
 
-    def render(self, template_vars: dict):
+        if hasattr(template_module, "tool_start_token"):
+            if isinstance(template_module.tool_start_token, int):
+                template_metadata.tool_starts.append(template_module.tool_start_token)
+
+        self.metadata = template_metadata
+        return template_metadata
+
+    async def render(self, template_vars: dict):
         """Get a prompt from a template and a list of messages."""
         if version.parse(package_version("jinja2")) < version.parse("3.0.0"):
             raise ImportError(
@@ -55,10 +83,9 @@ class PromptTemplate:
                 "pip install --upgrade jinja2"
             )
 
-        rendered_template = self.template.render(**template_vars)
-        template_stop_strings = self.stop_strings(template_vars)
+        rendered_template = await self.template.render_async(**template_vars)
 
-        return rendered_template, template_stop_strings
+        return rendered_template
 
     def compile(self, template_str: str):
         """Compiles and stores a jinja2 template"""

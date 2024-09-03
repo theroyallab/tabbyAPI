@@ -64,6 +64,7 @@ Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started)
 - Utilizes modern python paradigms
 - Continuous batching engine using paged attention
 - Fast classifer-free guidance
+- OAI style tool/function calling
 
 And much more. If something is missing here, PR it in!
 

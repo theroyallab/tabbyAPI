@@ -57,7 +57,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
 
     # Check if the model is already loaded
     if container and container.model:
-        loaded_model_name = container.get_model_path().name
+        loaded_model_name = container.model_dir.name
 
         if loaded_model_name == model_path.name and container.model_loaded:
             raise ValueError(
@@ -149,7 +149,8 @@ async def unload_embedding_model():
     embeddings_container = None
 
 
-def get_config_default(key: str, fallback=None, model_type: str = "model"):
+# FIXME: Maybe make this a one-time function instead of a dynamic default
+def get_config_default(key: str, model_type: str = "model"):
     """Fetches a default value from model config if allowed by the user."""
 
     model_config = config.model_config()
@@ -162,14 +163,12 @@ def get_config_default(key: str, fallback=None, model_type: str = "model"):
         # Is this a draft model load parameter?
         if model_type == "draft":
             draft_config = config.draft_model_config()
-            return unwrap(draft_config.get(key), fallback)
+            return draft_config.get(key)
         elif model_type == "embedding":
             embeddings_config = config.embeddings_config()
-            return unwrap(embeddings_config.get(key), fallback)
+            return embeddings_config.get(key)
         else:
-            return unwrap(model_config.get(key), fallback)
-    else:
-        return fallback
+            return model_config.get(key)
 
 
 async def check_model_container():

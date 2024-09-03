@@ -1,0 +1,84 @@
+{# Metadata #} 
+{% set stop_strings = ["<|im_start|>", "<|im_end|>"] %}
+{% set message_roles = ['system', 'user', 'assistant', 'tool'] %}
+{% set tool_start = "<|tool_start|>" %}
+{% set tool_end = "<|tool_end|>" %}
+{%- set start_header = "<|start_header_id|>" -%}
+{%- set end_header = "<|end_header_id|>\n" -%}
+
+{%- set example_tool_call -%}[
+    {
+        "id": "tool_id_1342",
+        "function": {
+        "arguments": "arg_name": 3,
+        "name": "tool_name"
+        },
+        "type": "function"
+    },
+    {
+        "id": "example_id_13f42",
+        "function": {
+        "arguments": "example_arg": 1.0, "another_example_arg": true,
+        "name": "another_tool_name"
+        },
+        "type": "function"
+    }
+]
+{%- endset -%}
+
+{%- set inital_system_prompt -%}You are an assistant that has access to the following set of tools, to call a tool:
+1. Prefix calls with '{{ tool_start }}' and end calls with '{{ tool_end }}'
+2. Ensure you use the correct type for arguments. For example, if the argument is a string, ensure it is enclosed in quotes, otherwise, it should not be.
+3. Generate all calls using the following json tool call format. Here is a multi tool call example:
+
+{{ tool_start }}{{ example_tool_call }}{{ tool_end }}
+
+Here are the tools available for you to call:
+{{ tools_json }}
+{%- endset -%}
+
+{%- set tool_reminder -%}Available Tools:
+{{ tools_json }}
+
+Tool Call Format Example:
+{{ tool_start }}{{ example_tool_call }}
+
+Prefix & Suffix: Begin tool calls with {{ tool_start }} and end with {{ tool_end }}.
+Argument Types: Use correct data types for arguments (e.g., strings in quotes, numbers without).
+{%- endset -%}
+
+{# Template #}
+
+{%- for message in messages -%}
+    {%- set role = message['role'] | lower -%}
+    {%- if role not in message_roles -%}
+        {{ raise_exception('Invalid role ' + message['role'] + '. Only ' + message_roles | join(', ') + ' are supported.') }}
+    {%- endif -%}
+    
+    {%- set content = message['content'] | default('', true) | trim -%}
+    {%- if loop.first -%}
+{{ bos_token }}{{ start_header }}{{ role }}{{ end_header }}
+{{ inital_system_prompt }}
+
+{{ content }}{{ eos_token }}
+    {%- endif -%}
+    
+    {%- if not loop.first -%}
+{{ start_header }}{{ role }}{{ end_header }}
+{{ content }}
+        {%- if 'tool_calls_json' in message and message['tool_calls_json'] -%}
+{{ tool_start }}{{ message['tool_calls_json']}}{{ tool_end }}
+        {%- endif -%}
+{{ eos_token }}
+
+    {%- endif -%}
+{%- endfor -%}
+
+{%- if tool_precursor -%}
+{{ start_header }}system{{ end_header }}
+{{ tool_reminder }}{{ eos_token }}
+{{ start_header }}assistant{{ end_header }}
+{{ tool_precursor }}{{ tool_start }}
+{%- else -%}
+{{ start_header }}assistant{{ end_header }}
+{%- endif -%}

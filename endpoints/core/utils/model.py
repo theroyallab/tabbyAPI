@@ -43,12 +43,16 @@ async def get_current_model_list(model_type: str = "model"):
     model_path = None
 
     # Make sure the model container exists
-    if model_type == "model" or model_type == "draft":
-        if model.container:
-            model_path = model.container.get_model_path(model_type == "draft")
-    elif model_type == "embedding":
-        if model.embeddings_container:
-            model_path = model.embeddings_container.model_dir
+    match model_type:
+        case "model":
+            if model.container:
+                model_path = model.container.model_dir
+        case "draft":
+            if model.container:
+                model_path = model.container.draft_model_dir
+        case "embedding":
+            if model.embeddings_container:
+                model_path = model.embeddings_container.model_dir
 
     if model_path:
         current_models.append(ModelCard(id=model_path.name))
@@ -94,8 +98,10 @@ async def stream_model_load(
 ):
     """Request generation wrapper for the loading process."""
 
+    # Get trimmed load data
+    load_data = data.model_dump(exclude_none=True)
+
     # Set the draft model path if it exists
-    load_data = data.model_dump()
     if draft_model_path:
         load_data["draft"]["draft_model_dir"] = draft_model_path
 

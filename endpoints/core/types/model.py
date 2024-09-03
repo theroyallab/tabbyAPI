@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field, ConfigDict
 from time import time
-from typing import List, Optional
+from typing import List, Literal, Optional, Union
 
 from common.gen_logging import GenLogPreferences
 from common.model import get_config_default
@@ -53,19 +53,19 @@ class DraftModelLoadRequest(BaseModel):
     # Config arguments
     draft_rope_scale: Optional[float] = Field(
         default_factory=lambda: get_config_default(
-            "draft_rope_scale", 1.0, model_type="draft"
+            "draft_rope_scale", model_type="draft"
         )
     )
-    draft_rope_alpha: Optional[float] = Field(
-        description="Automatically calculated if not present",
+    draft_rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
+        description='Automatically calculated if set to "auto"',
         default_factory=lambda: get_config_default(
-            "draft_rope_alpha", None, model_type="draft"
+            "draft_rope_alpha", model_type="draft"
         ),
         examples=[1.0],
     )
     draft_cache_mode: Optional[str] = Field(
         default_factory=lambda: get_config_default(
-            "draft_cache_mode", "FP16", model_type="draft"
+            "draft_cache_mode", model_type="draft"
         )
     )
 
@@ -96,14 +96,17 @@ class ModelLoadRequest(BaseModel):
         default_factory=lambda: get_config_default("cache_size"),
         examples=[4096],
     )
+    tensor_parallel: Optional[bool] = Field(
+        default_factory=lambda: get_config_default("tensor_parallel")
+    )
     gpu_split_auto: Optional[bool] = Field(
-        default_factory=lambda: get_config_default("gpu_split_auto", True)
+        default_factory=lambda: get_config_default("gpu_split_auto")
     )
     autosplit_reserve: Optional[List[float]] = Field(
-        default_factory=lambda: get_config_default("autosplit_reserve", [96])
+        default_factory=lambda: get_config_default("autosplit_reserve")
     )
     gpu_split: Optional[List[float]] = Field(
-        default_factory=lambda: get_config_default("gpu_split", []),
+        default_factory=lambda: get_config_default("gpu_split"),
         examples=[[24.0, 20.0]],
     )
     rope_scale: Optional[float] = Field(
@@ -111,16 +114,16 @@ class ModelLoadRequest(BaseModel):
         default_factory=lambda: get_config_default("rope_scale"),
         examples=[1.0],
     )
-    rope_alpha: Optional[float] = Field(
-        description="Automatically calculated if not present",
+    rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
+        description='Automatically calculated if set to "auto"',
         default_factory=lambda: get_config_default("rope_alpha"),
         examples=[1.0],
     )
     cache_mode: Optional[str] = Field(
-        default_factory=lambda: get_config_default("cache_mode", "FP16")
+        default_factory=lambda: get_config_default("cache_mode")
     )
     chunk_size: Optional[int] = Field(
-        default_factory=lambda: get_config_default("chunk_size", 2048)
+        default_factory=lambda: get_config_default("chunk_size")
     )
     prompt_template: Optional[str] = Field(
         default_factory=lambda: get_config_default("prompt_template")
@@ -129,7 +132,7 @@ class ModelLoadRequest(BaseModel):
         default_factory=lambda: get_config_default("num_experts_per_token")
     )
     fasttensors: Optional[bool] = Field(
-        default_factory=lambda: get_config_default("fasttensors", False)
+        default_factory=lambda: get_config_default("fasttensors")
     )
 
     # Non-config arguments

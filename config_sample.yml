@@ -109,6 +109,11 @@ model:
   # Only use this if the model's base sequence length in config.json is incorrect (ex. Mistral 7B)
   #override_base_seq_len:
 
+  # Load model with tensor parallelism
+  # If a GPU split isn't provided, the TP loader will fallback to autosplit
+  # Enabling ignores the gpu_split_auto and autosplit_reserve values
+  #tensor_parallel: False
+
   # Automatically allocate resources to GPUs (default: True)
   # NOTE: Not parsed for single GPU users
   #gpu_split_auto: True
@@ -118,6 +123,7 @@ model:
   #autosplit_reserve: [96]
 
   # An integer array of GBs of vram to split between GPUs (default: [])
+  # Used with tensor parallelism
   # NOTE: Not parsed for single GPU users
   #gpu_split: [20.6, 24]
 
@@ -129,7 +135,8 @@ model:
 
   # Rope alpha (default: 1.0)
   # Same thing as alpha_value
-  # Leave blank to automatically calculate alpha
+  # Set to "auto" to automatically calculate
+  # Leave blank to pull the value from the model
   #rope_alpha: 1.0
 
   # Enable different cache modes for VRAM savings (slight performance hit).

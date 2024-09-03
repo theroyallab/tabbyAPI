@@ -8,11 +8,18 @@ services:
         - DO_PULL=true
     ports:
       - "5000:5000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     environment:
       - NAME=TabbyAPI
       - NVIDIA_VISIBLE_DEVICES=all
     volumes:
-      - ./models:/app/models
+      - ./models:/app/models                                # Change me
+      # - /path/to/config.yml:/app/config.yml               # Change me
+      # - /path/to/api_tokens.yml:/app/api_tokens.yml       # Change me
     deploy:
       resources:
         reservations:
