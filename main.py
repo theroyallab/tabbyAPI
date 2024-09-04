@@ -110,15 +110,13 @@ def entrypoint(arguments: Optional[dict] = None):
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    # Load from YAML config
-    config.from_file(pathlib.Path("config.yml"))
-
     # Parse and override config from args
     if arguments is None:
         parser = init_argparser()
         arguments = convert_args_to_dict(parser.parse_args(), parser)
 
-    config.from_args(arguments)
+    # load config
+    config.load(arguments)
 
     if do_export_openapi:
         openapi_json = export_openapi()
