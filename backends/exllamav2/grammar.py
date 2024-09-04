@@ -109,7 +109,7 @@ class ExLlamaV2Grammar:
 
     def add_pydantic_filter(
             self,
-            pydantic_model: Type[BaseModel],
+            pydantic_model: BaseModel,
             model: ExLlamaV2,
             tokenizer:ExLlamaV2Tokenizer
     ):
