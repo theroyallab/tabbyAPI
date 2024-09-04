@@ -10,10 +10,10 @@ from common.utils import unwrap
 has_infinity_emb: bool = False
 try:
     from infinity_emb import EngineArgs, AsyncEmbeddingEngine
+
     has_infinity_emb = True
-    logger.debug("Successfully imported infinity.")
 except ImportError:
-    logger.debug("Failed to import infinity.")
+    pass
 
 
 class InfinityContainer:
