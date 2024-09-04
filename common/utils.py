@@ -20,6 +20,23 @@ def prune_dict(input_dict):
     return {k: v for k, v in input_dict.items() if v is not None}
 
 
+def merge_dict(dict1, dict2):
+    """Merge 2 dictionaries"""
+    for key, value in dict2.items():
+        if isinstance(value, dict) and key in dict1 and isinstance(dict1[key], dict):
+            merge_dict(dict1[key], value)
+        else:
+            dict1[key] = value
+    return dict1
+
+
+def merge_dicts(*dicts):
+    """Merge an arbitrary amount of dictionaries"""
+    result = {}
+    for dictionary in dicts:
+        result = merge_dict(result, dictionary)
+
+
 def flat_map(input_list):
     """Flattens a list of lists into a single list."""
 

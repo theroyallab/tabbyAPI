@@ -1,10 +1,9 @@
 import yaml
 import pathlib
 from loguru import logger
-from mergedeep import merge, Strategy
 from typing import Any
 
-from common.utils import unwrap
+from common.utils import unwrap, merge_dicts
 
 # Global config dictionary constant
 GLOBAL_CONFIG: dict = {}
@@ -21,7 +20,8 @@ def load(arguments: dict[str, Any]):
         from_args(arguments),
     ]
 
-    GLOBAL_CONFIG = merge({}, *configs, strategy=Strategy.REPLACE)
+    GLOBAL_CONFIG = merge_dicts(*configs)
+
 
 def from_file(config_path: pathlib.Path) -> dict[str, Any]:
     """loads config from a given file path"""
@@ -73,15 +73,16 @@ def from_environment() -> dict[str, Any]:
 
 
 # refactor the get_config functions
-def get_config(config: dict[str, any], topic: str) -> callable :
+def get_config(config: dict[str, any], topic: str) -> callable:
     return lambda: unwrap(config.get(topic), {})
 
+
 # each of these is a function
-model_config        = get_config(GLOBAL_CONFIG,  "model")
-sampling_config     = get_config(GLOBAL_CONFIG,  "sampling")
-draft_model_config  = get_config(model_config(), "draft")
-lora_config         = get_config(model_config(), "lora")
-network_config      = get_config(GLOBAL_CONFIG,  "network")
-logging_config      = get_config(GLOBAL_CONFIG,  "logging")
-developer_config    = get_config(GLOBAL_CONFIG,  "developer")
-embeddings_config   = get_config(GLOBAL_CONFIG,  "embeddings")
+model_config = get_config(GLOBAL_CONFIG, "model")
+sampling_config = get_config(GLOBAL_CONFIG, "sampling")
+draft_model_config = get_config(model_config(), "draft")
+lora_config = get_config(model_config(), "lora")
+network_config = get_config(GLOBAL_CONFIG, "network")
+logging_config = get_config(GLOBAL_CONFIG, "logging")
+developer_config = get_config(GLOBAL_CONFIG, "developer")
+embeddings_config = get_config(GLOBAL_CONFIG, "embeddings")
