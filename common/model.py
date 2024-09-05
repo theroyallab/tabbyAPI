@@ -10,9 +10,9 @@ from fastapi import HTTPException
 from loguru import logger
 from typing import Optional
 
-from common import config
 from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
+from common.tabby_config import config
 from common.utils import unwrap
 from endpoints.utils import do_export_openapi
 
@@ -153,8 +153,7 @@ async def unload_embedding_model():
 def get_config_default(key: str, model_type: str = "model"):
     """Fetches a default value from model config if allowed by the user."""
 
-    model_config = config.model_config()
-    default_keys = unwrap(model_config.get("use_as_default"), [])
+    default_keys = unwrap(config.model.get("use_as_default"), [])
 
     # Add extra keys to defaults
     default_keys.append("embeddings_device")
@@ -162,13 +161,11 @@ def get_config_default(key: str, model_type: str = "model"):
     if key in default_keys:
         # Is this a draft model load parameter?
         if model_type == "draft":
-            draft_config = config.draft_model_config()
-            return draft_config.get(key)
+            return config.draft_model.get(key)
         elif model_type == "embedding":
-            embeddings_config = config.embeddings_config()
-            return embeddings_config.get(key)
+            return config.embeddings.get(key)
         else:
-            return model_config.get(key)
+            return config.model.get(key)
 
 
 async def check_model_container():

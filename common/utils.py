@@ -36,6 +36,8 @@ def merge_dicts(*dicts):
     for dictionary in dicts:
         result = merge_dict(result, dictionary)
 
+    return result
+
 
 def flat_map(input_list):
     """Flattens a list of lists into a single list."""

@@ -9,12 +9,13 @@ import signal
 from loguru import logger
 from typing import Optional
 
-from common import config, gen_logging, sampling, model
+from common import gen_logging, sampling, model
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
 from common.logger import setup_logger
 from common.networking import is_port_in_use
 from common.signals import signal_handler
+from common.tabby_config import config, load_config
 from common.utils import unwrap
 from endpoints.server import export_openapi, start_api
 from endpoints.utils import do_export_openapi
@@ -26,10 +27,8 @@ if not do_export_openapi:
 async def entrypoint_async():
     """Async entry function for program startup"""
 
-    network_config = config.network_config()
-
-    host = unwrap(network_config.get("host"), "127.0.0.1")
-    port = unwrap(network_config.get("port"), 5000)
+    host = unwrap(config.network.get("host"), "127.0.0.1")
+    port = unwrap(config.network.get("port"), 5000)
 
     # Check if the port is available and attempt to bind a fallback
     if is_port_in_use(port):
@@ -51,18 +50,16 @@ async def entrypoint_async():
             port = fallback_port
 
     # Initialize auth keys
-    load_auth_keys(unwrap(network_config.get("disable_auth"), False))
+    load_auth_keys(unwrap(config.network.get("disable_auth"), False))
 
     # Override the generation log options if given
-    log_config = config.logging_config()
-    if log_config:
-        gen_logging.update_from_dict(log_config)
+    if config.logging:
+        gen_logging.update_from_dict(config.logging)
 
     gen_logging.broadcast_status()
 
     # Set sampler parameter overrides if provided
-    sampling_config = config.sampling_config()
-    sampling_override_preset = sampling_config.get("override_preset")
+    sampling_override_preset = config.sampling.get("override_preset")
     if sampling_override_preset:
         try:
             sampling.overrides_from_file(sampling_override_preset)
@@ -71,32 +68,29 @@ async def entrypoint_async():
 
     # If an initial model name is specified, create a container
     # and load the model
-    model_config = config.model_config()
-    model_name = model_config.get("model_name")
+    model_name = config.model.get("model_name")
     if model_name:
-        model_path = pathlib.Path(unwrap(model_config.get("model_dir"), "models"))
+        model_path = pathlib.Path(unwrap(config.model.get("model_dir"), "models"))
         model_path = model_path / model_name
 
-        await model.load_model(model_path.resolve(), **model_config)
+        await model.load_model(model_path.resolve(), **config.model)
 
         # Load loras after loading the model
-        lora_config = config.lora_config()
-        if lora_config.get("loras"):
-            lora_dir = pathlib.Path(unwrap(lora_config.get("lora_dir"), "loras"))
-            await model.container.load_loras(lora_dir.resolve(), **lora_config)
+        if config.lora.get("loras"):
+            lora_dir = pathlib.Path(unwrap(config.lora.get("lora_dir"), "loras"))
+            await model.container.load_loras(lora_dir.resolve(), **config.lora)
 
     # If an initial embedding model name is specified, create a separate container
     # and load the model
-    embedding_config = config.embeddings_config()
-    embedding_model_name = embedding_config.get("embedding_model_name")
+    embedding_model_name = config.embeddings.get("embedding_model_name")
     if embedding_model_name:
         embedding_model_path = pathlib.Path(
-            unwrap(embedding_config.get("embedding_model_dir"), "models")
+            unwrap(config.embeddings.get("embedding_model_dir"), "models")
         )
         embedding_model_path = embedding_model_path / embedding_model_name
 
         try:
-            await model.load_embedding_model(embedding_model_path, **embedding_config)
+            await model.load_embedding_model(embedding_model_path, **config.embeddings)
         except ImportError as ex:
             logger.error(ex.msg)
 
@@ -116,7 +110,7 @@ def entrypoint(arguments: Optional[dict] = None):
         arguments = convert_args_to_dict(parser.parse_args(), parser)
 
     # load config
-    config.load(arguments)
+    load_config(arguments)
 
     if do_export_openapi:
         openapi_json = export_openapi()
@@ -127,12 +121,10 @@ def entrypoint(arguments: Optional[dict] = None):
 
         return
 
-    developer_config = config.developer_config()
-
     # Check exllamav2 version and give a descriptive error if it's too old
     # Skip if launching unsafely
 
-    if unwrap(developer_config.get("unsafe_launch"), False):
+    if unwrap(config.developer.get("unsafe_launch"), False):
         logger.warning(
             "UNSAFE: Skipping ExllamaV2 version check.\n"
             "If you aren't a developer, please keep this off!"
@@ -141,12 +133,12 @@ def entrypoint(arguments: Optional[dict] = None):
         check_exllama_version()
 
     # Enable CUDA malloc backend
-    if unwrap(developer_config.get("cuda_malloc_backend"), False):
+    if unwrap(config.developer.get("cuda_malloc_backend"), False):
         os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
         logger.warning("EXPERIMENTAL: Enabled the pytorch CUDA malloc backend.")
 
     # Use Uvloop/Winloop
-    if unwrap(developer_config.get("uvloop"), False):
+    if unwrap(config.developer.get("uvloop"), False):
         if platform.system() == "Windows":
             from winloop import install
         else:
@@ -158,7 +150,7 @@ def entrypoint(arguments: Optional[dict] = None):
         logger.warning("EXPERIMENTAL: Running program with Uvloop/Winloop.")
 
     # Set the process priority
-    if unwrap(developer_config.get("realtime_process_priority"), False):
+    if unwrap(config.developer.get("realtime_process_priority"), False):
         import psutil
 
         current_process = psutil.Process(os.getpid())
