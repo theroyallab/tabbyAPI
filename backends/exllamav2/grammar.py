@@ -107,34 +107,6 @@ class ExLlamaV2Grammar:
         # Append the filters
         self.filters.extend([lmfilter, prefix_filter])
 
-    def add_pydantic_filter(
-            self,
-            pydantic_model: BaseModel,
-            model: ExLlamaV2,
-            tokenizer:ExLlamaV2Tokenizer
-    ):
-        """Adds an ExllamaV2 filter based on a Pydantic model"""
-        # Create the parser
-        try:
-            schema_parser = JsonSchemaParser(pydantic_model.model_json_schema())
-        except Exception:
-            traceback.print_exc()
-            logger.error(
-                "Skipping because the pydantic model couldn't be used. "
-                "Please read the above error for more information."
-            )
-
-            return
-        
-        json_prefixes = ["[", "{"]
-
-        lmfilter = ExLlamaV2TokenEnforcerFilter(
-            schema_parser, _get_lmfe_tokenizer_data(tokenizer)
-        )
-        prefix_filter = ExLlamaV2PrefixFilter(model, tokenizer, json_prefixes)
-
-        self.filters.extend([lmfilter, prefix_filter])
-
     def add_regex_filter(
         self,
         pattern: str,

@@ -1080,13 +1080,6 @@ class ExllamaV2Container:
                 json_schema, self.model, self.tokenizer
             )
 
-        # Add pydantic filter if it exists
-        pydantic_model = unwrap(kwargs.get("pydantic_model"))
-        if pydantic_model:
-            grammar_handler.add_pydantic_filter(
-                pydantic_model, self.model, self.tokenizer
-            )
-
         # Add regex filter if it exists
         regex_pattern = unwrap(kwargs.get("regex_pattern"))
         if regex_pattern:
