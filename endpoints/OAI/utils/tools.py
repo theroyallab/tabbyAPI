@@ -1,7 +1,6 @@
 """Support functions to enable tool calling"""
 
 from typing import List, Dict
-from copy import deepcopy
 import json
 
 from endpoints.OAI.types.tools import ToolCall
@@ -10,141 +9,92 @@ from endpoints.OAI.types.chat_completion import ChatCompletionRequest
 def postprocess_tool_call(call_str: str) -> List[ToolCall]:
     print(call_str)
     tool_calls = json.loads(call_str)
+    print(tool_calls)
     for tool_call in tool_calls:
         tool_call["function"]["arguments"] = json.dumps(
             tool_call["function"]["arguments"]
         )
     return [ToolCall(**tool_call) for tool_call in tool_calls]
 
-
-def generate_strict_schemas(data: ChatCompletionRequest):
-    base_schema = {
-        "$defs": {},
-        "properties": {
-            "id": {"title": "Id", "type": "string"},
-            "function": {"title": "Function"},
-            "type": {"$ref": "#/$defs/Type"}
-        },
-        "required": ["id", "function", "type"],
-        "title": "ModelItem",
-        "type": "object"
+def generate_strict_schemas(data: ChatCompletionRequest) -> Dict:
+    # Generate the $defs section
+    defs = generate_defs(data.tools)
+    
+    # Generate the root structure (now an array)
+    root_structure = {
+        "type": "array",
+        "items": {"$ref": "#/$defs/ModelItem"}
     }
     
-    function_schemas = []
-    argument_schemas = {}
+    # Combine the $defs and root structure
+    full_schema = {
+        "$defs": defs,
+        **root_structure
+    }
     
-    for i, tool in enumerate(data.tools):
-        function_name = f"Function{i+1}" if i > 0 else "Function"
-        argument_name = f"Arguments{i+1}" if i > 0 else "Arguments"
-        name_def = f"Name{i+1}" if i > 0 else "Name"
+    return full_schema
+
+def generate_defs(tools: List) -> Dict:
+    defs = {}
+    
+    for i, tool in enumerate(tools):
+        function_name = f"Function{i + 1}" if i > 0 else "Function"
+        arguments_name = f"Arguments{i + 1}" if i > 0 else "Arguments"
+        name_const = f"Name{i + 1}" if i > 0 else "Name"
         
-        # Create Name definition
-        base_schema["$defs"][name_def] = {
+        # Generate Arguments schema
+        defs[arguments_name] = generate_arguments_schema(tool.function.parameters)
+        
+        # Generate Name schema
+        defs[name_const] = {
             "const": tool.function.name,
-            "enum": [tool.function.name],
-            "title": name_def,
+            "title": name_const,
             "type": "string"
         }
         
-        # Create Arguments definition
-        arg_properties = {}
-        required_params = tool.function.parameters.get('required', [])
-        for arg_name, arg_info in tool.function.parameters.get('properties', {}).items():
-            arg_properties[arg_name] = {
-                "title": arg_name.capitalize(),
-                "type": arg_info['type']
-            }
-        
-        argument_schemas[argument_name] = {
-            "properties": arg_properties,
-            "required": required_params,
-            "title": argument_name,
-            "type": "object"
-        }
-        
-        # Create Function definition
-        function_schema = {
+        # Generate Function schema
+        defs[function_name] = {
+            "type": "object",
             "properties": {
-                "name": {"$ref": f"#/$defs/{name_def}"},
-                "arguments": {"$ref": f"#/$defs/{argument_name}"}
+                "name": {"$ref": f"#/$defs/{name_const}"},
+                "arguments": {"$ref": f"#/$defs/{arguments_name}"}
             },
-            "required": ["name", "arguments"],
-            "title": function_name,
-            "type": "object"
+            "required": ["name", "arguments"]
         }
-        
-        function_schemas.append({"$ref": f"#/$defs/{function_name}"})
-        base_schema["$defs"][function_name] = function_schema
     
-    # Add argument schemas to $defs
-    base_schema["$defs"].update(argument_schemas)
-    
-    # Add Type definition
-    base_schema["$defs"]["Type"] = {
+    # Add ModelItem and Type schemas
+    defs["ModelItem"] = generate_model_item_schema(len(tools))
+    defs["Type"] = {
         "const": "function",
-        "enum": ["function"],
-        "title": "Type",
         "type": "string"
     }
     
-    # Set up the function property
-    base_schema["properties"]["function"]["anyOf"] = function_schemas
+    return defs
+
+def generate_arguments_schema(parameters: Dict) -> Dict:
+    properties = {}
+    required = parameters.get('required', [])
     
-    return base_schema
-
-
-# def generate_strict_schemas(data: ChatCompletionRequest):
-#     schema = {
-#         "type": "object",
-#         "properties": {
-#             "name": {"type": "string"},
-#             "arguments": {
-#                 "type": "object",
-#                 "properties": {},
-#                 "required": []
-#             }
-#         },
-#         "required": ["name", "arguments"]
-#     }
-
-#     function_schemas = []
+    for name, details in parameters.get('properties', {}).items():
+        properties[name] = {"type": details['type']}
     
-#     for tool in data.tools:
-#         func_schema = deepcopy(schema)
-#         func_schema["properties"]["name"]["enum"] = [tool.function.name]
-#         raw_params = tool.function.parameters.get('properties', {})
-#         required_params = tool.function.parameters.get('required', [])
-        
-#         # Add argument properties and required fields
-#         arg_properties = {}
-#         for arg_name, arg_type in raw_params.items():
-#             arg_properties[arg_name] = {"type": arg_type['type']}
-        
-#         func_schema["properties"]["arguments"]["properties"] = arg_properties
-#         func_schema["properties"]["arguments"]["required"] = required_params
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": required
+    }
 
-#         function_schemas.append(func_schema)
+def generate_model_item_schema(num_functions: int) -> Dict:
+    function_refs = [{"$ref": f"#/$defs/Function{i + 1}" if i > 0 else "#/$defs/Function"} for i in range(num_functions)]
     
-#     return _create_full_schema(function_schemas)
-
-# def _create_full_schema(function_schemas: List) -> Dict:
-#     # Define the master schema structure with placeholders for function schemas
-#     tool_call_schema = {
-#         "$schema": "http://json-schema.org/draft-07/schema#",
-#         "type": "array",
-#         "items": {
-#             "type": "object",
-#             "properties": {
-#                 "id": {"type": "string"},
-#                 "function": {
-#                     "type": "object",  # Add this line
-#                     "oneOf": function_schemas
-#                 },
-#                 "type": {"type": "string", "enum": ["function"]}
-#             },
-#             "required": ["id", "function", "type"]
-#         }
-#     }
-   
-#     print(json.dumps(tool_call_schema, indent=2))
-#     return tool_call_schema
+    return {
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "function": {
+                "anyOf": function_refs
+            },
+            "type": {"$ref": "#/$defs/Type"}
+        },
+        "required": ["id", "function", "type"]
+    }

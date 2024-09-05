@@ -439,7 +439,6 @@ async def generate_tool_calls(
     # FIXME: May not be necessary depending on how the codebase evolves
     if data.tools:
         strict_schema = generate_strict_schemas(data)
-        print(strict_schema)
     tool_data = deepcopy(data)
     #tool_data.json_schema = tool_data.tool_call_schema
     tool_data.json_schema = strict_schema # needs strict flag
@@ -472,55 +471,3 @@ async def generate_tool_calls(
         generations[gen_idx]["tool_calls"] = tool_calls[outer_idx]["text"]
 
     return generations
-
-# def create_tool_call_model(data: ChatCompletionRequest):
-#     """Create a tool call model to guide model based on the tools spec provided"""
-#     dtypes = {
-#         "integer": int,
-#         "string": str,
-#         "boolean": bool,
-#         "object": dict,
-#         "array": list
-#     }
-
-#     function_models = []
-#     for tool in data.tools:
-
-#         tool_name = tool.function.name
-#         raw_params = tool.function.parameters.get('properties', {})
-#         required_params = tool.function.parameters.get('required', [])
-
-#         fields = {}
-#         if raw_params:
-#             for arg_key, val_dict in raw_params.items():
-
-#                 arg_name = arg_key
-#                 arg_dtype = dtypes[val_dict['type']]
-#                 required = arg_name in required_params
-#                 fields[arg_name] = (arg_dtype, ... if required else None)
-#                 if not required:
-#                     arg_dtype = Optional[arg_dtype]
-
-#                 fields[arg_name] = (arg_dtype, ... if required else None)
-
-#         arguments_model = create_model(f"{tool_name}Arguments", **fields)
-
-#         function_model = create_model(
-#             f"{tool_name}Model",
-#             name=(str, tool_name),
-#             arguments=(arguments_model, ...)
-#         )
-
-#         function_models.append(function_model)
-
-#     fucntion_union = Union[tuple(function_models)]
-
-#     tool_response_model = create_model(
-#         "tools_call_response_model",
-#         id=(str, ...),
-#         function=(fucntion_union, ...)
-#     )
-
-#     tool_response_model.model_rebuild()
-
-#     return tool_response_model
