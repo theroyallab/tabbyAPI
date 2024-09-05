@@ -4,21 +4,11 @@ from loguru import logger
 from typing import Optional
 
 from common.utils import unwrap, merge_dicts
+from common.config_models import tabby_config_model
+import common.config_models
 
 
-class TabbyConfig:
-    network: dict = {}
-    logging: dict = {}
-    model: dict = {}
-    draft_model: dict = {}
-    lora: dict = {}
-    sampling: dict = {}
-    developer: dict = {}
-    embeddings: dict = {}
-
-    def __init__(self):
-        pass
-
+class TabbyConfig(tabby_config_model):
     def load_config(self, arguments: Optional[dict] = None):
         """load the global application config"""
 
@@ -30,14 +20,11 @@ class TabbyConfig:
 
         merged_config = merge_dicts(*configs)
 
-        self.network = unwrap(merged_config.get("network"), {})
-        self.logging = unwrap(merged_config.get("logging"), {})
-        self.model = unwrap(merged_config.get("model"), {})
-        self.draft_model = unwrap(merged_config.get("draft"), {})
-        self.lora = unwrap(merged_config.get("draft"), {})
-        self.sampling = unwrap(merged_config.get("sampling"), {})
-        self.developer = unwrap(merged_config.get("developer"), {})
-        self.embeddings = unwrap(merged_config.get("embeddings"), {})
+        for field in tabby_config_model.model_fields.keys():
+            value = unwrap(merged_config.get(field), {})
+            model = getattr(common.config_models, f"{field}_config_model")
+
+            setattr(self, field, model.parse_obj(value))
 
     def _from_file(self, config_path: pathlib.Path):
         """loads config from a given file path"""

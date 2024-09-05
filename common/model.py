@@ -153,7 +153,7 @@ async def unload_embedding_model():
 def get_config_default(key: str, model_type: str = "model"):
     """Fetches a default value from model config if allowed by the user."""
 
-    default_keys = unwrap(config.model.get("use_as_default"), [])
+    default_keys = unwrap(config.model.use_as_default, [])
 
     # Add extra keys to defaults
     default_keys.append("embeddings_device")

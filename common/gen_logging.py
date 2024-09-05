@@ -6,37 +6,19 @@ from pydantic import BaseModel
 from loguru import logger
 from typing import Dict, Optional
 
-
-class GenLogPreferences(BaseModel):
-    """Logging preference config."""
-
-    prompt: bool = False
-    generation_params: bool = False
-
+from common.tabby_config import config
 
 # Global logging preferences constant
-PREFERENCES = GenLogPreferences()
-
-
-def update_from_dict(options_dict: Dict[str, bool]):
-    """Wrapper to set the logging config for generations"""
-    global PREFERENCES
-
-    # Force bools on the dict
-    for value in options_dict.values():
-        if value is None:
-            value = False
-
-    PREFERENCES = GenLogPreferences.model_validate(options_dict)
+PREFERENCES = config.logging
 
 
 def broadcast_status():
     """Broadcasts the current logging status"""
     enabled = []
-    if PREFERENCES.prompt:
+    if PREFERENCES.log_prompt:
         enabled.append("prompts")
 
-    if PREFERENCES.generation_params:
+    if PREFERENCES.log_generation_params:
         enabled.append("generation params")
 
     if len(enabled) > 0:
@@ -47,13 +29,13 @@ def broadcast_status():
 
 def log_generation_params(**kwargs):
     """Logs generation parameters to console."""
-    if PREFERENCES.generation_params:
+    if PREFERENCES.log_generation_params:
         logger.info(f"Generation options: {kwargs}\n")
 
 
 def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str]):
     """Logs the prompt to console."""
-    if PREFERENCES.prompt:
+    if PREFERENCES.log_prompt:
         formatted_prompt = "\n" + prompt
         logger.info(
             f"Prompt (ID: {request_id}): {formatted_prompt if prompt else 'Empty'}\n"
@@ -66,7 +48,7 @@ def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str]):
 
 def log_response(request_id: str, response: str):
     """Logs the response to console."""
-    if PREFERENCES.prompt:
+    if PREFERENCES.log_prompt:
         formatted_response = "\n" + response
         logger.info(
             f"Response (ID: {request_id}): "

@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Literal, Optional, Union
 
-from common.gen_logging import GenLogPreferences
+from common.config_models import logging_config_model
 from common.model import get_config_default
 
 
@@ -33,7 +33,7 @@ class ModelCard(BaseModel):
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time()))
     owned_by: str = "tabbyAPI"
-    logging: Optional[GenLogPreferences] = None
+    logging: Optional[logging_config_model] = None
     parameters: Optional[ModelCardParameters] = None
 
 

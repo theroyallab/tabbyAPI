@@ -36,7 +36,7 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
         allow_headers=["*"],
     )
 
-    api_servers = unwrap(config.network.get("api_servers"), [])
+    api_servers = config.network.api_servers
 
     # Map for API id to server router
     router_mapping = {"oai": OAIRouter, "kobold": KoboldRouter}

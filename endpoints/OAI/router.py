@@ -58,9 +58,7 @@ async def completion_request(
     if isinstance(data.prompt, list):
         data.prompt = "\n".join(data.prompt)
 
-    disable_request_streaming = unwrap(
-        config.developer.get("disable_request_streaming"), False
-    )
+    disable_request_streaming = config.developer.disable_request_streaming
 
     # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":
@@ -117,9 +115,7 @@ async def chat_completion_request(
     if data.response_format.type == "json":
         data.json_schema = {"type": "object"}
 
-    disable_request_streaming = unwrap(
-        config.developer.get("disable_request_streaming"), False
-    )
+    disable_request_streaming = config.developer.disable_request_streaming
 
     if data.stream and not disable_request_streaming:
         return EventSourceResponse(
