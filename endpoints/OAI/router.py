@@ -3,10 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
 from sys import maxsize
 
-from common import config, model
+from common import model
 from common.auth import check_api_key
 from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
+from common.tabby_config import config
 from common.utils import unwrap
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
 from endpoints.OAI.types.chat_completion import (
@@ -64,7 +65,7 @@ async def completion_request(
         data.prompt = "\n".join(data.prompt)
 
     disable_request_streaming = unwrap(
-        config.developer_config().get("disable_request_streaming"), False
+        config.developer.get("disable_request_streaming"), False
     )
 
     # Set an empty JSON schema if the request wants a JSON response
@@ -128,7 +129,7 @@ async def chat_completion_request(
         data.json_schema = {"type": "object"}
 
     disable_request_streaming = unwrap(
-        config.developer_config().get("disable_request_streaming"), False
+        config.developer.get("disable_request_streaming"), False
     )
 
     if data.stream and not disable_request_streaming:

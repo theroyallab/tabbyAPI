@@ -5,9 +5,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from common import config
 from common.logger import UVICORN_LOG_CONFIG
 from common.networking import get_global_depends
+from common.tabby_config import config
 from common.utils import unwrap
 from endpoints.Kobold import router as KoboldRouter
 from endpoints.OAI import router as OAIRouter
@@ -36,7 +36,7 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
         allow_headers=["*"],
     )
 
-    api_servers = unwrap(config.network_config().get("api_servers"), [])
+    api_servers = unwrap(config.network.get("api_servers"), [])
 
     # Map for API id to server router
     router_mapping = {"oai": OAIRouter, "kobold": KoboldRouter}
