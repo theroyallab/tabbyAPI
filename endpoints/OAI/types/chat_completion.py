@@ -56,6 +56,7 @@ class ChatCompletionRequest(CommonCompletionRequest):
     add_generation_prompt: Optional[bool] = True
     template_vars: Optional[dict] = {}
     response_prefix: Optional[str] = None
+    model: Optional[str] = None
 
     # tools is follows the format OAI schema, functions is more flexible
     # both are available in the chat template.
