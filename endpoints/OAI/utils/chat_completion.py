@@ -4,13 +4,12 @@ import asyncio
 import pathlib
 from asyncio import CancelledError
 from copy import deepcopy
-from typing import List, Optional, Type
+from typing import List, Optional
 import json
 
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
 from loguru import logger
-from pydantic import BaseModel, create_model
 
 from common import model
 from common.networking import (
@@ -32,7 +31,11 @@ from endpoints.OAI.types.chat_completion import (
 )
 from endpoints.OAI.types.common import UsageStats
 from endpoints.OAI.utils.completion import _stream_collector
-from endpoints.OAI.types.tools import ToolCall
+
+from endpoints.OAI.utils.tools import(
+    postprocess_tool_call,
+    generate_strict_schemas
+)
 
 
 def _create_response(
@@ -434,9 +437,12 @@ async def generate_tool_calls(
 
     # Copy to make sure the parent JSON schema doesn't get modified
     # FIXME: May not be necessary depending on how the codebase evolves
-    create_tool_call_model(data)
+    if data.tools:
+        strict_schema = generate_strict_schemas(data)
+        print(strict_schema)
     tool_data = deepcopy(data)
-    tool_data.json_schema = tool_data.tool_call_schema
+    #tool_data.json_schema = tool_data.tool_call_schema
+    tool_data.json_schema = strict_schema # needs strict flag
     gen_params = tool_data.to_gen_params()
 
     for idx, gen in enumerate(generations):
@@ -467,50 +473,54 @@ async def generate_tool_calls(
 
     return generations
 
-def create_tool_call_model(data: ChatCompletionRequest):
-    """Create a tool call model to guide model based on the tools spec provided"""
-    dtypes = {
-        "integer": int,
-        "string": str,
-        "boolean": bool,
-        "object": dict,
-        "array": list
-    }
+# def create_tool_call_model(data: ChatCompletionRequest):
+#     """Create a tool call model to guide model based on the tools spec provided"""
+#     dtypes = {
+#         "integer": int,
+#         "string": str,
+#         "boolean": bool,
+#         "object": dict,
+#         "array": list
+#     }
 
-    tool_response_models = []
-    for tool in data.tools:
+#     function_models = []
+#     for tool in data.tools:
 
-        name = tool.function.name
-        params = tool.function.parameters.get('properties', {})
-        required_params = tool.function.parameters.get('required', [])
+#         tool_name = tool.function.name
+#         raw_params = tool.function.parameters.get('properties', {})
+#         required_params = tool.function.parameters.get('required', [])
 
-        model_fields = {}
-        if params:
-            for arg_key, arg_val in params.items():
-                arg_name = arg_key
-                arg_dtype = dtypes[arg_val['type']]
-                required = arg_name in required_params
-                model_fields["name"] = name # this need to be a string with a strict value of name
-                model_fields["arguments"] = {}
+#         fields = {}
+#         if raw_params:
+#             for arg_key, val_dict in raw_params.items():
 
-                # Use Field to set whether the argument is required or not
-                if required:
-                    model_fields["arguments"][arg_name] = (arg_dtype, ...)
-                else:
-                    model_fields["arguments"][arg_name] = (arg_dtype, None)
+#                 arg_name = arg_key
+#                 arg_dtype = dtypes[val_dict['type']]
+#                 required = arg_name in required_params
+#                 fields[arg_name] = (arg_dtype, ... if required else None)
+#                 if not required:
+#                     arg_dtype = Optional[arg_dtype]
 
-        # Create the Pydantic model for the tool
-        tool_response_model = create_model(name, **model_fields)
-        tool_response_models.append(tool_response_model)
+#                 fields[arg_name] = (arg_dtype, ... if required else None)
 
-    print(tool_response_models) # these tool_response_model will go into the tool_call as a union of them, need to format correctly
+#         arguments_model = create_model(f"{tool_name}Arguments", **fields)
 
-    
+#         function_model = create_model(
+#             f"{tool_name}Model",
+#             name=(str, tool_name),
+#             arguments=(arguments_model, ...)
+#         )
 
-def postprocess_tool_call(call_str: str) -> List[ToolCall]:
-    tool_calls = json.loads(call_str)
-    for tool_call in tool_calls:
-        tool_call["function"]["arguments"] = json.dumps(
-            tool_call["function"]["arguments"]
-        )
-    return [ToolCall(**tool_call) for tool_call in tool_calls]
+#         function_models.append(function_model)
+
+#     fucntion_union = Union[tuple(function_models)]
+
+#     tool_response_model = create_model(
+#         "tools_call_response_model",
+#         id=(str, ...),
+#         function=(fucntion_union, ...)
+#     )
+
+#     tool_response_model.model_rebuild()
+
+#     return tool_response_model
