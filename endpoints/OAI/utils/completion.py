@@ -13,7 +13,7 @@ from typing import List, Union
 
 from loguru import logger
 
-from common import config, model
+from common import model
 from common.auth import get_key_permission
 from common.networking import (
     get_generator_error,
@@ -21,6 +21,7 @@ from common.networking import (
     handle_request_error,
     request_disconnect_loop,
 )
+from common.tabby_config import config
 from common.utils import unwrap
 from endpoints.OAI.types.completion import (
     CompletionRequest,
@@ -115,8 +116,6 @@ async def load_inline_model(model_name: str, request: Request):
     if model.container and model.container.model_dir.name == model_name:
         return
 
-    model_config = config.model_config()
-
     # Inline model loading isn't enabled or the user isn't an admin
     if not get_key_permission(request) == "admin":
         error_message = handle_request_error(
@@ -127,7 +126,7 @@ async def load_inline_model(model_name: str, request: Request):
 
         raise HTTPException(401, error_message)
 
-    if not unwrap(model_config.get("inline_model_loading"), False):
+    if not unwrap(config.model.get("inline_model_loading"), False):
         logger.warning(
             f"Unable to switch model to {model_name} because "
             '"inline_model_load" is not True in config.yml.'
@@ -135,7 +134,7 @@ async def load_inline_model(model_name: str, request: Request):
 
         return
 
-    model_path = pathlib.Path(unwrap(model_config.get("model_dir"), "models"))
+    model_path = pathlib.Path(unwrap(config.model.get("model_dir"), "models"))
     model_path = model_path / model_name
 
     # Model path doesn't exist
