@@ -110,7 +110,7 @@ def entrypoint(arguments: Optional[dict] = None):
         arguments = convert_args_to_dict(parser.parse_args(), parser)
 
     # load config
-    config.load_config(arguments)
+    config.load(arguments)
 
     if do_export_openapi:
         openapi_json = export_openapi()

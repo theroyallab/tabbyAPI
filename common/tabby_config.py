@@ -16,10 +16,7 @@ class TabbyConfig:
     developer: dict = {}
     embeddings: dict = {}
 
-    def __init__(self):
-        pass
-
-    def load_config(self, arguments: Optional[dict] = None):
+    def load(self, arguments: Optional[dict] = None):
         """load the global application config"""
 
         # config is applied in order of items in the list
@@ -87,5 +84,5 @@ class TabbyConfig:
         pass
 
 
-# Create an empty instance of the shared var to make sure nothing breaks
+# Create an empty instance of the config class
 config: TabbyConfig = TabbyConfig()
