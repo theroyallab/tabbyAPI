@@ -16,7 +16,10 @@ class TabbyConfig:
     developer: dict = {}
     embeddings: dict = {}
 
-    def __init__(self, arguments: Optional[dict] = None):
+    def __init__(self):
+        pass
+
+    def load_config(self, arguments: Optional[dict] = None):
         """load the global application config"""
 
         # config is applied in order of items in the list
@@ -44,10 +47,10 @@ class TabbyConfig:
             with open(str(config_path.resolve()), "r", encoding="utf8") as config_file:
                 return unwrap(yaml.safe_load(config_file), {})
         except FileNotFoundError:
-            logger.info("The config.yml file cannot be found")
+            logger.info(f"The '{config_path.name}' file cannot be found")
         except Exception as exc:
             logger.error(
-                "The YAML config couldn't load because of "
+                f"The YAML config from '{config_path.name}' couldn't load because of "
                 f"the following error:\n\n{exc}"
             )
 
@@ -86,11 +89,3 @@ class TabbyConfig:
 
 # Create an empty instance of the shared var to make sure nothing breaks
 config: TabbyConfig = TabbyConfig()
-
-
-def load_config(arguments: dict):
-    """Load a populated config class on startup."""
-
-    global shared_config
-
-    shared_config = TabbyConfig(arguments)

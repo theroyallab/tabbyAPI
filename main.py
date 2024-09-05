@@ -15,7 +15,7 @@ from common.auth import load_auth_keys
 from common.logger import setup_logger
 from common.networking import is_port_in_use
 from common.signals import signal_handler
-from common.tabby_config import config, load_config
+from common.tabby_config import config
 from common.utils import unwrap
 from endpoints.server import export_openapi, start_api
 from endpoints.utils import do_export_openapi
@@ -110,7 +110,7 @@ def entrypoint(arguments: Optional[dict] = None):
         arguments = convert_args_to_dict(parser.parse_args(), parser)
 
     # load config
-    load_config(arguments)
+    config.load_config(arguments)
 
     if do_export_openapi:
         openapi_json = export_openapi()
@@ -123,7 +123,7 @@ def entrypoint(arguments: Optional[dict] = None):
 
     # Check exllamav2 version and give a descriptive error if it's too old
     # Skip if launching unsafely
-
+    print(f"MAIN.PY {config=}")
     if unwrap(config.developer.get("unsafe_launch"), False):
         logger.warning(
             "UNSAFE: Skipping ExllamaV2 version check.\n"
