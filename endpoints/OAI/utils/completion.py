@@ -14,7 +14,7 @@ from typing import List, Union
 from loguru import logger
 
 from common import model
-from common.auth import get_key_permission
+from common.auth import auth, ROLE
 from common.networking import (
     get_generator_error,
     handle_request_disconnect,
@@ -117,7 +117,7 @@ async def load_inline_model(model_name: str, request: Request):
         return
 
     # Inline model loading isn't enabled or the user isn't an admin
-    if not get_key_permission(request) == "admin":
+    if not auth.provider.check_api_key(request).role == ROLE.ADMIN:
         error_message = handle_request_error(
             f"Unable to switch model to {model_name} because "
             + "an admin key isn't provided",

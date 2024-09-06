@@ -4,7 +4,7 @@ from sse_starlette import EventSourceResponse
 from sys import maxsize
 
 from common import model
-from common.auth import check_api_key
+from common.auth import auth, ROLE
 from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.tabby_config import config
@@ -43,7 +43,7 @@ def setup():
 # Completions endpoint
 @router.post(
     "/v1/completions",
-    dependencies=[Depends(check_api_key)],
+    dependencies=[Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
 )
 async def completion_request(
     request: Request, data: CompletionRequest
@@ -93,7 +93,7 @@ async def completion_request(
 # Chat completions endpoint
 @router.post(
     "/v1/chat/completions",
-    dependencies=[Depends(check_api_key)],
+    dependencies=[Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
 )
 async def chat_completion_request(
     request: Request, data: ChatCompletionRequest
@@ -153,7 +153,10 @@ async def chat_completion_request(
 # Embeddings endpoint
 @router.post(
     "/v1/embeddings",
-    dependencies=[Depends(check_api_key), Depends(check_embeddings_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_embeddings_container),
+    ],
 )
 async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsResponse:
     embeddings_task = asyncio.create_task(get_embeddings(data, request))
