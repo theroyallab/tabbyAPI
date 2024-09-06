@@ -1,7 +1,8 @@
 import yaml
 import pathlib
 from loguru import logger
-from typing import Optional
+from typing import Optional, Union, get_origin, get_args
+from os import getenv
 
 from common.utils import unwrap, merge_dicts
 from common.config_models import tabby_config_model
@@ -15,6 +16,7 @@ class TabbyConfig(tabby_config_model):
         # config is applied in order of items in the list
         configs = [
             self._from_file(pathlib.Path("config.yml")),
+            self._from_environment(),
             self._from_args(unwrap(arguments, {})),
         ]
 
@@ -54,7 +56,7 @@ class TabbyConfig(tabby_config_model):
             config = self.from_file(pathlib.Path(config_override))
             return config  # Return early if loading from file
 
-        for key in ["network", "model", "logging", "developer", "embeddings"]:
+        for key in tabby_config_model.model_fields.keys():
             override = args.get(key)
             if override:
                 if key == "logging":
@@ -67,11 +69,20 @@ class TabbyConfig(tabby_config_model):
     def _from_environment(self):
         """loads configuration from environment variables"""
 
-        # TODO: load config from environment variables
-        # this means that we can have host default to 0.0.0.0 in docker for example
-        # this would also mean that docker containers no longer require a non
-        # default config file to be used
-        pass
+        config = {}
+
+        for field_name in tabby_config_model.model_fields.keys():
+            section_config = {}
+            for sub_field_name in getattr(
+                tabby_config_model(), field_name
+            ).model_fields.keys():
+                setting = getenv(f"TABBY_{field_name}_{sub_field_name}".upper(), None)
+                if setting is not None:
+                    section_config[sub_field_name] = setting
+
+            config[field_name] = section_config
+
+        return config
 
 
 # Create an empty instance of the shared var to make sure nothing breaks

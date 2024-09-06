@@ -76,7 +76,9 @@ async def entrypoint_async():
         if config.lora.loras:
             lora_dir = pathlib.Path(config.lora.lora_dir)
             # TODO: remove model_dump()
-            await model.container.load_loras(lora_dir.resolve(), **config.lora.model_dump())
+            await model.container.load_loras(
+                lora_dir.resolve(), **config.lora.model_dump()
+            )
 
     # If an initial embedding model name is specified, create a separate container
     # and load the model
@@ -87,7 +89,9 @@ async def entrypoint_async():
 
         try:
             # TODO: remove model_dump()
-            await model.load_embedding_model(embedding_model_path, **config.embeddings.model_dump())
+            await model.load_embedding_model(
+                embedding_model_path, **config.embeddings.model_dump()
+            )
         except ImportError as ex:
             logger.error(ex.msg)
 
