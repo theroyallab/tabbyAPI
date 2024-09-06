@@ -123,7 +123,6 @@ class SIMPLE_AUTH_PROVIDER(AUTH_PROVIDER):
 
     def authenticate_api_key(self, api_key: str, role: ROLE) -> bool:
         key = self.check_api_key(api_key)
-        print(f"#### {key=}")
         if not key:
             return False
         return key.role & role  # if key.role in role
