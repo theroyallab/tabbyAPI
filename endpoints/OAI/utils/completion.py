@@ -14,7 +14,7 @@ from typing import List, Union
 from loguru import logger
 
 from common import model
-from common.auth import auth, ROLE
+from common.auth import ROLE
 from common.networking import (
     get_generator_error,
     handle_request_disconnect,

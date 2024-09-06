@@ -435,7 +435,6 @@ async def decode_tokens(data: TokenDecodeRequest) -> TokenDecodeResponse:
 
 @router.get(
     "/v1/auth/permission",
-    dependencies=[Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
 )
 async def key_permission(
     request: Request,
@@ -451,8 +450,7 @@ async def key_permission(
     """
 
     try:
-        permission = auth.provider.check_api_key(api_key).role.name
-        return AuthPermissionResponse(permission=permission)
+        return AuthPermissionResponse(permission=user_role)
     except ValueError as exc:
         error_message = handle_request_error(str(exc)).error.message
 
