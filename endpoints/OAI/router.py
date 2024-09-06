@@ -2,6 +2,7 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
 from sys import maxsize
+from typing import Annotated
 
 from common import model
 from common.auth import auth, ROLE
@@ -41,12 +42,11 @@ def setup():
 
 
 # Completions endpoint
-@router.post(
-    "/v1/completions",
-    dependencies=[Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
-)
+@router.post("/v1/completions")
 async def completion_request(
-    request: Request, data: CompletionRequest
+    request: Request,
+    data: CompletionRequest,
+    user_role: Annotated[ROLE, Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
 ) -> CompletionResponse:
     """
     Generates a completion from a prompt.
@@ -55,7 +55,7 @@ async def completion_request(
     """
 
     if data.model:
-        await load_inline_model(data.model, request)
+        await load_inline_model(data.model, user_role)
     else:
         await check_model_container()
 
@@ -93,10 +93,11 @@ async def completion_request(
 # Chat completions endpoint
 @router.post(
     "/v1/chat/completions",
-    dependencies=[Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
 )
 async def chat_completion_request(
-    request: Request, data: ChatCompletionRequest
+    request: Request,
+    data: ChatCompletionRequest,
+    user_role: Annotated[ROLE, Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
 ) -> ChatCompletionResponse:
     """
     Generates a chat completion from a prompt.
@@ -105,7 +106,7 @@ async def chat_completion_request(
     """
 
     if data.model:
-        await load_inline_model(data.model, request)
+        await load_inline_model(data.model, user_role)
     else:
         await check_model_container()
 

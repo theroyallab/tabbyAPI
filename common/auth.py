@@ -80,7 +80,7 @@ class SIMPLE_AUTH_PROVIDER(AUTH_PROVIDER):
                         self.set_api_key(ROLE.ADMIN, key)
 
                 user_keys = keys_dict.get("user_keys")
-                if admin_keys:
+                if user_keys:
                     for key in admin_keys:
                         self.set_api_key(ROLE.ADMIN, key)
 
@@ -101,7 +101,8 @@ class SIMPLE_AUTH_PROVIDER(AUTH_PROVIDER):
         for key in self.api_keys:
             logger.info(f"{key.role.name} :\t {key.key}")
         logger.info(
-            "If these keys get compromised, make sure to delete api_tokens.yml and restart the server. Have fun!"
+            "If these keys get compromised, make sure to delete \
+                api_tokens.yml and restart the server. Have fun!"
         )
 
     def add_api_key(self, role: ROLE) -> API_KEY:
@@ -177,7 +178,8 @@ class AUTH_PROVIDER_CONTAINER:
 
         self.provider = provider_class()
 
-    # by returning a dynamic dependency we can have one function where we can specify what roles can access the endpoint
+    # by returning a dynamic dependency we can have one function
+    # where we can specify what roles can access the endpoint
     def check_api_key(self, role: ROLE):
         """Check if the API key is valid."""
 
@@ -185,22 +187,20 @@ class AUTH_PROVIDER_CONTAINER:
             x_api_key: str = Header(None), authorization: str = Header(None)
         ):
             if x_api_key:
-                if not self.provider.authenticate_api_key(x_api_key, role):
+                key = self.provider.authenticate_api_key(x_api_key, role)
+                if not key:
                     raise HTTPException(401, "Invalid API key")
-                return x_api_key
+                return key
 
             if authorization:
                 split_key = authorization.split(" ")
                 if len(split_key) < 2:
                     raise HTTPException(401, "Invalid API key")
-                if split_key[
-                    0
-                ].lower() != "bearer" or not self.provider.authenticate_api_key(
-                    split_key[1], role
-                ):
+                key = self.provider.authenticate_api_key(split_key[1], role)
+                if split_key[0].lower() != "bearer" or not key:
                     raise HTTPException(401, "Invalid API key")
 
-                return authorization
+                return key
 
             raise HTTPException(401, "Please provide an API key")
 
