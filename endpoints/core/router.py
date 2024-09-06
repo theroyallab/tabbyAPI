@@ -436,7 +436,7 @@ async def decode_tokens(data: TokenDecodeRequest) -> TokenDecodeResponse:
     "/v1/auth/permission",
     dependencies=[Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
 )
-async def key_permission(request: Request) -> AuthPermissionResponse:
+async def key_permission(request: Request, api_key: Annotated[str, Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],) -> AuthPermissionResponse:
     """
     Gets the access level/permission of a provided key in headers.
 
@@ -447,7 +447,7 @@ async def key_permission(request: Request) -> AuthPermissionResponse:
     """
 
     try:
-        permission = get_key_permission(request)
+        permission = auth.provider.check_api_key(api_key).role.name
         return AuthPermissionResponse(permission=permission)
     except ValueError as exc:
         error_message = handle_request_error(str(exc)).error.message

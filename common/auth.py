@@ -5,14 +5,13 @@ application, it should be fine.
 
 import secrets
 import yaml
-from fastapi import Header, HTTPException, Request
+from fastapi import Header, HTTPException
 from pydantic import BaseModel, Field
 from loguru import logger
-from typing import Optional, Union
+from typing import Union
 from enum import Flag, auto
 from abc import ABC, abstractmethod
 
-from common.utils import coalesce, unwrap
 
 __all__ = ["ROLE", "auth"]
 
@@ -32,22 +31,27 @@ class API_KEY(BaseModel):
 
 class AUTH_PROVIDER(ABC):
     @staticmethod
+    @abstractmethod
     def add_api_key(role: ROLE) -> API_KEY:
         """add an API key"""
 
     @staticmethod
+    @abstractmethod
     def set_api_key(role: ROLE, api_key: str) -> API_KEY:
         """add an existing API key"""
 
     @staticmethod
+    @abstractmethod
     def remove_api_key(api_key: str) -> bool:
         """remove an API key"""
 
     @staticmethod
+    @abstractmethod
     def check_api_key(api_key: str) -> Union[API_KEY, None]:
         """check if an API key is valid"""
 
     @staticmethod
+    @abstractmethod
     def authenticate_api_key(api_key: str, role: ROLE) -> bool:
         """check if an api key has ROLE"""
 
