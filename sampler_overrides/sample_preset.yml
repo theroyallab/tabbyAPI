@@ -97,6 +97,20 @@ penalty_range:
   override: -1
   force: false
 
+# MARK: DRY
+dry_multiplier:
+  override: 0.0
+  force: false
+dry_base:
+  override: 0.0
+  force: false
+dry_allowed_length:
+  override: 0
+  force: false
+dry_range:
+  override: 0
+  force: false
+
 # MARK: Mirostat
 mirostat_mode:
   override: 0

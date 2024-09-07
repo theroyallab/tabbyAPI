@@ -141,16 +141,16 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("repetition_decay", 0)
     )
 
-    dry_allowed_length: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("dry_allowed_length", 0)
+    dry_multiplier: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("dry_multiplier", 0.0)
     )
 
     dry_base: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("dry_base", 2.0)
+        default_factory=lambda: get_default_sampler_value("dry_base", 0.0)
     )
 
-    dry_multiplier: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("dry_multiplier", 2.0)
+    dry_allowed_length: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("dry_allowed_length", 0)
     )
 
     dry_range: Optional[int] = Field(
@@ -369,9 +369,9 @@ class BaseSamplerRequest(BaseModel):
             "presence_penalty": self.presence_penalty,
             "repetition_penalty": self.repetition_penalty,
             "penalty_range": self.penalty_range,
-            "dry_allowed_length": self.dry_allowed_length,
-            "dry_base": self.dry_base,
             "dry_multiplier": self.dry_multiplier,
+            "dry_base": self.dry_base,
+            "dry_allowed_length": self.dry_allowed_length,
             "dry_sequence_breakers": self.dry_sequence_breakers,
             "repetition_decay": self.repetition_decay,
             "mirostat": self.mirostat_mode == 2,

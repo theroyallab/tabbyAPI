@@ -1085,11 +1085,13 @@ class ExllamaV2Container:
 
         # < 0 = disabled
         if dry_multiplier > 0:
+            gen_settings.dry_multiplier = dry_multiplier
+
+            # TODO: Maybe set the "sane" defaults instead?
             gen_settings.dry_allowed_length = unwrap(
                 kwargs.get("dry_allowed_length"), 0
             )
-            gen_settings.dry_base = unwrap(kwargs.get("dry_base"), 2.0)
-            gen_settings.dry_multiplier = unwrap(kwargs.get("dry_multiplier"), 2.0)
+            gen_settings.dry_base = unwrap(kwargs.get("dry_base"), 0.0)
 
             # Exl2 has dry_range as 0 for unlimited unlike -1 for penalty_range
             # Use max_seq_len as the fallback to stay consistent
