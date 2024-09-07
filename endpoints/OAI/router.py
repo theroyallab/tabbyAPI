@@ -3,10 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
 from sys import maxsize
 
-from common import config, model
+from common import model
 from common.auth import check_api_key
 from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
+from common.tabby_config import config
 from common.utils import unwrap
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
 from endpoints.OAI.types.chat_completion import (
@@ -21,6 +22,7 @@ from endpoints.OAI.utils.chat_completion import (
 )
 from endpoints.OAI.utils.completion import (
     generate_completion,
+    load_inline_model,
     stream_generate_completion,
 )
 from endpoints.OAI.utils.embeddings import get_embeddings
@@ -41,7 +43,7 @@ def setup():
 # Completions endpoint
 @router.post(
     "/v1/completions",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[Depends(check_api_key)],
 )
 async def completion_request(
     request: Request, data: CompletionRequest
@@ -52,13 +54,18 @@ async def completion_request(
     If stream = true, this returns an SSE stream.
     """
 
+    if data.model:
+        await load_inline_model(data.model, request)
+    else:
+        await check_model_container()
+
     model_path = model.container.model_dir
 
     if isinstance(data.prompt, list):
         data.prompt = "\n".join(data.prompt)
 
     disable_request_streaming = unwrap(
-        config.developer_config().get("disable_request_streaming"), False
+        config.developer.get("disable_request_streaming"), False
     )
 
     # Set an empty JSON schema if the request wants a JSON response
@@ -86,7 +93,7 @@ async def completion_request(
 # Chat completions endpoint
 @router.post(
     "/v1/chat/completions",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[Depends(check_api_key)],
 )
 async def chat_completion_request(
     request: Request, data: ChatCompletionRequest
@@ -96,6 +103,11 @@ async def chat_completion_request(
 
     If stream = true, this returns an SSE stream.
     """
+
+    if data.model:
+        await load_inline_model(data.model, request)
+    else:
+        await check_model_container()
 
     if model.container.prompt_template is None:
         error_message = handle_request_error(
@@ -117,7 +129,7 @@ async def chat_completion_request(
         data.json_schema = {"type": "object"}
 
     disable_request_streaming = unwrap(
-        config.developer_config().get("disable_request_streaming"), False
+        config.developer.get("disable_request_streaming"), False
     )
 
     if data.stream and not disable_request_streaming:

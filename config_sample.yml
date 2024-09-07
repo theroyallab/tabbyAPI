@@ -83,6 +83,9 @@ model:
   # Enable this if the program is looking for a specific OAI model
   #use_dummy_models: False
 
+  # Allow direct loading of models from a completion or chat completion request
+  inline_model_loading: False
+
   # An initial model to load. Make sure the model is located in the model directory!
   # A model can be loaded later via the API.
   # REQUIRED: This must be filled out to load a model on startup!

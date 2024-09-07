@@ -10,8 +10,8 @@ from loguru import logger
 from rich.progress import Progress
 from typing import List, Optional
 
-from common.config import lora_config, model_config
 from common.logger import get_progress_bar
+from common.tabby_config import config
 from common.utils import unwrap
 
 
@@ -76,9 +76,9 @@ def _get_download_folder(repo_id: str, repo_type: str, folder_name: Optional[str
     """Gets the download folder for the repo."""
 
     if repo_type == "lora":
-        download_path = pathlib.Path(lora_config().get("lora_dir") or "loras")
+        download_path = pathlib.Path(config.lora.get("lora_dir") or "loras")
     else:
-        download_path = pathlib.Path(model_config().get("model_dir") or "models")
+        download_path = pathlib.Path(config.model.get("model_dir") or "models")
 
     download_path = download_path / (folder_name or repo_id.split("/")[-1])
     return download_path
