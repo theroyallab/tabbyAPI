@@ -153,10 +153,10 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("dry_multiplier", 2.0)
     )
 
-    # TODO: Remove these aliases
-    dry_max_ngram: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("dry_max_ngram", 20),
-        alias=AliasChoices("dry_max_ngram", "dry_penalty_last_n"),
+    dry_range: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("dry_range", 0),
+        alias=AliasChoices("dry_range", "dry_penalty_last_n"),
+        description=("Aliases: dry_penalty_last_n"),
     )
 
     dry_sequence_breakers: Optional[str] = Field(
@@ -371,7 +371,6 @@ class BaseSamplerRequest(BaseModel):
             "penalty_range": self.penalty_range,
             "dry_allowed_length": self.dry_allowed_length,
             "dry_base": self.dry_base,
-            "dry_max_ngram": self.dry_max_ngram,
             "dry_multiplier": self.dry_multiplier,
             "dry_sequence_breakers": self.dry_sequence_breakers,
             "repetition_decay": self.repetition_decay,

@@ -1081,14 +1081,21 @@ class ExllamaV2Container:
         )
 
         # DRY options
-        dry_allowed_length = unwrap(kwargs.get("dry_allowed_length"), 0)
+        dry_multiplier = unwrap(kwargs.get("dry_multiplier"), 0.0)
 
-        # 0 = disabled
-        if dry_allowed_length:
-            gen_settings.dry_allowed_length = dry_allowed_length
+        # < 0 = disabled
+        if dry_multiplier > 0:
+            gen_settings.dry_allowed_length = unwrap(
+                kwargs.get("dry_allowed_length"), 0
+            )
             gen_settings.dry_base = unwrap(kwargs.get("dry_base"), 2.0)
             gen_settings.dry_multiplier = unwrap(kwargs.get("dry_multiplier"), 2.0)
-            gen_settings.dry_max_ngram = unwrap(kwargs.get("dry_max_ngram"), 20)
+
+            # Exl2 has dry_range as 0 for unlimited unlike -1 for penalty_range
+            # Use max_seq_len as the fallback to stay consistent
+            gen_settings.dry_range = unwrap(
+                kwargs.get("dry_range"), self.config.max_seq_len
+            )
 
             # Tokenize sequence breakers
             dry_sequence_breakers_json = kwargs.get("dry_sequence_breakers")
