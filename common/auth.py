@@ -12,6 +12,7 @@ from typing import Union
 from enum import Flag, auto
 from abc import ABC, abstractmethod
 
+from common.utils import unwrap
 
 __all__ = ["ROLE", "auth"]
 
@@ -62,38 +63,31 @@ class SIMPLE_AUTH_PROVIDER(AUTH_PROVIDER):
     def __init__(self) -> None:
         try:
             with open("api_tokens.yml", "r", encoding="utf8") as auth_file:
-                keys_dict: dict = yaml.safe_load(auth_file)
+                keys_dict: dict = unwrap(yaml.safe_load(auth_file), {})
 
                 # load legacy keys
                 admin_key = keys_dict.get("admin_key")
                 if admin_key:
                     self.set_api_key(ROLE.ADMIN, admin_key)
 
-                admin_key = keys_dict.get("api_key")
-                if admin_key:
+                user_key = keys_dict.get("api_key")
+                if user_key:
                     self.set_api_key(ROLE.USER, admin_key)
 
                 # load new keys
-                admin_keys = keys_dict.get("admin_keys")
-                if admin_keys:
-                    for key in admin_keys:
-                        self.set_api_key(ROLE.ADMIN, key)
-
-                user_keys = keys_dict.get("user_keys")
-                if user_keys:
-                    for key in admin_keys:
-                        self.set_api_key(ROLE.ADMIN, key)
+                for role in ROLE :
+                    role_keys = keys_dict.get(f"{role.name.lower()}_keys")
+                    if role_keys:
+                        for key in role_keys:
+                            self.set_api_key(role, key)                    
 
         except FileNotFoundError:
-            file = {
-                "admin_keys": [
-                    self.add_api_key(ROLE.ADMIN),
-                ],
-                "user_keys": [
-                    self.add_api_key(ROLE.USER),
-                ],
-            }
+            file = {}
 
+            for role in ROLE :
+                file[f"{role.name.lower()}_keys"] = [self.add_api_key(role).key for i in range(3)]
+
+            print(file)
             with open("api_tokens.yml", "w", encoding="utf8") as auth_file:
                 yaml.safe_dump(file, auth_file, default_flow_style=False)
 
@@ -101,12 +95,12 @@ class SIMPLE_AUTH_PROVIDER(AUTH_PROVIDER):
         for key in self.api_keys:
             logger.info(f"{key.role.name} :\t {key.key}")
         logger.info(
-            "If these keys get compromised, make sure to delete \
-                api_tokens.yml and restart the server. Have fun!"
+            "If these keys get compromised, make sure to delete " +
+                "api_tokens.yml and restart the server. Have fun!"
         )
 
     def add_api_key(self, role: ROLE) -> API_KEY:
-        return self.set_api_key(key=secrets.token_hex(16), role=role)
+        return self.set_api_key(api_key=secrets.token_hex(16), role=role)
 
     def set_api_key(self, role: ROLE, api_key: str) -> API_KEY:
         key = API_KEY(key=api_key, role=role)
