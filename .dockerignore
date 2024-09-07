@@ -1,0 +1,20 @@
+.ruff_cache/
+**/__pycache__/
+venv
+.git
+.gitignore
+.github
+
+# Ignore specific application files
+models/
+loras/
+config.yml
+config_sample.yml
+api_tokens.yml
+api_tokens_sample.yml
+*.bat
+*.sh
+update_scripts
+readme.md
+colab
+start.py

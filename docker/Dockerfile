@@ -22,6 +22,8 @@ COPY pyproject.toml .
 # Install packages specified in pyproject.toml cu121
 RUN pip3 install --no-cache-dir .[cu121]
 
+RUN rm pyproject.toml
+
 # Copy the current directory contents into the container
 COPY . .
 
