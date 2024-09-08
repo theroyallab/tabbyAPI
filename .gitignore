@@ -192,7 +192,11 @@ templates/*
 !templates/place_your_templates_here.txt
 !templates/alpaca.jinja
 !templates/chatml.jinja
-!templates/chatml_with_headers_tool_calling.jinja
+
+# Tool calling templates folder
+templates/tool_calls/*
+!templates/tool_calls
+!templates/tool_calls/chatml_with_headers.jinja
 
 # Sampler overrides folder
 sampler_overrides/*

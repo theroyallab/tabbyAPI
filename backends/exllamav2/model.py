@@ -7,6 +7,7 @@ import pathlib
 import traceback
 import torch
 import uuid
+from copy import deepcopy
 from exllamav2 import (
     ExLlamaV2,
     ExLlamaV2Config,
@@ -400,19 +401,30 @@ class ExllamaV2Container:
         find_template_functions = [
             lambda: PromptTemplate.from_model_json(
                 pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
-                "chat_template",
+                key="chat_template",
             ),
             lambda: PromptTemplate.from_file(find_template_from_model(model_directory)),
         ]
 
+        # Find the template in the model directory if it exists
+        model_dir_template_path = (
+            pathlib.Path(self.config.model_dir) / "tabby_template.jinja"
+        )
+        if model_dir_template_path.exists():
+            find_template_functions[:0] = [
+                lambda: PromptTemplate.from_file(model_dir_template_path)
+            ]
+
         # Add lookup from prompt template name if provided
         if prompt_template_name:
             find_template_functions[:0] = [
-                lambda: PromptTemplate.from_file(prompt_template_name),
+                lambda: PromptTemplate.from_file(
+                    pathlib.Path("templates") / prompt_template_name
+                ),
                 lambda: PromptTemplate.from_model_json(
                     pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
-                    "chat_template",
-                    prompt_template_name,
+                    key="chat_template",
+                    name=prompt_template_name,
                 ),
             ]
 
@@ -944,6 +956,14 @@ class ExllamaV2Container:
         Meant for dev wheels!
         """
 
+        if unwrap(kwargs.get("dry_allowed_length"), 0) > 0 and not hasattr(
+            ExLlamaV2Sampler.Settings, "dry_multiplier"
+        ):
+            logger.warning(
+                "DRY sampling is not supported by the currently "
+                "installed ExLlamaV2 version."
+            )
+
         return kwargs
 
     async def generate_gen(
@@ -1035,6 +1055,7 @@ class ExllamaV2Container:
                     "Please use an ampere (30 series) or higher GPU for CFG support."
                 )
 
+        # Penalties
         gen_settings.token_repetition_penalty = unwrap(
             kwargs.get("repetition_penalty"), 1.0
         )
@@ -1069,6 +1090,32 @@ class ExllamaV2Container:
         gen_settings.token_repetition_decay = coalesce(
             kwargs.get("repetition_decay"), fallback_decay, 0
         )
+
+        # DRY options
+        dry_multiplier = unwrap(kwargs.get("dry_multiplier"), 0.0)
+
+        # < 0 = disabled
+        if dry_multiplier > 0:
+            gen_settings.dry_multiplier = dry_multiplier
+
+            # TODO: Maybe set the "sane" defaults instead?
+            gen_settings.dry_allowed_length = unwrap(
+                kwargs.get("dry_allowed_length"), 0
+            )
+            gen_settings.dry_base = unwrap(kwargs.get("dry_base"), 0.0)
+
+            # Exl2 has dry_range as 0 for unlimited unlike -1 for penalty_range
+            # Use max_seq_len as the fallback to stay consistent
+            gen_settings.dry_range = unwrap(
+                kwargs.get("dry_range"), self.config.max_seq_len
+            )
+
+            # Tokenize sequence breakers
+            dry_sequence_breakers_json = kwargs.get("dry_sequence_breakers")
+            if dry_sequence_breakers_json:
+                gen_settings.dry_sequence_breakers = {
+                    self.encode_tokens(s)[-1] for s in dry_sequence_breakers_json
+                }
 
         # Initialize grammar handler
         grammar_handler = ExLlamaV2Grammar()
@@ -1130,7 +1177,8 @@ class ExllamaV2Container:
             )
 
         # Store the gen settings for logging purposes
-        gen_settings_log_dict = vars(gen_settings)
+        # Deepcopy to save a snapshot of vars
+        gen_settings_log_dict = deepcopy(vars(gen_settings))
 
         # Set banned tokens
         banned_tokens = unwrap(kwargs.get("banned_tokens"), [])
