@@ -373,6 +373,7 @@ class BaseSamplerRequest(BaseModel):
             "dry_base": self.dry_base,
             "dry_allowed_length": self.dry_allowed_length,
             "dry_sequence_breakers": self.dry_sequence_breakers,
+            "dry_range": self.dry_range,
             "repetition_decay": self.repetition_decay,
             "mirostat": self.mirostat_mode == 2,
             "mirostat_tau": self.mirostat_tau,
