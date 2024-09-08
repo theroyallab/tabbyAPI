@@ -106,20 +106,26 @@ class PromptTemplate:
         self.template = self.compile(raw_template)
 
     @classmethod
-    def from_file(self, prompt_template_name: str):
+    def from_file(self, template_path: pathlib.Path):
         """Get a template from a jinja file."""
 
-        template_path = pathlib.Path(f"templates/{prompt_template_name}.jinja")
+        # Add the jinja extension if it isn't provided
+        if template_path.suffix.endswith(".jinja"):
+            template_name = template_path.name.split(".jinja")[0]
+        else:
+            template_name = template_path.name
+            template_path = template_path.with_suffix(".jinja")
+
         if template_path.exists():
             with open(template_path, "r", encoding="utf8") as raw_template_stream:
                 return PromptTemplate(
-                    name=prompt_template_name,
+                    name=template_name,
                     raw_template=raw_template_stream.read(),
                 )
         else:
             # Let the user know if the template file isn't found
             raise TemplateLoadError(
-                f'Chat template "{prompt_template_name}" not found in files.'
+                f'Chat template "{template_name}" not found in files.'
             )
 
     @classmethod

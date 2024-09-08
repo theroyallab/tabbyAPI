@@ -401,19 +401,30 @@ class ExllamaV2Container:
         find_template_functions = [
             lambda: PromptTemplate.from_model_json(
                 pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
-                "chat_template",
+                key="chat_template",
             ),
             lambda: PromptTemplate.from_file(find_template_from_model(model_directory)),
         ]
 
+        # Find the template in the model directory if it exists
+        model_dir_template_path = (
+            pathlib.Path(self.config.model_dir) / "tabby_template.jinja"
+        )
+        if model_dir_template_path.exists():
+            find_template_functions[:0] = [
+                lambda: PromptTemplate.from_file(model_dir_template_path)
+            ]
+
         # Add lookup from prompt template name if provided
         if prompt_template_name:
             find_template_functions[:0] = [
-                lambda: PromptTemplate.from_file(prompt_template_name),
+                lambda: PromptTemplate.from_file(
+                    pathlib.Path("templates") / prompt_template_name
+                ),
                 lambda: PromptTemplate.from_model_json(
                     pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
-                    "chat_template",
-                    prompt_template_name,
+                    key="chat_template",
+                    name=prompt_template_name,
                 ),
             ]
 
