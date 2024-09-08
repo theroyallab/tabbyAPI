@@ -103,7 +103,7 @@ async def list_draft_models(request: Request) -> ModelList:
 
         models = get_model_list(draft_model_path.resolve())
     else:
-        models = await get_current_model_list(is_draft=True)
+        models = await get_current_model_list(model_type="draft")
 
     return models
 
