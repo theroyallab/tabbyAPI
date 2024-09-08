@@ -5,6 +5,7 @@ import pathlib
 from importlib.metadata import version as package_version
 from typing import List, Optional
 from jinja2 import Template, TemplateError
+from jinja2.ext import loopcontrols
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from loguru import logger
 from packaging import version
@@ -32,7 +33,10 @@ class PromptTemplate:
     raw_template: str
     template: Template
     environment: ImmutableSandboxedEnvironment = ImmutableSandboxedEnvironment(
-        trim_blocks=True, lstrip_blocks=True, enable_async=True
+        trim_blocks=True,
+        lstrip_blocks=True,
+        enable_async=True,
+        extensions=[loopcontrols],
     )
     metadata: Optional[TemplateMetadata] = None
 
