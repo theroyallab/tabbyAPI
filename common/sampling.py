@@ -159,7 +159,7 @@ class BaseSamplerRequest(BaseModel):
         description=("Aliases: dry_penalty_last_n"),
     )
 
-    dry_sequence_breakers: Optional[str] = Field(
+    dry_sequence_breakers: Optional[Union[str, List[str]]] = Field(
         default_factory=lambda: get_default_sampler_value("dry_sequence_breakers", [])
     )
 
@@ -330,7 +330,7 @@ class BaseSamplerRequest(BaseModel):
 
         # Convert sequence breakers into an array of strings
         # NOTE: This sampler sucks to parse.
-        if self.dry_sequence_breakers:
+        if self.dry_sequence_breakers and isinstance(self.dry_sequence_breakers, str):
             if not self.dry_sequence_breakers.startswith("["):
                 self.dry_sequence_breakers = f"[{self.dry_sequence_breakers}]"
 

@@ -110,6 +110,10 @@ dry_allowed_length:
 dry_range:
   override: 0
   force: false
+dry_sequence_breakers:
+  override: []
+  force: false
+  additive: false
 
 # MARK: Mirostat
 mirostat_mode:
