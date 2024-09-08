@@ -58,7 +58,9 @@ Argument Types: Use correct data types for arguments (e.g., strings in quotes, n
     {%- set content = message['content'] | default('', true) | trim -%}
     {%- if loop.first -%}
 {{ bos_token }}{{ start_header }}{{ role }}{{ end_header }}
-{{ inital_system_prompt }}
+{%- if 'tools_json' in message and message['tools_json'] -%}
+    {{ inital_system_prompt }}
+{%- endif -%}
 
 {{ content }}{{ eos_token }}
     {%- endif -%}

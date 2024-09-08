@@ -1,0 +1,68 @@
+{# Metadata #} 
+{% set stop_strings = ["<|im_start|>", "<|im_end|>"] %}
+{% set message_roles = ['system', 'user', 'assistant', 'tool'] %}
+{% set tool_start = "<tool_call>" %}
+{% set tool_end = "</tool_call>" %}
+{% set response_start = "<tool_response>" %}
+{% set response_end = "</tool_response>" %}
+{% set sys_prompt = "" %}
+
+
+{%- set inital_system_prompt -%}
+You are a function calling AI model. You are provided with function signatures within <tools></tools> XML tags. You may call one or more functions to assist with the user query. Don't make assumptions about what values to plug into functions. Here are the available tools: <tools> {{ tools_json }} </tools> Use the following pydantic model json schema for each tool call you will make: {"properties": {"arguments": {"title": "Arguments", "type": "object"}, "name": {"title": "Name", "type": "string"}}, "required": ["arguments", "name"], "title": "FunctionCall", "type": "object"} For each function call return a json object with function name and arguments within <tool_call></tool_call> XML tags as follows:
+{{  tool_start  }}
+{"name": <function-name>, "arguments": <args-dict>}
+{{  tool_end  }}{{ eos_token }}
+{%- endset -%}
+
+{%- set tool_reminder -%}Available Tools:
+{{ tools_json }}
+
+Tool Call Format Example:
+{{ tool_start }}{{ example_tool_call }}
+
+Prefix & Suffix: Begin tool calls with {{ tool_start }} and end with {{ tool_end }}.
+Argument Types: Use correct data types for arguments (e.g., strings in quotes, numbers without).
+{%- endset -%}
+
+{# Template #}
+
+{%- for message in messages -%}
+    {%- set role = message['role'] | lower -%}
+    {%- if role not in message_roles -%}
+        {{ raise_exception('Invalid role ' + message['role'] + '. Only ' + message_roles | join(', ') + ' are supported.') }}
+    {%- endif -%}
+    {%- set content = message['content'] | default('', true) | trim -%}
+    {%- if loop.first and role == "system" -%}
+        {%- set sys_prompt = content -%}
+    {%- endif -%}
+    {%- if not loop.first -%}
+        {%- if role == 'tool' -%}
+{{ role }}
+{{ response_start}}
+{{ content }}
+{{ response_end}}
+        {%- else -%}
+{{ role }}
+{{ content }}
+        {%- endif -%}
+    {%- endif -%}
+    {%- if 'tool_calls_json' in message and message['tool_calls_json'] -%}
+{{ tool_start }}
+{{ message['tool_calls_json']}}
+{{ tool_end }}
+    {%- endif -%}
+{{ eos_token }}
+{%- endfor -%}
+
+{{ role }}
+{{ inital_system_prompt }}
+
+{{ sys_prompt }}{{ eos_token }}
+
+{%- if tool_precursor -%}
+assistant
+{{ tool_precursor }}{{ tool_start }}
+{%- else -%}
+assistant
+{%- endif -%}

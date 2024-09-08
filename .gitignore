@@ -197,6 +197,7 @@ templates/*
 templates/tool_calls/*
 !templates/tool_calls
 !templates/tool_calls/chatml_with_headers.jinja
+!templates/tool_calls/hermes3_jitsys.jinja
 
 # Sampler overrides folder
 sampler_overrides/*
