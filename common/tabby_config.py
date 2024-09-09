@@ -61,7 +61,7 @@ class TabbyConfig:
         config_override = unwrap(args.get("options", {}).get("config"))
         if config_override:
             logger.info("Config file override detected in args.")
-            config = self.from_file(pathlib.Path(config_override))
+            config = self._from_file(pathlib.Path(config_override))
             return config  # Return early if loading from file
 
         for key in ["network", "model", "logging", "developer", "embeddings"]:
