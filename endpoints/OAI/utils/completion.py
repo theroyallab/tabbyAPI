@@ -129,7 +129,7 @@ async def load_inline_model(model_name: str, request: Request):
     if not unwrap(config.model.get("inline_model_loading"), False):
         logger.warning(
             f"Unable to switch model to {model_name} because "
-            '"inline_model_load" is not True in config.yml.'
+            '"inline_model_loading" is not True in config.yml.'
         )
 
         return
