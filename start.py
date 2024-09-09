@@ -234,15 +234,15 @@ if __name__ == "__main__":
     if first_run:
         start_options["first_run_done"] = True
 
-    # Save start options
-    with open("start_options.json", "w") as start_file:
-        start_file.write(json.dumps(start_options))
+        # Save start options
+        with open("start_options.json", "w") as start_file:
+            start_file.write(json.dumps(start_options))
 
-        print(
-            "Successfully wrote your start script options to `start_options.json`. \n"
-            "If something goes wrong, editing or deleting the file "
-            "will reinstall TabbyAPI as a first-time user."
-        )
+            print(
+                "Successfully wrote your start script options to `start_options.json`. \n"
+                "If something goes wrong, editing or deleting the file "
+                "will reinstall TabbyAPI as a first-time user."
+            )
 
     # Import entrypoint after installing all requirements
     try:
