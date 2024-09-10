@@ -445,7 +445,8 @@ async def switch_template(data: TemplateSwitchRequest):
         raise HTTPException(400, error_message)
 
     try:
-        model.container.prompt_template = PromptTemplate.from_file(data.name)
+        template_path = pathlib.Path("templates") / data.name
+        model.container.prompt_template = PromptTemplate.from_file(template_path)
     except FileNotFoundError as e:
         error_message = handle_request_error(
             f"The template name {data.name} doesn't exist. Check the spelling?",
