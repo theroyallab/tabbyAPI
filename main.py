@@ -50,7 +50,7 @@ async def entrypoint_async():
             port = fallback_port
 
     # Initialize auth keys
-    load_auth_keys(unwrap(config.network.get("disable_auth"), False))
+    await load_auth_keys(unwrap(config.network.get("disable_auth"), False))
 
     # Override the generation log options if given
     if config.logging:
@@ -62,7 +62,7 @@ async def entrypoint_async():
     sampling_override_preset = config.sampling.get("override_preset")
     if sampling_override_preset:
         try:
-            sampling.overrides_from_file(sampling_override_preset)
+            await sampling.overrides_from_file(sampling_override_preset)
         except FileNotFoundError as e:
             logger.warning(str(e))
 

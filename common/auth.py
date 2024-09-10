@@ -3,6 +3,7 @@ This method of authorization is pretty insecure, but since TabbyAPI is a local
 application, it should be fine.
 """
 
+import aiofiles
 import secrets
 import yaml
 from fastapi import Header, HTTPException, Request
@@ -40,7 +41,7 @@ AUTH_KEYS: Optional[AuthKeys] = None
 DISABLE_AUTH: bool = False
 
 
-def load_auth_keys(disable_from_config: bool):
+async def load_auth_keys(disable_from_config: bool):
     """Load the authentication keys from api_tokens.yml. If the file does not
     exist, generate new keys and save them to api_tokens.yml."""
     global AUTH_KEYS
@@ -57,8 +58,9 @@ def load_auth_keys(disable_from_config: bool):
         return
 
     try:
-        with open("api_tokens.yml", "r", encoding="utf8") as auth_file:
-            auth_keys_dict = yaml.safe_load(auth_file)
+        async with aiofiles.open("api_tokens.yml", "r", encoding="utf8") as auth_file:
+            contents = await auth_file.read()
+            auth_keys_dict = yaml.safe_load(contents)
             AUTH_KEYS = AuthKeys.model_validate(auth_keys_dict)
     except FileNotFoundError:
         new_auth_keys = AuthKeys(
@@ -66,8 +68,11 @@ def load_auth_keys(disable_from_config: bool):
         )
         AUTH_KEYS = new_auth_keys
 
-        with open("api_tokens.yml", "w", encoding="utf8") as auth_file:
-            yaml.safe_dump(AUTH_KEYS.model_dump(), auth_file, default_flow_style=False)
+        async with aiofiles.open("api_tokens.yml", "w", encoding="utf8") as auth_file:
+            new_auth_yaml = yaml.safe_dump(
+                AUTH_KEYS.model_dump(), default_flow_style=False
+            )
+            await auth_file.write(new_auth_yaml)
 
     logger.info(
         f"Your API key is: {AUTH_KEYS.api_key}\n"

@@ -17,7 +17,7 @@ class TabbyConfig:
     embeddings: dict = {}
 
     def load(self, arguments: Optional[dict] = None):
-        """load the global application config"""
+        """Synchronously loads the global application config"""
 
         # config is applied in order of items in the list
         configs = [

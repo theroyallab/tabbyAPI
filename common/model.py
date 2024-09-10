@@ -67,7 +67,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         logger.info("Unloading existing model.")
         await unload_model()
 
-    container = ExllamaV2Container(model_path.resolve(), False, **kwargs)
+    container = await ExllamaV2Container.create(model_path.resolve(), False, **kwargs)
 
     model_type = "draft" if container.draft_config else "model"
     load_status = container.load_gen(load_progress, **kwargs)
