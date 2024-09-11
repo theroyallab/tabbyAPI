@@ -16,7 +16,7 @@ class GenerationConfig(BaseModel):
     bad_words_ids: Optional[List[List[int]]] = None
 
     @classmethod
-    async def from_file(self, model_directory: pathlib.Path):
+    async def from_file(cls, model_directory: pathlib.Path):
         """Create an instance from a generation config file."""
 
         generation_config_path = model_directory / "generation_config.json"
@@ -24,7 +24,7 @@ class GenerationConfig(BaseModel):
             generation_config_path, "r", encoding="utf8"
         ) as generation_config_json:
             generation_config_dict = json.load(generation_config_json)
-            return self.model_validate(generation_config_dict)
+            return cls.model_validate(generation_config_dict)
 
     def eos_tokens(self):
         """Wrapper method to fetch EOS tokens."""
@@ -44,7 +44,7 @@ class HuggingFaceConfig(BaseModel):
     badwordsids: Optional[str] = None
 
     @classmethod
-    async def from_file(self, model_directory: pathlib.Path):
+    async def from_file(cls, model_directory: pathlib.Path):
         """Create an instance from a generation config file."""
 
         hf_config_path = model_directory / "config.json"
@@ -53,7 +53,7 @@ class HuggingFaceConfig(BaseModel):
         ) as hf_config_json:
             contents = await hf_config_json.read()
             hf_config_dict = json.loads(contents)
-            return self.model_validate(hf_config_dict)
+            return cls.model_validate(hf_config_dict)
 
     def get_badwordsids(self):
         """Wrapper method to fetch badwordsids."""

@@ -111,7 +111,7 @@ class PromptTemplate:
         self.template = self.compile(raw_template)
 
     @classmethod
-    async def from_file(self, template_path: pathlib.Path):
+    async def from_file(cls, template_path: pathlib.Path):
         """Get a template from a jinja file."""
 
         # Add the jinja extension if it isn't provided
@@ -126,7 +126,7 @@ class PromptTemplate:
                 template_path, "r", encoding="utf8"
             ) as raw_template_stream:
                 contents = await raw_template_stream.read()
-                return PromptTemplate(
+                return cls(
                     name=template_name,
                     raw_template=contents,
                 )
@@ -138,7 +138,7 @@ class PromptTemplate:
 
     @classmethod
     async def from_model_json(
-        self, json_path: pathlib.Path, key: str, name: Optional[str] = None
+        cls, json_path: pathlib.Path, key: str, name: Optional[str] = None
     ):
         """Get a template from a JSON file. Requires a key and template name"""
         if not json_path.exists():
@@ -177,7 +177,7 @@ class PromptTemplate:
                     )
             else:
                 # Can safely assume the chat template is the old style
-                return PromptTemplate(
+                return cls(
                     name="from_tokenizer_config",
                     raw_template=chat_template,
                 )
