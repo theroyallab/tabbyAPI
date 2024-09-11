@@ -14,7 +14,7 @@ from typing import List, Union
 from loguru import logger
 
 from common import model
-from common.auth import get_key_permission
+from common.auth import ROLE
 from common.networking import (
     get_generator_error,
     handle_request_disconnect,
@@ -109,7 +109,7 @@ async def _stream_collector(
         await gen_queue.put(e)
 
 
-async def load_inline_model(model_name: str, request: Request):
+async def load_inline_model(model_name: str, user_role: ROLE):
     """Load a model from the data.model parameter"""
 
     # Return if the model container already exists
@@ -117,7 +117,7 @@ async def load_inline_model(model_name: str, request: Request):
         return
 
     # Inline model loading isn't enabled or the user isn't an admin
-    if not get_key_permission(request) == "admin":
+    if user_role == ROLE.ADMIN:
         error_message = handle_request_error(
             f"Unable to switch model to {model_name} because "
             + "an admin key isn't provided",

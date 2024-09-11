@@ -1,11 +1,12 @@
 import asyncio
 import pathlib
+from typing import Annotated
 from sys import maxsize
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
 
 from common import model, sampling
-from common.auth import check_admin_key, check_api_key, get_key_permission
+from common.auth import auth, ROLE
 from common.downloader import hf_repo_download
 from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
@@ -53,9 +54,12 @@ async def healthcheck():
 
 
 # Model list endpoint
-@router.get("/v1/models", dependencies=[Depends(check_api_key)])
-@router.get("/v1/model/list", dependencies=[Depends(check_api_key)])
-async def list_models(request: Request) -> ModelList:
+@router.get("/v1/models")
+@router.get("/v1/model/list")
+async def list_models(
+    request: Request,
+    user_role: Annotated[ROLE, Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
+) -> ModelList:
     """
     Lists all models in the model directory.
 
@@ -67,7 +71,7 @@ async def list_models(request: Request) -> ModelList:
 
     draft_model_dir = config.draft_model.get("draft_model_dir")
 
-    if get_key_permission(request) == "admin":
+    if user_role == ROLE.ADMIN:
         models = get_model_list(model_path.resolve(), draft_model_dir)
     else:
         models = await get_current_model_list()
@@ -81,7 +85,10 @@ async def list_models(request: Request) -> ModelList:
 # Currently loaded model endpoint
 @router.get(
     "/v1/model",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def current_model() -> ModelCard:
     """Returns the currently loaded model."""
@@ -89,15 +96,20 @@ async def current_model() -> ModelCard:
     return get_current_model()
 
 
-@router.get("/v1/model/draft/list", dependencies=[Depends(check_api_key)])
-async def list_draft_models(request: Request) -> ModelList:
+@router.get(
+    "/v1/model/draft/list",
+)
+async def list_draft_models(
+    request: Request,
+    user_role: Annotated[ROLE, Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
+) -> ModelList:
     """
     Lists all draft models in the model directory.
 
     Requires an admin key to see all draft models.
     """
 
-    if get_key_permission(request) == "admin":
+    if user_role == ROLE.ADMIN:
         draft_model_dir = unwrap(config.draft_model.get("draft_model_dir"), "models")
         draft_model_path = pathlib.Path(draft_model_dir)
 
@@ -109,7 +121,7 @@ async def list_draft_models(request: Request) -> ModelList:
 
 
 # Load model endpoint
-@router.post("/v1/model/load", dependencies=[Depends(check_admin_key)])
+@router.post("/v1/model/load", dependencies=[Depends(auth.check_api_key(ROLE.ADMIN))])
 async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
     """Loads a model into the model container. This returns an SSE stream."""
 
@@ -153,14 +165,17 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
 # Unload model endpoint
 @router.post(
     "/v1/model/unload",
-    dependencies=[Depends(check_admin_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def unload_model():
     """Unloads the currently loaded model."""
     await model.unload_model(skip_wait=True)
 
 
-@router.post("/v1/download", dependencies=[Depends(check_admin_key)])
+@router.post("/v1/download", dependencies=[Depends(auth.check_api_key(ROLE.ADMIN))])
 async def download_model(request: Request, data: DownloadRequest) -> DownloadResponse:
     """Downloads a model from HuggingFace."""
 
@@ -182,16 +197,19 @@ async def download_model(request: Request, data: DownloadRequest) -> DownloadRes
 
 
 # Lora list endpoint
-@router.get("/v1/loras", dependencies=[Depends(check_api_key)])
-@router.get("/v1/lora/list", dependencies=[Depends(check_api_key)])
-async def list_all_loras(request: Request) -> LoraList:
+@router.get("/v1/loras")
+@router.get("/v1/lora/list")
+async def list_all_loras(
+    request: Request,
+    user_role: Annotated[ROLE, Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
+) -> LoraList:
     """
     Lists all LoRAs in the lora directory.
 
     Requires an admin key to see all LoRAs.
     """
 
-    if get_key_permission(request) == "admin":
+    if user_role == ROLE.ADMIN:
         lora_path = pathlib.Path(unwrap(config.lora.get("lora_dir"), "loras"))
         loras = get_lora_list(lora_path.resolve())
     else:
@@ -203,7 +221,10 @@ async def list_all_loras(request: Request) -> LoraList:
 # Currently loaded loras endpoint
 @router.get(
     "/v1/lora",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def active_loras() -> LoraList:
     """Returns the currently loaded loras."""
@@ -214,7 +235,10 @@ async def active_loras() -> LoraList:
 # Load lora endpoint
 @router.post(
     "/v1/lora/load",
-    dependencies=[Depends(check_admin_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def load_lora(data: LoraLoadRequest) -> LoraLoadResponse:
     """Loads a LoRA into the model container."""
@@ -249,7 +273,10 @@ async def load_lora(data: LoraLoadRequest) -> LoraLoadResponse:
 # Unload lora endpoint
 @router.post(
     "/v1/lora/unload",
-    dependencies=[Depends(check_admin_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def unload_loras():
     """Unloads the currently loaded loras."""
@@ -257,15 +284,18 @@ async def unload_loras():
     await model.unload_loras()
 
 
-@router.get("/v1/model/embedding/list", dependencies=[Depends(check_api_key)])
-async def list_embedding_models(request: Request) -> ModelList:
+@router.get("/v1/model/embedding/list")
+async def list_embedding_models(
+    request: Request,
+    user_role: Annotated[ROLE, Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
+) -> ModelList:
     """
     Lists all embedding models in the model directory.
 
     Requires an admin key to see all embedding models.
     """
 
-    if get_key_permission(request) == "admin":
+    if user_role == ROLE.ADMIN:
         embedding_model_dir = unwrap(
             config.embeddings.get("embedding_model_dir"), "models"
         )
@@ -280,7 +310,10 @@ async def list_embedding_models(request: Request) -> ModelList:
 
 @router.get(
     "/v1/model/embedding",
-    dependencies=[Depends(check_api_key), Depends(check_embeddings_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_embeddings_container),
+    ],
 )
 async def get_embedding_model() -> ModelCard:
     """Returns the currently loaded embedding model."""
@@ -289,7 +322,9 @@ async def get_embedding_model() -> ModelCard:
     return models.data[0]
 
 
-@router.post("/v1/model/embedding/load", dependencies=[Depends(check_admin_key)])
+@router.post(
+    "/v1/model/embedding/load", dependencies=[Depends(auth.check_api_key(ROLE.ADMIN))]
+)
 async def load_embedding_model(
     request: Request, data: EmbeddingModelLoadRequest
 ) -> ModelLoadResponse:
@@ -337,7 +372,10 @@ async def load_embedding_model(
 
 @router.post(
     "/v1/model/embedding/unload",
-    dependencies=[Depends(check_admin_key), Depends(check_embeddings_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.ADMIN)),
+        Depends(check_embeddings_container),
+    ],
 )
 async def unload_embedding_model():
     """Unloads the current embedding model."""
@@ -348,7 +386,10 @@ async def unload_embedding_model():
 # Encode tokens endpoint
 @router.post(
     "/v1/token/encode",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def encode_tokens(data: TokenEncodeRequest) -> TokenEncodeResponse:
     """Encodes a string or chat completion messages into tokens."""
@@ -378,7 +419,10 @@ async def encode_tokens(data: TokenEncodeRequest) -> TokenEncodeResponse:
 # Decode tokens endpoint
 @router.post(
     "/v1/token/decode",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def decode_tokens(data: TokenDecodeRequest) -> TokenDecodeResponse:
     """Decodes tokens into a string."""
@@ -389,8 +433,13 @@ async def decode_tokens(data: TokenDecodeRequest) -> TokenDecodeResponse:
     return response
 
 
-@router.get("/v1/auth/permission", dependencies=[Depends(check_api_key)])
-async def key_permission(request: Request) -> AuthPermissionResponse:
+@router.get(
+    "/v1/auth/permission",
+)
+async def key_permission(
+    request: Request,
+    user_role: Annotated[ROLE, Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
+) -> AuthPermissionResponse:
     """
     Gets the access level/permission of a provided key in headers.
 
@@ -401,17 +450,19 @@ async def key_permission(request: Request) -> AuthPermissionResponse:
     """
 
     try:
-        permission = get_key_permission(request)
-        return AuthPermissionResponse(permission=permission)
+        return AuthPermissionResponse(permission=user_role)
     except ValueError as exc:
         error_message = handle_request_error(str(exc)).error.message
 
         raise HTTPException(400, error_message) from exc
 
 
-@router.get("/v1/templates", dependencies=[Depends(check_api_key)])
-@router.get("/v1/template/list", dependencies=[Depends(check_api_key)])
-async def list_templates(request: Request) -> TemplateList:
+@router.get("/v1/templates")
+@router.get("/v1/template/list")
+async def list_templates(
+    request: Request,
+    user_role: Annotated[ROLE, Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
+) -> TemplateList:
     """
     Get a list of all templates.
 
@@ -419,7 +470,7 @@ async def list_templates(request: Request) -> TemplateList:
     """
 
     template_strings = []
-    if get_key_permission(request) == "admin":
+    if user_role == ROLE.ADMIN:
         templates = get_all_templates()
         template_strings = [template.stem for template in templates]
     else:
@@ -431,7 +482,10 @@ async def list_templates(request: Request) -> TemplateList:
 
 @router.post(
     "/v1/template/switch",
-    dependencies=[Depends(check_admin_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def switch_template(data: TemplateSwitchRequest):
     """Switch the currently loaded template."""
@@ -457,7 +511,10 @@ async def switch_template(data: TemplateSwitchRequest):
 
 @router.post(
     "/v1/template/unload",
-    dependencies=[Depends(check_admin_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def unload_template():
     """Unloads the currently selected template"""
@@ -466,16 +523,23 @@ async def unload_template():
 
 
 # Sampler override endpoints
-@router.get("/v1/sampling/overrides", dependencies=[Depends(check_api_key)])
-@router.get("/v1/sampling/override/list", dependencies=[Depends(check_api_key)])
-async def list_sampler_overrides(request: Request) -> SamplerOverrideListResponse:
+@router.get(
+    "/v1/sampling/overrides",
+)
+@router.get(
+    "/v1/sampling/override/list",
+)
+async def list_sampler_overrides(
+    request: Request,
+    user_role: Annotated[ROLE, Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN))],
+) -> SamplerOverrideListResponse:
     """
     List all currently applied sampler overrides.
 
     Requires an admin key to see all override presets.
     """
 
-    if get_key_permission(request) == "admin":
+    if user_role == ROLE.ADMIN:
         presets = sampling.get_all_presets()
     else:
         presets = []
@@ -487,7 +551,7 @@ async def list_sampler_overrides(request: Request) -> SamplerOverrideListRespons
 
 @router.post(
     "/v1/sampling/override/switch",
-    dependencies=[Depends(check_admin_key)],
+    dependencies=[Depends(auth.check_api_key(ROLE.ADMIN))],
 )
 async def switch_sampler_override(data: SamplerOverrideSwitchRequest):
     """Switch the currently loaded override preset"""
@@ -516,7 +580,7 @@ async def switch_sampler_override(data: SamplerOverrideSwitchRequest):
 
 @router.post(
     "/v1/sampling/override/unload",
-    dependencies=[Depends(check_admin_key)],
+    dependencies=[Depends(auth.check_api_key(ROLE.ADMIN))],
 )
 async def unload_sampler_override():
     """Unloads the currently selected override preset"""

@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request
 from sse_starlette import EventSourceResponse
 
 from common import model
-from common.auth import check_api_key
+from common.auth import auth, ROLE
 from common.model import check_model_container
 from common.utils import unwrap
 from endpoints.core.utils.model import get_current_model
@@ -45,7 +45,10 @@ def setup():
 
 @kai_router.post(
     "/generate",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def generate(request: Request, data: GenerateRequest) -> GenerateResponse:
     response = await get_generation(data, request)
@@ -55,7 +58,10 @@ async def generate(request: Request, data: GenerateRequest) -> GenerateResponse:
 
 @extra_kai_router.post(
     "/generate/stream",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def generate_stream(request: Request, data: GenerateRequest) -> GenerateResponse:
     response = EventSourceResponse(stream_generation(data, request), ping=maxsize)
@@ -65,7 +71,10 @@ async def generate_stream(request: Request, data: GenerateRequest) -> GenerateRe
 
 @extra_kai_router.post(
     "/abort",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def abort_generate(data: AbortRequest) -> AbortResponse:
     response = await abort_generation(data.genkey)
@@ -75,11 +84,17 @@ async def abort_generate(data: AbortRequest) -> AbortResponse:
 
 @extra_kai_router.get(
     "/generate/check",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 @extra_kai_router.post(
     "/generate/check",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def check_generate(data: CheckGenerateRequest) -> GenerateResponse:
     response = await generation_status(data.genkey)
@@ -88,7 +103,11 @@ async def check_generate(data: CheckGenerateRequest) -> GenerateResponse:
 
 
 @kai_router.get(
-    "/model", dependencies=[Depends(check_api_key), Depends(check_model_container)]
+    "/model",
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def current_model() -> CurrentModelResponse:
     """Fetches the current model and who owns it."""
@@ -99,7 +118,10 @@ async def current_model() -> CurrentModelResponse:
 
 @extra_kai_router.post(
     "/tokencount",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def get_tokencount(data: TokenCountRequest) -> TokenCountResponse:
     raw_tokens = model.container.encode_tokens(data.prompt)
@@ -109,15 +131,24 @@ async def get_tokencount(data: TokenCountRequest) -> TokenCountResponse:
 
 @kai_router.get(
     "/config/max_length",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 @kai_router.get(
     "/config/max_context_length",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 @extra_kai_router.get(
     "/true_max_context_length",
-    dependencies=[Depends(check_api_key), Depends(check_model_container)],
+    dependencies=[
+        Depends(auth.check_api_key(ROLE.USER | ROLE.ADMIN)),
+        Depends(check_model_container),
+    ],
 )
 async def get_max_length() -> MaxLengthResponse:
     """Fetches the max length of the model."""

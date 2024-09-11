@@ -11,7 +11,7 @@ from typing import Optional
 
 from common import gen_logging, sampling, model
 from common.args import convert_args_to_dict, init_argparser
-from common.auth import load_auth_keys
+from common.auth import auth
 from common.logger import setup_logger
 from common.networking import is_port_in_use
 from common.signals import signal_handler
@@ -50,7 +50,7 @@ async def entrypoint_async():
             port = fallback_port
 
     # Initialize auth keys
-    load_auth_keys(unwrap(config.network.get("disable_auth"), False))
+    auth.load(unwrap(config.network.get("disable_auth"), False))
 
     # Override the generation log options if given
     if config.logging:
