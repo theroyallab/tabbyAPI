@@ -10,7 +10,6 @@ import common.config_models
 
 
 class TabbyConfig(tabby_config_model):
-
     # Persistent defaults
     # TODO: make this pydantic?
     model_defaults: dict = {}
