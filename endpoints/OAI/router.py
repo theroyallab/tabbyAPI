@@ -8,7 +8,6 @@ from common.auth import check_api_key
 from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.tabby_config import config
-from common.utils import unwrap
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionRequest,

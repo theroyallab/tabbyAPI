@@ -8,7 +8,6 @@ from loguru import logger
 from common.logger import UVICORN_LOG_CONFIG
 from common.networking import get_global_depends
 from common.tabby_config import config
-from common.utils import unwrap
 from endpoints.Kobold import router as KoboldRouter
 from endpoints.OAI import router as OAIRouter
 from endpoints.core.router import router as CoreRouter

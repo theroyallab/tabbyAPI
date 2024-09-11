@@ -1,8 +1,7 @@
 """Argparser for overriding config values"""
 
 import argparse
-from typing import get_origin, get_args, Optional, Union, List
-from pydantic import BaseModel
+from typing import get_origin, get_args, Union, List
 from common.tabby_config import config
 
 

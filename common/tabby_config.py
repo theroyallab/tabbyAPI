@@ -1,7 +1,7 @@
 import yaml
 import pathlib
 from loguru import logger
-from typing import Optional, Union, get_origin, get_args
+from typing import Optional
 from os import getenv
 
 from common.utils import unwrap, merge_dicts

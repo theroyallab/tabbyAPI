@@ -11,7 +11,6 @@ from typing import Optional
 from uuid import uuid4
 
 from common.tabby_config import config
-from common.utils import unwrap
 
 
 class TabbyRequestErrorMessage(BaseModel):

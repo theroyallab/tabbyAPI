@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from typing import List, Optional, Union, get_type_hints
+from typing import List, Optional, Union
 
 from common.utils import unwrap
 

@@ -16,7 +16,6 @@ from common.logger import setup_logger
 from common.networking import is_port_in_use
 from common.signals import signal_handler
 from common.tabby_config import config
-from common.utils import unwrap
 from endpoints.server import export_openapi, start_api
 from endpoints.utils import do_export_openapi
 
