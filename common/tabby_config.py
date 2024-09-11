@@ -7,6 +7,9 @@ from common.utils import unwrap, merge_dicts
 
 
 class TabbyConfig:
+    """Common config class for TabbyAPI. Loaded into sub-dictionaries from YAML file."""
+
+    # Sub-blocks of yaml
     network: dict = {}
     logging: dict = {}
     model: dict = {}
@@ -15,6 +18,9 @@ class TabbyConfig:
     sampling: dict = {}
     developer: dict = {}
     embeddings: dict = {}
+
+    # Persistent defaults
+    model_defaults: dict = {}
 
     def load(self, arguments: Optional[dict] = None):
         """Synchronously loads the global application config"""
@@ -35,6 +41,14 @@ class TabbyConfig:
         self.sampling = unwrap(merged_config.get("sampling"), {})
         self.developer = unwrap(merged_config.get("developer"), {})
         self.embeddings = unwrap(merged_config.get("embeddings"), {})
+
+        # Set model defaults dict once to prevent on-demand reconstruction
+        default_keys = unwrap(self.model.get("use_as_default"), [])
+        for key in default_keys:
+            if key in self.model:
+                self.model_defaults[key] = config.model[key]
+            elif key in self.draft_model:
+                self.model_defaults[key] = config.draft_model[key]
 
     def _from_file(self, config_path: pathlib.Path):
         """loads config from a given file path"""
