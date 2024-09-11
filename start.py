@@ -239,7 +239,8 @@ if __name__ == "__main__":
             start_file.write(json.dumps(start_options))
 
             print(
-                "Successfully wrote your start script options to `start_options.json`. \n"
+                "Successfully wrote your start script options to "
+                "`start_options.json`. \n"
                 "If something goes wrong, editing or deleting the file "
                 "will reinstall TabbyAPI as a first-time user."
             )
