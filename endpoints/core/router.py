@@ -103,7 +103,7 @@ async def list_draft_models(request: Request) -> ModelList:
 
         models = get_model_list(draft_model_path.resolve())
     else:
-        models = await get_current_model_list(is_draft=True)
+        models = await get_current_model_list(model_type="draft")
 
     return models
 
@@ -441,7 +441,8 @@ async def switch_template(data: TemplateSwitchRequest):
         raise HTTPException(400, error_message)
 
     try:
-        model.container.prompt_template = PromptTemplate.from_file(data.name)
+        template_path = pathlib.Path("templates") / data.name
+        model.container.prompt_template = await PromptTemplate.from_file(template_path)
     except FileNotFoundError as e:
         error_message = handle_request_error(
             f"The template name {data.name} doesn't exist. Check the spelling?",
@@ -490,7 +491,7 @@ async def switch_sampler_override(data: SamplerOverrideSwitchRequest):
 
     if data.preset:
         try:
-            sampling.overrides_from_file(data.preset)
+            await sampling.overrides_from_file(data.preset)
         except FileNotFoundError as e:
             error_message = handle_request_error(
                 f"Sampler override preset with name {data.preset} does not exist. "

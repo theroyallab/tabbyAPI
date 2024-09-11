@@ -10,8 +10,13 @@ import common.config_models
 
 
 class TabbyConfig(tabby_config_model):
-    def load_config(self, arguments: Optional[dict] = None):
-        """load the global application config"""
+
+    # Persistent defaults
+    # TODO: make this pydantic?
+    model_defaults: dict = {}
+
+    def load(self, arguments: Optional[dict] = None):
+        """Synchronously loads the global application config"""
 
         # config is applied in order of items in the list
         configs = [
@@ -27,6 +32,17 @@ class TabbyConfig(tabby_config_model):
             model = getattr(common.config_models, f"{field}_config_model")
 
             setattr(self, field, model.parse_obj(value))
+
+        # Set model defaults dict once to prevent on-demand reconstruction
+        # TODO: clean this up a bit
+        for field in self.model.use_as_default:
+            if hasattr(self.model, field):
+                self.model_defaults[field] = getattr(config.model, field)
+            elif hasattr(self.draft_model, field):
+                self.model_defaults[field] = getattr(config.draft_model, field)
+            else:
+                # TODO: show an error
+                pass
 
     def _from_file(self, config_path: pathlib.Path):
         """loads config from a given file path"""
@@ -53,7 +69,7 @@ class TabbyConfig(tabby_config_model):
         config_override = unwrap(args.get("options", {}).get("config"))
         if config_override:
             logger.info("Config file override detected in args.")
-            config = self.from_file(pathlib.Path(config_override))
+            config = self._from_file(pathlib.Path(config_override))
             return config  # Return early if loading from file
 
         for key in tabby_config_model.model_fields.keys():
@@ -85,5 +101,5 @@ class TabbyConfig(tabby_config_model):
         return config
 
 
-# Create an empty instance of the shared var to make sure nothing breaks
+# Create an empty instance of the config class
 config: TabbyConfig = TabbyConfig()

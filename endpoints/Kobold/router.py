@@ -137,7 +137,7 @@ async def get_version():
 async def get_extra_version():
     """Impersonate Koboldcpp."""
 
-    return {"result": "KoboldCpp", "version": "1.61"}
+    return {"result": "KoboldCpp", "version": "1.71"}
 
 
 @kai_router.get("/config/soft_prompts_list")

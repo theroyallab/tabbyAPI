@@ -7,13 +7,13 @@ from typing import List, Optional
 from common.utils import unwrap
 
 # Conditionally import infinity to sidestep its logger
-# TODO: Make this prettier
+has_infinity_emb: bool = False
 try:
     from infinity_emb import EngineArgs, AsyncEmbeddingEngine
 
     has_infinity_emb = True
 except ImportError:
-    has_infinity_emb = False
+    pass
 
 
 class InfinityContainer:

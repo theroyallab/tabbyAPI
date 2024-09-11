@@ -1,5 +1,6 @@
 """The model container class for ExLlamaV2 models."""
 
+import aiofiles
 import asyncio
 import gc
 import math
@@ -7,6 +8,7 @@ import pathlib
 import traceback
 import torch
 import uuid
+from copy import deepcopy
 from exllamav2 import (
     ExLlamaV2,
     ExLlamaV2Config,
@@ -105,12 +107,16 @@ class ExllamaV2Container:
     load_lock: asyncio.Lock = asyncio.Lock()
     load_condition: asyncio.Condition = asyncio.Condition()
 
-    def __init__(self, model_directory: pathlib.Path, quiet=False, **kwargs):
+    @classmethod
+    async def create(cls, model_directory: pathlib.Path, quiet=False, **kwargs):
         """
-        Primary initializer for model container.
+        Primary asynchronous initializer for model container.
 
         Kwargs are located in config_sample.yml
         """
+
+        # Create a new instance as a "fake self"
+        self = cls()
 
         self.quiet = quiet
 
@@ -154,13 +160,13 @@ class ExllamaV2Container:
             self.draft_config.prepare()
 
         # Create the hf_config
-        self.hf_config = HuggingFaceConfig.from_file(model_directory)
+        self.hf_config = await HuggingFaceConfig.from_file(model_directory)
 
         # Load generation config overrides
         generation_config_path = model_directory / "generation_config.json"
         if generation_config_path.exists():
             try:
-                self.generation_config = GenerationConfig.from_file(
+                self.generation_config = await GenerationConfig.from_file(
                     generation_config_path.parent
                 )
             except Exception:
@@ -170,7 +176,7 @@ class ExllamaV2Container:
                 )
 
         # Apply a model's config overrides while respecting user settings
-        kwargs = self.set_model_overrides(**kwargs)
+        kwargs = await self.set_model_overrides(**kwargs)
 
         # MARK: User configuration
 
@@ -319,7 +325,7 @@ class ExllamaV2Container:
             self.cache_size = self.config.max_seq_len
 
         # Try to set prompt template
-        self.prompt_template = self.find_prompt_template(
+        self.prompt_template = await self.find_prompt_template(
             kwargs.get("prompt_template"), model_directory
         )
 
@@ -372,7 +378,10 @@ class ExllamaV2Container:
                 self.draft_config.max_input_len = chunk_size
                 self.draft_config.max_attention_size = chunk_size**2
 
-    def set_model_overrides(self, **kwargs):
+        # Return the created instance
+        return self
+
+    async def set_model_overrides(self, **kwargs):
         """Sets overrides from a model folder's config yaml."""
 
         override_config_path = self.model_dir / "tabby_config.yml"
@@ -380,8 +389,11 @@ class ExllamaV2Container:
         if not override_config_path.exists():
             return kwargs
 
-        with open(override_config_path, "r", encoding="utf8") as override_config_file:
-            override_args = unwrap(yaml.safe_load(override_config_file), {})
+        async with aiofiles.open(
+            override_config_path, "r", encoding="utf8"
+        ) as override_config_file:
+            contents = await override_config_file.read()
+            override_args = unwrap(yaml.safe_load(contents), {})
 
             # Merge draft overrides beforehand
             draft_override_args = unwrap(override_args.get("draft"), {})
@@ -392,7 +404,7 @@ class ExllamaV2Container:
             merged_kwargs = {**override_args, **kwargs}
             return merged_kwargs
 
-    def find_prompt_template(self, prompt_template_name, model_directory):
+    async def find_prompt_template(self, prompt_template_name, model_directory):
         """Tries to find a prompt template using various methods."""
 
         logger.info("Attempting to load a prompt template if present.")
@@ -400,26 +412,37 @@ class ExllamaV2Container:
         find_template_functions = [
             lambda: PromptTemplate.from_model_json(
                 pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
-                "chat_template",
+                key="chat_template",
             ),
             lambda: PromptTemplate.from_file(find_template_from_model(model_directory)),
         ]
 
+        # Find the template in the model directory if it exists
+        model_dir_template_path = (
+            pathlib.Path(self.config.model_dir) / "tabby_template.jinja"
+        )
+        if model_dir_template_path.exists():
+            find_template_functions[:0] = [
+                lambda: PromptTemplate.from_file(model_dir_template_path)
+            ]
+
         # Add lookup from prompt template name if provided
         if prompt_template_name:
             find_template_functions[:0] = [
-                lambda: PromptTemplate.from_file(prompt_template_name),
+                lambda: PromptTemplate.from_file(
+                    pathlib.Path("templates") / prompt_template_name
+                ),
                 lambda: PromptTemplate.from_model_json(
                     pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
-                    "chat_template",
-                    prompt_template_name,
+                    key="chat_template",
+                    name=prompt_template_name,
                 ),
             ]
 
         # Continue on exception since functions are tried as they fail
         for template_func in find_template_functions:
             try:
-                prompt_template = template_func()
+                prompt_template = await template_func()
                 if prompt_template is not None:
                     return prompt_template
             except TemplateLoadError as e:
@@ -944,6 +967,14 @@ class ExllamaV2Container:
         Meant for dev wheels!
         """
 
+        if unwrap(kwargs.get("dry_allowed_length"), 0) > 0 and not hasattr(
+            ExLlamaV2Sampler.Settings, "dry_multiplier"
+        ):
+            logger.warning(
+                "DRY sampling is not supported by the currently "
+                "installed ExLlamaV2 version."
+            )
+
         return kwargs
 
     async def generate_gen(
@@ -1035,6 +1066,7 @@ class ExllamaV2Container:
                     "Please use an ampere (30 series) or higher GPU for CFG support."
                 )
 
+        # Penalties
         gen_settings.token_repetition_penalty = unwrap(
             kwargs.get("repetition_penalty"), 1.0
         )
@@ -1069,6 +1101,32 @@ class ExllamaV2Container:
         gen_settings.token_repetition_decay = coalesce(
             kwargs.get("repetition_decay"), fallback_decay, 0
         )
+
+        # DRY options
+        dry_multiplier = unwrap(kwargs.get("dry_multiplier"), 0.0)
+
+        # < 0 = disabled
+        if dry_multiplier > 0:
+            gen_settings.dry_multiplier = dry_multiplier
+
+            # TODO: Maybe set the "sane" defaults instead?
+            gen_settings.dry_allowed_length = unwrap(
+                kwargs.get("dry_allowed_length"), 0
+            )
+            gen_settings.dry_base = unwrap(kwargs.get("dry_base"), 0.0)
+
+            # Exl2 has dry_range as 0 for unlimited unlike -1 for penalty_range
+            # Use max_seq_len as the fallback to stay consistent
+            gen_settings.dry_range = unwrap(
+                kwargs.get("dry_range"), self.config.max_seq_len
+            )
+
+            # Tokenize sequence breakers
+            dry_sequence_breakers_json = kwargs.get("dry_sequence_breakers")
+            if dry_sequence_breakers_json:
+                gen_settings.dry_sequence_breakers = {
+                    self.encode_tokens(s)[-1] for s in dry_sequence_breakers_json
+                }
 
         # Initialize grammar handler
         grammar_handler = ExLlamaV2Grammar()
@@ -1130,7 +1188,8 @@ class ExllamaV2Container:
             )
 
         # Store the gen settings for logging purposes
-        gen_settings_log_dict = vars(gen_settings)
+        # Deepcopy to save a snapshot of vars
+        gen_settings_log_dict = deepcopy(vars(gen_settings))
 
         # Set banned tokens
         banned_tokens = unwrap(kwargs.get("banned_tokens"), [])

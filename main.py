@@ -50,7 +50,7 @@ async def entrypoint_async():
             port = fallback_port
 
     # Initialize auth keys
-    load_auth_keys(config.network.disable_auth)
+    await load_auth_keys(config.network.disable_auth)
 
     gen_logging.broadcast_status()
 
@@ -58,7 +58,7 @@ async def entrypoint_async():
     sampling_override_preset = config.sampling.override_preset
     if sampling_override_preset:
         try:
-            sampling.overrides_from_file(sampling_override_preset)
+            await sampling.overrides_from_file(sampling_override_preset)
         except FileNotFoundError as e:
             logger.warning(str(e))
 
@@ -111,7 +111,7 @@ def entrypoint(arguments: Optional[dict] = None):
         arguments = convert_args_to_dict(parser.parse_args(), parser)
 
     # load config
-    config.load_config(arguments)
+    config.load(arguments)
 
     if do_export_openapi:
         openapi_json = export_openapi()

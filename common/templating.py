@@ -1,10 +1,12 @@
 """Small replication of AutoTokenizer's chat template system for efficiency"""
 
+import aiofiles
 import json
 import pathlib
 from importlib.metadata import version as package_version
 from typing import List, Optional
 from jinja2 import Template, TemplateError
+from jinja2.ext import loopcontrols
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from loguru import logger
 from packaging import version
@@ -32,7 +34,10 @@ class PromptTemplate:
     raw_template: str
     template: Template
     environment: ImmutableSandboxedEnvironment = ImmutableSandboxedEnvironment(
-        trim_blocks=True, lstrip_blocks=True, enable_async=True
+        trim_blocks=True,
+        lstrip_blocks=True,
+        enable_async=True,
+        extensions=[loopcontrols],
     )
     metadata: Optional[TemplateMetadata] = None
 
@@ -106,32 +111,42 @@ class PromptTemplate:
         self.template = self.compile(raw_template)
 
     @classmethod
-    def from_file(self, prompt_template_name: str):
+    async def from_file(cls, template_path: pathlib.Path):
         """Get a template from a jinja file."""
 
-        template_path = pathlib.Path(f"templates/{prompt_template_name}.jinja")
+        # Add the jinja extension if it isn't provided
+        if template_path.suffix.endswith(".jinja"):
+            template_name = template_path.name.split(".jinja")[0]
+        else:
+            template_name = template_path.name
+            template_path = template_path.with_suffix(".jinja")
+
         if template_path.exists():
-            with open(template_path, "r", encoding="utf8") as raw_template_stream:
-                return PromptTemplate(
-                    name=prompt_template_name,
-                    raw_template=raw_template_stream.read(),
+            async with aiofiles.open(
+                template_path, "r", encoding="utf8"
+            ) as raw_template_stream:
+                contents = await raw_template_stream.read()
+                return cls(
+                    name=template_name,
+                    raw_template=contents,
                 )
         else:
             # Let the user know if the template file isn't found
             raise TemplateLoadError(
-                f'Chat template "{prompt_template_name}" not found in files.'
+                f'Chat template "{template_name}" not found in files.'
             )
 
     @classmethod
-    def from_model_json(
-        self, json_path: pathlib.Path, key: str, name: Optional[str] = None
+    async def from_model_json(
+        cls, json_path: pathlib.Path, key: str, name: Optional[str] = None
     ):
         """Get a template from a JSON file. Requires a key and template name"""
         if not json_path.exists():
             raise TemplateLoadError(f'Model JSON path "{json_path}" not found.')
 
-        with open(json_path, "r", encoding="utf8") as config_file:
-            model_config = json.load(config_file)
+        async with aiofiles.open(json_path, "r", encoding="utf8") as config_file:
+            contents = await config_file.read()
+            model_config = json.loads(contents)
             chat_template = model_config.get(key)
 
             if not chat_template:
@@ -162,7 +177,7 @@ class PromptTemplate:
                     )
             else:
                 # Can safely assume the chat template is the old style
-                return PromptTemplate(
+                return cls(
                     name="from_tokenizer_config",
                     raw_template=chat_template,
                 )

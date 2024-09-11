@@ -1,4 +1,8 @@
-"""Completion utilities for OAI server."""
+"""
+Completion utilities for OAI server.
+
+Also serves as a common module for completions and chat completions.
+"""
 
 import asyncio
 import pathlib
@@ -10,12 +14,14 @@ from typing import List, Union
 from loguru import logger
 
 from common import model
+from common.auth import get_key_permission
 from common.networking import (
     get_generator_error,
     handle_request_disconnect,
     handle_request_error,
     request_disconnect_loop,
 )
+from common.tabby_config import config
 from common.utils import unwrap
 from endpoints.OAI.types.completion import (
     CompletionRequest,
@@ -101,6 +107,50 @@ async def _stream_collector(
                 break
     except Exception as e:
         await gen_queue.put(e)
+
+
+async def load_inline_model(model_name: str, request: Request):
+    """Load a model from the data.model parameter"""
+
+    # Return if the model container already exists and the model is fully loaded
+    if (
+        model.container
+        and model.container.model_dir.name == model_name
+        and model.container.model_loaded
+    ):
+        return
+
+    # Inline model loading isn't enabled or the user isn't an admin
+    if not get_key_permission(request) == "admin":
+        error_message = handle_request_error(
+            f"Unable to switch model to {model_name} because "
+            + "an admin key isn't provided",
+            exc_info=False,
+        ).error.message
+
+        raise HTTPException(401, error_message)
+
+    if not unwrap(config.model.get("inline_model_loading"), False):
+        logger.warning(
+            f"Unable to switch model to {model_name} because "
+            '"inline_model_loading" is not True in config.yml.'
+        )
+
+        return
+
+    model_path = pathlib.Path(unwrap(config.model.get("model_dir"), "models"))
+    model_path = model_path / model_name
+
+    # Model path doesn't exist
+    if not model_path.exists():
+        logger.warning(
+            f"Could not find model path {str(model_path)}. Skipping inline model load."
+        )
+
+        return
+
+    # Load the model
+    await model.load_model(model_path)
 
 
 async def stream_generate_completion(
