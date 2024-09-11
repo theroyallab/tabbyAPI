@@ -23,7 +23,8 @@ class GenerationConfig(BaseModel):
         async with aiofiles.open(
             generation_config_path, "r", encoding="utf8"
         ) as generation_config_json:
-            generation_config_dict = json.load(generation_config_json)
+            contents = await generation_config_json.read()
+            generation_config_dict = json.loads(contents)
             return cls.model_validate(generation_config_dict)
 
     def eos_tokens(self):
