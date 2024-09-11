@@ -112,8 +112,12 @@ async def _stream_collector(
 async def load_inline_model(model_name: str, request: Request):
     """Load a model from the data.model parameter"""
 
-    # Return if the model container already exists
-    if model.container and model.container.model_dir.name == model_name:
+    # Return if the model container already exists and the model is fully loaded
+    if (
+        model.container
+        and model.container.model_dir.name == model_name
+        and model.container.model_loaded
+    ):
         return
 
     # Inline model loading isn't enabled or the user isn't an admin

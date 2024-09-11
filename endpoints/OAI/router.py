@@ -55,7 +55,14 @@ async def completion_request(
     """
 
     if data.model:
-        await load_inline_model(data.model, request)
+        inline_load_task = asyncio.create_task(load_inline_model(data.model, request))
+
+        await run_with_request_disconnect(
+            request,
+            inline_load_task,
+            disconnect_message=f"Model switch for generation {request.state.id} "
+            + "cancelled by user.",
+        )
     else:
         await check_model_container()
 
