@@ -39,8 +39,9 @@ class TabbyConfig(TabbyConfigModel):
             elif hasattr(self.draft_model, field):
                 self.model_defaults[field] = getattr(config.draft_model, field)
             else:
-                # TODO: show an error
-                pass
+                logger.error(
+                    f"invalid item {field} in config option `model.use_as_default`"
+                )
 
     def _from_file(self, config_path: pathlib.Path):
         """loads config from a given file path"""
