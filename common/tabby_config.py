@@ -5,11 +5,10 @@ from typing import Optional
 from os import getenv
 
 from common.utils import unwrap, merge_dicts
-from common.config_models import tabby_config_model
-import common.config_models
+from common.config_models import TabbyConfigModel
 
 
-class TabbyConfig(tabby_config_model):
+class TabbyConfig(TabbyConfigModel):
     # Persistent defaults
     # TODO: make this pydantic?
     model_defaults: dict = {}
@@ -26,11 +25,11 @@ class TabbyConfig(tabby_config_model):
 
         merged_config = merge_dicts(*configs)
 
-        for field in tabby_config_model.model_fields.keys():
-            value = unwrap(merged_config.get(field), {})
-            model = getattr(common.config_models, f"{field}_config_model")
-
-            setattr(self, field, model.parse_obj(value))
+        # validate and update config
+        merged_config_model = TabbyConfigModel.model_validate(merged_config)
+        for field in TabbyConfigModel.model_fields.keys():
+            value = getattr(merged_config_model, field)
+            setattr(self, field, value)
 
         # Set model defaults dict once to prevent on-demand reconstruction
         # TODO: clean this up a bit
@@ -71,7 +70,7 @@ class TabbyConfig(tabby_config_model):
             config = self._from_file(pathlib.Path(config_override))
             return config  # Return early if loading from file
 
-        for key in tabby_config_model.model_fields.keys():
+        for key in TabbyConfigModel.model_fields.keys():
             override = args.get(key)
             if override:
                 if key == "logging":
@@ -86,10 +85,10 @@ class TabbyConfig(tabby_config_model):
 
         config = {}
 
-        for field_name in tabby_config_model.model_fields.keys():
+        for field_name in TabbyConfigModel.model_fields.keys():
             section_config = {}
             for sub_field_name in getattr(
-                tabby_config_model(), field_name
+                TabbyConfigModel(), field_name
             ).model_fields.keys():
                 setting = getenv(f"TABBY_{field_name}_{sub_field_name}".upper(), None)
                 if setting is not None:
