@@ -6,7 +6,7 @@ import pathlib
 import yaml
 from copy import deepcopy
 from loguru import logger
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 from typing import Dict, List, Optional, Union
 
 from common.utils import unwrap, prune_dict
@@ -21,6 +21,7 @@ class BaseSamplerRequest(BaseModel):
         validation_alias=AliasChoices("max_tokens", "max_length"),
         description="Aliases: max_length",
         examples=[150],
+        ge=0,
     )
 
     min_tokens: Optional[int] = Field(
@@ -28,11 +29,13 @@ class BaseSamplerRequest(BaseModel):
         validation_alias=AliasChoices("min_tokens", "min_length"),
         description="Aliases: min_length",
         examples=[0],
+        ge=0,
     )
 
     generate_window: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("generate_window"),
         examples=[512],
+        ge=0,
     )
 
     stop: Optional[Union[str, List[Union[str, int]]]] = Field(
@@ -66,22 +69,28 @@ class BaseSamplerRequest(BaseModel):
     temperature: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("temperature", 1.0),
         examples=[1.0],
+        ge=0,
+        le=10,
     )
 
     temperature_last: Optional[bool] = Field(
-        default_factory=lambda: get_default_sampler_value("temperature_last", False)
+        default_factory=lambda: get_default_sampler_value("temperature_last", False),
     )
 
     smoothing_factor: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("smoothing_factor", 0.0),
+        ge=0,
     )
 
     top_k: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("top_k", 0),
+        ge=0,
     )
 
     top_p: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("top_p", 1.0),
+        ge=0,
+        le=1,
         examples=[1.0],
     )
 
@@ -103,6 +112,8 @@ class BaseSamplerRequest(BaseModel):
         validation_alias=AliasChoices("typical", "typical_p"),
         description="Aliases: typical_p",
         examples=[1.0],
+        gt=0,
+        le=1,
     )
 
     skew: Optional[float] = Field(
@@ -111,11 +122,13 @@ class BaseSamplerRequest(BaseModel):
     )
 
     frequency_penalty: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("frequency_penalty", 0.0)
+        default_factory=lambda: get_default_sampler_value("frequency_penalty", 0.0),
+        ge=0,
     )
 
     presence_penalty: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("presence_penalty", 0.0)
+        default_factory=lambda: get_default_sampler_value("presence_penalty", 0.0),
+        ge=0,
     )
 
     repetition_penalty: Optional[float] = Field(
@@ -123,6 +136,7 @@ class BaseSamplerRequest(BaseModel):
         validation_alias=AliasChoices("repetition_penalty", "rep_pen"),
         description="Aliases: rep_pen",
         examples=[1.0],
+        gt=0,
     )
 
     penalty_range: Optional[int] = Field(
@@ -231,6 +245,7 @@ class BaseSamplerRequest(BaseModel):
         validation_alias=AliasChoices("max_temp", "dynatemp_high"),
         description="Aliases: dynatemp_high",
         examples=[1.0],
+        ge=0,
     )
 
     min_temp: Optional[float] = Field(
@@ -238,77 +253,37 @@ class BaseSamplerRequest(BaseModel):
         validation_alias=AliasChoices("min_temp", "dynatemp_low"),
         description="Aliases: dynatemp_low",
         examples=[1.0],
+        ge=0,
     )
 
     temp_exponent: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("temp_exponent", 1.0),
         validation_alias=AliasChoices("temp_exponent", "dynatemp_exponent"),
         examples=[1.0],
+        ge=0,
     )
+
+    model_config = ConfigDict(validate_assignment=True)
 
     # TODO: Return back to adaptable class-based validation But that's just too much
     # abstraction compared to simple if statements at the moment
+    @model_validator(mode="after")
     def validate_params(self):
         """
         Validates sampler parameters to be within sane ranges.
         """
 
-        # Temperature
-        if self.temperature < 0.0:
-            raise ValueError(
-                "Temperature must be a non-negative value. " f"Got {self.temperature}"
-            )
+        if self.min_temp > self.max_temp:
+            raise ValueError("min temp cannot be more then max temp")
 
-        # Smoothing factor
-        if self.smoothing_factor < 0.0:
-            raise ValueError(
-                "Smoothing factor must be a non-negative value. "
-                f"Got {self.smoothing_factor}"
-            )
-
-        # Top K
-        if self.top_k < 0:
-            raise ValueError("Top K must be a non-negative value. " f"Got {self.top_k}")
-
-        # Top P
-        if self.top_p < 0.0 or self.top_p > 1.0:
-            raise ValueError("Top P must be in [0, 1]. " f"Got {self.top_p}")
-
-        # Repetition Penalty
-        if self.repetition_penalty <= 0.0:
-            raise ValueError(
-                "Repetition penalty must be a positive value. "
-                f"Got {self.repetition_penalty}"
-            )
-
-        # Typical
-        if self.typical <= 0 and self.typical > 1:
-            raise ValueError("Typical must be in (0, 1]. " f"Got {self.typical}")
-
-        # Dynatemp values
-        if self.max_temp < 0.0:
-            raise ValueError(
-                "Max temp must be a non-negative value. ", f"Got {self.max_temp}"
-            )
-
-        if self.min_temp < 0.0:
-            raise ValueError(
-                "Min temp must be a non-negative value. ", f"Got {self.min_temp}"
-            )
-
-        if self.temp_exponent < 0.0:
-            raise ValueError(
-                "Temp exponent must be a non-negative value. ",
-                f"Got {self.temp_exponent}",
-            )
+        if self.min_tokens > self.max_tokens:
+            raise ValueError("min tokens cannot be more then max tokens")
 
     def to_gen_params(self, **kwargs):
         """Converts samplers to internal generation params"""
 
         # Add forced overrides if present
         apply_forced_sampler_overrides(self)
-
-        self.validate_params()
 
         # Convert stop to an array of strings
         if self.stop and isinstance(self.stop, str):
