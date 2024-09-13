@@ -4,7 +4,7 @@ from typing import List, Optional, Union
 from common.utils import unwrap
 
 
-class ConfigConfig(BaseModel):
+class ConfigOverrideConfig(BaseModel):
     config: Optional[str] = Field(
         None, description=("Path to an overriding config.yml file")
     )
@@ -279,7 +279,9 @@ class EmbeddingsConfig(BaseModel):
 
 
 class TabbyConfigModel(BaseModel):
-    config: ConfigConfig = Field(default_factory=ConfigConfig.model_construct)
+    config: ConfigOverrideConfig = Field(
+        default_factory=ConfigOverrideConfig.model_construct
+    )
     network: NetworkConfig = Field(default_factory=NetworkConfig.model_construct)
     logging: LoggingConfig = Field(default_factory=LoggingConfig.model_construct)
     model: ModelConfig = Field(default_factory=ModelConfig.model_construct)
