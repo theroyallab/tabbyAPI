@@ -40,133 +40,133 @@ class ModelConfig(BaseModel):
     model_dir: str = Field(
         "models",
         description=(
-            "Overrides the directory to look for models (default: models). Windows"
+            "Overrides the directory to look for models (default: models). Windows "
             "users, do NOT put this path in quotes."
         ),
     )
     use_dummy_models: Optional[bool] = Field(
         False,
         description=(
-            "Sends dummy model names when the models endpoint is queried. Enable this"
+            "Sends dummy model names when the models endpoint is queried. Enable this "
             "if looking for specific OAI models."
         ),
     )
     model_name: Optional[str] = Field(
         None,
         description=(
-            "An initial model to load. Make sure the model is located in the model"
+            "An initial model to load. Make sure the model is located in the model "
             "directory! REQUIRED: This must be filled out to load a model on startup."
         ),
     )
     use_as_default: List[str] = Field(
         default_factory=list,
         description=(
-            "Names of args to use as a default fallback for API load requests"
+            "Names of args to use as a default fallback for API load requests "
             "(default: []). Example: ['max_seq_len', 'cache_mode']"
         ),
     )
     max_seq_len: Optional[int] = Field(
         None,
         description=(
-            "Max sequence length. Fetched from the model's base sequence length in"
+            "Max sequence length. Fetched from the model's base sequence length in "
             "config.json by default."
         ),
     )
     override_base_seq_len: Optional[int] = Field(
         None,
         description=(
-            "Overrides base model context length. WARNING: Only use this if the"
+            "Overrides base model context length. WARNING: Only use this if the "
             "model's base sequence length is incorrect."
         ),
     )
     tensor_parallel: Optional[bool] = Field(
         False,
         description=(
-            "Load model with tensor parallelism. Fallback to autosplit if GPU split"
+            "Load model with tensor parallelism. Fallback to autosplit if GPU split "
             "isn't provided."
         ),
     )
     gpu_split_auto: Optional[bool] = Field(
         True,
         description=(
-            "Automatically allocate resources to GPUs (default: True). Not parsed for"
+            "Automatically allocate resources to GPUs (default: True). Not parsed for "
             "single GPU users."
         ),
     )
     autosplit_reserve: List[int] = Field(
         [96],
         description=(
-            "Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0)."
+            "Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0). "
             "Represented as an array of MB per GPU."
         ),
     )
     gpu_split: List[float] = Field(
         default_factory=list,
         description=(
-            "An integer array of GBs of VRAM to split between GPUs (default: [])."
+            "An integer array of GBs of VRAM to split between GPUs (default: []). "
             "Used with tensor parallelism."
         ),
     )
     rope_scale: Optional[float] = Field(
         1.0,
         description=(
-            "Rope scale (default: 1.0). Same as compress_pos_emb. Only use if the"
+            "Rope scale (default: 1.0). Same as compress_pos_emb. Only use if the "
             "model was trained on long context with rope."
         ),
     )
     rope_alpha: Optional[Union[float, str]] = Field(
         1.0,
         description=(
-            "Rope alpha (default: 1.0). Same as alpha_value. Set to 'auto' to auto-"
+            "Rope alpha (default: 1.0). Same as alpha_value. Set to 'auto' to auto- "
             "calculate."
         ),
     )
     cache_mode: Optional[str] = Field(
         "FP16",
         description=(
-            "Enable different cache modes for VRAM savings (default: FP16). Possible"
+            "Enable different cache modes for VRAM savings (default: FP16). Possible "
             "values: FP16, Q8, Q6, Q4."
         ),
     )
     cache_size: Optional[int] = Field(
         None,
         description=(
-            "Size of the prompt cache to allocate (default: max_seq_len). Must be a"
+            "Size of the prompt cache to allocate (default: max_seq_len). Must be a "
             "multiple of 256."
         ),
     )
     chunk_size: Optional[int] = Field(
         2048,
         description=(
-            "Chunk size for prompt ingestion (default: 2048). A lower value reduces"
+            "Chunk size for prompt ingestion (default: 2048). A lower value reduces "
             "VRAM usage but decreases ingestion speed."
         ),
     )
     max_batch_size: Optional[int] = Field(
         None,
         description=(
-            "Set the maximum number of prompts to process at one time (default:"
+            "Set the maximum number of prompts to process at one time (default: "
             "None/Automatic). Automatically calculated if left blank."
         ),
     )
     prompt_template: Optional[str] = Field(
         None,
         description=(
-            "Set the prompt template for this model. If empty, attempts to look for"
+            "Set the prompt template for this model. If empty, attempts to look for "
             "the model's chat template."
         ),
     )
     num_experts_per_token: Optional[int] = Field(
         None,
         description=(
-            "Number of experts to use per token. Fetched from the model's"
+            "Number of experts to use per token. Fetched from the model's "
             "config.json. For MoE models only."
         ),
     )
     fasttensors: Optional[bool] = Field(
         False,
         description=(
-            "Enables fasttensors to possibly increase model loading speeds (default:"
+            "Enables fasttensors to possibly increase model loading speeds (default: "
             "False)."
         ),
     )
@@ -191,21 +191,21 @@ class DraftModelConfig(BaseModel):
     draft_rope_scale: Optional[float] = Field(
         1.0,
         description=(
-            "Rope scale for draft models (default: 1.0). Same as compress_pos_emb."
+            "Rope scale for draft models (default: 1.0). Same as compress_pos_emb. "
             "Use if the draft model was trained on long context with rope."
         ),
     )
     draft_rope_alpha: Optional[float] = Field(
         None,
         description=(
-            "Rope alpha for draft models (default: None). Same as alpha_value. Leave"
+            "Rope alpha for draft models (default: None). Same as alpha_value. Leave "
             "blank to auto-calculate the alpha value."
         ),
     )
     draft_cache_mode: Optional[str] = Field(
         "FP16",
         description=(
-            "Cache mode for draft models to save VRAM (default: FP16). Possible"
+            "Cache mode for draft models to save VRAM (default: FP16). Possible "
             "values: FP16, Q8, Q6, Q4."
         ),
     )
@@ -225,7 +225,7 @@ class LoraConfig(BaseModel):
     loras: Optional[List[LoraInstanceModel]] = Field(
         None,
         description=(
-            "List of LoRAs to load and associated scaling factors (default scaling:"
+            "List of LoRAs to load and associated scaling factors (default scaling: "
             "1.0)"
         ),
     )
@@ -253,7 +253,7 @@ class DeveloperConfig(BaseModel):
     realtime_process_priority: Optional[bool] = Field(
         False,
         description=(
-            "Set process to use a higher priority For realtime process priority, run"
+            "Set process to use a higher priority For realtime process priority, run "
             "as administrator or sudo Otherwise, the priority will be set to high"
         ),
     )
@@ -269,7 +269,7 @@ class EmbeddingsConfig(BaseModel):
     embeddings_device: Optional[str] = Field(
         "cpu",
         description=(
-            "Device to load embedding models on (default: cpu). Possible values: cpu,"
+            "Device to load embedding models on (default: cpu). Possible values: cpu, "
             "auto, cuda. If using an AMD GPU, set this value to 'cuda'."
         ),
     )
