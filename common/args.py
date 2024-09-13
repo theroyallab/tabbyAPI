@@ -1,64 +1,11 @@
 """Argparser for overriding config values"""
 
 import argparse
-from typing import Any, get_origin, get_args, Union, List
+from typing import Any
 
 from pydantic import BaseModel
 
 from common.config_models import TabbyConfigModel
-
-
-def str_to_bool(value):
-    """Converts a string into a boolean value"""
-
-    if value.lower() in {"false", "f", "0", "no", "n"}:
-        return False
-    elif value.lower() in {"true", "t", "1", "yes", "y"}:
-        return True
-    raise ValueError(f"{value} is not a valid boolean value")
-
-
-def argument_with_auto(value):
-    """
-    Argparse type wrapper for any argument that has an automatic option.
-
-    Ex. rope_alpha
-    """
-
-    if value == "auto":
-        return "auto"
-
-    try:
-        return float(value)
-    except ValueError as ex:
-        raise argparse.ArgumentTypeError(
-            'This argument only takes a type of float or "auto"'
-        ) from ex
-
-
-def map_pydantic_type_to_argparse(pydantic_type: Any):
-    """
-    Maps Pydantic types to argparse compatible types.
-    Handles special cases like Union and List.
-    """
-
-    origin = get_origin(pydantic_type)
-
-    # Handle optional types
-    if origin is Union:
-        # Filter out NoneType
-        pydantic_type = next(t for t in get_args(pydantic_type) if t is not type(None))
-
-    elif origin is List:
-        pydantic_type = get_args(pydantic_type)[0]  # Get the list item type
-
-    # Map basic types (int, float, str, bool)
-    if isinstance(pydantic_type, type) and issubclass(
-        pydantic_type, (int, float, str, bool)
-    ):
-        return pydantic_type
-
-    return str
 
 
 def add_field_to_group(group, field_name, field_type, field) -> None:
@@ -66,10 +13,9 @@ def add_field_to_group(group, field_name, field_type, field) -> None:
     Adds a Pydantic field to an argparse argument group.
     """
 
-    arg_type = map_pydantic_type_to_argparse(field_type)
     help_text = field.description if field.description else "No description available"
 
-    group.add_argument(f"--{field_name}", type=arg_type, help=help_text)
+    group.add_argument(f"--{field_name}", help=help_text)
 
 
 def init_argparser() -> argparse.ArgumentParser:
@@ -96,10 +42,7 @@ def init_argparser() -> argparse.ArgumentParser:
                 )
         else:
             field_name = field_name.replace("_", "-")
-            arg_type = map_pydantic_type_to_argparse(field_type)
-            group.add_argument(
-                f"--{field_name}", type=arg_type, help=f"Argument for {field_name}"
-            )
+            group.add_argument(f"--{field_name}", help=f"Argument for {field_name}")
 
     return parser
 
