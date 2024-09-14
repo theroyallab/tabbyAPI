@@ -1,7 +1,6 @@
 """The main tabbyAPI module. Contains the FastAPI server and endpoints."""
 
 import asyncio
-import json
 import os
 import pathlib
 import platform
@@ -12,11 +11,12 @@ from typing import Optional
 from common import gen_logging, sampling, model
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
+from common.actions import branch_to_actions
 from common.logger import setup_logger
 from common.networking import is_port_in_use
 from common.signals import signal_handler
 from common.tabby_config import config
-from endpoints.server import export_openapi, start_api
+from endpoints.server import start_api
 from endpoints.utils import do_export_openapi
 
 if not do_export_openapi:
@@ -112,13 +112,8 @@ def entrypoint(arguments: Optional[dict] = None):
     # load config
     config.load(arguments)
 
-    if do_export_openapi:
-        openapi_json = export_openapi()
-
-        with open("openapi.json", "w") as f:
-            f.write(json.dumps(openapi_json))
-            logger.info("Successfully wrote OpenAPI spec to openapi.json")
-
+    # branch to default paths if required
+    if branch_to_actions():
         return
 
     # Check exllamav2 version and give a descriptive error if it's too old

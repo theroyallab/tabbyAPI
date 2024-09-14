@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Literal, Optional, Union
+from pathlib import Path
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
 
@@ -8,6 +9,22 @@ class ConfigOverrideConfig(BaseModel):
     # TODO: convert this to a pathlib.path?
     config: Optional[str] = Field(
         None, description=("Path to an overriding config.yml file")
+    )
+
+
+class UtilityActions(BaseModel):
+    export_config: Optional[str] = Field(
+        None, description="generate a template config file"
+    )
+    config_export_path: Optional[Path] = Field(
+        "config_sample.yml", description="path to export configuration file to"
+    )
+
+    export_openapi: Optional[bool] = Field(
+        False, description="export openapi schema files"
+    )
+    openapi_export_path: Optional[Path] = Field(
+        "openapi.json", description="path to export openapi schema to"
     )
 
 
@@ -308,6 +325,7 @@ class TabbyConfigModel(BaseModel):
     embeddings: EmbeddingsConfig = Field(
         default_factory=EmbeddingsConfig.model_construct
     )
+    actions: UtilityActions = Field(default_factory=UtilityActions.model_construct)
 
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())
 

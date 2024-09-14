@@ -8,14 +8,28 @@ from pydantic import BaseModel
 from common.config_models import TabbyConfigModel
 
 
+def is_list_type(type_hint):
+    if hasattr(type_hint, "__origin__") and type_hint.__origin__ is list:
+        return True
+    if hasattr(type_hint, "__args__"):
+        # Recursively check for lists inside type arguments
+        return any(is_list_type(arg) for arg in type_hint.__args__)
+    return False
+
+
 def add_field_to_group(group, field_name, field_type, field) -> None:
     """
     Adds a Pydantic field to an argparse argument group.
     """
 
-    help_text = field.description if field.description else "No description available"
+    kwargs = {
+        "help": field.description if field.description else "No description available",
+    }
 
-    group.add_argument(f"--{field_name}", help=help_text)
+    if is_list_type(field_type):
+        kwargs["nargs"] = "+"
+
+    group.add_argument(f"--{field_name}", **kwargs)
 
 
 def init_argparser() -> argparse.ArgumentParser:
