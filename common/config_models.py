@@ -1,7 +1,5 @@
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 from typing import List, Literal, Optional, Union
-
-from common.utils import unwrap
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
 
@@ -311,14 +309,6 @@ class TabbyConfigModel(BaseModel):
         default_factory=EmbeddingsConfig.model_construct
     )
 
-    @model_validator(mode="before")
-    def set_defaults(cls, values):
-        for field_name, field_value in values.items():
-            if field_value is None:
-                default_instance = cls.__annotations__[field_name]().dict()
-                values[field_name] = cls.__annotations__[field_name](**default_instance)
-        return values
-
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())
 
 
@@ -335,7 +325,7 @@ def generate_config_file(filename="config_sample.yml", indentation=2):
             comment = section[property]["description"]
             yaml += f"{indent}# {comment}\n"
 
-            value = unwrap(section[property].get("default"), "")
+            value = section[property].get("default", "")
             yaml += f"{indent}{property}: {value}\n\n"
 
         return yaml + "\n"
