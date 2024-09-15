@@ -1,11 +1,14 @@
 import json
 from loguru import logger
+
+from common.config_models import generate_config_file
 from common.tabby_config import config
 from endpoints.server import export_openapi
-from common.config_models import generate_config_file
 
 
 def branch_to_actions() -> bool:
+    """Checks if a optional action needs to be run."""
+
     if config.actions.export_openapi:
         openapi_json = export_openapi()
 
