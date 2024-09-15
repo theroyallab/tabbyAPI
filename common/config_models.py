@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from typing import List, Literal, Optional, Union
 from pathlib import Path
 
@@ -47,21 +47,31 @@ class NetworkConfig(BaseModel):
         description=("Decide whether to send error tracebacks over the API"),
     )
     api_servers: Optional[List[Literal["OAI", "Kobold"]]] = Field(
-        [
-            "OAI",
-        ],
+        default_factory=list,
         description=("API servers to enable. Options: (OAI, Kobold)"),
     )
 
 
+# TODO: Migrate config.yml to have the log_ prefix
+# This is a breaking change.
 class LoggingConfig(BaseModel):
     """Model for logging configuration."""
 
-    log_prompt: Optional[bool] = Field(False, description=("Enable prompt logging"))
-    log_generation_params: Optional[bool] = Field(
-        False, description=("Enable generation parameter logging")
+    log_prompt: Optional[bool] = Field(
+        False,
+        description=("Enable prompt logging"),
+        validation_alias=AliasChoices("log_prompt", "prompt"),
     )
-    log_requests: Optional[bool] = Field(False, description=("Enable request logging"))
+    log_generation_params: Optional[bool] = Field(
+        False,
+        description=("Enable generation parameter logging"),
+        validation_alias=AliasChoices("log_generation_params", "generation_params"),
+    )
+    log_requests: Optional[bool] = Field(
+        False,
+        description=("Enable request logging"),
+        validation_alias=AliasChoices("log_requests", "requests"),
+    )
 
 
 class ModelConfig(BaseModel):
