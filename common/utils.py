@@ -1,5 +1,7 @@
 """Common utility functions"""
 
+from typing import get_args, get_origin
+
 
 def unwrap(wrapped, default=None):
     """Unwrap function for Optionals."""
@@ -43,3 +45,17 @@ def flat_map(input_list):
     """Flattens a list of lists into a single list."""
 
     return [item for sublist in input_list for item in sublist]
+
+
+def is_list_type(type_hint):
+    """Checks if a type contains a list."""
+
+    if get_origin(type_hint) is list:
+        return True
+
+    # Recursively check for lists inside type arguments
+    type_args = get_args(type_hint)
+    if type_args:
+        return any(is_list_type(arg) for arg in type_args)
+
+    return False

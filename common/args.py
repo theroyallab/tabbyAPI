@@ -1,20 +1,10 @@
 """Argparser for overriding config values"""
 
 import argparse
-from typing import Any
-
 from pydantic import BaseModel
 
 from common.config_models import TabbyConfigModel
-
-
-def is_list_type(type_hint):
-    if hasattr(type_hint, "__origin__") and type_hint.__origin__ is list:
-        return True
-    if hasattr(type_hint, "__args__"):
-        # Recursively check for lists inside type arguments
-        return any(is_list_type(arg) for arg in type_hint.__args__)
-    return False
+from common.utils import is_list_type
 
 
 def add_field_to_group(group, field_name, field_type, field) -> None:
@@ -26,6 +16,7 @@ def add_field_to_group(group, field_name, field_type, field) -> None:
         "help": field.description if field.description else "No description available",
     }
 
+    # If the inner type contains a list, specify argparse as such
     if is_list_type(field_type):
         kwargs["nargs"] = "+"
 
@@ -63,7 +54,7 @@ def init_argparser() -> argparse.ArgumentParser:
 
 def convert_args_to_dict(
     args: argparse.Namespace, parser: argparse.ArgumentParser
-) -> dict[str, dict[str, Any]]:
+) -> dict:
     """Broad conversion of surface level arg groups to dictionaries"""
 
     arg_groups = {}
