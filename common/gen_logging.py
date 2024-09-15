@@ -7,17 +7,14 @@ from typing import Optional
 
 from common.tabby_config import config
 
-# Global logging preferences constant
-PREFERENCES = config.logging
-
 
 def broadcast_status():
     """Broadcasts the current logging status"""
     enabled = []
-    if PREFERENCES.log_prompt:
+    if config.logging.log_prompt:
         enabled.append("prompts")
 
-    if PREFERENCES.log_generation_params:
+    if config.logging.log_generation_params:
         enabled.append("generation params")
 
     if len(enabled) > 0:
@@ -28,13 +25,13 @@ def broadcast_status():
 
 def log_generation_params(**kwargs):
     """Logs generation parameters to console."""
-    if PREFERENCES.log_generation_params:
+    if config.logging.log_generation_params:
         logger.info(f"Generation options: {kwargs}\n")
 
 
 def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str]):
     """Logs the prompt to console."""
-    if PREFERENCES.log_prompt:
+    if config.logging.log_prompt:
         formatted_prompt = "\n" + prompt
         logger.info(
             f"Prompt (ID: {request_id}): {formatted_prompt if prompt else 'Empty'}\n"
@@ -47,7 +44,7 @@ def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str]):
 
 def log_response(request_id: str, response: str):
     """Logs the response to console."""
-    if PREFERENCES.log_prompt:
+    if config.logging.log_prompt:
         formatted_response = "\n" + response
         logger.info(
             f"Response (ID: {request_id}): "
