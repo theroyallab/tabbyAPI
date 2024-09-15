@@ -17,6 +17,7 @@ from exllamav2 import (
     ExLlamaV2Cache_Q4,
     ExLlamaV2Cache_Q6,
     ExLlamaV2Cache_Q8,
+    ExLlamaV2Cache_TP,
     ExLlamaV2Tokenizer,
     ExLlamaV2Lora,
 )
@@ -54,14 +55,6 @@ from common.templating import (
 )
 from common.transformers_utils import GenerationConfig, HuggingFaceConfig
 from common.utils import coalesce, unwrap
-
-# Dynamic imports
-try:
-    from exllamav2 import ExLlamaV2Cache_TP
-
-    has_tp = True
-except ImportError:
-    has_tp = False
 
 
 class ExllamaV2Container:
@@ -197,17 +190,10 @@ class ExllamaV2Container:
         else:
             # Set tensor parallel
             if use_tp:
-                if has_tp:
-                    self.use_tp = True
+                self.use_tp = True
 
-                    # TP has its own autosplit loader
-                    self.gpu_split_auto = False
-                else:
-                    # TODO: Remove conditional with exl2 v0.1.9 release
-                    logger.warning(
-                        "Tensor parallelism is not supported in the "
-                        "current ExllamaV2 version."
-                    )
+                # TP has its own autosplit loader
+                self.gpu_split_auto = False
 
             # Enable manual GPU split if provided
             if gpu_split:
@@ -703,7 +689,7 @@ class ExllamaV2Container:
     ):
         """Utility function to create a model cache."""
 
-        if has_tp and use_tp:
+        if use_tp:
             return ExLlamaV2Cache_TP(
                 model,
                 base=cache_class,
@@ -966,14 +952,6 @@ class ExllamaV2Container:
 
         Meant for dev wheels!
         """
-
-        if unwrap(kwargs.get("dry_allowed_length"), 0) > 0 and not hasattr(
-            ExLlamaV2Sampler.Settings, "dry_multiplier"
-        ):
-            logger.warning(
-                "DRY sampling is not supported by the currently "
-                "installed ExLlamaV2 version."
-            )
 
         return kwargs
 
