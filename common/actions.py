@@ -20,7 +20,7 @@ def branch_to_actions() -> bool:
             )
 
     elif config.actions.export_config:
-        generate_config_file(config.actions.config_export_path)
+        generate_config_file(filename=config.actions.config_export_path)
 
     else:
         # did not branch
