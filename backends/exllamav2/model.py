@@ -1141,7 +1141,7 @@ class ExllamaV2Container:
         # Add regex filter if it exists
         regex_pattern = unwrap(kwargs.get("regex_pattern"))
         if regex_pattern:
-            grammar_handler.add_regex_filter(regex_pattern, self.tokenizer)
+            grammar_handler.add_regex_filter(regex_pattern, self.model, self.tokenizer)
 
         # Add EBNF filter if it exists
         grammar_string = unwrap(kwargs.get("grammar_string"))
