@@ -75,9 +75,9 @@ class TabbyConfig(TabbyConfigModel):
 
         if legacy:
             logger.warning(
-                "legacy config.yml files are deprecated"
-                "Please upadte to the new version"
-                "Attempting auto migrationy"
+                "legacy config.yml files are deprecated, "
+                "please upadte to the new version.\n"
+                "Attempting auto migration"
             )
             new_cfg = TabbyConfigModel.model_validate(cfg)
 
