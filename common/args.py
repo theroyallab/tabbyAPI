@@ -4,7 +4,7 @@ import argparse
 from pydantic import BaseModel
 
 from common.config_models import TabbyConfigModel
-from common.utils import is_list_type, unwrap_optional
+from common.utils import is_list_type, unwrap_optional_type
 
 
 def add_field_to_group(group, field_name, field_type, field) -> None:
@@ -32,7 +32,7 @@ def init_argparser() -> argparse.ArgumentParser:
 
     # Loop through each top-level field in the config
     for field_name, field_info in TabbyConfigModel.model_fields.items():
-        field_type = unwrap_optional(field_info.annotation)
+        field_type = unwrap_optional_type(field_info.annotation)
         group = parser.add_argument_group(
             field_name, description=f"Arguments for {field_name}"
         )

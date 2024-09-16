@@ -1,10 +1,11 @@
 from inspect import getdoc
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic_core import PydanticUndefined
 from textwrap import dedent
 from typing import List, Literal, Optional, Union
 
-from pydantic_core import PydanticUndefined
+from common.utils import unwrap
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
 
@@ -488,12 +489,17 @@ def generate_config_file(
     # You can use https://www.yamllint.com/ if you want to check your YAML formatting.\n
     """)
 
-    schema = model if model else TabbyConfigModel()
+    schema = unwrap(model, TabbyConfigModel())
 
     # TODO: Make the disordered iteration look cleaner
     iter_once = False
     for field, field_data in schema.model_fields.items():
-        subfield_model = field_data.default_factory()
+        # Fetch from the existing model class if it's passed
+        # Probably can use this on schema too, but play it safe
+        if model:
+            subfield_model = getattr(model, field, None)
+        else:
+            subfield_model = field_data.default_factory()
 
         if not subfield_model._metadata.include_in_config:
             continue
@@ -519,7 +525,10 @@ def generate_config_file(
             else:
                 sub_iter_once = True
 
-            if subfield_data.default_factory:
+            # If a value already exists, use it
+            if hasattr(subfield_model, subfield):
+                value = getattr(subfield_model, subfield)
+            elif subfield_data.default_factory:
                 value = subfield_data.default_factory()
             else:
                 value = subfield_data.default

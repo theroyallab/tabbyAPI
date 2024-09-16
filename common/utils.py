@@ -62,8 +62,11 @@ def is_list_type(type_hint) -> bool:
     return False
 
 
-def unwrap_optional(type_hint) -> Type:
-    """unwrap Optional[type] annotations"""
+def unwrap_optional_type(type_hint) -> Type:
+    """
+    Unwrap Optional[type] annotations.
+    This is not the same as unwrap.
+    """
 
     if get_origin(type_hint) is Union:
         args = get_args(type_hint)
