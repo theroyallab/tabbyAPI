@@ -1,6 +1,8 @@
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, PrivateAttr
-from typing import List, Literal, Optional, Union
+from inspect import getdoc
 from pathlib import Path
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, PrivateAttr
+from textwrap import dedent
+from typing import List, Literal, Optional, Union
 
 from pydantic_core import PydanticUndefined
 
@@ -385,6 +387,7 @@ class TabbyConfigModel(BaseModel):
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())
 
 
+# TODO: Possibly switch to ruamel.yaml for a more native implementation
 def generate_config_file(
     model: BaseConfigModel = None,
     filename: str = "config_sample.yml",
@@ -392,23 +395,51 @@ def generate_config_file(
 ) -> None:
     """Creates a config.yml file from Pydantic models."""
 
-    schema = model if model else TabbyConfigModel()
-    yaml = ""
+    # Add a preamble
+    yaml = dedent("""
+    # Sample YAML file for configuration.
+    # Comment and uncomment values as needed.
+    # Every value has a default within the application.
+    # This file serves to be a drop in for config.yml
 
+    # Unless specified in the comments, DO NOT put these options in quotes!
+    # You can use https://www.yamllint.com/ if you want to check your YAML formatting.\n
+    """)
+
+    schema = model if model else TabbyConfigModel()
+
+    # TODO: Make the disordered iteration look cleaner
+    iter_once = False
     for field, field_data in schema.model_fields.items():
         subfield_model = field_data.default_factory()
+
         if not subfield_model._metadata.include_in_config:
             continue
 
-        yaml += f"# {subfield_model.__doc__}\n"
+        # Since the list is out of order with the length
+        # Add newlines from the beginning once one iteration finishes
+        # This is a sanity check for formatting
+        if iter_once:
+            yaml += "\n"
+        else:
+            iter_once = True
+
+        yaml += f"# {getdoc(subfield_model)}\n"
         yaml += f"{field}:\n"
+
+        sub_iter_once = False
         for subfield, subfield_data in subfield_model.model_fields.items():
+            # Same logic as iter_once
+            if sub_iter_once:
+                yaml += "\n"
+            else:
+                sub_iter_once = True
+
             value = subfield_data.default
             value = value if value is not None else ""
             value = value if value is not PydanticUndefined else ""
             yaml += f"{' ' * indentation}# {subfield_data.description}\n"
             yaml += f"{' ' * indentation}{subfield}: {value}\n"
-        yaml += "\n"
 
     with open(filename, "w") as f:
         f.write(yaml)
