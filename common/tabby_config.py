@@ -2,10 +2,10 @@ import yaml
 import pathlib
 from loguru import logger
 from typing import Optional
-from os import getenv
+from os import getenv, replace
 
 from common.utils import unwrap, merge_dicts
-from common.config_models import TabbyConfigModel
+from common.config_models import TabbyConfigModel, generate_config_file
 
 
 class TabbyConfig(TabbyConfigModel):
@@ -46,10 +46,25 @@ class TabbyConfig(TabbyConfigModel):
     def _from_file(self, config_path: pathlib.Path):
         """loads config from a given file path"""
 
+        legacy = False
+        cfg = {}
+
         # try loading from file
         try:
             with open(str(config_path.resolve()), "r", encoding="utf8") as config_file:
-                return unwrap(yaml.safe_load(config_file), {})
+                cfg = yaml.safe_load(config_file)
+
+                # FIXME: remove legacy config mapper
+                # load legacy config files
+                model = cfg.get("model", {})
+
+                if model.get("draft"):
+                    legacy = True
+                    cfg["draft"] = model["draft"]
+                if model.get("lora"):
+                    legacy = True
+                    cfg["lora"] = model["lora"]
+
         except FileNotFoundError:
             logger.info(f"The '{config_path.name}' file cannot be found")
         except Exception as exc:
@@ -58,8 +73,21 @@ class TabbyConfig(TabbyConfigModel):
                 f"the following error:\n\n{exc}"
             )
 
-        # if no config file was loaded
-        return {}
+        if legacy:
+            logger.warning(
+                "legacy config.yml files are deprecated"
+                "Please upadte to the new version"
+                "Attempting auto migrationy"
+            )
+            new_cfg = TabbyConfigModel.model_validate(cfg)
+
+            try:
+                replace(config_path, f"{config_path}.bak")
+                generate_config_file(model=new_cfg, filename=config_path)
+            except Exception as e:
+                logger.error(f"Auto migration failed: {e}")
+
+        return unwrap(cfg, {})
 
     def _from_args(self, args: dict):
         """loads config from the provided arguments"""

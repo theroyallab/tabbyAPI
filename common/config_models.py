@@ -439,22 +439,32 @@ class DeveloperConfig(BaseConfigModel):
 class TabbyConfigModel(BaseModel):
     """Base model for a TabbyConfig."""
 
-    config: ConfigOverrideConfig = Field(
+    config: Optional[ConfigOverrideConfig] = Field(
         default_factory=ConfigOverrideConfig.model_construct
     )
-    network: NetworkConfig = Field(default_factory=NetworkConfig.model_construct)
-    logging: LoggingConfig = Field(default_factory=LoggingConfig.model_construct)
-    model: ModelConfig = Field(default_factory=ModelConfig.model_construct)
-    draft_model: DraftModelConfig = Field(
+    network: Optional[NetworkConfig] = Field(
+        default_factory=NetworkConfig.model_construct
+    )
+    logging: Optional[LoggingConfig] = Field(
+        default_factory=LoggingConfig.model_construct
+    )
+    model: Optional[ModelConfig] = Field(default_factory=ModelConfig.model_construct)
+    draft_model: Optional[DraftModelConfig] = Field(
         default_factory=DraftModelConfig.model_construct
     )
-    lora: LoraConfig = Field(default_factory=LoraConfig.model_construct)
-    embeddings: EmbeddingsConfig = Field(
+    lora: Optional[LoraConfig] = Field(default_factory=LoraConfig.model_construct)
+    embeddings: Optional[EmbeddingsConfig] = Field(
         default_factory=EmbeddingsConfig.model_construct
     )
-    sampling: SamplingConfig = Field(default_factory=SamplingConfig.model_construct)
-    developer: DeveloperConfig = Field(default_factory=DeveloperConfig.model_construct)
-    actions: UtilityActions = Field(default_factory=UtilityActions.model_construct)
+    sampling: Optional[SamplingConfig] = Field(
+        default_factory=SamplingConfig.model_construct
+    )
+    developer: Optional[DeveloperConfig] = Field(
+        default_factory=DeveloperConfig.model_construct
+    )
+    actions: Optional[UtilityActions] = Field(
+        default_factory=UtilityActions.model_construct
+    )
 
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())
 
