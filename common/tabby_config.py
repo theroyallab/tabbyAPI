@@ -54,17 +54,31 @@ class TabbyConfig(TabbyConfigModel):
             with open(str(config_path.resolve()), "r", encoding="utf8") as config_file:
                 cfg = yaml.safe_load(config_file)
 
-                # FIXME: remove legacy config mapper
+                # NOTE: Remove migration wrapper after a period of time
                 # load legacy config files
-                model = cfg.get("model", {})
 
-                if model.get("draft"):
-                    legacy = True
-                    cfg["draft"] = model["draft"]
-                if model.get("lora"):
-                    legacy = True
-                    cfg["lora"] = model["lora"]
+                # Model config migration
+                model_cfg = unwrap(cfg.get("model"), {})
 
+                if model_cfg.get("draft"):
+                    legacy = True
+                    cfg["draft"] = model_cfg["draft"]
+
+                if model_cfg.get("lora"):
+                    legacy = True
+                    cfg["lora"] = model_cfg["lora"]
+
+                # Logging config migration
+                # This will catch the majority of legacy config files
+                logging_cfg = unwrap(cfg.get("logging"), {})
+                unmigrated_log_keys = [
+                    key for key in logging_cfg.keys() if not key.startswith("log_")
+                ]
+                if unmigrated_log_keys:
+                    legacy = True
+                    for key in unmigrated_log_keys:
+                        cfg["logging"][f"log_{key}"] = cfg["logging"][key]
+                        del cfg["logging"][key]
         except FileNotFoundError:
             logger.info(f"The '{config_path.name}' file cannot be found")
         except Exception as exc:
@@ -79,6 +93,8 @@ class TabbyConfig(TabbyConfigModel):
                 "please upadte to the new version.\n"
                 "Attempting auto migration"
             )
+
+            # Create a temporary base config model
             new_cfg = TabbyConfigModel.model_validate(cfg)
 
             try:
