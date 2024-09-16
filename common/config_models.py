@@ -509,7 +509,11 @@ def generate_config_file(
             else:
                 sub_iter_once = True
 
-            value = subfield_data.default
+            if subfield_data.default_factory:
+                value = subfield_data.default_factory()
+            else:
+                value = subfield_data.default
+
             value = value if value is not None else ""
             value = value if value is not PydanticUndefined else ""
 
