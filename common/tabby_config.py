@@ -2,7 +2,7 @@ import yaml
 import pathlib
 from loguru import logger
 from typing import Optional
-from os import getenv, replace
+from os import getenv
 
 from common.utils import unwrap, merge_dicts
 from common.config_models import TabbyConfigModel, generate_config_file
@@ -98,10 +98,14 @@ class TabbyConfig(TabbyConfigModel):
             new_cfg = TabbyConfigModel.model_validate(cfg)
 
             try:
-                replace(config_path, f"{config_path}.bak")
+                config_path.rename(f"{config_path}.bak")
                 generate_config_file(model=new_cfg, filename=config_path)
             except Exception as e:
                 logger.error(f"Auto migration failed: {e}")
+
+                # Restore the old config
+                config_path.unlink(missing_ok=True)
+                pathlib.Path(f"{config_path}.bak").rename(config_path)
 
         return unwrap(cfg, {})
 
@@ -118,9 +122,6 @@ class TabbyConfig(TabbyConfigModel):
         for key in TabbyConfigModel.model_fields.keys():
             override = args.get(key)
             if override:
-                if key == "logging":
-                    # Strip the "log_" prefix from logging keys if present
-                    override = {k.replace("log_", ""): v for k, v in override.items()}
                 config[key] = override
 
         return config

@@ -1,7 +1,7 @@
 """Common utility functions"""
 
 from types import NoneType
-from typing import Optional, Type, Union, get_args, get_origin
+from typing import Type, Union, get_args, get_origin
 
 
 def unwrap(wrapped, default=None):
