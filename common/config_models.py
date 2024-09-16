@@ -496,8 +496,8 @@ def generate_config_file(
     for field, field_data in schema.model_fields.items():
         # Fetch from the existing model class if it's passed
         # Probably can use this on schema too, but play it safe
-        if model:
-            subfield_model = getattr(model, field, None)
+        if model and hasattr(model, field):
+            subfield_model = getattr(model, field)
         else:
             subfield_model = field_data.default_factory()
 
