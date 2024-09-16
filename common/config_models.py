@@ -55,7 +55,7 @@ class UtilityActions(BaseConfigModel):
 
 
 class NetworkConfig(BaseConfigModel):
-    """Model for network configuration."""
+    """Options for networking"""
 
     host: Optional[str] = Field("127.0.0.1", description=("The IP to host on"))
     port: Optional[int] = Field(5000, description=("The port to host on"))
@@ -75,7 +75,7 @@ class NetworkConfig(BaseConfigModel):
 # TODO: Migrate config.yml to have the log_ prefix
 # This is a breaking change.
 class LoggingConfig(BaseConfigModel):
-    """Model for logging configuration."""
+    """Options for logging"""
 
     log_prompt: Optional[bool] = Field(
         False,
@@ -95,7 +95,11 @@ class LoggingConfig(BaseConfigModel):
 
 
 class ModelConfig(BaseConfigModel):
-    """Model for LLM configuration."""
+    """
+    Options for model overrides and loading
+    Please read the comments to understand how arguments are handled
+    between initial and API loads
+    """
 
     # TODO: convert this to a pathlib.path?
     model_dir: str = Field(
@@ -244,7 +248,10 @@ class ModelConfig(BaseConfigModel):
 
 
 class DraftModelConfig(BaseConfigModel):
-    """Model for draft LLM model configuration."""
+    """
+    Options for draft models (speculative decoding)
+    This will use more VRAM!
+    """
 
     # TODO: convert this to a pathlib.path?
     draft_model_dir: Optional[str] = Field(
@@ -295,7 +302,7 @@ class LoraInstanceModel(BaseConfigModel):
 
 
 class LoraConfig(BaseConfigModel):
-    """Model for lora configuration."""
+    """Options for Loras"""
 
     # TODO: convert this to a pathlib.path?
     lora_dir: Optional[str] = Field(
@@ -311,7 +318,7 @@ class LoraConfig(BaseConfigModel):
 
 
 class SamplingConfig(BaseConfigModel):
-    """Model for sampling (overrides) config."""
+    """Options for Sampling"""
 
     override_preset: Optional[str] = Field(
         None, description=("Select a sampler override preset")
@@ -319,7 +326,7 @@ class SamplingConfig(BaseConfigModel):
 
 
 class DeveloperConfig(BaseConfigModel):
-    """Model for developer settings configuration."""
+    """Options for development and experimentation"""
 
     unsafe_launch: Optional[bool] = Field(
         False, description=("Skip Exllamav2 version check")
@@ -343,7 +350,11 @@ class DeveloperConfig(BaseConfigModel):
 
 
 class EmbeddingsConfig(BaseConfigModel):
-    """Model for embeddings configuration."""
+    """
+    Options for embedding models and loading.
+    NOTE: Embeddings requires the "extras" feature to be installed
+    Install it via "pip install .[extras]"
+    """
 
     # TODO: convert this to a pathlib.path?
     embedding_model_dir: Optional[str] = Field(
@@ -424,7 +435,9 @@ def generate_config_file(
         else:
             iter_once = True
 
-        yaml += f"# {getdoc(subfield_model)}\n"
+        for line in getdoc(subfield_model).splitlines():
+            yaml += f"# {line}\n"
+
         yaml += f"{field}:\n"
 
         sub_iter_once = False
