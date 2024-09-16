@@ -317,6 +317,32 @@ class LoraConfig(BaseConfigModel):
     )
 
 
+class EmbeddingsConfig(BaseConfigModel):
+    """
+    Options for embedding models and loading.
+    NOTE: Embeddings requires the "extras" feature to be installed
+    Install it via "pip install .[extras]"
+    """
+
+    # TODO: convert this to a pathlib.path?
+    embedding_model_dir: Optional[str] = Field(
+        "models",
+        description=(
+            "Overrides directory to look for embedding models (default: models)"
+        ),
+    )
+    embeddings_device: Optional[Literal["cpu", "auto", "cuda"]] = Field(
+        "cpu",
+        description=(
+            "Device to load embedding models on (default: cpu). Possible values: cpu, "
+            "auto, cuda. If using an AMD GPU, set this value to 'cuda'."
+        ),
+    )
+    embedding_model_name: Optional[str] = Field(
+        None, description=("The embeddings model to load")
+    )
+
+
 class SamplingConfig(BaseConfigModel):
     """Options for Sampling"""
 
@@ -349,32 +375,6 @@ class DeveloperConfig(BaseConfigModel):
     )
 
 
-class EmbeddingsConfig(BaseConfigModel):
-    """
-    Options for embedding models and loading.
-    NOTE: Embeddings requires the "extras" feature to be installed
-    Install it via "pip install .[extras]"
-    """
-
-    # TODO: convert this to a pathlib.path?
-    embedding_model_dir: Optional[str] = Field(
-        "models",
-        description=(
-            "Overrides directory to look for embedding models (default: models)"
-        ),
-    )
-    embeddings_device: Optional[Literal["cpu", "auto", "cuda"]] = Field(
-        "cpu",
-        description=(
-            "Device to load embedding models on (default: cpu). Possible values: cpu, "
-            "auto, cuda. If using an AMD GPU, set this value to 'cuda'."
-        ),
-    )
-    embedding_model_name: Optional[str] = Field(
-        None, description=("The embeddings model to load")
-    )
-
-
 class TabbyConfigModel(BaseModel):
     """Base model for a TabbyConfig."""
 
@@ -388,11 +388,11 @@ class TabbyConfigModel(BaseModel):
         default_factory=DraftModelConfig.model_construct
     )
     lora: LoraConfig = Field(default_factory=LoraConfig.model_construct)
-    sampling: SamplingConfig = Field(default_factory=SamplingConfig.model_construct)
-    developer: DeveloperConfig = Field(default_factory=DeveloperConfig.model_construct)
     embeddings: EmbeddingsConfig = Field(
         default_factory=EmbeddingsConfig.model_construct
     )
+    sampling: SamplingConfig = Field(default_factory=SamplingConfig.model_construct)
+    developer: DeveloperConfig = Field(default_factory=DeveloperConfig.model_construct)
     actions: UtilityActions = Field(default_factory=UtilityActions.model_construct)
 
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())
