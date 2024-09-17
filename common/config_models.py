@@ -333,7 +333,7 @@ class DraftModelConfig(BaseConfigModel):
 class LoraInstanceModel(BaseConfigModel):
     """Model representing an instance of a Lora."""
 
-    name: str = Field(..., description=("Name of the LoRA model."))
+    name: Optional[str] = Field(None, description=("Name of the LoRA model."))
     scaling: float = Field(
         1.0,
         description=("Scaling factor for the LoRA model (default: 1.0)."),
@@ -352,7 +352,10 @@ class LoraConfig(BaseConfigModel):
         None,
         description=(
             "List of LoRAs to load and associated scaling factors "
-            "(default scale: 1.0)."
+            "(default scale: 1.0).\n"
+            "For the YAML file, add each entry as a YAML list:\n"
+            "- name: lora1\n"
+            "  scaling: 1.0"
         ),
     )
 
