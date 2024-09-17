@@ -126,7 +126,7 @@ class ModelConfig(BaseConfigModel):
         ),
     )
     inline_model_loading: Optional[bool] = Field(
-        True,
+        False,
         description=(
             "Allow direct loading of models "
             "from a completion or chat completion request (default: False)."
