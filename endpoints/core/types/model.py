@@ -118,11 +118,7 @@ class EmbeddingModelLoadRequest(BaseModel):
     name: str
 
     # Set default from the config
-    embeddings_device: Optional[str] = Field(
-        default_factory=lambda: unwrap(
-            config.embeddings.get("embeddings_device"), "cpu"
-        )
-    )
+    embeddings_device: Optional[str] = Field(config.embeddings.embeddings_device)
 
 
 class ModelLoadResponse(BaseModel):
