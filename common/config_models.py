@@ -80,7 +80,7 @@ class NetworkConfig(BaseConfigModel):
         ),
     )
     api_servers: Optional[List[Literal["OAI", "Kobold"]]] = Field(
-        default_factory=list,
+        ["OAI"],
         description=(
             'Select API servers to enable (default: ["OAI"]).\n'
             "Possible values: OAI, Kobold."

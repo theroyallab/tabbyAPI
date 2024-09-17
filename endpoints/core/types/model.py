@@ -6,7 +6,6 @@ from typing import List, Literal, Optional, Union
 
 from common.config_models import LoggingConfig
 from common.tabby_config import config
-from common.utils import unwrap
 
 
 class ModelCardParameters(BaseModel):

@@ -26,7 +26,7 @@ network:
 
   # Select API servers to enable (default: ["OAI"]).
   # Possible values: OAI, Kobold.
-  api_servers: []
+  api_servers: ['OAI']
 
 # Options for logging
 logging:
