@@ -20,11 +20,13 @@ class TabbyConfig(TabbyConfigModel):
         """Synchronously loads the global application config"""
 
         # config is applied in order of items in the list
-        configs = [
-            self._from_file(pathlib.Path("config.yml")),
-            self._from_environment(),
-            self._from_args(unwrap(arguments, {})),
-        ]
+        arguments_dict = unwrap(arguments, {})
+        configs = [self._from_environment(), self._from_args(arguments_dict)]
+
+        # If actions aren't present, also look from the file
+        # TODO: Change logic if file loading requires actions in the future
+        if not arguments_dict.get("actions"):
+            configs.insert(0, self._from_file(pathlib.Path("config.yml")))
 
         merged_config = merge_dicts(*configs)
 
