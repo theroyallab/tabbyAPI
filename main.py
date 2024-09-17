@@ -118,7 +118,6 @@ def entrypoint(arguments: Optional[dict] = None):
 
     # Check exllamav2 version and give a descriptive error if it's too old
     # Skip if launching unsafely
-    print(f"MAIN.PY {config=}")
     if config.developer.unsafe_launch:
         logger.warning(
             "UNSAFE: Skipping ExllamaV2 version check.\n"
