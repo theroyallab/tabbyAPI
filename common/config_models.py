@@ -1,11 +1,7 @@
-from inspect import getdoc
 from pathlib import Path
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
-from pydantic_core import PydanticUndefined
-from textwrap import dedent
 from typing import List, Literal, Optional, Union
 
-from common.utils import unwrap
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
 
@@ -468,78 +464,3 @@ class TabbyConfigModel(BaseModel):
     )
 
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())
-
-
-# TODO: Possibly switch to ruamel.yaml for a more native implementation
-def generate_config_file(
-    model: BaseConfigModel = None,
-    filename: str = "config_sample.yml",
-    indentation: int = 2,
-) -> None:
-    """Creates a config.yml file from Pydantic models."""
-
-    # Add a preamble
-    yaml = dedent("""
-    # Sample YAML file for configuration.
-    # Comment and uncomment values as needed.
-    # Every value has a default within the application.
-    # This file serves to be a drop in for config.yml
-
-    # Unless specified in the comments, DO NOT put these options in quotes!
-    # You can use https://www.yamllint.com/ if you want to check your YAML formatting.\n
-    """)
-
-    schema = unwrap(model, TabbyConfigModel())
-
-    # TODO: Make the disordered iteration look cleaner
-    iter_once = False
-    for field, field_data in schema.model_fields.items():
-        # Fetch from the existing model class if it's passed
-        # Probably can use this on schema too, but play it safe
-        if model and hasattr(model, field):
-            subfield_model = getattr(model, field)
-        else:
-            subfield_model = field_data.default_factory()
-
-        if not subfield_model._metadata.include_in_config:
-            continue
-
-        # Since the list is out of order with the length
-        # Add newlines from the beginning once one iteration finishes
-        # This is a sanity check for formatting
-        if iter_once:
-            yaml += "\n"
-        else:
-            iter_once = True
-
-        for line in getdoc(subfield_model).splitlines():
-            yaml += f"# {line}\n"
-
-        yaml += f"{field}:\n"
-
-        sub_iter_once = False
-        for subfield, subfield_data in subfield_model.model_fields.items():
-            # Same logic as iter_once
-            if sub_iter_once:
-                yaml += "\n"
-            else:
-                sub_iter_once = True
-
-            # If a value already exists, use it
-            if hasattr(subfield_model, subfield):
-                value = getattr(subfield_model, subfield)
-            elif subfield_data.default_factory:
-                value = subfield_data.default_factory()
-            else:
-                value = subfield_data.default
-
-            value = value if value is not None else ""
-            value = value if value is not PydanticUndefined else ""
-
-            for line in subfield_data.description.splitlines():
-                yaml += f"{' ' * indentation}# {line}\n"
-
-            yaml += f"{' ' * indentation}{subfield}: {value}\n"
-
-    with open(filename, "w") as f:
-        f.write(yaml)
