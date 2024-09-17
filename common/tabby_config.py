@@ -172,8 +172,8 @@ def generate_config_file(
 ) -> None:
     """Creates a config.yml file from Pydantic models."""
 
-    # Add a preamble
-    yaml = dedent("""
+    # Add a cleaned up preamble
+    preamble = """
     # Sample YAML file for configuration.
     # Comment and uncomment values as needed.
     # Every value has a default within the application.
@@ -181,7 +181,10 @@ def generate_config_file(
 
     # Unless specified in the comments, DO NOT put these options in quotes!
     # You can use https://www.yamllint.com/ if you want to check your YAML formatting.\n
-    """)
+    """
+
+    # Trim and cleanup preamble
+    yaml = dedent(preamble).lstrip()
 
     schema = unwrap(model, TabbyConfigModel())
 
