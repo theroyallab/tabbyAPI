@@ -2,15 +2,15 @@ import pathlib
 from inspect import getdoc
 from os import getenv
 from textwrap import dedent
-from typing import Any, Optional
+from typing import Optional
 
 from loguru import logger
 from pydantic import BaseModel
-from pydantic_core import PydanticUndefined
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from ruamel.yaml.scalarstring import PreservedScalarString
 
-from common.config_models import TabbyConfigModel
+from common.config_models import BaseConfigModel, TabbyConfigModel
 from common.utils import merge_dicts, unwrap
 
 yaml = YAML()
@@ -174,22 +174,10 @@ config: TabbyConfig = TabbyConfig()
 def generate_config_file(
     model: BaseModel = None,
     filename: str = "config_sample.yml",
-    indentation: int = 2,
 ) -> None:
     """Creates a config.yml file from Pydantic models."""
 
     schema = unwrap(model, TabbyConfigModel())
-    preamble = get_preamble()
-
-    yaml_content = pydantic_model_to_yaml(schema)
-
-    with open(filename, "w") as f:
-        f.write(preamble)
-        yaml.dump(yaml_content, f)
-
-
-def get_preamble() -> str:
-    """Returns the cleaned up preamble for the config file."""
     preamble = """
     # Sample YAML file for configuration.
     # Comment and uncomment values as needed.
@@ -199,43 +187,80 @@ def get_preamble() -> str:
     # Unless specified in the comments, DO NOT put these options in quotes!
     # You can use https://www.yamllint.com/ if you want to check your YAML formatting.\n
     """
-    return dedent(preamble).lstrip()
+
+    yaml_content = pydantic_model_to_yaml(schema)
+
+    with open(filename, "w") as f:
+        f.write(dedent(preamble).lstrip())
+        yaml.dump(yaml_content, f)
 
 
-# Function to convert pydantic model to dict with field descriptions as comments
-def pydantic_model_to_yaml(model: BaseModel) -> CommentedMap:
+def pydantic_model_to_yaml(model: BaseModel, indentation: int = 0) -> CommentedMap:
     """
     Recursively converts a Pydantic model into a CommentedMap,
     with descriptions as comments in YAML.
     """
+
     # Create a CommentedMap to hold the output data
     yaml_data = CommentedMap()
 
     # Loop through all fields in the model
+    iteration = 1
     for field_name, field_info in model.model_fields.items():
+        # Get the inner pydantic model
         value = getattr(model, field_name)
 
-        # If the field is another Pydantic model
-        if isinstance(value, BaseModel):
-            yaml_data[field_name] = pydantic_model_to_yaml(value)
-        # If the field is a list of Pydantic models
-        elif (
-            isinstance(value, list)
-            and len(value) > 0
-            and isinstance(value[0], BaseModel)
-        ):
-            yaml_list = CommentedSeq()
-            for item in value:
-                yaml_list.append(pydantic_model_to_yaml(item))
-            yaml_data[field_name] = yaml_list
-        # Otherwise, just assign the value
-        else:
-            yaml_data[field_name] = value
+        if isinstance(value, BaseConfigModel):
+            # If the field is another Pydantic model
 
-        # Add field description as a comment if available
-        if field_info.description:
-            yaml_data.yaml_set_comment_before_after_key(
-                field_name, before=field_info.description
+            if not value._metadata.include_in_config:
+                continue
+
+            yaml_data[field_name] = pydantic_model_to_yaml(
+                value, indentation=indentation + 2
             )
+            comment = getdoc(value)
+        elif isinstance(value, list) and len(value) > 0:
+            # If the field is a list
+
+            yaml_list = CommentedSeq()
+            if isinstance(value[0], BaseModel):
+                # If the field is a list of Pydantic models
+                # Do not add comments for these items
+
+                for item in value:
+                    yaml_list.append(
+                        pydantic_model_to_yaml(item, indentation=indentation + 2)
+                    )
+            else:
+                # If the field is a normal list, prefer the YAML flow style
+
+                yaml_list.fa.set_flow_style()
+                yaml_list += [
+                    PreservedScalarString(element)
+                    if isinstance(element, str)
+                    else element
+                    for element in value
+                ]
+
+            yaml_data[field_name] = yaml_list
+            comment = field_info.description
+        else:
+            # Otherwise, just assign the value
+
+            yaml_data[field_name] = value
+            comment = field_info.description
+
+        if comment:
+            # Add a newline to every comment but the first one
+            if iteration != 1:
+                comment = f"\n{comment}"
+
+            yaml_data.yaml_set_comment_before_after_key(
+                field_name, before=comment, indent=indentation
+            )
+
+        # Increment the iteration counter
+        iteration += 1
 
     return yaml_data

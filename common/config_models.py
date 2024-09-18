@@ -333,12 +333,8 @@ class DraftModelConfig(BaseConfigModel):
 class LoraInstanceModel(BaseConfigModel):
     """Model representing an instance of a Lora."""
 
-    name: Optional[str] = Field(None, description=("Name of the LoRA model."))
-    scaling: float = Field(
-        1.0,
-        description=("Scaling factor for the LoRA model (default: 1.0)."),
-        ge=0,
-    )
+    name: Optional[str] = None
+    scaling: float = Field(1.0, ge=0)
 
 
 class LoraConfig(BaseConfigModel):
