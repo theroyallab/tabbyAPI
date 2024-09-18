@@ -72,7 +72,7 @@ class TabbyConfig(TabbyConfigModel):
 
                 if model_cfg.get("draft"):
                     legacy = True
-                    cfg["draft"] = model_cfg["draft"]
+                    cfg["draft_model"] = model_cfg["draft"]
 
                 if model_cfg.get("lora"):
                     legacy = True

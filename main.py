@@ -69,7 +69,11 @@ async def entrypoint_async():
         model_path = model_path / model_name
 
         # TODO: remove model_dump()
-        await model.load_model(model_path.resolve(), **config.model.model_dump())
+        await model.load_model(
+            model_path.resolve(),
+            **config.model.model_dump(),
+            draft=config.draft_model.model_dump(),
+        )
 
         # Load loras after loading the model
         if config.lora.loras:
