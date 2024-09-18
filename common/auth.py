@@ -5,13 +5,15 @@ application, it should be fine.
 
 import aiofiles
 import secrets
-import yaml
+from ruamel.yaml import YAML
 from fastapi import Header, HTTPException, Request
 from pydantic import BaseModel
 from loguru import logger
 from typing import Optional
 
 from common.utils import coalesce
+
+yaml = YAML()
 
 
 class AuthKeys(BaseModel):
@@ -60,7 +62,7 @@ async def load_auth_keys(disable_from_config: bool):
     try:
         async with aiofiles.open("api_tokens.yml", "r", encoding="utf8") as auth_file:
             contents = await auth_file.read()
-            auth_keys_dict = yaml.safe_load(contents)
+            auth_keys_dict = yaml.load(contents)
             AUTH_KEYS = AuthKeys.model_validate(auth_keys_dict)
     except FileNotFoundError:
         new_auth_keys = AuthKeys(

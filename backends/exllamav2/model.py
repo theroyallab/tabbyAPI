@@ -30,7 +30,7 @@ from itertools import zip_longest
 from loguru import logger
 from typing import List, Optional, Union
 
-import yaml
+from ruamel.yaml import YAML
 
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
@@ -55,6 +55,8 @@ from common.templating import (
 )
 from common.transformers_utils import GenerationConfig, HuggingFaceConfig
 from common.utils import coalesce, unwrap
+
+yaml = YAML()
 
 
 class ExllamaV2Container:

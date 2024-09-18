@@ -3,13 +3,15 @@
 import aiofiles
 import json
 import pathlib
-import yaml
+from ruamel.yaml import YAML
 from copy import deepcopy
 from loguru import logger
 from pydantic import AliasChoices, BaseModel, Field
 from typing import Dict, List, Optional, Union
 
 from common.utils import unwrap, prune_dict
+
+yaml = YAML()
 
 
 # Common class for sampler params
