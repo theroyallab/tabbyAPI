@@ -56,8 +56,6 @@ from common.templating import (
 from common.transformers_utils import GenerationConfig, HuggingFaceConfig
 from common.utils import coalesce, unwrap
 
-yaml = YAML()
-
 
 class ExllamaV2Container:
     """The model container class for ExLlamaV2 models."""
@@ -381,7 +379,10 @@ class ExllamaV2Container:
             override_config_path, "r", encoding="utf8"
         ) as override_config_file:
             contents = await override_config_file.read()
-            override_args = unwrap(yaml.safe_load(contents), {})
+
+            # Create a temporary YAML parser
+            yaml = YAML(typ="safe")
+            override_args = unwrap(yaml.load(contents), {})
 
             # Merge draft overrides beforehand
             draft_override_args = unwrap(override_args.get("draft"), {})

@@ -11,8 +11,6 @@ from typing import Dict, List, Optional, Union
 
 from common.utils import unwrap, prune_dict
 
-yaml = YAML()
-
 
 # Common class for sampler params
 class BaseSamplerRequest(BaseModel):
@@ -418,7 +416,10 @@ async def overrides_from_file(preset_name: str):
         overrides_container.selected_preset = preset_path.stem
         async with aiofiles.open(preset_path, "r", encoding="utf8") as raw_preset:
             contents = await raw_preset.read()
-            preset = yaml.safe_load(contents)
+
+            # Create a temporary YAML parser
+            yaml = YAML(typ="safe")
+            preset = yaml.load(contents)
             overrides_from_dict(preset)
 
             logger.info("Applied sampler overrides from file.")

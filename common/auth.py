@@ -4,6 +4,7 @@ application, it should be fine.
 """
 
 import aiofiles
+import io
 import secrets
 from ruamel.yaml import YAML
 from fastapi import Header, HTTPException, Request
@@ -12,8 +13,6 @@ from loguru import logger
 from typing import Optional
 
 from common.utils import coalesce
-
-yaml = YAML()
 
 
 class AuthKeys(BaseModel):
@@ -59,6 +58,9 @@ async def load_auth_keys(disable_from_config: bool):
 
         return
 
+    # Create a temporary YAML parser
+    yaml = YAML(typ=["rt", "safe"])
+
     try:
         async with aiofiles.open("api_tokens.yml", "r", encoding="utf8") as auth_file:
             contents = await auth_file.read()
@@ -71,10 +73,12 @@ async def load_auth_keys(disable_from_config: bool):
         AUTH_KEYS = new_auth_keys
 
         async with aiofiles.open("api_tokens.yml", "w", encoding="utf8") as auth_file:
-            new_auth_yaml = yaml.safe_dump(
-                AUTH_KEYS.model_dump(), default_flow_style=False
+            string_stream = io.StringIO()
+            yaml.dump(
+                AUTH_KEYS.model_dump(), string_stream
             )
-            await auth_file.write(new_auth_yaml)
+
+            await auth_file.write(string_stream.getvalue())
 
     logger.info(
         f"Your API key is: {AUTH_KEYS.api_key}\n"

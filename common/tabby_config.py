@@ -13,7 +13,7 @@ from ruamel.yaml.scalarstring import PreservedScalarString
 from common.config_models import BaseConfigModel, TabbyConfigModel
 from common.utils import merge_dicts, unwrap
 
-yaml = YAML()
+yaml = YAML(typ=["rt", "safe"])
 
 
 class TabbyConfig(TabbyConfigModel):
