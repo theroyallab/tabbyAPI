@@ -97,9 +97,10 @@ model:
   # Leave blank to pull the value from the model.
   rope_scale: 1.0
 
-  # Rope alpha (default: 1.0).
+  # Rope alpha (default: None).
   # Same as alpha_value. Set to "auto" to auto-calculate.
-  rope_alpha: 1.0
+  # Leaving this value blank will either pull from the model or auto-calculate.
+  rope_alpha:
 
   # Enable different cache modes for VRAM savings (default: FP16).
   # Possible values: 'FP16', 'Q8', 'Q6', 'Q4'.
@@ -154,6 +155,7 @@ draft_model:
 
   # Rope alpha for draft models (default: None).
   # Same as alpha_value. Set to "auto" to auto-calculate.
+  # Leaving this value blank will either pull from the model or auto-calculate.
   draft_rope_alpha:
 
   # Cache mode for draft models to save VRAM (default: FP16).

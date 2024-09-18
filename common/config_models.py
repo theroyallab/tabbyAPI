@@ -213,10 +213,12 @@ class ModelConfig(BaseConfigModel):
         ),
     )
     rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
-        1.0,
+        None,
         description=(
-            "Rope alpha (default: 1.0).\n"
-            'Same as alpha_value. Set to "auto" to auto-calculate.'
+            "Rope alpha (default: None).\n"
+            'Same as alpha_value. Set to "auto" to auto-calculate.\n'
+            "Leaving this value blank will either pull from the model "
+            "or auto-calculate."
         ),
     )
     cache_mode: Optional[CACHE_SIZES] = Field(
@@ -318,7 +320,9 @@ class DraftModelConfig(BaseConfigModel):
         None,
         description=(
             "Rope alpha for draft models (default: None).\n"
-            'Same as alpha_value. Set to "auto" to auto-calculate.'
+            'Same as alpha_value. Set to "auto" to auto-calculate.\n'
+            "Leaving this value blank will either pull from the model "
+            "or auto-calculate."
         ),
     )
     draft_cache_mode: Optional[CACHE_SIZES] = Field(
