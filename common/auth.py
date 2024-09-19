@@ -74,9 +74,7 @@ async def load_auth_keys(disable_from_config: bool):
 
         async with aiofiles.open("api_tokens.yml", "w", encoding="utf8") as auth_file:
             string_stream = io.StringIO()
-            yaml.dump(
-                AUTH_KEYS.model_dump(), string_stream
-            )
+            yaml.dump(AUTH_KEYS.model_dump(), string_stream)
 
             await auth_file.write(string_stream.getvalue())
 
