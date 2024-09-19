@@ -36,16 +36,13 @@ def is_installed(package_name: str) -> bool:
 
 def get_installed_deps() -> DependenciesModel:
     """Check if optional dependencies are installed by looping over the fields."""
-    fields = (
-        DependenciesModel.model_fields
-    )  # Get the fields of the model (Pydantic v2 syntax)
+    fields = DependenciesModel.model_fields
 
     installed_deps = {}
 
     for field_name in fields.keys():
         installed_deps[field_name] = is_installed(field_name)
 
-    # Create and return an instance of the DependenciesModel with the gathered information
     return DependenciesModel(**installed_deps)
 
 
