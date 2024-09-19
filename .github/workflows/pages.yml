@@ -48,8 +48,8 @@ jobs:
           npm install @redocly/cli -g
       - name: Export OpenAPI docs
         run: |
-          python main.py --export-openapi true --openapi-export-path "openapi-oai.json" --api-servers OAI
-          python main.py --export-openapi true --openapi-export-path "openapi-kobold.json" --api-servers kobold
+          EXPORT_OPENAPI=1 python main.py --openapi-export-path "openapi-oai.json" --api-servers OAI
+          EXPORT_OPENAPI=1 python main.py --openapi-export-path "openapi-kobold.json" --api-servers kobold
       - name: Build and store Redocly site
         run: |
           mkdir static
