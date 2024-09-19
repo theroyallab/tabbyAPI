@@ -1,5 +1,12 @@
 from pathlib import Path
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+    validator,
+)
 from typing import List, Literal, Optional, Union
 
 
@@ -79,13 +86,19 @@ class NetworkConfig(BaseConfigModel):
             "NOTE: Only enable this for debug purposes."
         ),
     )
-    api_servers: Optional[List[Literal["OAI", "Kobold"]]] = Field(
+    api_servers: Optional[List[Literal["oai", "kobold"]]] = Field(
         ["OAI"],
         description=(
             'Select API servers to enable (default: ["OAI"]).\n'
             "Possible values: OAI, Kobold."
         ),
     )
+
+    # Converts all strings in the api_servers list to lowercase
+    # NOTE: Expand if more models need this validator
+    @field_validator("api_servers", mode="before")
+    def api_server_validator(cls, api_servers):
+        return [server_name.lower() for server_name in api_servers]
 
 
 # TODO: Migrate config.yml to have the log_ prefix
