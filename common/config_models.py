@@ -5,7 +5,6 @@ from pydantic import (
     Field,
     PrivateAttr,
     field_validator,
-    validator,
 )
 from typing import List, Literal, Optional, Union
 
