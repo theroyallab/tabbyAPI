@@ -76,9 +76,9 @@ def _get_download_folder(repo_id: str, repo_type: str, folder_name: Optional[str
     """Gets the download folder for the repo."""
 
     if repo_type == "lora":
-        download_path = pathlib.Path(config.lora.get("lora_dir") or "loras")
+        download_path = pathlib.Path(config.lora.lora_dir)
     else:
-        download_path = pathlib.Path(config.model.get("model_dir") or "models")
+        download_path = pathlib.Path(config.model.model_dir)
 
     download_path = download_path / (folder_name or repo_id.split("/")[-1])
     return download_path

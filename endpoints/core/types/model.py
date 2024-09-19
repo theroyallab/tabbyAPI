@@ -4,9 +4,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Literal, Optional, Union
 
-from common.gen_logging import GenLogPreferences
+from common.config_models import LoggingConfig
 from common.tabby_config import config
-from common.utils import unwrap
 
 
 class ModelCardParameters(BaseModel):
@@ -34,7 +33,7 @@ class ModelCard(BaseModel):
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time()))
     owned_by: str = "tabbyAPI"
-    logging: Optional[GenLogPreferences] = None
+    logging: Optional[LoggingConfig] = None
     parameters: Optional[ModelCardParameters] = None
 
 
@@ -118,11 +117,7 @@ class EmbeddingModelLoadRequest(BaseModel):
     name: str
 
     # Set default from the config
-    embeddings_device: Optional[str] = Field(
-        default_factory=lambda: unwrap(
-            config.embeddings.get("embeddings_device"), "cpu"
-        )
-    )
+    embeddings_device: Optional[str] = Field(config.embeddings.embeddings_device)
 
 
 class ModelLoadResponse(BaseModel):

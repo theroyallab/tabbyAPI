@@ -30,7 +30,7 @@ from itertools import zip_longest
 from loguru import logger
 from typing import List, Optional, Union
 
-import yaml
+from ruamel.yaml import YAML
 
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
@@ -379,7 +379,10 @@ class ExllamaV2Container:
             override_config_path, "r", encoding="utf8"
         ) as override_config_file:
             contents = await override_config_file.read()
-            override_args = unwrap(yaml.safe_load(contents), {})
+
+            # Create a temporary YAML parser
+            yaml = YAML(typ="safe")
+            override_args = unwrap(yaml.load(contents), {})
 
             # Merge draft overrides beforehand
             draft_override_args = unwrap(override_args.get("draft"), {})

@@ -11,7 +11,6 @@ from typing import Optional
 from uuid import uuid4
 
 from common.tabby_config import config
-from common.utils import unwrap
 
 
 class TabbyRequestErrorMessage(BaseModel):
@@ -39,7 +38,7 @@ def handle_request_error(message: str, exc_info: bool = True):
     """Log a request error to the console."""
 
     trace = traceback.format_exc()
-    send_trace = unwrap(config.network.get("send_tracebacks"), False)
+    send_trace = config.network.send_tracebacks
 
     error_message = TabbyRequestErrorMessage(
         message=message, trace=trace if send_trace else None
@@ -134,7 +133,7 @@ def get_global_depends():
 
     depends = [Depends(add_request_id)]
 
-    if config.logging.get("requests"):
+    if config.logging.log_requests:
         depends.append(Depends(log_request))
 
     return depends
