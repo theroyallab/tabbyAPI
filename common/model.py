@@ -13,22 +13,20 @@ from typing import Optional
 from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
 from common.tabby_config import config
-from endpoints.utils import do_export_openapi
+from common.optional_dependencies import dependencies
 
-if not do_export_openapi:
+if dependencies.exl2:
     from backends.exllamav2.model import ExllamaV2Container
 
     # Global model container
     container: Optional[ExllamaV2Container] = None
     embeddings_container = None
 
-    # Type hint the infinity emb container if it exists
-    from backends.infinity.model import has_infinity_emb
 
-    if has_infinity_emb:
-        from backends.infinity.model import InfinityContainer
+if dependencies.extras:
+    from backends.infinity.model import InfinityContainer
 
-        embeddings_container: Optional[InfinityContainer] = None
+    embeddings_container: Optional[InfinityContainer] = None
 
 
 class ModelType(Enum):
@@ -121,7 +119,7 @@ async def load_embedding_model(model_path: pathlib.Path, **kwargs):
     global embeddings_container
 
     # Break out if infinity isn't installed
-    if not has_infinity_emb:
+    if not dependencies.extras:
         raise ImportError(
             "Skipping embeddings because infinity-emb is not installed.\n"
             "Please run the following command in your environment "

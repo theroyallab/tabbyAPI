@@ -17,10 +17,8 @@ from common.networking import is_port_in_use
 from common.signals import signal_handler
 from common.tabby_config import config
 from endpoints.server import start_api
-from endpoints.utils import do_export_openapi
 
-if not do_export_openapi:
-    from backends.exllamav2.utils import check_exllama_version
+from backends.exllamav2.version import check_exllama_version
 
 
 async def entrypoint_async():

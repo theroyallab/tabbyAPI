@@ -3,13 +3,12 @@ from loguru import logger
 
 from common.tabby_config import config, generate_config_file
 from endpoints.server import export_openapi
-from endpoints.utils import do_export_openapi
 
 
 def branch_to_actions() -> bool:
     """Checks if a optional action needs to be run."""
 
-    if config.actions.export_openapi or do_export_openapi:
+    if config.actions.export_openapi:
         openapi_json = export_openapi()
 
         with open(config.actions.openapi_export_path, "w") as f:
