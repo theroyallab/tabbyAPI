@@ -1228,10 +1228,9 @@ class ExllamaV2Container:
         # The first index will always be the positive prompt
         context_len = input_ids[0].size(dim=-1)
         if context_len > self.config.max_seq_len:
-            logger.warning(
+            raise ValueError(
                 f"Context length {context_len} is greater than max_seq_len "
-                f"{self.config.max_seq_len}. Generation is truncated and "
-                "metrics may not be accurate."
+                f"{self.config.max_seq_len}"
             )
 
         # Automatically set max_tokens to fill up the context
