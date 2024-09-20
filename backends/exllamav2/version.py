@@ -23,7 +23,7 @@ def check_exllama_version():
     )
 
     if not dependencies.exl2:
-        raise SystemExit(("Exllamav2 is not installed\n" + install_message))
+        raise SystemExit(("Exllamav2 is not installed.\n" + install_message))
 
     required_version = version.parse("0.2.2")
     current_version = version.parse(package_version("exllamav2").split("+")[0])

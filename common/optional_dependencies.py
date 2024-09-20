@@ -1,14 +1,15 @@
+"""Construct a model of all optional dependencies"""
+
 import importlib.util
 from pydantic import BaseModel, computed_field
 
 
-"""Construct a model of all optional dependencies"""
-
+# Declare the exported parts of this module
 __all__ = ["dependencies"]
 
 
 class DependenciesModel(BaseModel):
-    """Model of which optional dependencies are installed"""
+    """Model of which optional dependencies are installed."""
 
     torch: bool
     exllamav2: bool
@@ -30,12 +31,14 @@ class DependenciesModel(BaseModel):
 
 def is_installed(package_name: str) -> bool:
     """Utility function to check if a package is installed."""
+
     spec = importlib.util.find_spec(package_name)
     return spec is not None
 
 
 def get_installed_deps() -> DependenciesModel:
     """Check if optional dependencies are installed by looping over the fields."""
+
     fields = DependenciesModel.model_fields
 
     installed_deps = {}
