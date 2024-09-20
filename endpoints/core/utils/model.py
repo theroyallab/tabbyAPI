@@ -2,8 +2,9 @@ import pathlib
 from asyncio import CancelledError
 from typing import Optional
 
-from common import gen_logging, model
+from common import model
 from common.networking import get_generator_error, handle_request_disconnect
+from common.tabby_config import config
 from common.utils import unwrap
 from endpoints.core.types.model import (
     ModelCard,
@@ -77,7 +78,7 @@ def get_current_model():
     model_card = ModelCard(
         id=unwrap(model_params.pop("name", None), "unknown"),
         parameters=ModelCardParameters.model_validate(model_params),
-        logging=gen_logging.PREFERENCES,
+        logging=config.logging,
     )
 
     if draft_model_params:

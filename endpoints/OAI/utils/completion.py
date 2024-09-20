@@ -112,8 +112,12 @@ async def _stream_collector(
 async def load_inline_model(model_name: str, request: Request):
     """Load a model from the data.model parameter"""
 
-    # Return if the model container already exists
-    if model.container and model.container.model_dir.name == model_name:
+    # Return if the model container already exists and the model is fully loaded
+    if (
+        model.container
+        and model.container.model_dir.name == model_name
+        and model.container.model_loaded
+    ):
         return
 
     # Inline model loading isn't enabled or the user isn't an admin
@@ -126,15 +130,15 @@ async def load_inline_model(model_name: str, request: Request):
 
         raise HTTPException(401, error_message)
 
-    if not unwrap(config.model.get("inline_model_loading"), False):
+    if not config.model.inline_model_loading:
         logger.warning(
             f"Unable to switch model to {model_name} because "
-            '"inline_model_load" is not True in config.yml.'
+            '"inline_model_loading" is not True in config.yml.'
         )
 
         return
 
-    model_path = pathlib.Path(unwrap(config.model.get("model_dir"), "models"))
+    model_path = pathlib.Path(config.model.model_dir)
     model_path = model_path / model_name
 
     # Model path doesn't exist

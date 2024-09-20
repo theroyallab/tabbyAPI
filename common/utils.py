@@ -1,7 +1,12 @@
 """Common utility functions"""
 
+from types import NoneType
+from typing import Dict, Optional, Type, Union, get_args, get_origin, TypeVar
 
-def unwrap(wrapped, default=None):
+T = TypeVar("T")
+
+
+def unwrap(wrapped: Optional[T], default: T = None) -> T:
     """Unwrap function for Optionals."""
     if wrapped is None:
         return default
@@ -14,13 +19,13 @@ def coalesce(*args):
     return next((arg for arg in args if arg is not None), None)
 
 
-def prune_dict(input_dict):
+def prune_dict(input_dict: Dict) -> Dict:
     """Trim out instances of None from a dictionary."""
 
     return {k: v for k, v in input_dict.items() if v is not None}
 
 
-def merge_dict(dict1, dict2):
+def merge_dict(dict1: Dict, dict2: Dict) -> Dict:
     """Merge 2 dictionaries"""
     for key, value in dict2.items():
         if isinstance(value, dict) and key in dict1 and isinstance(dict1[key], dict):
@@ -30,7 +35,7 @@ def merge_dict(dict1, dict2):
     return dict1
 
 
-def merge_dicts(*dicts):
+def merge_dicts(*dicts: Dict) -> Dict:
     """Merge an arbitrary amount of dictionaries"""
     result = {}
     for dictionary in dicts:
@@ -43,3 +48,33 @@ def flat_map(input_list):
     """Flattens a list of lists into a single list."""
 
     return [item for sublist in input_list for item in sublist]
+
+
+def is_list_type(type_hint) -> bool:
+    """Checks if a type contains a list."""
+
+    if get_origin(type_hint) is list:
+        return True
+
+    # Recursively check for lists inside type arguments
+    type_args = get_args(type_hint)
+    if type_args:
+        return any(is_list_type(arg) for arg in type_args)
+
+    return False
+
+
+def unwrap_optional_type(type_hint) -> Type:
+    """
+    Unwrap Optional[type] annotations.
+    This is not the same as unwrap.
+    """
+
+    if get_origin(type_hint) is Union:
+        args = get_args(type_hint)
+        if NoneType in args:
+            for arg in args:
+                if arg is not NoneType:
+                    return arg
+
+    return type_hint

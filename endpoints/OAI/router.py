@@ -8,7 +8,6 @@ from common.auth import check_api_key
 from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.tabby_config import config
-from common.utils import unwrap
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionRequest,
@@ -55,7 +54,14 @@ async def completion_request(
     """
 
     if data.model:
-        await load_inline_model(data.model, request)
+        inline_load_task = asyncio.create_task(load_inline_model(data.model, request))
+
+        await run_with_request_disconnect(
+            request,
+            inline_load_task,
+            disconnect_message=f"Model switch for generation {request.state.id} "
+            + "cancelled by user.",
+        )
     else:
         await check_model_container()
 
@@ -64,9 +70,7 @@ async def completion_request(
     if isinstance(data.prompt, list):
         data.prompt = "\n".join(data.prompt)
 
-    disable_request_streaming = unwrap(
-        config.developer.get("disable_request_streaming"), False
-    )
+    disable_request_streaming = config.developer.disable_request_streaming
 
     # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":
@@ -128,9 +132,7 @@ async def chat_completion_request(
     if data.response_format.type == "json":
         data.json_schema = {"type": "object"}
 
-    disable_request_streaming = unwrap(
-        config.developer.get("disable_request_streaming"), False
-    )
+    disable_request_streaming = config.developer.disable_request_streaming
 
     if data.stream and not disable_request_streaming:
         return EventSourceResponse(

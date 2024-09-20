@@ -13,7 +13,6 @@ from typing import Optional
 from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
 from common.tabby_config import config
-from common.utils import unwrap
 from endpoints.utils import do_export_openapi
 
 if not do_export_openapi:
@@ -67,7 +66,11 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         logger.info("Unloading existing model.")
         await unload_model()
 
-    container = ExllamaV2Container(model_path.resolve(), False, **kwargs)
+    # Merge with config defaults
+    kwargs = {**config.model_defaults, **kwargs}
+
+    # Create a new container
+    container = await ExllamaV2Container.create(model_path.resolve(), False, **kwargs)
 
     model_type = "draft" if container.draft_config else "model"
     load_status = container.load_gen(load_progress, **kwargs)
@@ -147,25 +150,6 @@ async def unload_embedding_model():
 
     await embeddings_container.unload()
     embeddings_container = None
-
-
-# FIXME: Maybe make this a one-time function instead of a dynamic default
-def get_config_default(key: str, model_type: str = "model"):
-    """Fetches a default value from model config if allowed by the user."""
-
-    default_keys = unwrap(config.model.get("use_as_default"), [])
-
-    # Add extra keys to defaults
-    default_keys.append("embeddings_device")
-
-    if key in default_keys:
-        # Is this a draft model load parameter?
-        if model_type == "draft":
-            return config.draft_model.get(key)
-        elif model_type == "embedding":
-            return config.embeddings.get(key)
-        else:
-            return config.model.get(key)
 
 
 async def check_model_container():

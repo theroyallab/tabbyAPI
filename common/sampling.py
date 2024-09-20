@@ -1,8 +1,9 @@
 """Common functions for sampling parameters"""
 
+import aiofiles
 import json
 import pathlib
-import yaml
+from ruamel.yaml import YAML
 from copy import deepcopy
 from loguru import logger
 from pydantic import AliasChoices, BaseModel, Field
@@ -407,14 +408,18 @@ def overrides_from_dict(new_overrides: dict):
         raise TypeError("New sampler overrides must be a dict!")
 
 
-def overrides_from_file(preset_name: str):
+async def overrides_from_file(preset_name: str):
     """Fetches an override preset from a file"""
 
     preset_path = pathlib.Path(f"sampler_overrides/{preset_name}.yml")
     if preset_path.exists():
         overrides_container.selected_preset = preset_path.stem
-        with open(preset_path, "r", encoding="utf8") as raw_preset:
-            preset = yaml.safe_load(raw_preset)
+        async with aiofiles.open(preset_path, "r", encoding="utf8") as raw_preset:
+            contents = await raw_preset.read()
+
+            # Create a temporary YAML parser
+            yaml = YAML(typ="safe")
+            preset = yaml.load(contents)
             overrides_from_dict(preset)
 
             logger.info("Applied sampler overrides from file.")

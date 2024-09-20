@@ -214,3 +214,6 @@ openapi.json
 
 # Infinity-emb cache
 .infinity_cache/
+
+# Backup files
+*.bak

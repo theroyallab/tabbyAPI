@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Literal, Optional, Union
 
-from common.gen_logging import GenLogPreferences
-from common.model import get_config_default
+from common.config_models import LoggingConfig
+from common.tabby_config import config
 
 
 class ModelCardParameters(BaseModel):
@@ -33,7 +33,7 @@ class ModelCard(BaseModel):
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time()))
     owned_by: str = "tabbyAPI"
-    logging: Optional[GenLogPreferences] = None
+    logging: Optional[LoggingConfig] = None
     parameters: Optional[ModelCardParameters] = None
 
 
@@ -51,23 +51,13 @@ class DraftModelLoadRequest(BaseModel):
     draft_model_name: str
 
     # Config arguments
-    draft_rope_scale: Optional[float] = Field(
-        default_factory=lambda: get_config_default(
-            "draft_rope_scale", model_type="draft"
-        )
-    )
+    draft_rope_scale: Optional[float] = None
     draft_rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
         description='Automatically calculated if set to "auto"',
-        default_factory=lambda: get_config_default(
-            "draft_rope_alpha", model_type="draft"
-        ),
+        default=None,
         examples=[1.0],
     )
-    draft_cache_mode: Optional[str] = Field(
-        default_factory=lambda: get_config_default(
-            "draft_cache_mode", model_type="draft"
-        )
-    )
+    draft_cache_mode: Optional[str] = None
 
 
 class ModelLoadRequest(BaseModel):
@@ -78,62 +68,45 @@ class ModelLoadRequest(BaseModel):
 
     # Config arguments
 
-    # Max seq len is fetched from config.json of the model by default
     max_seq_len: Optional[int] = Field(
         description="Leave this blank to use the model's base sequence length",
-        default_factory=lambda: get_config_default("max_seq_len"),
+        default=None,
         examples=[4096],
     )
     override_base_seq_len: Optional[int] = Field(
         description=(
             "Overrides the model's base sequence length. " "Leave blank if unsure"
         ),
-        default_factory=lambda: get_config_default("override_base_seq_len"),
+        default=None,
         examples=[4096],
     )
     cache_size: Optional[int] = Field(
         description=("Number in tokens, must be greater than or equal to max_seq_len"),
-        default_factory=lambda: get_config_default("cache_size"),
+        default=None,
         examples=[4096],
     )
-    tensor_parallel: Optional[bool] = Field(
-        default_factory=lambda: get_config_default("tensor_parallel")
-    )
-    gpu_split_auto: Optional[bool] = Field(
-        default_factory=lambda: get_config_default("gpu_split_auto")
-    )
-    autosplit_reserve: Optional[List[float]] = Field(
-        default_factory=lambda: get_config_default("autosplit_reserve")
-    )
+    tensor_parallel: Optional[bool] = None
+    gpu_split_auto: Optional[bool] = None
+    autosplit_reserve: Optional[List[float]] = None
     gpu_split: Optional[List[float]] = Field(
-        default_factory=lambda: get_config_default("gpu_split"),
+        default=None,
         examples=[[24.0, 20.0]],
     )
     rope_scale: Optional[float] = Field(
         description="Automatically pulled from the model's config if not present",
-        default_factory=lambda: get_config_default("rope_scale"),
+        default=None,
         examples=[1.0],
     )
     rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
         description='Automatically calculated if set to "auto"',
-        default_factory=lambda: get_config_default("rope_alpha"),
+        default=None,
         examples=[1.0],
     )
-    cache_mode: Optional[str] = Field(
-        default_factory=lambda: get_config_default("cache_mode")
-    )
-    chunk_size: Optional[int] = Field(
-        default_factory=lambda: get_config_default("chunk_size")
-    )
-    prompt_template: Optional[str] = Field(
-        default_factory=lambda: get_config_default("prompt_template")
-    )
-    num_experts_per_token: Optional[int] = Field(
-        default_factory=lambda: get_config_default("num_experts_per_token")
-    )
-    fasttensors: Optional[bool] = Field(
-        default_factory=lambda: get_config_default("fasttensors")
-    )
+    cache_mode: Optional[str] = None
+    chunk_size: Optional[int] = None
+    prompt_template: Optional[str] = None
+    num_experts_per_token: Optional[int] = None
+    fasttensors: Optional[bool] = None
 
     # Non-config arguments
     draft: Optional[DraftModelLoadRequest] = None
@@ -142,11 +115,9 @@ class ModelLoadRequest(BaseModel):
 
 class EmbeddingModelLoadRequest(BaseModel):
     name: str
-    embeddings_device: Optional[str] = Field(
-        default_factory=lambda: get_config_default(
-            "embeddings_device", model_type="embedding"
-        )
-    )
+
+    # Set default from the config
+    embeddings_device: Optional[str] = Field(config.embeddings.embeddings_device)
 
 
 class ModelLoadResponse(BaseModel):

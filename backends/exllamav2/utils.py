@@ -8,7 +8,7 @@ from loguru import logger
 def check_exllama_version():
     """Verifies the exllama version"""
 
-    required_version = version.parse("0.1.9")
+    required_version = version.parse("0.2.2")
     current_version = version.parse(package_version("exllamav2").split("+")[0])
 
     unsupported_message = (

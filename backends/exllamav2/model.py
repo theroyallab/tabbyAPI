@@ -1,5 +1,6 @@
 """The model container class for ExLlamaV2 models."""
 
+import aiofiles
 import asyncio
 import gc
 import math
@@ -16,6 +17,7 @@ from exllamav2 import (
     ExLlamaV2Cache_Q4,
     ExLlamaV2Cache_Q6,
     ExLlamaV2Cache_Q8,
+    ExLlamaV2Cache_TP,
     ExLlamaV2Tokenizer,
     ExLlamaV2Lora,
 )
@@ -28,7 +30,7 @@ from itertools import zip_longest
 from loguru import logger
 from typing import List, Optional, Union
 
-import yaml
+from ruamel.yaml import YAML
 
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
@@ -53,14 +55,6 @@ from common.templating import (
 )
 from common.transformers_utils import GenerationConfig, HuggingFaceConfig
 from common.utils import coalesce, unwrap
-
-# Dynamic imports
-try:
-    from exllamav2 import ExLlamaV2Cache_TP
-
-    has_tp = True
-except ImportError:
-    has_tp = False
 
 
 class ExllamaV2Container:
@@ -106,12 +100,16 @@ class ExllamaV2Container:
     load_lock: asyncio.Lock = asyncio.Lock()
     load_condition: asyncio.Condition = asyncio.Condition()
 
-    def __init__(self, model_directory: pathlib.Path, quiet=False, **kwargs):
+    @classmethod
+    async def create(cls, model_directory: pathlib.Path, quiet=False, **kwargs):
         """
-        Primary initializer for model container.
+        Primary asynchronous initializer for model container.
 
         Kwargs are located in config_sample.yml
         """
+
+        # Create a new instance as a "fake self"
+        self = cls()
 
         self.quiet = quiet
 
@@ -155,13 +153,13 @@ class ExllamaV2Container:
             self.draft_config.prepare()
 
         # Create the hf_config
-        self.hf_config = HuggingFaceConfig.from_file(model_directory)
+        self.hf_config = await HuggingFaceConfig.from_file(model_directory)
 
         # Load generation config overrides
         generation_config_path = model_directory / "generation_config.json"
         if generation_config_path.exists():
             try:
-                self.generation_config = GenerationConfig.from_file(
+                self.generation_config = await GenerationConfig.from_file(
                     generation_config_path.parent
                 )
             except Exception:
@@ -171,7 +169,7 @@ class ExllamaV2Container:
                 )
 
         # Apply a model's config overrides while respecting user settings
-        kwargs = self.set_model_overrides(**kwargs)
+        kwargs = await self.set_model_overrides(**kwargs)
 
         # MARK: User configuration
 
@@ -192,17 +190,10 @@ class ExllamaV2Container:
         else:
             # Set tensor parallel
             if use_tp:
-                if has_tp:
-                    self.use_tp = True
+                self.use_tp = True
 
-                    # TP has its own autosplit loader
-                    self.gpu_split_auto = False
-                else:
-                    # TODO: Remove conditional with exl2 v0.1.9 release
-                    logger.warning(
-                        "Tensor parallelism is not supported in the "
-                        "current ExllamaV2 version."
-                    )
+                # TP has its own autosplit loader
+                self.gpu_split_auto = False
 
             # Enable manual GPU split if provided
             if gpu_split:
@@ -320,7 +311,7 @@ class ExllamaV2Container:
             self.cache_size = self.config.max_seq_len
 
         # Try to set prompt template
-        self.prompt_template = self.find_prompt_template(
+        self.prompt_template = await self.find_prompt_template(
             kwargs.get("prompt_template"), model_directory
         )
 
@@ -373,7 +364,10 @@ class ExllamaV2Container:
                 self.draft_config.max_input_len = chunk_size
                 self.draft_config.max_attention_size = chunk_size**2
 
-    def set_model_overrides(self, **kwargs):
+        # Return the created instance
+        return self
+
+    async def set_model_overrides(self, **kwargs):
         """Sets overrides from a model folder's config yaml."""
 
         override_config_path = self.model_dir / "tabby_config.yml"
@@ -381,8 +375,14 @@ class ExllamaV2Container:
         if not override_config_path.exists():
             return kwargs
 
-        with open(override_config_path, "r", encoding="utf8") as override_config_file:
-            override_args = unwrap(yaml.safe_load(override_config_file), {})
+        async with aiofiles.open(
+            override_config_path, "r", encoding="utf8"
+        ) as override_config_file:
+            contents = await override_config_file.read()
+
+            # Create a temporary YAML parser
+            yaml = YAML(typ="safe")
+            override_args = unwrap(yaml.load(contents), {})
 
             # Merge draft overrides beforehand
             draft_override_args = unwrap(override_args.get("draft"), {})
@@ -393,7 +393,7 @@ class ExllamaV2Container:
             merged_kwargs = {**override_args, **kwargs}
             return merged_kwargs
 
-    def find_prompt_template(self, prompt_template_name, model_directory):
+    async def find_prompt_template(self, prompt_template_name, model_directory):
         """Tries to find a prompt template using various methods."""
 
         logger.info("Attempting to load a prompt template if present.")
@@ -431,7 +431,7 @@ class ExllamaV2Container:
         # Continue on exception since functions are tried as they fail
         for template_func in find_template_functions:
             try:
-                prompt_template = template_func()
+                prompt_template = await template_func()
                 if prompt_template is not None:
                     return prompt_template
             except TemplateLoadError as e:
@@ -692,7 +692,7 @@ class ExllamaV2Container:
     ):
         """Utility function to create a model cache."""
 
-        if has_tp and use_tp:
+        if use_tp:
             return ExLlamaV2Cache_TP(
                 model,
                 base=cache_class,
@@ -956,14 +956,6 @@ class ExllamaV2Container:
         Meant for dev wheels!
         """
 
-        if unwrap(kwargs.get("dry_allowed_length"), 0) > 0 and not hasattr(
-            ExLlamaV2Sampler.Settings, "dry_multiplier"
-        ):
-            logger.warning(
-                "DRY sampling is not supported by the currently "
-                "installed ExLlamaV2 version."
-            )
-
         return kwargs
 
     async def generate_gen(
@@ -1130,7 +1122,7 @@ class ExllamaV2Container:
         # Add regex filter if it exists
         regex_pattern = unwrap(kwargs.get("regex_pattern"))
         if regex_pattern:
-            grammar_handler.add_regex_filter(regex_pattern, self.tokenizer)
+            grammar_handler.add_regex_filter(regex_pattern, self.model, self.tokenizer)
 
         # Add EBNF filter if it exists
         grammar_string = unwrap(kwargs.get("grammar_string"))

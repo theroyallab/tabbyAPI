@@ -62,17 +62,17 @@ async def list_models(request: Request) -> ModelList:
     Requires an admin key to see all models.
     """
 
-    model_dir = unwrap(config.model.get("model_dir"), "models")
+    model_dir = config.model.model_dir
     model_path = pathlib.Path(model_dir)
 
-    draft_model_dir = config.draft_model.get("draft_model_dir")
+    draft_model_dir = config.draft_model.draft_model_dir
 
     if get_key_permission(request) == "admin":
         models = get_model_list(model_path.resolve(), draft_model_dir)
     else:
         models = await get_current_model_list()
 
-    if unwrap(config.model.get("use_dummy_models"), False):
+    if config.model.use_dummy_models:
         models.data.insert(0, ModelCard(id="gpt-3.5-turbo"))
 
     return models
@@ -98,7 +98,7 @@ async def list_draft_models(request: Request) -> ModelList:
     """
 
     if get_key_permission(request) == "admin":
-        draft_model_dir = unwrap(config.draft_model.get("draft_model_dir"), "models")
+        draft_model_dir = config.draft_model.draft_model_dir
         draft_model_path = pathlib.Path(draft_model_dir)
 
         models = get_model_list(draft_model_path.resolve())
@@ -122,7 +122,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
 
         raise HTTPException(400, error_message)
 
-    model_path = pathlib.Path(unwrap(config.model.get("model_dir"), "models"))
+    model_path = pathlib.Path(config.model.model_dir)
     model_path = model_path / data.name
 
     draft_model_path = None
@@ -135,7 +135,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
 
             raise HTTPException(400, error_message)
 
-        draft_model_path = unwrap(config.draft_model.get("draft_model_dir"), "models")
+        draft_model_path = config.draft_model.draft_model_dir
 
     if not model_path.exists():
         error_message = handle_request_error(
@@ -192,7 +192,7 @@ async def list_all_loras(request: Request) -> LoraList:
     """
 
     if get_key_permission(request) == "admin":
-        lora_path = pathlib.Path(unwrap(config.lora.get("lora_dir"), "loras"))
+        lora_path = pathlib.Path(config.lora.lora_dir)
         loras = get_lora_list(lora_path.resolve())
     else:
         loras = get_active_loras()
@@ -227,7 +227,7 @@ async def load_lora(data: LoraLoadRequest) -> LoraLoadResponse:
 
         raise HTTPException(400, error_message)
 
-    lora_dir = pathlib.Path(unwrap(config.lora.get("lora_dir"), "loras"))
+    lora_dir = pathlib.Path(config.lora.lora_dir)
     if not lora_dir.exists():
         error_message = handle_request_error(
             "A parent lora directory does not exist for load. Check your config.yml?",
@@ -266,9 +266,7 @@ async def list_embedding_models(request: Request) -> ModelList:
     """
 
     if get_key_permission(request) == "admin":
-        embedding_model_dir = unwrap(
-            config.embeddings.get("embedding_model_dir"), "models"
-        )
+        embedding_model_dir = config.embeddings.embedding_model_dir
         embedding_model_path = pathlib.Path(embedding_model_dir)
 
         models = get_model_list(embedding_model_path.resolve())
@@ -302,9 +300,7 @@ async def load_embedding_model(
 
         raise HTTPException(400, error_message)
 
-    embedding_model_dir = pathlib.Path(
-        unwrap(config.embeddings.get("embedding_model_dir"), "models")
-    )
+    embedding_model_dir = pathlib.Path(config.embeddings.embedding_model_dir)
     embedding_model_path = embedding_model_dir / data.name
 
     if not embedding_model_path.exists():
@@ -445,7 +441,8 @@ async def switch_template(data: TemplateSwitchRequest):
         raise HTTPException(400, error_message)
 
     try:
-        model.container.prompt_template = PromptTemplate.from_file(data.name)
+        template_path = pathlib.Path("templates") / data.name
+        model.container.prompt_template = await PromptTemplate.from_file(template_path)
     except FileNotFoundError as e:
         error_message = handle_request_error(
             f"The template name {data.name} doesn't exist. Check the spelling?",
@@ -494,7 +491,7 @@ async def switch_sampler_override(data: SamplerOverrideSwitchRequest):
 
     if data.preset:
         try:
-            sampling.overrides_from_file(data.preset)
+            await sampling.overrides_from_file(data.preset)
         except FileNotFoundError as e:
             error_message = handle_request_error(
                 f"Sampler override preset with name {data.preset} does not exist. "
