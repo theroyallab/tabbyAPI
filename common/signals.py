@@ -22,20 +22,26 @@ def signal_handler(*_):
     SHUTTING_DOWN = True
 
     # Run async unloads for model
-    asyncio.ensure_future(signal_handler_async())
+    # If an event loop doesn't exist (synchronous), exit.
+    try:
+        loop = asyncio.get_running_loop()
+        loop.run_until_complete(signal_handler_async())
+    except RuntimeError:
+        sys.exit(0)
 
 
-async def signal_handler_async(*_):
-    """Internal signal handler. Runs all async code to shut down the program."""
+async def signal_handler_async():
+    """
+    Internal signal handler. Runs all async code to shut down the program.
+
+    asyncio.run will cancel all remaining tasks and close the event loop.
+    """
 
     if model.container:
         await model.unload_model(skip_wait=True, shutdown=True)
 
     if model.embeddings_container:
         await model.unload_embedding_model()
-
-    # Exit the program
-    sys.exit(0)
 
 
 def uvicorn_signal_handler(signal_event: signal.Signals):
