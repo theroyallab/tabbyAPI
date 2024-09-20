@@ -5,15 +5,11 @@ from loguru import logger
 from typing import List, Optional
 
 from common.utils import unwrap
+from common.optional_dependencies import dependencies
 
 # Conditionally import infinity to sidestep its logger
-has_infinity_emb: bool = False
-try:
+if dependencies.extras:
     from infinity_emb import EngineArgs, AsyncEmbeddingEngine
-
-    has_infinity_emb = True
-except ImportError:
-    pass
 
 
 class InfinityContainer:
@@ -23,7 +19,7 @@ class InfinityContainer:
 
     # Conditionally set the type hint based on importablity
     # TODO: Clean this up
-    if has_infinity_emb:
+    if dependencies.extras:
         engine: Optional[AsyncEmbeddingEngine] = None
     else:
         engine = None
