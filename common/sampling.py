@@ -3,7 +3,7 @@
 import aiofiles
 import json
 import pathlib
-import yaml
+from ruamel.yaml import YAML
 from copy import deepcopy
 from loguru import logger
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
@@ -391,7 +391,10 @@ async def overrides_from_file(preset_name: str):
         overrides_container.selected_preset = preset_path.stem
         async with aiofiles.open(preset_path, "r", encoding="utf8") as raw_preset:
             contents = await raw_preset.read()
-            preset = yaml.safe_load(contents)
+
+            # Create a temporary YAML parser
+            yaml = YAML(typ="safe")
+            preset = yaml.load(contents)
             overrides_from_dict(preset)
 
             logger.info("Applied sampler overrides from file.")

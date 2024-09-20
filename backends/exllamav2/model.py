@@ -17,6 +17,7 @@ from exllamav2 import (
     ExLlamaV2Cache_Q4,
     ExLlamaV2Cache_Q6,
     ExLlamaV2Cache_Q8,
+    ExLlamaV2Cache_TP,
     ExLlamaV2Tokenizer,
     ExLlamaV2Lora,
 )
@@ -29,7 +30,7 @@ from itertools import zip_longest
 from loguru import logger
 from typing import List, Optional, Union
 
-import yaml
+from ruamel.yaml import YAML
 
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
@@ -54,14 +55,6 @@ from common.templating import (
 )
 from common.transformers_utils import GenerationConfig, HuggingFaceConfig
 from common.utils import coalesce, unwrap
-
-# Dynamic imports
-try:
-    from exllamav2 import ExLlamaV2Cache_TP
-
-    has_tp = True
-except ImportError:
-    has_tp = False
 
 
 class ExllamaV2Container:
@@ -197,17 +190,10 @@ class ExllamaV2Container:
         else:
             # Set tensor parallel
             if use_tp:
-                if has_tp:
-                    self.use_tp = True
+                self.use_tp = True
 
-                    # TP has its own autosplit loader
-                    self.gpu_split_auto = False
-                else:
-                    # TODO: Remove conditional with exl2 v0.1.9 release
-                    logger.warning(
-                        "Tensor parallelism is not supported in the "
-                        "current ExllamaV2 version."
-                    )
+                # TP has its own autosplit loader
+                self.gpu_split_auto = False
 
             # Enable manual GPU split if provided
             if gpu_split:
@@ -393,7 +379,10 @@ class ExllamaV2Container:
             override_config_path, "r", encoding="utf8"
         ) as override_config_file:
             contents = await override_config_file.read()
-            override_args = unwrap(yaml.safe_load(contents), {})
+
+            # Create a temporary YAML parser
+            yaml = YAML(typ="safe")
+            override_args = unwrap(yaml.load(contents), {})
 
             # Merge draft overrides beforehand
             draft_override_args = unwrap(override_args.get("draft"), {})
@@ -703,7 +692,7 @@ class ExllamaV2Container:
     ):
         """Utility function to create a model cache."""
 
-        if has_tp and use_tp:
+        if use_tp:
             return ExLlamaV2Cache_TP(
                 model,
                 base=cache_class,
@@ -967,14 +956,6 @@ class ExllamaV2Container:
         Meant for dev wheels!
         """
 
-        if unwrap(kwargs.get("dry_allowed_length"), 0) > 0 and not hasattr(
-            ExLlamaV2Sampler.Settings, "dry_multiplier"
-        ):
-            logger.warning(
-                "DRY sampling is not supported by the currently "
-                "installed ExLlamaV2 version."
-            )
-
         return kwargs
 
     async def generate_gen(
@@ -1141,7 +1122,7 @@ class ExllamaV2Container:
         # Add regex filter if it exists
         regex_pattern = unwrap(kwargs.get("regex_pattern"))
         if regex_pattern:
-            grammar_handler.add_regex_filter(regex_pattern, self.tokenizer)
+            grammar_handler.add_regex_filter(regex_pattern, self.model, self.tokenizer)
 
         # Add EBNF filter if it exists
         grammar_string = unwrap(kwargs.get("grammar_string"))
@@ -1247,10 +1228,9 @@ class ExllamaV2Container:
         # The first index will always be the positive prompt
         context_len = input_ids[0].size(dim=-1)
         if context_len > self.config.max_seq_len:
-            logger.warning(
+            raise ValueError(
                 f"Context length {context_len} is greater than max_seq_len "
-                f"{self.config.max_seq_len}. Generation is truncated and "
-                "metrics may not be accurate."
+                f"{self.config.max_seq_len}"
             )
 
         # Automatically set max_tokens to fill up the context

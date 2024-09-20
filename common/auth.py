@@ -4,8 +4,9 @@ application, it should be fine.
 """
 
 import aiofiles
+import io
 import secrets
-import yaml
+from ruamel.yaml import YAML
 from fastapi import Header, HTTPException, Request
 from pydantic import BaseModel
 from loguru import logger
@@ -57,10 +58,13 @@ async def load_auth_keys(disable_from_config: bool):
 
         return
 
+    # Create a temporary YAML parser
+    yaml = YAML(typ=["rt", "safe"])
+
     try:
         async with aiofiles.open("api_tokens.yml", "r", encoding="utf8") as auth_file:
             contents = await auth_file.read()
-            auth_keys_dict = yaml.safe_load(contents)
+            auth_keys_dict = yaml.load(contents)
             AUTH_KEYS = AuthKeys.model_validate(auth_keys_dict)
     except FileNotFoundError:
         new_auth_keys = AuthKeys(
@@ -69,10 +73,10 @@ async def load_auth_keys(disable_from_config: bool):
         AUTH_KEYS = new_auth_keys
 
         async with aiofiles.open("api_tokens.yml", "w", encoding="utf8") as auth_file:
-            new_auth_yaml = yaml.safe_dump(
-                AUTH_KEYS.model_dump(), default_flow_style=False
-            )
-            await auth_file.write(new_auth_yaml)
+            string_stream = io.StringIO()
+            yaml.dump(AUTH_KEYS.model_dump(), string_stream)
+
+            await auth_file.write(string_stream.getvalue())
 
     logger.info(
         f"Your API key is: {AUTH_KEYS.api_key}\n"
