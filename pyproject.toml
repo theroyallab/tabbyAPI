@@ -56,7 +56,7 @@ extras = [
     "sentence-transformers",
 ]
 dev = [
-    "ruff == 0.3.2"
+    "ruff == 0.6.5"
 ]
 cu121 = [
     # Torch (Extra index URLs not support in pyproject.toml)
@@ -144,6 +144,8 @@ exclude = [
     "node_modules",
     "site-packages",
     "venv",
+    "colab",
+    "docker",
 ]
 
 # Same as Black.
