@@ -3,7 +3,6 @@
 import asyncio
 import pathlib
 from asyncio import CancelledError
-from copy import deepcopy
 from typing import List, Optional
 import json
 
@@ -291,13 +290,8 @@ async def stream_generate_chat_completion(
     try:
         logger.info(f"Received chat completion streaming request {request.state.id}")
 
-        gen_params = data.to_gen_params()
-
         for n in range(0, data.n):
-            if n > 0:
-                task_gen_params = deepcopy(gen_params)
-            else:
-                task_gen_params = gen_params
+            task_gen_params = data.model_copy(deep=True)
 
             gen_task = asyncio.create_task(
                 _stream_collector(
@@ -306,7 +300,7 @@ async def stream_generate_chat_completion(
                     prompt,
                     request.state.id,
                     abort_event,
-                    **task_gen_params,
+                    **task_gen_params.model_dump(),
                 )
             )
 

@@ -7,7 +7,6 @@ Also serves as a common module for completions and chat completions.
 import asyncio
 import pathlib
 from asyncio import CancelledError
-from copy import deepcopy
 from fastapi import HTTPException, Request
 from typing import List, Union
 
@@ -166,13 +165,8 @@ async def stream_generate_completion(
     try:
         logger.info(f"Received streaming completion request {request.state.id}")
 
-        gen_params = data.to_gen_params()
-
         for n in range(0, data.n):
-            if n > 0:
-                task_gen_params = deepcopy(gen_params)
-            else:
-                task_gen_params = gen_params
+            task_gen_params = data.model_copy(deep=True)
 
             gen_task = asyncio.create_task(
                 _stream_collector(
@@ -181,7 +175,7 @@ async def stream_generate_completion(
                     data.prompt,
                     request.state.id,
                     abort_event,
-                    **task_gen_params,
+                    **task_gen_params.model_dump(),
                 )
             )
 
@@ -229,23 +223,17 @@ async def generate_completion(
     """Non-streaming generate for completions"""
 
     gen_tasks: List[asyncio.Task] = []
-    gen_params = data.to_gen_params()
 
     try:
         logger.info(f"Recieved completion request {request.state.id}")
 
-        for n in range(0, data.n):
-            # Deepcopy gen params above the first index
-            # to ensure nested structures aren't shared
-            if n > 0:
-                task_gen_params = deepcopy(gen_params)
-            else:
-                task_gen_params = gen_params
+        for _ in range(0, data.n):
+            task_gen_params = data.model_copy(deep=True)
 
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
-                        data.prompt, request.state.id, **task_gen_params
+                        data.prompt, request.state.id, **task_gen_params.model_dump()
                     )
                 )
             )
