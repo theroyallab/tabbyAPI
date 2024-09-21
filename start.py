@@ -7,8 +7,8 @@ import pathlib
 import platform
 import subprocess
 import sys
-from shutil import copyfile
 import traceback
+from shutil import copyfile
 
 
 start_options = {}
