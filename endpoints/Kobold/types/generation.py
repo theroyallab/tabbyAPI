@@ -1,6 +1,7 @@
+from functools import partial
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from common import model
 from common.sampling import BaseSamplerRequest, get_default_sampler_value
 from common.utils import flat_map, unwrap
@@ -11,29 +12,36 @@ class GenerateRequest(BaseSamplerRequest):
     genkey: Optional[str] = None
     use_default_badwordsids: Optional[bool] = False
     dynatemp_range: Optional[float] = Field(
-        default_factory=get_default_sampler_value("dynatemp_range")
+        default_factory=partial(get_default_sampler_value, "dynatemp_range")
     )
 
-    def to_gen_params(self, **kwargs):
-        # Exl2 uses -1 to include all tokens in repetition penalty
-        if self.penalty_range == 0:
-            self.penalty_range = -1
+    @field_validator("penalty_range")
+    @classmethod
+    def validate_penalty_range(cls, v):
+        return -1 if v == 0 else v
 
-        if self.dynatemp_range:
-            self.min_temp = self.temperature - self.dynatemp_range
-            self.max_temp = self.temperature + self.dynatemp_range
+    @field_validator("min_temp", "max_temp")
+    @classmethod
+    def validate_temp_range(cls, v, info):
+        if "dynatemp_range" in info.data and info.data["dynatemp_range"] is not None:
+            temperature = info.data.get("temperature", 0)  # Assume 0 if not present
+            if info.field_name == "min_temp":
+                return temperature - info.data["dynatemp_range"]
+            elif info.field_name == "max_temp":
+                return temperature + info.data["dynatemp_range"]
+        return v
 
-        # Move badwordsids into banned tokens for generation
-        if self.use_default_badwordsids:
+    @field_validator("banned_tokens")
+    @classmethod
+    def validate_banned_tokens(cls, v, info):
+        if info.data.get("use_default_badwordsids"):
             bad_words_ids = unwrap(
                 model.container.generation_config.bad_words_ids,
                 model.container.hf_config.get_badwordsids(),
             )
-
             if bad_words_ids:
-                self.banned_tokens += flat_map(bad_words_ids)
-
-        return super().to_gen_params(**kwargs)
+                return v + flat_map(bad_words_ids)
+        return v
 
 
 class GenerateResponseResult(BaseModel):

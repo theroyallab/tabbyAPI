@@ -381,21 +381,13 @@ async def generate_chat_completion(
     prompt: str, data: ChatCompletionRequest, request: Request, model_path: pathlib.Path
 ):
     gen_tasks: List[asyncio.Task] = []
-    gen_params = data.to_gen_params()
 
     try:
-        for n in range(0, data.n):
-            # Deepcopy gen params above the first index
-            # to ensure nested structures aren't shared
-            if n > 0:
-                task_gen_params = deepcopy(gen_params)
-            else:
-                task_gen_params = gen_params
-
+        for _ in range(0, data.n):
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
-                        prompt, request.state.id, **task_gen_params
+                        prompt, request.state.id, **data.model_dump()
                     )
                 )
             )
@@ -433,9 +425,9 @@ async def generate_tool_calls(
 
     # Copy to make sure the parent JSON schema doesn't get modified
     # FIXME: May not be necessary depending on how the codebase evolves
-    tool_data = deepcopy(data)
+    tool_data = data.model_copy(deep=True)
     tool_data.json_schema = tool_data.tool_call_schema
-    gen_params = tool_data.to_gen_params()
+    gen_params = tool_data.model_dump()
 
     for idx, gen in enumerate(generations):
         if gen["stop_str"] in tool_data.tool_call_start:

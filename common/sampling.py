@@ -3,10 +3,18 @@
 import aiofiles
 import json
 import pathlib
+from pydantic_core import ValidationError
 from ruamel.yaml import YAML
 from copy import deepcopy
 from loguru import logger
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 from typing import Dict, List, Optional, Union
 
 from common.utils import unwrap, prune_dict
@@ -178,6 +186,8 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("dry_sequence_breakers", [])
     )
 
+    mirostat: Optional[bool] = False
+
     mirostat_mode: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("mirostat_mode", 0)
     )
@@ -265,104 +275,53 @@ class BaseSamplerRequest(BaseModel):
 
     model_config = ConfigDict(validate_assignment=True)
 
-    # TODO: Return back to adaptable class-based validation But that's just too much
-    # abstraction compared to simple if statements at the moment
     @model_validator(mode="after")
     def validate_params(self):
         """
         Validates sampler parameters to be within sane ranges.
         """
 
-        if self.min_temp > self.max_temp:
-            raise ValueError("min temp cannot be more then max temp")
-
-        if self.min_tokens > self.max_tokens:
-            raise ValueError("min tokens cannot be more then max tokens")
-
-    def to_gen_params(self, **kwargs):
-        """Converts samplers to internal generation params"""
-
-        # Add forced overrides if present
+        # FIXME: find a better way to register this
+        # Maybe make a function to assign values to the
+        # model if they do not exist post creation
         apply_forced_sampler_overrides(self)
 
-        # Convert stop to an array of strings
-        if self.stop and isinstance(self.stop, str):
-            self.stop = [self.stop]
+        if self.min_temp and self.max_temp and self.min_temp > self.max_temp:
+            raise ValidationError("min temp cannot be more then max temp")
 
-        # Convert banned_strings to an array of strings
-        if self.banned_strings and isinstance(self.banned_strings, str):
-            self.banned_strings = [self.banned_strings]
+        if self.min_tokens and self.max_tokens and self.min_tokens > self.max_tokens:
+            raise ValidationError("min tokens cannot be more then max tokens")
 
-        # Convert string banned and allowed tokens to an integer list
-        if self.banned_tokens and isinstance(self.banned_tokens, str):
-            self.banned_tokens = [
-                int(x) for x in self.banned_tokens.split(",") if x.isdigit()
-            ]
+        return self
 
-        if self.allowed_tokens and isinstance(self.allowed_tokens, str):
-            self.allowed_tokens = [
-                int(x) for x in self.allowed_tokens.split(",") if x.isdigit()
-            ]
+    @field_validator("stop", "banned_strings", mode="before")
+    def convert_str_to_list(cls, v):
+        """Convert single string to list of strings."""
+        if isinstance(v, str):
+            return [v]
+        return v
 
-        # Convert sequence breakers into an array of strings
-        # NOTE: This sampler sucks to parse.
-        if self.dry_sequence_breakers and isinstance(self.dry_sequence_breakers, str):
-            if not self.dry_sequence_breakers.startswith("["):
-                self.dry_sequence_breakers = f"[{self.dry_sequence_breakers}]"
+    @field_validator("banned_tokens", "allowed_tokens", mode="before")
+    def convert_tokens_to_int_list(cls, v):
+        """Convert comma-separated string of numbers to a list of integers."""
+        if isinstance(v, str):
+            return [int(x) for x in v.split(",") if x.isdigit()]
+        return v
 
-            try:
-                self.dry_sequence_breakers = json.loads(self.dry_sequence_breakers)
-            except Exception:
-                self.dry_sequence_breakers = []
+    @field_validator("dry_sequence_breakers", mode="before")
+    def parse_json_if_needed(cls, v):
+        """Parse dry_sequence_breakers string to JSON array."""
+        if isinstance(v, str) and not v.startswith("["):
+            v = f"[{v}]"
+        try:
+            return json.loads(v) if isinstance(v, str) else v
+        except Exception:
+            return []  # Return empty list if parsing fails
 
-        gen_params = {
-            "max_tokens": self.max_tokens,
-            "min_tokens": self.min_tokens,
-            "generate_window": self.generate_window,
-            "stop": self.stop,
-            "banned_strings": self.banned_strings,
-            "add_bos_token": self.add_bos_token,
-            "ban_eos_token": self.ban_eos_token,
-            "skip_special_tokens": self.skip_special_tokens,
-            "token_healing": self.token_healing,
-            "logit_bias": self.logit_bias,
-            "banned_tokens": self.banned_tokens,
-            "allowed_tokens": self.allowed_tokens,
-            "temperature": self.temperature,
-            "temperature_last": self.temperature_last,
-            "min_temp": self.min_temp,
-            "max_temp": self.max_temp,
-            "temp_exponent": self.temp_exponent,
-            "smoothing_factor": self.smoothing_factor,
-            "top_k": self.top_k,
-            "top_p": self.top_p,
-            "top_a": self.top_a,
-            "typical": self.typical,
-            "min_p": self.min_p,
-            "tfs": self.tfs,
-            "skew": self.skew,
-            "frequency_penalty": self.frequency_penalty,
-            "presence_penalty": self.presence_penalty,
-            "repetition_penalty": self.repetition_penalty,
-            "penalty_range": self.penalty_range,
-            "dry_multiplier": self.dry_multiplier,
-            "dry_base": self.dry_base,
-            "dry_allowed_length": self.dry_allowed_length,
-            "dry_sequence_breakers": self.dry_sequence_breakers,
-            "dry_range": self.dry_range,
-            "repetition_decay": self.repetition_decay,
-            "mirostat": self.mirostat_mode == 2,
-            "mirostat_tau": self.mirostat_tau,
-            "mirostat_eta": self.mirostat_eta,
-            "cfg_scale": self.cfg_scale,
-            "negative_prompt": self.negative_prompt,
-            "json_schema": self.json_schema,
-            "regex_pattern": self.regex_pattern,
-            "grammar_string": self.grammar_string,
-            "speculative_ngram": self.speculative_ngram,
-        }
-
-        return {**gen_params, **kwargs}
+    @field_validator("mirostat", mode="before")
+    def convert_mirostat(cls, v, values):
+        """Mirostat is enabled if mirostat_mode == 2."""
+        return values.get("mirostat_mode") == 2
 
 
 class SamplerOverridesContainer(BaseModel):

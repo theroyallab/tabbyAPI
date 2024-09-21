@@ -53,7 +53,7 @@ async def _stream_collector(data: GenerateRequest, request: Request):
         logger.info(f"Received Kobold generation request {data.genkey}")
 
         generator = model.container.generate_gen(
-            data.prompt, data.genkey, abort_event, **data.to_gen_params()
+            request_id=data.genkey, abort_event=abort_event, **data.model_dump()
         )
         async for generation in generator:
             if disconnect_task.done():

@@ -1,6 +1,6 @@
 """Common types for OAI."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 
 from common.sampling import BaseSamplerRequest, get_default_sampler_value
@@ -54,17 +54,8 @@ class CommonCompletionRequest(BaseSamplerRequest):
         description="Not parsed. Only used for OAI compliance.", default=None
     )
 
+    @model_validator(mode="after")
     def validate_params(self):
-        # Temperature
         if self.n < 1:
             raise ValueError(f"n must be greater than or equal to 1. Got {self.n}")
-
-        return super().validate_params()
-
-    def to_gen_params(self):
-        extra_gen_params = {
-            "stream": self.stream,
-            "logprobs": self.logprobs,
-        }
-
-        return super().to_gen_params(**extra_gen_params)
+        return self
