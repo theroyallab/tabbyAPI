@@ -8,6 +8,11 @@ else
     if [ ! -d "venv" ]; then
         echo "Venv doesn't exist! Creating one for you."
         python3 -m venv venv
+
+        if [ -f "start_options.json" ]; then
+            echo "Removing old start_options.json"
+            rm -rf start_options.json
+        fi
     fi
 
     echo "Activating venv"

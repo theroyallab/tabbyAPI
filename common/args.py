@@ -1,10 +1,11 @@
 """Argparser for overriding config values"""
 
 import argparse
+from typing import Optional
 from pydantic import BaseModel
 
 from common.config_models import TabbyConfigModel
-from common.utils import is_list_type, unwrap_optional_type
+from common.utils import is_list_type, unwrap, unwrap_optional_type
 
 
 def add_field_to_group(group, field_name, field_type, field) -> None:
@@ -23,12 +24,18 @@ def add_field_to_group(group, field_name, field_type, field) -> None:
     group.add_argument(f"--{field_name}", **kwargs)
 
 
-def init_argparser() -> argparse.ArgumentParser:
+def init_argparser(
+    existing_parser: Optional[argparse.ArgumentParser] = None,
+) -> argparse.ArgumentParser:
     """
     Initializes an argparse parser based on a Pydantic config schema.
+
+    If an existing provider is given, use that.
     """
 
-    parser = argparse.ArgumentParser(description="TabbyAPI server")
+    parser = unwrap(
+        existing_parser, argparse.ArgumentParser(description="TabbyAPI server")
+    )
 
     # Loop through each top-level field in the config
     for field_name, field_info in TabbyConfigModel.model_fields.items():
