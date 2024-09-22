@@ -135,7 +135,7 @@ class TabbyConfig(TabbyConfigModel):
         """loads config from the provided arguments"""
         config = {}
 
-        config_override = args.get("options", {}).get("config", None)
+        config_override = args.get("config", {}).get("config", None)
         if config_override:
             logger.info("Config file override detected in args.")
             config = self._from_file(pathlib.Path(config_override))
