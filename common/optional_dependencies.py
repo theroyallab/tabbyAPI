@@ -25,7 +25,7 @@ class DependenciesModel(BaseModel):
 
     @computed_field
     @property
-    def exl2(self) -> bool:
+    def inference(self) -> bool:
         return self.torch and self.exllamav2 and self.flash_attn
 
 

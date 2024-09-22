@@ -22,7 +22,7 @@ def check_exllama_version():
         "pip install --upgrade .[amd]\n\n"
     )
 
-    if not dependencies.exl2:
+    if not dependencies.exllamav2:
         raise SystemExit(("Exllamav2 is not installed.\n" + install_message))
 
     required_version = version.parse("0.2.2")
