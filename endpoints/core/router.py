@@ -1,7 +1,7 @@
 import asyncio
 import pathlib
 from sys import maxsize
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sse_starlette import EventSourceResponse
 
 from common import model, sampling
@@ -12,6 +12,7 @@ from common.networking import handle_request_error, run_with_request_disconnect
 from common.tabby_config import config
 from common.templating import PromptTemplate, get_all_templates
 from common.utils import unwrap
+from common.health import HealthManager
 from endpoints.core.types.auth import AuthPermissionResponse
 from endpoints.core.types.download import DownloadRequest, DownloadResponse
 from endpoints.core.types.lora import LoraList, LoraLoadRequest, LoraLoadResponse
@@ -22,6 +23,7 @@ from endpoints.core.types.model import (
     ModelLoadRequest,
     ModelLoadResponse,
 )
+from endpoints.core.types.health import HealthCheckResponse
 from endpoints.core.types.sampler_overrides import (
     SamplerOverrideListResponse,
     SamplerOverrideSwitchRequest,
@@ -47,9 +49,16 @@ router = APIRouter()
 
 # Healthcheck endpoint
 @router.get("/health")
-async def healthcheck():
+async def healthcheck(response: Response) -> HealthCheckResponse:
     """Get the current service health status"""
-    return {"status": "healthy"}
+    healthy, issues = await HealthManager.is_service_healthy()
+
+    if not healthy:
+        response.status_code = 500
+
+    return HealthCheckResponse(
+        status="healthy" if healthy else "unhealthy", issues=issues
+    )
 
 
 # Model list endpoint

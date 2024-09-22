@@ -32,6 +32,8 @@ from typing import List, Optional, Union
 
 from ruamel.yaml import YAML
 
+from common.health import HealthManager
+
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
     clear_grammar_func_cache,
@@ -1372,6 +1374,8 @@ class ExllamaV2Container:
                 "If this fails, please restart the server.\n"
             )
             asyncio.ensure_future(self.create_generator())
+
+            await HealthManager.add_unhealthy_event(ex)
 
             raise ex
         finally:
