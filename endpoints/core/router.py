@@ -54,7 +54,7 @@ async def healthcheck(response: Response) -> HealthCheckResponse:
     healthy, issues = await HealthManager.is_service_healthy()
 
     if not healthy:
-        response.status_code = 500
+        response.status_code = 503
 
     return HealthCheckResponse(
         status="healthy" if healthy else "unhealthy", issues=issues

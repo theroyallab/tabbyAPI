@@ -1,9 +1,9 @@
 import asyncio
-from typing import Union
-from pydantic import BaseModel, Field
-from datetime import datetime, timezone
 from collections import deque
+from datetime import datetime, timezone
 from functools import partial
+from pydantic import BaseModel, Field
+from typing import Union
 
 
 class UnhealthyEvent(BaseModel):
