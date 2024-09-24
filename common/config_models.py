@@ -8,7 +8,7 @@ from pydantic import (
     field_validator,
 )
 from typing import List, Literal, Optional, Union
-
+from pathlib import Path
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
 
@@ -42,13 +42,13 @@ class UtilityActions(BaseConfigModel):
 
     # YAML export options
     export_config: bool = Field(False, description="generate a template config file")
-    config_export_path: FilePath = Field(
+    config_export_path: Path = Field(
         "config_sample.yml", description="path to export configuration file to"
     )
 
     # OpenAPI JSON export options
     export_openapi: bool = Field(False, description="export openapi schema files")
-    openapi_export_path: FilePath = Field(
+    openapi_export_path: Path = Field(
         "openapi.json", description="path to export openapi schema to"
     )
 
