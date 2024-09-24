@@ -79,6 +79,12 @@ typical:
 skew:
   override: 0.0
   force: false
+xtc_probability:
+  override: 0.0
+  force: false
+xtc_threshold:
+  override: 0.1
+  force: false
 
 # MARK: Penalty settings
 frequency_penalty:
