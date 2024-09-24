@@ -19,30 +19,17 @@ def coalesce(*args):
     return next((arg for arg in args if arg is not None), None)
 
 
-def prune_nonetype_values(inp: Union[dict, list]) -> Dict:
-    """Delete None values recursively"""
-    if isinstance(inp, dict):
-        for key, value in list(inp.items()):
-            if isinstance(value, dict):
-                prune_nonetype_values(value)
-            elif value is None:
-                del inp[key]
-            elif isinstance(value, list):
-                for v_i in value:
-                    if isinstance(v_i, dict):
-                        prune_nonetype_values(v_i)
+def filter_none_values(collection: Union[dict, list]) -> Union[dict, list]:
+    """Remove None values from a collection."""
 
-        return inp
-
-    elif isinstance(inp, list):
-        out = []
-        for value in inp:
-            out.append(prune_nonetype_values(value))
-
-        return out
-
+    if isinstance(collection, dict):
+        return {
+            k: filter_none_values(v) for k, v in collection.items() if v is not None
+        }
+    elif isinstance(collection, list):
+        return [filter_none_values(i) for i in collection if i is not None]
     else:
-        raise ValueError(f"input should be list or dict, got {type(inp)} {inp}")
+        return collection
 
 
 def merge_dict(dict1: Dict, dict2: Dict) -> Dict:
