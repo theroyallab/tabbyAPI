@@ -175,11 +175,12 @@ config: TabbyConfig = TabbyConfig()
 
 
 def generate_config_file(
-    model: BaseModel = None,
-    filename: str = "config_sample.yml",
+    model: Optional[BaseModel] = None,
+    filename: Optional[pathlib.Path] = None,
 ) -> None:
     """Creates a config.yml file from Pydantic models."""
 
+    file = unwrap(filename, "config_sample.yml")
     schema = unwrap(model, TabbyConfigModel())
     preamble = """
     # Sample YAML file for configuration.
@@ -193,7 +194,7 @@ def generate_config_file(
 
     yaml_content = pydantic_model_to_yaml(schema)
 
-    with open(filename, "w") as f:
+    with open(file, "w") as f:
         f.write(dedent(preamble).lstrip())
         yaml.dump(yaml_content, f)
 

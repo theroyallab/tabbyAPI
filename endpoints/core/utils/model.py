@@ -6,6 +6,7 @@ from common import model
 from common.networking import get_generator_error, handle_request_disconnect
 from common.tabby_config import config
 from common.utils import unwrap
+from common.model import ModelType
 from endpoints.core.types.model import (
     ModelCard,
     ModelCardParameters,
@@ -15,13 +16,17 @@ from endpoints.core.types.model import (
 )
 
 
-def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = None):
+def get_model_list(
+    model_path: pathlib.Path, draft_model_path: Optional[pathlib.Path] = None
+):
     """Get the list of models from the provided path."""
 
     # Convert the provided draft model path to a pathlib path for
     # equality comparisons
+    if model_path:
+        model_path = model_path.resolve()
     if draft_model_path:
-        draft_model_path = pathlib.Path(draft_model_path).resolve()
+        draft_model_path = draft_model_path.resolve()
 
     model_card_list = ModelList()
     for path in model_path.iterdir():
@@ -33,7 +38,7 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = N
     return model_card_list
 
 
-async def get_current_model_list(model_type: str = "model"):
+async def get_current_model_list(model_type: ModelType):
     """
     Gets the current model in list format and with path only.
 
@@ -45,13 +50,13 @@ async def get_current_model_list(model_type: str = "model"):
 
     # Make sure the model container exists
     match model_type:
-        case "model":
+        case ModelType.MODEL:
             if model.container:
                 model_path = model.container.model_dir
-        case "draft":
+        case ModelType.DRAFT:
             if model.container:
                 model_path = model.container.draft_model_dir
-        case "embedding":
+        case ModelType.EMBEDDING:
             if model.embeddings_container:
                 model_path = model.embeddings_container.model_dir
 

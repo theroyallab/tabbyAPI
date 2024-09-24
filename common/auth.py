@@ -13,6 +13,7 @@ from loguru import logger
 from typing import Optional
 
 from common.utils import coalesce
+from common.tabby_config import config
 
 
 class AuthKeys(BaseModel):
@@ -39,17 +40,14 @@ class AuthKeys(BaseModel):
 
 # Global auth constants
 AUTH_KEYS: Optional[AuthKeys] = None
-DISABLE_AUTH: bool = False
 
 
-async def load_auth_keys(disable_from_config: bool):
+async def load_auth_keys():
     """Load the authentication keys from api_tokens.yml. If the file does not
     exist, generate new keys and save them to api_tokens.yml."""
     global AUTH_KEYS
-    global DISABLE_AUTH
 
-    DISABLE_AUTH = disable_from_config
-    if disable_from_config:
+    if config.network.disable_auth:
         logger.warning(
             "Disabling authentication makes your instance vulnerable. "
             "Set the `disable_auth` flag to False in config.yml if you "
@@ -94,7 +92,7 @@ def get_key_permission(request: Request):
     """
 
     # Give full admin permissions if auth is disabled
-    if DISABLE_AUTH:
+    if config.network.disable_auth:
         return "admin"
 
     # Hyphens are okay here
@@ -124,7 +122,7 @@ async def check_api_key(
     """Check if the API key is valid."""
 
     # Allow request if auth is disabled
-    if DISABLE_AUTH:
+    if config.network.disable_auth:
         return
 
     if x_api_key:
@@ -152,7 +150,7 @@ async def check_admin_key(
     """Check if the admin key is valid."""
 
     # Allow request if auth is disabled
-    if DISABLE_AUTH:
+    if config.network.disable_auth:
         return
 
     if x_admin_key:

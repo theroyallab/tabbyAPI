@@ -1,8 +1,9 @@
-from pathlib import Path
 from pydantic import (
     BaseModel,
     ConfigDict,
+    DirectoryPath,
     Field,
+    FilePath,
     PrivateAttr,
     field_validator,
 )
@@ -15,7 +16,9 @@ CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
 class Metadata(BaseModel):
     """metadata model for config options"""
 
-    include_in_config: Optional[bool] = Field(True)
+    include_in_config: bool = Field(
+        True, description="if the model is included by the config file generator"
+    )
 
 
 class BaseConfigModel(BaseModel):
@@ -27,8 +30,7 @@ class BaseConfigModel(BaseModel):
 class ConfigOverrideConfig(BaseConfigModel):
     """Model for overriding a provided config file."""
 
-    # TODO: convert this to a pathlib.path?
-    config: Optional[str] = Field(
+    config: Optional[FilePath] = Field(
         None, description=("Path to an overriding config.yml file")
     )
 
@@ -39,18 +41,14 @@ class UtilityActions(BaseConfigModel):
     """Model used for arg actions."""
 
     # YAML export options
-    export_config: Optional[str] = Field(
-        None, description="generate a template config file"
-    )
-    config_export_path: Optional[Path] = Field(
+    export_config: bool = Field(False, description="generate a template config file")
+    config_export_path: FilePath = Field(
         "config_sample.yml", description="path to export configuration file to"
     )
 
     # OpenAPI JSON export options
-    export_openapi: Optional[bool] = Field(
-        False, description="export openapi schema files"
-    )
-    openapi_export_path: Optional[Path] = Field(
+    export_openapi: bool = Field(False, description="export openapi schema files")
+    openapi_export_path: FilePath = Field(
         "openapi.json", description="path to export openapi schema to"
     )
 
@@ -60,17 +58,16 @@ class UtilityActions(BaseConfigModel):
 class NetworkConfig(BaseConfigModel):
     """Options for networking"""
 
-    host: Optional[str] = Field(
+    # TODO: convert to IPvAnyAddress?
+    host: str = Field(
         "127.0.0.1",
         description=(
             "The IP to host on (default: 127.0.0.1).\n"
             "Use 0.0.0.0 to expose on all network adapters."
         ),
     )
-    port: Optional[int] = Field(
-        5000, description=("The port to host on (default: 5000).")
-    )
-    disable_auth: Optional[bool] = Field(
+    port: int = Field(5000, description=("The port to host on (default: 5000)."))
+    disable_auth: bool = Field(
         False,
         description=(
             "Disable HTTP token authentication with requests.\n"
@@ -78,14 +75,14 @@ class NetworkConfig(BaseConfigModel):
             "Turn on this option if you are ONLY connecting from localhost."
         ),
     )
-    send_tracebacks: Optional[bool] = Field(
+    send_tracebacks: bool = Field(
         False,
         description=(
             "Send tracebacks over the API (default: False).\n"
             "NOTE: Only enable this for debug purposes."
         ),
     )
-    api_servers: Optional[List[Literal["oai", "kobold"]]] = Field(
+    api_servers: List[Literal["oai", "kobold"]] = Field(
         ["OAI"],
         description=(
             'Select API servers to enable (default: ["OAI"]).\n'
@@ -105,15 +102,15 @@ class NetworkConfig(BaseConfigModel):
 class LoggingConfig(BaseConfigModel):
     """Options for logging"""
 
-    log_prompt: Optional[bool] = Field(
+    log_prompt: bool = Field(
         False,
         description=("Enable prompt logging (default: False)."),
     )
-    log_generation_params: Optional[bool] = Field(
+    log_generation_params: bool = Field(
         False,
         description=("Enable generation parameter logging (default: False)."),
     )
-    log_requests: Optional[bool] = Field(
+    log_requests: bool = Field(
         False,
         description=(
             "Enable request logging (default: False).\n"
@@ -129,22 +126,21 @@ class ModelConfig(BaseConfigModel):
     between initial and API loads
     """
 
-    # TODO: convert this to a pathlib.path?
-    model_dir: str = Field(
+    model_dir: DirectoryPath = Field(
         "models",
         description=(
             "Directory to look for models (default: models).\n"
             "Windows users, do NOT put this path in quotes!"
         ),
     )
-    inline_model_loading: Optional[bool] = Field(
+    inline_model_loading: bool = Field(
         False,
         description=(
             "Allow direct loading of models "
             "from a completion or chat completion request (default: False)."
         ),
     )
-    use_dummy_models: Optional[bool] = Field(
+    use_dummy_models: bool = Field(
         False,
         description=(
             "Sends dummy model names when the models endpoint is queried.\n"
@@ -186,7 +182,7 @@ class ModelConfig(BaseConfigModel):
         ),
         ge=0,
     )
-    tensor_parallel: Optional[bool] = Field(
+    tensor_parallel: bool = Field(
         False,
         description=(
             "Load model with tensor parallelism.\n"
@@ -194,7 +190,7 @@ class ModelConfig(BaseConfigModel):
             "This ignores the gpu_split_auto value."
         ),
     )
-    gpu_split_auto: Optional[bool] = Field(
+    gpu_split_auto: bool = Field(
         True,
         description=(
             "Automatically allocate resources to GPUs (default: True).\n"
@@ -215,7 +211,7 @@ class ModelConfig(BaseConfigModel):
             "Used with tensor parallelism."
         ),
     )
-    rope_scale: Optional[float] = Field(
+    rope_scale: float = Field(
         1.0,
         description=(
             "Rope scale (default: 1.0).\n"
@@ -233,7 +229,7 @@ class ModelConfig(BaseConfigModel):
             "or auto-calculate."
         ),
     )
-    cache_mode: Optional[CACHE_SIZES] = Field(
+    cache_mode: CACHE_SIZES = Field(
         "FP16",
         description=(
             "Enable different cache modes for VRAM savings (default: FP16).\n"
@@ -250,7 +246,7 @@ class ModelConfig(BaseConfigModel):
         multiple_of=256,
         gt=0,
     )
-    chunk_size: Optional[int] = Field(
+    chunk_size: int = Field(
         2048,
         description=(
             "Chunk size for prompt ingestion (default: 2048).\n"
@@ -290,7 +286,7 @@ class ModelConfig(BaseConfigModel):
         ),
         ge=1,
     )
-    fasttensors: Optional[bool] = Field(
+    fasttensors: bool = Field(
         False,
         description=(
             "Enables fasttensors to possibly increase model loading speeds "
@@ -308,8 +304,7 @@ class DraftModelConfig(BaseConfigModel):
     This will use more VRAM!
     """
 
-    # TODO: convert this to a pathlib.path?
-    draft_model_dir: Optional[str] = Field(
+    draft_model_dir: DirectoryPath = Field(
         "models",
         description=("Directory to look for draft models (default: models)"),
     )
@@ -320,7 +315,7 @@ class DraftModelConfig(BaseConfigModel):
             "Ensure the model is in the model directory."
         ),
     )
-    draft_rope_scale: Optional[float] = Field(
+    draft_rope_scale: float = Field(
         1.0,
         description=(
             "Rope scale for draft models (default: 1.0).\n"
@@ -337,7 +332,7 @@ class DraftModelConfig(BaseConfigModel):
             "or auto-calculate."
         ),
     )
-    draft_cache_mode: Optional[CACHE_SIZES] = Field(
+    draft_cache_mode: CACHE_SIZES = Field(
         "FP16",
         description=(
             "Cache mode for draft models to save VRAM (default: FP16).\n"
@@ -357,7 +352,7 @@ class LoraConfig(BaseConfigModel):
     """Options for Loras"""
 
     # TODO: convert this to a pathlib.path?
-    lora_dir: Optional[str] = Field(
+    lora_dir: DirectoryPath = Field(
         "loras", description=("Directory to look for LoRAs (default: loras).")
     )
     loras: Optional[List[LoraInstanceModel]] = Field(
@@ -379,12 +374,11 @@ class EmbeddingsConfig(BaseConfigModel):
     Install it via "pip install .[extras]"
     """
 
-    # TODO: convert this to a pathlib.path?
-    embedding_model_dir: Optional[str] = Field(
+    embedding_model_dir: DirectoryPath = Field(
         "models",
         description=("Directory to look for embedding models (default: models)."),
     )
-    embeddings_device: Optional[Literal["cpu", "auto", "cuda"]] = Field(
+    embeddings_device: Literal["cpu", "auto", "cuda"] = Field(
         "cpu",
         description=(
             "Device to load embedding models on (default: cpu).\n"
@@ -416,7 +410,7 @@ class SamplingConfig(BaseConfigModel):
 class DeveloperConfig(BaseConfigModel):
     """Options for development and experimentation"""
 
-    unsafe_launch: Optional[bool] = Field(
+    unsafe_launch: bool = Field(
         False,
         description=(
             "Skip Exllamav2 version check (default: False).\n"
@@ -424,13 +418,13 @@ class DeveloperConfig(BaseConfigModel):
             "than enabling this flag."
         ),
     )
-    disable_request_streaming: Optional[bool] = Field(
+    disable_request_streaming: bool = Field(
         False, description=("Disable API request streaming (default: False).")
     )
-    cuda_malloc_backend: Optional[bool] = Field(
+    cuda_malloc_backend: bool = Field(
         False, description=("Enable the torch CUDA malloc backend (default: False).")
     )
-    uvloop: Optional[bool] = Field(
+    uvloop: bool = Field(
         False,
         description=(
             "Run asyncio using Uvloop or Winloop which can improve performance.\n"
@@ -438,7 +432,7 @@ class DeveloperConfig(BaseConfigModel):
             "turn this off."
         ),
     )
-    realtime_process_priority: Optional[bool] = Field(
+    realtime_process_priority: bool = Field(
         False,
         description=(
             "Set process to use a higher priority.\n"
@@ -451,31 +445,21 @@ class DeveloperConfig(BaseConfigModel):
 class TabbyConfigModel(BaseModel):
     """Base model for a TabbyConfig."""
 
-    config: Optional[ConfigOverrideConfig] = Field(
+    config: ConfigOverrideConfig = Field(
         default_factory=ConfigOverrideConfig.model_construct
     )
-    network: Optional[NetworkConfig] = Field(
-        default_factory=NetworkConfig.model_construct
-    )
-    logging: Optional[LoggingConfig] = Field(
-        default_factory=LoggingConfig.model_construct
-    )
-    model: Optional[ModelConfig] = Field(default_factory=ModelConfig.model_construct)
-    draft_model: Optional[DraftModelConfig] = Field(
+    network: NetworkConfig = Field(default_factory=NetworkConfig.model_construct)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig.model_construct)
+    model: ModelConfig = Field(default_factory=ModelConfig.model_construct)
+    draft_model: DraftModelConfig = Field(
         default_factory=DraftModelConfig.model_construct
     )
-    lora: Optional[LoraConfig] = Field(default_factory=LoraConfig.model_construct)
-    embeddings: Optional[EmbeddingsConfig] = Field(
+    lora: LoraConfig = Field(default_factory=LoraConfig.model_construct)
+    embeddings: EmbeddingsConfig = Field(
         default_factory=EmbeddingsConfig.model_construct
     )
-    sampling: Optional[SamplingConfig] = Field(
-        default_factory=SamplingConfig.model_construct
-    )
-    developer: Optional[DeveloperConfig] = Field(
-        default_factory=DeveloperConfig.model_construct
-    )
-    actions: Optional[UtilityActions] = Field(
-        default_factory=UtilityActions.model_construct
-    )
+    sampling: SamplingConfig = Field(default_factory=SamplingConfig.model_construct)
+    developer: DeveloperConfig = Field(default_factory=DeveloperConfig.model_construct)
+    actions: UtilityActions = Field(default_factory=UtilityActions.model_construct)
 
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())

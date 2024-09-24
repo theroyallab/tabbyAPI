@@ -47,7 +47,7 @@ async def entrypoint_async():
             port = fallback_port
 
     # Initialize auth keys
-    await load_auth_keys(config.network.disable_auth)
+    await load_auth_keys()
 
     gen_logging.broadcast_status()
 

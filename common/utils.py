@@ -1,12 +1,12 @@
 """Common utility functions"""
 
 from types import NoneType
-from typing import Dict, Optional, Type, Union, get_args, get_origin, TypeVar
+from typing import Dict, Type, Union, get_args, get_origin, TypeVar
 
 T = TypeVar("T")
 
 
-def unwrap(wrapped: Optional[T], default: T = None) -> T:
+def unwrap(wrapped: T, default: T) -> T:
     """Unwrap function for Optionals."""
     if wrapped is None:
         return default

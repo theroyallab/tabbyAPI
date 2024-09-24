@@ -71,13 +71,10 @@ async def list_models(request: Request) -> ModelList:
     Requires an admin key to see all models.
     """
 
-    model_dir = config.model.model_dir
-    model_path = pathlib.Path(model_dir)
-
-    draft_model_dir = config.draft_model.draft_model_dir
-
     if get_key_permission(request) == "admin":
-        models = get_model_list(model_path.resolve(), draft_model_dir)
+        models = get_model_list(
+            config.model.model_dir, config.draft_model.draft_model_dir
+        )
     else:
         models = await get_current_model_list()
 
@@ -110,7 +107,7 @@ async def list_draft_models(request: Request) -> ModelList:
         draft_model_dir = config.draft_model.draft_model_dir
         draft_model_path = pathlib.Path(draft_model_dir)
 
-        models = get_model_list(draft_model_path.resolve())
+        models = get_model_list(draft_model_path)
     else:
         models = await get_current_model_list(model_type="draft")
 
@@ -278,7 +275,7 @@ async def list_embedding_models(request: Request) -> ModelList:
         embedding_model_dir = config.embeddings.embedding_model_dir
         embedding_model_path = pathlib.Path(embedding_model_dir)
 
-        models = get_model_list(embedding_model_path.resolve())
+        models = get_model_list(embedding_model_path)
     else:
         models = await get_current_model_list(model_type="embedding")
 
