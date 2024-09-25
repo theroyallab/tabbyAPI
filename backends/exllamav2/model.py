@@ -103,7 +103,27 @@ class ExllamaV2Container:
     load_condition: asyncio.Condition = asyncio.Condition()
 
     @classmethod
-    async def create(cls, model_directory: pathlib.Path, quiet=False, **kwargs):
+    async def create(
+        cls,
+        model_directory: pathlib.Path,
+        quiet=False,
+        draft=None,
+        cache_mode="FP16",
+        gpu_split_auto=True,
+        tensor_parallel=False,
+        gpu_split=None,
+        autosplit_reserve=None,
+        override_base_seq_len=None,
+        max_seq_len=None,
+        rope_scale=None,
+        rope_alpha="auto",
+        fasttensors=False,
+        max_batch_size=None,
+        cache_size=None,
+        prompt_template=None,
+        num_experts_per_token=None,
+        chunk_size=2048,
+    ):
         """
         Primary asynchronous initializer for model container.
 
@@ -130,7 +150,7 @@ class ExllamaV2Container:
         self.config.arch_compat_overrides()
 
         # Prepare the draft model config if necessary
-        draft_args = unwrap(kwargs.get("draft"), {})
+        draft_args = unwrap(draft, dict())
         draft_model_name = draft_args.get("draft_model_name")
         enable_draft = draft_args and draft_model_name
 
@@ -171,18 +191,21 @@ class ExllamaV2Container:
                 )
 
         # Apply a model's config overrides while respecting user settings
-        kwargs = await self.set_model_overrides(**kwargs)
+
+        # FIXME: THIS IS BROKEN!!!
+        # kwargs do not exist now
+        # should be investigated after the models have pydantic stuff
+        # kwargs = await self.set_model_overrides(**kwargs)
 
         # MARK: User configuration
 
         # Get cache mode
-        self.cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
+        self.cache_mode = unwrap(cache_mode, "FP16")
 
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
-        gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
-        use_tp = unwrap(kwargs.get("tensor_parallel"), False)
-        gpu_split = kwargs.get("gpu_split")
+        gpu_split_auto = unwrap(gpu_split_auto, True)
+        use_tp = unwrap(tensor_parallel, False)
         gpu_device_list = list(range(0, gpu_count))
 
         # Set GPU split options
@@ -211,9 +234,7 @@ class ExllamaV2Container:
                 # Otherwise fallback to autosplit settings
                 self.gpu_split_auto = gpu_split_auto
 
-                autosplit_reserve_megabytes = unwrap(
-                    kwargs.get("autosplit_reserve"), [96]
-                )
+                autosplit_reserve_megabytes = unwrap(autosplit_reserve, [96])
 
                 # Reserve VRAM for each GPU
                 self.autosplit_reserve = [
@@ -225,7 +246,6 @@ class ExllamaV2Container:
         self.config.max_output_len = 16
 
         # Then override the base_seq_len if present
-        override_base_seq_len = kwargs.get("override_base_seq_len")
         if override_base_seq_len:
             self.config.max_seq_len = override_base_seq_len
 
@@ -234,28 +254,26 @@ class ExllamaV2Container:
         base_seq_len = self.config.max_seq_len
 
         # Set the target seq len if present
-        target_max_seq_len = kwargs.get("max_seq_len")
+        target_max_seq_len = max_seq_len
         if target_max_seq_len:
             self.config.max_seq_len = target_max_seq_len
 
         # Set the rope scale
-        self.config.scale_pos_emb = unwrap(
-            kwargs.get("rope_scale"), self.config.scale_pos_emb
-        )
+        self.config.scale_pos_emb = unwrap(rope_scale, self.config.scale_pos_emb)
 
         # Sets rope alpha value.
         # Automatically calculate if unset or defined as an "auto" literal.
-        rope_alpha = unwrap(kwargs.get("rope_alpha"), "auto")
+        rope_alpha = unwrap(rope_alpha, "auto")
         if rope_alpha == "auto":
             self.config.scale_alpha_value = self.calculate_rope_alpha(base_seq_len)
         else:
             self.config.scale_alpha_value = rope_alpha
 
         # Enable fasttensors loading if present
-        self.config.fasttensors = unwrap(kwargs.get("fasttensors"), False)
+        self.config.fasttensors = unwrap(fasttensors, False)
 
         # Set max batch size to the config override
-        self.max_batch_size = unwrap(kwargs.get("max_batch_size"))
+        self.max_batch_size = max_batch_size
 
         # Check whether the user's configuration supports flash/paged attention
         # Also check if exl2 has disabled flash attention
@@ -272,7 +290,7 @@ class ExllamaV2Container:
         # Set k/v cache size
         # cache_size is only relevant when paged mode is enabled
         if self.paged:
-            cache_size = unwrap(kwargs.get("cache_size"), self.config.max_seq_len)
+            cache_size = unwrap(cache_size, self.config.max_seq_len)
 
             if cache_size < self.config.max_seq_len:
                 logger.warning(
@@ -314,7 +332,7 @@ class ExllamaV2Container:
 
         # Try to set prompt template
         self.prompt_template = await self.find_prompt_template(
-            kwargs.get("prompt_template"), model_directory
+            prompt_template, model_directory
         )
 
         # Catch all for template lookup errors
@@ -329,12 +347,11 @@ class ExllamaV2Container:
             )
 
         # Set num of experts per token if provided
-        num_experts_override = kwargs.get("num_experts_per_token")
-        if num_experts_override:
-            self.config.num_experts_per_token = kwargs.get("num_experts_per_token")
+        if num_experts_per_token:
+            self.config.num_experts_per_token = num_experts_per_token
 
         # Make sure chunk size is >= 16 and <= max seq length
-        user_chunk_size = unwrap(kwargs.get("chunk_size"), 2048)
+        user_chunk_size = unwrap(chunk_size, 2048)
         chunk_size = sorted((16, user_chunk_size, self.config.max_seq_len))[1]
         self.config.max_input_len = chunk_size
         self.config.max_attention_size = chunk_size**2
@@ -342,7 +359,7 @@ class ExllamaV2Container:
         # Set user-configured draft model values
         if enable_draft:
             # Fetch from the updated kwargs
-            draft_args = unwrap(kwargs.get("draft"), {})
+            draft_args = unwrap(draft, {})
 
             self.draft_config.max_seq_len = self.config.max_seq_len
 

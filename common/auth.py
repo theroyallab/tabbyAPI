@@ -3,12 +3,13 @@ This method of authorization is pretty insecure, but since TabbyAPI is a local
 application, it should be fine.
 """
 
+from functools import partial
 import aiofiles
 import io
 import secrets
 from ruamel.yaml import YAML
 from fastapi import Header, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, SecretStr
 from loguru import logger
 from typing import Optional
 
@@ -25,8 +26,8 @@ class AuthKeys(BaseModel):
     to verify if a given key matches the stored 'api_key' or 'admin_key'.
     """
 
-    api_key: str
-    admin_key: str
+    api_key: SecretStr = Field(default_factory=partial(secrets.token_hex, 16))
+    admin_key: SecretStr = Field(default_factory=partial(secrets.token_hex, 16))
 
     def verify_key(self, test_key: str, key_type: str):
         """Verify if a given key matches the stored key."""
@@ -65,9 +66,7 @@ async def load_auth_keys():
             auth_keys_dict = yaml.load(contents)
             AUTH_KEYS = AuthKeys.model_validate(auth_keys_dict)
     except FileNotFoundError:
-        new_auth_keys = AuthKeys(
-            api_key=secrets.token_hex(16), admin_key=secrets.token_hex(16)
-        )
+        new_auth_keys = AuthKeys()
         AUTH_KEYS = new_auth_keys
 
         async with aiofiles.open("api_tokens.yml", "w", encoding="utf8") as auth_file:

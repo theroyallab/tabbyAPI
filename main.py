@@ -19,7 +19,7 @@ from common.tabby_config import config
 from endpoints.server import start_api
 
 from backends.exllamav2.version import check_exllama_version
-
+from backends.exllamav2.types import ModelInstanceConfig
 
 async def entrypoint_async():
     """Async entry function for program startup"""
@@ -69,7 +69,7 @@ async def entrypoint_async():
         # TODO: remove model_dump()
         await model.load_model(
             model_path.resolve(),
-            **config.model.model_dump(),
+            **ModelInstanceConfig.model_validate(**config.model.model_dump()).model_dump(),
             draft=config.draft_model.model_dump(),
         )
 
