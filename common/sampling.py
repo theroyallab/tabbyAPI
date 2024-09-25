@@ -110,6 +110,14 @@ class BaseSamplerRequest(BaseModel):
         examples=[0.0],
     )
 
+    xtc_probability: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("xtc_probability", 0.0),
+    )
+
+    xtc_threshold: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("xtc_threshold", 0.1)
+    )
+
     frequency_penalty: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("frequency_penalty", 0.0)
     )
@@ -366,6 +374,8 @@ class BaseSamplerRequest(BaseModel):
             "min_p": self.min_p,
             "tfs": self.tfs,
             "skew": self.skew,
+            "xtc_probability": self.xtc_probability,
+            "xtc_threshold": self.xtc_threshold,
             "frequency_penalty": self.frequency_penalty,
             "presence_penalty": self.presence_penalty,
             "repetition_penalty": self.repetition_penalty,
