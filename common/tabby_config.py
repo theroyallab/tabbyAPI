@@ -37,9 +37,10 @@ class TabbyConfig(TabbyConfigModel):
         # This should be less expensive than pruning the entire merged dictionary
         configs = filter_none_values(configs)
         merged_config = merge_dicts(*configs)
+        merged_config = filter_none_values(merged_config)
 
         # validate and update config
-        merged_config_model = TabbyConfigModel.model_validate(merged_config)
+        merged_config_model = TabbyConfigModel(**merged_config)
         for field in TabbyConfigModel.model_fields.keys():
             value = getattr(merged_config_model, field)
             setattr(self, field, value)
@@ -106,7 +107,8 @@ class TabbyConfig(TabbyConfigModel):
             )
 
             # Create a temporary base config model
-            new_cfg = TabbyConfigModel.model_validate(cfg)
+            cfg = filter_none_values(cfg)
+            new_cfg = TabbyConfigModel(**cfg)
 
             try:
                 config_path.rename(f"{config_path}.bak")

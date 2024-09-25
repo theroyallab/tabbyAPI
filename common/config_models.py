@@ -284,20 +284,20 @@ class TabbyConfigModel(BaseModel):
     """Base model for a TabbyConfig."""
 
     config: ConfigOverrideConfig = Field(
-        default_factory=ConfigOverrideConfig.model_construct
+        default_factory=ConfigOverrideConfig
     )
-    network: NetworkConfig = Field(default_factory=NetworkConfig.model_construct)
-    logging: LoggingConfig = Field(default_factory=LoggingConfig.model_construct)
-    model: ModelConfig = Field(default_factory=ModelConfig.model_construct)
+    network: NetworkConfig = Field(default_factory=NetworkConfig)
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    model: ModelConfig = Field(default_factory=ModelConfig)
     draft_model: DraftModelConfig = Field(
-        default_factory=DraftModelConfig.model_construct
+        default_factory=DraftModelConfig
     )
-    lora: LoraConfig = Field(default_factory=LoraConfig.model_construct)
+    lora: LoraConfig = Field(default_factory=LoraConfig)
     embeddings: EmbeddingsConfig = Field(
-        default_factory=EmbeddingsConfig.model_construct
+        default_factory=EmbeddingsConfig
     )
-    sampling: SamplingConfig = Field(default_factory=SamplingConfig.model_construct)
-    developer: DeveloperConfig = Field(default_factory=DeveloperConfig.model_construct)
-    actions: UtilityActions = Field(default_factory=UtilityActions.model_construct)
+    sampling: SamplingConfig = Field(default_factory=SamplingConfig)
+    developer: DeveloperConfig = Field(default_factory=DeveloperConfig)
+    actions: UtilityActions = Field(default_factory=UtilityActions)
 
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())

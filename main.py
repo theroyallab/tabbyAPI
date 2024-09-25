@@ -16,6 +16,7 @@ from common.logger import setup_logger
 from common.networking import is_port_in_use
 from common.signals import signal_handler
 from common.tabby_config import config
+from common.utils import cast_model
 from endpoints.server import start_api
 
 from backends.exllamav2.version import check_exllama_version
@@ -69,7 +70,7 @@ async def entrypoint_async():
         # TODO: remove model_dump()
         await model.load_model(
             model_path.resolve(),
-            **ModelInstanceConfig.model_validate(**config.model.model_dump()).model_dump(),
+            cast_model(config.model, ModelInstanceConfig).model_dump(),
             draft=config.draft_model.model_dump(),
         )
 
