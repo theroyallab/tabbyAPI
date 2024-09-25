@@ -76,8 +76,8 @@ async def load_auth_keys():
             await auth_file.write(string_stream.getvalue())
 
     logger.info(
-        f"Your API key is: {AUTH_KEYS.api_key}\n"
-        f"Your admin key is: {AUTH_KEYS.admin_key}\n\n"
+        f"Your API key is: {AUTH_KEYS.api_key.get_secret_value()}\n"
+        f"Your admin key is: {AUTH_KEYS.admin_key.get_secret_value()}\n\n"
         "If these keys get compromised, make sure to delete api_tokens.yml "
         "and restart the server. Have fun!"
     )
