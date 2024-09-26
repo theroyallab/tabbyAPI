@@ -38,6 +38,8 @@ class DraftModelInstanceConfig(BaseModel):
         ),
     )
 
+    model_config = ConfigDict(revalidate_instances="always")
+
 
 class ModelInstanceConfig(BaseModel):
     """
@@ -182,4 +184,4 @@ class ModelInstanceConfig(BaseModel):
         ge=1,
     )
 
-    model_config = ConfigDict(protected_namespaces=())
+    model_config = ConfigDict(protected_namespaces=(), revalidate_instances="always")

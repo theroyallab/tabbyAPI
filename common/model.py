@@ -14,6 +14,7 @@ from backends.exllamav2.types import DraftModelInstanceConfig, ModelInstanceConf
 from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
 from common.optional_dependencies import dependencies
+from common.tabby_config import config
 
 if dependencies.exllamav2:
     from backends.exllamav2.model import ExllamaV2Container
@@ -69,8 +70,8 @@ async def load_model_gen(
         await unload_model()
 
     # Merge with config defaults
-    # FIXME: KWARGS DO NOT EXIST NOW
-    # kwargs = {**config.model_defaults, **kwargs}
+    model = model.model_copy(update=config.model_defaults)
+    model.model_validate(model, strict=True)
 
     # Create a new container
     draft = draft or DraftModelInstanceConfig()
