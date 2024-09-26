@@ -549,7 +549,7 @@ class ExllamaV2Container:
         async for _ in self.load_gen(progress_callback):
             pass
 
-    async def load_gen(self, progress_callback=None, skip_wait = False):
+    async def load_gen(self, progress_callback=None, skip_wait=False):
         """Loads a model and streams progress via a generator."""
 
         # Indicate that model load has started

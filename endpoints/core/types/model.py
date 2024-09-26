@@ -2,7 +2,7 @@
 
 from pydantic import BaseModel, Field, ConfigDict, model_validator
 from time import time
-from typing import List, Literal, Optional, Union
+from typing import List, Optional
 
 from backends.exllamav2.types import DraftModelInstanceConfig, ModelInstanceConfig
 from common.config_models import LoggingConfig

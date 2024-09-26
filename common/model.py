@@ -13,7 +13,6 @@ from typing import Optional
 from backends.exllamav2.types import DraftModelInstanceConfig, ModelInstanceConfig
 from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
-from common.tabby_config import config
 from common.optional_dependencies import dependencies
 
 if dependencies.exllamav2:

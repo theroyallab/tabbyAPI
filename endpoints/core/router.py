@@ -137,7 +137,6 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
 
             raise HTTPException(400, error_message)
 
-
     # if not model_path.exists():
     #     error_message = handle_request_error(
     #         "Could not find the model path for load. Check model name or config.yml?",
@@ -146,9 +145,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
 
     #     raise HTTPException(400, error_message)
 
-    return EventSourceResponse(
-        stream_model_load(data), ping=maxsize
-    )
+    return EventSourceResponse(stream_model_load(data), ping=maxsize)
 
 
 # Unload model endpoint
