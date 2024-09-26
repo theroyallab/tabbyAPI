@@ -3,6 +3,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
 
+
 class DraftModelInstanceConfig(BaseModel):
     draft_model_name: Optional[str] = Field(
         None,
@@ -19,7 +20,7 @@ class DraftModelInstanceConfig(BaseModel):
             "Use if the draft model was trained on long context with rope."
         ),
     )
-    draft_rope_alpha: Optional[float] = Field(
+    draft_rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
         None,
         description=(
             "Rope alpha for draft models (default: None).\n"
@@ -27,6 +28,7 @@ class DraftModelInstanceConfig(BaseModel):
             "Leaving this value blank will either pull from the model "
             "or auto-calculate."
         ),
+        examples=[1.0],
     )
     draft_cache_mode: CACHE_SIZES = Field(
         "FP16",
@@ -35,6 +37,7 @@ class DraftModelInstanceConfig(BaseModel):
             f"Possible values: {str(CACHE_SIZES)[15:-1]}."
         ),
     )
+
 
 class ModelInstanceConfig(BaseModel):
     """
@@ -58,6 +61,7 @@ class ModelInstanceConfig(BaseModel):
             "Fetched from the model's base sequence length in config.json by default."
         ),
         ge=0,
+        examples=[16384, 4096, 2048],
     )
     override_base_seq_len: Optional[int] = Field(
         None,
@@ -68,6 +72,7 @@ class ModelInstanceConfig(BaseModel):
             "use max_seq_len above ^"
         ),
         ge=0,
+        examples=[4096],
     )
     tensor_parallel: bool = Field(
         False,
@@ -106,6 +111,7 @@ class ModelInstanceConfig(BaseModel):
             "Use if the model was trained on long context with rope.\n"
             "Leave blank to pull the value from the model."
         ),
+        examples=[1.0],
     )
     rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
         None,
@@ -115,6 +121,7 @@ class ModelInstanceConfig(BaseModel):
             "Leaving this value blank will either pull from the model "
             "or auto-calculate."
         ),
+        examples=["auto", 1.0],
     )
     cache_mode: CACHE_SIZES = Field(
         "FP16",
@@ -132,6 +139,7 @@ class ModelInstanceConfig(BaseModel):
         ),
         multiple_of=256,
         gt=0,
+        examples=[4096],
     )
     chunk_size: int = Field(
         2048,

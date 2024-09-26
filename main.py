@@ -20,7 +20,8 @@ from common.utils import cast_model
 from endpoints.server import start_api
 
 from backends.exllamav2.version import check_exllama_version
-from backends.exllamav2.types import ModelInstanceConfig
+from backends.exllamav2.types import DraftModelInstanceConfig, ModelInstanceConfig
+
 
 async def entrypoint_async():
     """Async entry function for program startup"""
@@ -62,16 +63,10 @@ async def entrypoint_async():
 
     # If an initial model name is specified, create a container
     # and load the model
-    model_name = config.model.model_name
-    if model_name:
-        model_path = pathlib.Path(config.model.model_dir)
-        model_path = model_path / model_name
-
-        # TODO: remove model_dump()
+    if config.model.model_name:
         await model.load_model(
-            model_path.resolve(),
-            cast_model(config.model, ModelInstanceConfig).model_dump(),
-            draft=config.draft_model.model_dump(),
+            model=cast_model(config.model, ModelInstanceConfig),
+            draft=cast_model(config.draft_model, DraftModelInstanceConfig),
         )
 
         # Load loras after loading the model

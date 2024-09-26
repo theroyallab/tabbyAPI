@@ -120,7 +120,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
     """Loads a model into the model container. This returns an SSE stream."""
 
     # Verify request parameters
-    if not data.name:
+    if not data.model_name:
         error_message = handle_request_error(
             "A model name was not provided for load.",
             exc_info=False,
@@ -128,10 +128,6 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
 
         raise HTTPException(400, error_message)
 
-    model_path = pathlib.Path(config.model.model_dir)
-    model_path = model_path / data.name
-
-    draft_model_path = None
     if data.draft:
         if not data.draft.draft_model_name:
             error_message = handle_request_error(
@@ -141,18 +137,17 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
 
             raise HTTPException(400, error_message)
 
-        draft_model_path = config.draft_model.draft_model_dir
 
-    if not model_path.exists():
-        error_message = handle_request_error(
-            "Could not find the model path for load. Check model name or config.yml?",
-            exc_info=False,
-        ).error.message
+    # if not model_path.exists():
+    #     error_message = handle_request_error(
+    #         "Could not find the model path for load. Check model name or config.yml?",
+    #         exc_info=False,
+    #     ).error.message
 
-        raise HTTPException(400, error_message)
+    #     raise HTTPException(400, error_message)
 
     return EventSourceResponse(
-        stream_model_load(data, model_path, draft_model_path), ping=maxsize
+        stream_model_load(data), ping=maxsize
     )
 
 

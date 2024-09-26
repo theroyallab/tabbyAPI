@@ -13,6 +13,7 @@ from typing import List, Union
 
 from loguru import logger
 
+from backends.exllamav2.types import ModelInstanceConfig
 from common import model
 from common.auth import get_key_permission
 from common.networking import (
@@ -138,19 +139,17 @@ async def load_inline_model(model_name: str, request: Request):
 
         return
 
-    model_path = pathlib.Path(config.model.model_dir)
-    model_path = model_path / model_name
-
     # Model path doesn't exist
-    if not model_path.exists():
-        logger.warning(
-            f"Could not find model path {str(model_path)}. Skipping inline model load."
-        )
+    # if not model_path.exists():
+    #     logger.warning(
+    #         f"Could not find model path {str(model_path)}." +
+    #         "Skipping inline model load."
+    #     )
 
-        return
+    #     return
 
     # Load the model
-    await model.load_model(model_path)
+    await model.load_model(ModelInstanceConfig(model_name=model_name))
 
 
 async def stream_generate_completion(

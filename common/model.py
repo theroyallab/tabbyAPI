@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from loguru import logger
 from typing import Optional
 
+from backends.exllamav2.types import DraftModelInstanceConfig, ModelInstanceConfig
 from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
 from common.tabby_config import config
@@ -48,7 +49,11 @@ async def unload_model(skip_wait: bool = False, shutdown: bool = False):
     container = None
 
 
-async def load_model_gen(model_path: pathlib.Path, **kwargs):
+async def load_model_gen(
+    model: ModelInstanceConfig,
+    draft: Optional[DraftModelInstanceConfig] = None,
+    skip_wait: bool = False,
+):
     """Generator to load a model"""
     global container
 
@@ -56,7 +61,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     if container and container.model:
         loaded_model_name = container.model_dir.name
 
-        if loaded_model_name == model_path.name and container.model_loaded:
+        if loaded_model_name == model.model_name and container.model_loaded:
             raise ValueError(
                 f'Model "{loaded_model_name}" is already loaded! Aborting.'
             )
@@ -65,13 +70,18 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         await unload_model()
 
     # Merge with config defaults
-    kwargs = {**config.model_defaults, **kwargs}
+    # FIXME: KWARGS DO NOT EXIST NOW
+    # kwargs = {**config.model_defaults, **kwargs}
 
     # Create a new container
-    container = await ExllamaV2Container.create(model_path.resolve(), False, **kwargs)
+    draft = draft or DraftModelInstanceConfig()
+
+    container = await ExllamaV2Container.create(
+        **model.model_dump(), quiet=False, draft=draft.model_dump()
+    )
 
     model_type = "draft" if container.draft_config else "model"
-    load_status = container.load_gen(load_progress, **kwargs)
+    load_status = container.load_gen(load_progress, skip_wait)
 
     progress = get_loading_progress_bar()
     progress.start()
@@ -97,8 +107,10 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         progress.stop()
 
 
-async def load_model(model_path: pathlib.Path, **kwargs):
-    async for _ in load_model_gen(model_path, **kwargs):
+async def load_model(
+    model: ModelInstanceConfig, draft: Optional[DraftModelInstanceConfig] = None
+):
+    async for _ in load_model_gen(model=model, draft=draft):
         pass
 
 

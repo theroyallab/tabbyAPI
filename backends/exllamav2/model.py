@@ -43,6 +43,7 @@ from backends.exllamav2.utils import (
     hardware_supports_flash_attn,
     supports_paged_attn,
 )
+from common.tabby_config import config
 from common.concurrency import iterate_in_threadpool
 from common.gen_logging import (
     log_generation_params,
@@ -105,7 +106,7 @@ class ExllamaV2Container:
     @classmethod
     async def create(
         cls,
-        model_directory: pathlib.Path,
+        model_name: str,
         quiet=False,
         draft=None,
         cache_mode="FP16",
@@ -137,8 +138,15 @@ class ExllamaV2Container:
 
         # Initialize config
         self.config = ExLlamaV2Config()
-        self.model_dir = model_directory
-        self.config.model_dir = str(model_directory.resolve())
+
+        model_path = pathlib.Path(config.model.model_dir)
+        model_path = model_path / model_name
+        model_path = model_path.resolve()
+        if not model_path.exists():
+            raise FileNotFoundError(f"Model path {model_path} does not exist.")
+
+        self.model_dir = model_path
+        self.config.model_dir = str(model_path)
 
         # Make the max seq len 4096 before preparing the config
         # This is a better default than 2048
@@ -175,10 +183,10 @@ class ExllamaV2Container:
             self.draft_config.prepare()
 
         # Create the hf_config
-        self.hf_config = await HuggingFaceConfig.from_file(model_directory)
+        self.hf_config = await HuggingFaceConfig.from_file(model_path)
 
         # Load generation config overrides
-        generation_config_path = model_directory / "generation_config.json"
+        generation_config_path = model_path / "generation_config.json"
         if generation_config_path.exists():
             try:
                 self.generation_config = await GenerationConfig.from_file(
@@ -332,7 +340,7 @@ class ExllamaV2Container:
 
         # Try to set prompt template
         self.prompt_template = await self.find_prompt_template(
-            prompt_template, model_directory
+            prompt_template, model_name
         )
 
         # Catch all for template lookup errors
@@ -541,7 +549,7 @@ class ExllamaV2Container:
         async for _ in self.load_gen(progress_callback):
             pass
 
-    async def load_gen(self, progress_callback=None, **kwargs):
+    async def load_gen(self, progress_callback=None, skip_wait = False):
         """Loads a model and streams progress via a generator."""
 
         # Indicate that model load has started
@@ -551,7 +559,7 @@ class ExllamaV2Container:
             self.model_is_loading = True
 
             # Wait for existing generation jobs to finish
-            await self.wait_for_jobs(kwargs.get("skip_wait"))
+            await self.wait_for_jobs(skip_wait)
 
             # Streaming gen for model load progress
             model_load_generator = self.load_model_sync(progress_callback)
@@ -1147,19 +1155,19 @@ class ExllamaV2Container:
         grammar_handler = ExLlamaV2Grammar()
 
         # Add JSON schema filter if it exists
-        json_schema = unwrap(kwargs.get("json_schema"))
+        json_schema = kwargs.get("json_schema")
         if json_schema:
             grammar_handler.add_json_schema_filter(
                 json_schema, self.model, self.tokenizer
             )
 
         # Add regex filter if it exists
-        regex_pattern = unwrap(kwargs.get("regex_pattern"))
+        regex_pattern = kwargs.get("regex_pattern")
         if regex_pattern:
             grammar_handler.add_regex_filter(regex_pattern, self.model, self.tokenizer)
 
         # Add EBNF filter if it exists
-        grammar_string = unwrap(kwargs.get("grammar_string"))
+        grammar_string = kwargs.get("grammar_string")
         if grammar_string:
             grammar_handler.add_ebnf_filter(grammar_string, self.model, self.tokenizer)
 

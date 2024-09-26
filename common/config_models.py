@@ -12,6 +12,7 @@ from pathlib import Path
 
 from backends.exllamav2.types import DraftModelInstanceConfig, ModelInstanceConfig
 
+
 class Metadata(BaseModel):
     """metadata model for config options"""
 
@@ -283,19 +284,13 @@ class DeveloperConfig(BaseConfigModel):
 class TabbyConfigModel(BaseModel):
     """Base model for a TabbyConfig."""
 
-    config: ConfigOverrideConfig = Field(
-        default_factory=ConfigOverrideConfig
-    )
+    config: ConfigOverrideConfig = Field(default_factory=ConfigOverrideConfig)
     network: NetworkConfig = Field(default_factory=NetworkConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     model: ModelConfig = Field(default_factory=ModelConfig)
-    draft_model: DraftModelConfig = Field(
-        default_factory=DraftModelConfig
-    )
+    draft_model: DraftModelConfig = Field(default_factory=DraftModelConfig)
     lora: LoraConfig = Field(default_factory=LoraConfig)
-    embeddings: EmbeddingsConfig = Field(
-        default_factory=EmbeddingsConfig
-    )
+    embeddings: EmbeddingsConfig = Field(default_factory=EmbeddingsConfig)
     sampling: SamplingConfig = Field(default_factory=SamplingConfig)
     developer: DeveloperConfig = Field(default_factory=DeveloperConfig)
     actions: UtilityActions = Field(default_factory=UtilityActions)

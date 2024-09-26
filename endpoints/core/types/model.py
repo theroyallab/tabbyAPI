@@ -1,9 +1,10 @@
 """Contains model card types."""
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from time import time
 from typing import List, Literal, Optional, Union
 
+from backends.exllamav2.types import DraftModelInstanceConfig, ModelInstanceConfig
 from common.config_models import LoggingConfig
 from common.tabby_config import config
 
@@ -44,73 +45,30 @@ class ModelList(BaseModel):
     data: List[ModelCard] = Field(default_factory=list)
 
 
-class DraftModelLoadRequest(BaseModel):
-    """Represents a draft model load request."""
-
-    # Required
-    draft_model_name: str
-
-    # Config arguments
-    draft_rope_scale: Optional[float] = None
-    draft_rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
-        description='Automatically calculated if set to "auto"',
-        default=None,
-        examples=[1.0],
-    )
-    draft_cache_mode: Optional[str] = None
-
-
-class ModelLoadRequest(BaseModel):
+class ModelLoadRequest(ModelInstanceConfig):
     """Represents a model load request."""
 
-    # Required
-    name: str
-
-    # Config arguments
-
-    max_seq_len: Optional[int] = Field(
-        description="Leave this blank to use the model's base sequence length",
-        default=None,
-        examples=[4096],
+    # These Fields only exist to stop a breaking change
+    name: Optional[str] = Field(
+        None, description="model name to load", deprecated="Use model_name instead"
     )
-    override_base_seq_len: Optional[int] = Field(
-        description=(
-            "Overrides the model's base sequence length. " "Leave blank if unsure"
-        ),
-        default=None,
-        examples=[4096],
+    fasttensors: Optional[bool] = Field(
+        None,
+        description="ignored, set globally from config.yml",
+        deprecated="Use model config instead",
     )
-    cache_size: Optional[int] = Field(
-        description=("Number in tokens, must be greater than or equal to max_seq_len"),
-        default=None,
-        examples=[4096],
-    )
-    tensor_parallel: Optional[bool] = None
-    gpu_split_auto: Optional[bool] = None
-    autosplit_reserve: Optional[List[float]] = None
-    gpu_split: Optional[List[float]] = Field(
-        default=None,
-        examples=[[24.0, 20.0]],
-    )
-    rope_scale: Optional[float] = Field(
-        description="Automatically pulled from the model's config if not present",
-        default=None,
-        examples=[1.0],
-    )
-    rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
-        description='Automatically calculated if set to "auto"',
-        default=None,
-        examples=[1.0],
-    )
-    cache_mode: Optional[str] = None
-    chunk_size: Optional[int] = None
-    prompt_template: Optional[str] = None
-    num_experts_per_token: Optional[int] = None
-    fasttensors: Optional[bool] = None
 
     # Non-config arguments
-    draft: Optional[DraftModelLoadRequest] = None
+    draft: Optional[DraftModelInstanceConfig] = None
     skip_queue: Optional[bool] = False
+
+    # for the name value
+    @model_validator(mode="after")
+    def set_model_name(self):
+        """Sets the model name."""
+        if self.name and self.model_name is None:
+            self.model_name = self.name
+        return self
 
 
 class EmbeddingModelLoadRequest(BaseModel):

@@ -31,11 +31,15 @@ class AuthKeys(BaseModel):
 
     def verify_key(self, test_key: str, key_type: str):
         """Verify if a given key matches the stored key."""
+
         if key_type == "admin_key":
-            return test_key == self.admin_key
+            return test_key == self.admin_key.get_secret_value()
         if key_type == "api_key":
             # Admin keys are valid for all API calls
-            return test_key == self.api_key or test_key == self.admin_key
+            return (
+                test_key == self.api_key.get_secret_value()
+                or test_key == self.admin_key.get_secret_value()
+            )
         return False
 
 
