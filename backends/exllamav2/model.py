@@ -32,6 +32,7 @@ from typing import List, Optional, Union
 
 from ruamel.yaml import YAML
 
+from backends.exllamav2.types import DraftModelInstanceConfig, ModelInstanceConfig
 from common.health import HealthManager
 
 from backends.exllamav2.grammar import (
@@ -106,24 +107,9 @@ class ExllamaV2Container:
     @classmethod
     async def create(
         cls,
-        model_name: str,
+        model: ModelInstanceConfig,
+        draft: DraftModelInstanceConfig,
         quiet=False,
-        draft=None,
-        cache_mode="FP16",
-        gpu_split_auto=True,
-        tensor_parallel=False,
-        gpu_split=None,
-        autosplit_reserve=None,
-        override_base_seq_len=None,
-        max_seq_len=None,
-        rope_scale=None,
-        rope_alpha="auto",
-        fasttensors=False,
-        max_batch_size=None,
-        cache_size=None,
-        prompt_template=None,
-        num_experts_per_token=None,
-        chunk_size=2048,
     ):
         """
         Primary asynchronous initializer for model container.
@@ -140,7 +126,7 @@ class ExllamaV2Container:
         self.config = ExLlamaV2Config()
 
         model_path = pathlib.Path(config.model.model_dir)
-        model_path = model_path / model_name
+        model_path = model_path / model.model_name
         model_path = model_path.resolve()
         if not model_path.exists():
             raise FileNotFoundError(f"Model path {model_path} does not exist.")
@@ -158,25 +144,13 @@ class ExllamaV2Container:
         self.config.arch_compat_overrides()
 
         # Prepare the draft model config if necessary
-        draft_args = unwrap(draft, dict())
-        draft_model_name = draft_args.get("draft_model_name")
-        enable_draft = draft_args and draft_model_name
-
-        # Always disable draft if params are incorrectly configured
-        if draft_args and draft_model_name is None:
-            logger.warning(
-                "Draft model is disabled because a model name "
-                "wasn't provided. Please check your config.yml!"
-            )
-            enable_draft = False
-
-        if enable_draft:
+        if draft.draft_model_name:
             self.draft_config = ExLlamaV2Config()
             self.draft_config.no_flash_attn = self.config.no_flash_attn
-            draft_model_path = pathlib.Path(
-                unwrap(draft_args.get("draft_model_dir"), "models")
+
+            draft_model_path = (
+                config.draft_model.draft_model_dir / draft.draft_model_name
             )
-            draft_model_path = draft_model_path / draft_model_name
 
             self.draft_model_dir = draft_model_path
             self.draft_config.model_dir = str(draft_model_path.resolve())
@@ -208,12 +182,11 @@ class ExllamaV2Container:
         # MARK: User configuration
 
         # Get cache mode
-        self.cache_mode = unwrap(cache_mode, "FP16")
+        self.cache_mode = model.cache_mode
 
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
-        gpu_split_auto = unwrap(gpu_split_auto, True)
-        use_tp = unwrap(tensor_parallel, False)
+        gpu_split_auto = model.gpu_split_auto
         gpu_device_list = list(range(0, gpu_count))
 
         # Set GPU split options
@@ -222,16 +195,16 @@ class ExllamaV2Container:
             logger.info("Disabling GPU split because one GPU is in use.")
         else:
             # Set tensor parallel
-            if use_tp:
+            if model.tensor_parallel:
                 self.use_tp = True
 
                 # TP has its own autosplit loader
                 self.gpu_split_auto = False
 
             # Enable manual GPU split if provided
-            if gpu_split:
+            if model.gpu_split:
                 self.gpu_split_auto = False
-                self.gpu_split = gpu_split
+                self.gpu_split = model.gpu_split
 
                 gpu_device_list = [
                     device_idx
@@ -242,7 +215,7 @@ class ExllamaV2Container:
                 # Otherwise fallback to autosplit settings
                 self.gpu_split_auto = gpu_split_auto
 
-                autosplit_reserve_megabytes = unwrap(autosplit_reserve, [96])
+                autosplit_reserve_megabytes = model.autosplit_reserve
 
                 # Reserve VRAM for each GPU
                 self.autosplit_reserve = [
@@ -254,34 +227,34 @@ class ExllamaV2Container:
         self.config.max_output_len = 16
 
         # Then override the base_seq_len if present
-        if override_base_seq_len:
-            self.config.max_seq_len = override_base_seq_len
+        if model.override_base_seq_len:
+            self.config.max_seq_len = model.override_base_seq_len
 
         # Grab the base model's sequence length before overrides for
         # rope calculations
         base_seq_len = self.config.max_seq_len
 
         # Set the target seq len if present
-        target_max_seq_len = max_seq_len
+        target_max_seq_len = model.max_seq_len
         if target_max_seq_len:
             self.config.max_seq_len = target_max_seq_len
 
         # Set the rope scale
-        self.config.scale_pos_emb = unwrap(rope_scale, self.config.scale_pos_emb)
+        self.config.scale_pos_emb = unwrap(model.rope_scale, self.config.scale_pos_emb)
 
         # Sets rope alpha value.
         # Automatically calculate if unset or defined as an "auto" literal.
-        rope_alpha = unwrap(rope_alpha, "auto")
+        rope_alpha = unwrap(model.rope_alpha, "auto")
         if rope_alpha == "auto":
             self.config.scale_alpha_value = self.calculate_rope_alpha(base_seq_len)
         else:
             self.config.scale_alpha_value = rope_alpha
 
         # Enable fasttensors loading if present
-        self.config.fasttensors = unwrap(fasttensors, False)
+        self.config.fasttensors = config.model.fasttensors
 
         # Set max batch size to the config override
-        self.max_batch_size = max_batch_size
+        self.max_batch_size = model.max_batch_size
 
         # Check whether the user's configuration supports flash/paged attention
         # Also check if exl2 has disabled flash attention
@@ -298,7 +271,7 @@ class ExllamaV2Container:
         # Set k/v cache size
         # cache_size is only relevant when paged mode is enabled
         if self.paged:
-            cache_size = unwrap(cache_size, self.config.max_seq_len)
+            cache_size = unwrap(model.cache_size, self.config.max_seq_len)
 
             if cache_size < self.config.max_seq_len:
                 logger.warning(
@@ -340,7 +313,7 @@ class ExllamaV2Container:
 
         # Try to set prompt template
         self.prompt_template = await self.find_prompt_template(
-            prompt_template, model_name
+            model.prompt_template, model.model_name
         )
 
         # Catch all for template lookup errors
@@ -355,28 +328,28 @@ class ExllamaV2Container:
             )
 
         # Set num of experts per token if provided
-        if num_experts_per_token:
-            self.config.num_experts_per_token = num_experts_per_token
+        if model.num_experts_per_token:
+            self.config.num_experts_per_token = model.num_experts_per_token
 
         # Make sure chunk size is >= 16 and <= max seq length
-        user_chunk_size = unwrap(chunk_size, 2048)
+        user_chunk_size = unwrap(model.chunk_size, 2048)
         chunk_size = sorted((16, user_chunk_size, self.config.max_seq_len))[1]
         self.config.max_input_len = chunk_size
         self.config.max_attention_size = chunk_size**2
 
         # Set user-configured draft model values
-        if enable_draft:
+        if draft.draft_model_name:
             # Fetch from the updated kwargs
             draft_args = unwrap(draft, {})
 
             self.draft_config.max_seq_len = self.config.max_seq_len
 
             self.draft_config.scale_pos_emb = unwrap(
-                draft_args.get("draft_rope_scale"), 1.0
+                draft.draft_rope_scale, 1.0
             )
 
             # Set draft rope alpha. Follows same behavior as model rope alpha.
-            draft_rope_alpha = unwrap(draft_args.get("draft_rope_alpha"), "auto")
+            draft_rope_alpha = unwrap(draft.draft_rope_alpha, "auto")
             if draft_rope_alpha == "auto":
                 self.draft_config.scale_alpha_value = self.calculate_rope_alpha(
                     self.draft_config.max_seq_len
@@ -385,7 +358,7 @@ class ExllamaV2Container:
                 self.draft_config.scale_alpha_value = draft_rope_alpha
 
             # Set draft cache mode
-            self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
+            self.draft_cache_mode = draft.draft_cache_mode
 
             if chunk_size:
                 self.draft_config.max_input_len = chunk_size

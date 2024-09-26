@@ -114,7 +114,7 @@ class ModelInstanceConfig(BaseModel):
         examples=[1.0],
     )
     rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
-        None,
+        "auto",
         description=(
             "Rope alpha (default: None).\n"
             'Same as alpha_value. Set to "auto" to auto-calculate.\n'
