@@ -7,10 +7,8 @@ import pathlib
 import platform
 import subprocess
 import sys
-from shutil import copyfile
 import traceback
-
-from common.args import convert_args_to_dict, init_argparser
+from shutil import copyfile
 
 
 start_options = {}
@@ -93,6 +91,20 @@ def get_install_features(lib_name: str = None):
     return install_features
 
 
+def create_argparser():
+    try:
+        from common.args import init_argparser
+
+        return init_argparser()
+    except ModuleNotFoundError:
+        print(
+            "Pydantic not found. Showing an abridged help menu.\n"
+            "Run this script once to install dependencies.\n"
+        )
+
+        return argparse.ArgumentParser()
+
+
 def add_start_args(parser: argparse.ArgumentParser):
     """Add start script args to the provided parser"""
     start_group = parser.add_argument_group("start")
@@ -151,9 +163,25 @@ if __name__ == "__main__":
     subprocess.run(["pip", "-V"])
 
     # Create an argparser and add extra startup script args
-    parser = init_argparser()
+    # Try creating a full argparser if pydantic is installed
+    # Otherwise, create an abridged one solely for startup
+    try:
+        from common.args import init_argparser
+
+        parser = init_argparser()
+        has_full_parser = True
+    except ModuleNotFoundError:
+        parser = argparse.ArgumentParser(
+            description="Abridged TabbyAPI start script parser.",
+            epilog=(
+                "Some dependencies were not found to display the full argparser. "
+                "Run the script once to install/update them."
+            ),
+        )
+        has_full_parser = False
+
     add_start_args(parser)
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     script_ext = "bat" if platform.system() == "Windows" else "sh"
 
     start_options_path = pathlib.Path("start_options.json")
@@ -176,6 +204,7 @@ if __name__ == "__main__":
     # Set variables that rely on start options
     first_run = not start_options.get("first_run_done")
 
+    # Set gpu_lib for dependency install
     if args.gpu_lib:
         print("Overriding GPU lib name from args.")
         gpu_lib = args.gpu_lib
@@ -184,25 +213,13 @@ if __name__ == "__main__":
     else:
         gpu_lib = None
 
-    # Create a config if it doesn't exist
-    # This is not necessary to run TabbyAPI, but is new user proof
-    config_path = (
-        pathlib.Path(args.config) if args.config else pathlib.Path("config.yml")
-    )
-    if not config_path.exists():
-        sample_config_path = pathlib.Path("config_sample.yml")
-        copyfile(sample_config_path, config_path)
-
-        print(
-            "A config.yml wasn't found.\n"
-            f"Created one at {str(config_path.resolve())}"
-        )
-
+    # Pull from GitHub
     if args.update_repository:
         print("Pulling latest changes from Github.")
         pull_command = "git pull"
         subprocess.run(pull_command.split(" "))
 
+    # Install/update dependencies
     if first_run or args.update_deps:
         install_command = ["pip", "install", "-U"]
 
@@ -231,6 +248,7 @@ if __name__ == "__main__":
                 "inside the `update_scripts` folder."
             )
 
+    # First run options
     if first_run:
         start_options["first_run_done"] = True
 
@@ -245,11 +263,33 @@ if __name__ == "__main__":
                 "will reinstall TabbyAPI as a first-time user."
             )
 
-    # Import entrypoint after installing all requirements
+    # Expand the parser if it's not fully created
+    if not has_full_parser:
+        from common.args import init_argparser
+
+        parser = init_argparser(parser)
+        args = parser.parse_args()
+
+    # Assume all dependencies are installed from here
     try:
+        from common.args import convert_args_to_dict
         from main import entrypoint
 
         converted_args = convert_args_to_dict(args, parser)
+
+        # Create a config if it doesn't exist
+        # This is not necessary to run TabbyAPI, but is new user proof
+        config_path = (
+            pathlib.Path(args.config) if args.config else pathlib.Path("config.yml")
+        )
+        if not config_path.exists():
+            sample_config_path = pathlib.Path("config_sample.yml")
+            copyfile(sample_config_path, config_path)
+
+            print(
+                "A config.yml wasn't found.\n"
+                f"Created one at {str(config_path.resolve())}"
+            )
 
         print("Starting TabbyAPI...")
         entrypoint(converted_args)

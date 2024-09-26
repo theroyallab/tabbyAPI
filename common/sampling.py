@@ -17,7 +17,7 @@ from pydantic import (
 )
 from typing import Dict, List, Optional, Union
 
-from common.utils import unwrap, prune_dict
+from common.utils import filter_none_values, unwrap
 
 
 # Common class for sampler params
@@ -127,6 +127,14 @@ class BaseSamplerRequest(BaseModel):
     skew: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("skew", 0.0),
         examples=[0.0],
+    )
+
+    xtc_probability: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("xtc_probability", 0.0),
+    )
+
+    xtc_threshold: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("xtc_threshold", 0.1)
     )
 
     frequency_penalty: Optional[float] = Field(
@@ -337,7 +345,7 @@ def overrides_from_dict(new_overrides: dict):
     """Wrapper function to update sampler overrides"""
 
     if isinstance(new_overrides, dict):
-        overrides_container.overrides = prune_dict(new_overrides)
+        overrides_container.overrides = filter_none_values(new_overrides)
     else:
         raise TypeError("New sampler overrides must be a dict!")
 

@@ -19,10 +19,17 @@ def coalesce(*args):
     return next((arg for arg in args if arg is not None), None)
 
 
-def prune_dict(input_dict: Dict) -> Dict:
-    """Trim out instances of None from a dictionary."""
+def filter_none_values(collection: Union[dict, list]) -> Union[dict, list]:
+    """Remove None values from a collection."""
 
-    return {k: v for k, v in input_dict.items() if v is not None}
+    if isinstance(collection, dict):
+        return {
+            k: filter_none_values(v) for k, v in collection.items() if v is not None
+        }
+    elif isinstance(collection, list):
+        return [filter_none_values(i) for i in collection if i is not None]
+    else:
+        return collection
 
 
 def merge_dict(dict1: Dict, dict2: Dict) -> Dict:

@@ -32,6 +32,8 @@ from typing import List, Optional, Union
 
 from ruamel.yaml import YAML
 
+from common.health import HealthManager
+
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
     clear_grammar_func_cache,
@@ -956,6 +958,13 @@ class ExllamaV2Container:
         Meant for dev wheels!
         """
 
+        if unwrap(kwargs.get("xtc_probability"), 0.0) > 0.0 and not hasattr(
+            ExLlamaV2Sampler.Settings, "xtc_probability"
+        ):
+            logger.warning(
+                "XTC is not supported by the currently " "installed ExLlamaV2 version."
+            )
+
         return kwargs
 
     async def generate_gen(
@@ -1000,6 +1009,14 @@ class ExllamaV2Container:
         gen_settings.typical = unwrap(kwargs.get("typical"), 1.0)
         gen_settings.mirostat = unwrap(kwargs.get("mirostat"), False)
         gen_settings.skew = unwrap(kwargs.get("skew"), 0)
+
+        # XTC
+        xtc_probability = unwrap(kwargs.get("xtc_probability"), 0.0)
+        if xtc_probability > 0.0:
+            gen_settings.xtc_probability = xtc_probability
+
+            # 0.1 is the default for this value
+            gen_settings.xtc_threshold = unwrap(kwargs.get("xtc_threshold", 0.1))
 
         # DynaTemp settings
         max_temp = unwrap(kwargs.get("max_temp"), 1.0)
@@ -1372,6 +1389,8 @@ class ExllamaV2Container:
                 "If this fails, please restart the server.\n"
             )
             asyncio.ensure_future(self.create_generator())
+
+            await HealthManager.add_unhealthy_event(ex)
 
             raise ex
         finally:

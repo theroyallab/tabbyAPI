@@ -12,6 +12,11 @@ if exist "%CONDA_PREFIX%" (
     if not exist "venv\" (
         echo Venv doesn't exist! Creating one for you.
         python -m venv venv
+
+        if exist "start_options.json" (
+            echo Removing old start_options.json
+            del start_options.json
+        )
     )
 
     call .\venv\Scripts\activate.bat
