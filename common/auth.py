@@ -3,16 +3,18 @@ This method of authorization is pretty insecure, but since TabbyAPI is a local
 application, it should be fine.
 """
 
+from functools import partial
 import aiofiles
 import io
 import secrets
 from ruamel.yaml import YAML
 from fastapi import Header, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, SecretStr
 from loguru import logger
 from typing import Optional
 
 from common.utils import coalesce
+from common.tabby_config import config
 
 
 class AuthKeys(BaseModel):
@@ -24,32 +26,33 @@ class AuthKeys(BaseModel):
     to verify if a given key matches the stored 'api_key' or 'admin_key'.
     """
 
-    api_key: str
-    admin_key: str
+    api_key: SecretStr = Field(default_factory=partial(secrets.token_hex, 16))
+    admin_key: SecretStr = Field(default_factory=partial(secrets.token_hex, 16))
 
     def verify_key(self, test_key: str, key_type: str):
         """Verify if a given key matches the stored key."""
+
         if key_type == "admin_key":
-            return test_key == self.admin_key
+            return test_key == self.admin_key.get_secret_value()
         if key_type == "api_key":
             # Admin keys are valid for all API calls
-            return test_key == self.api_key or test_key == self.admin_key
+            return (
+                test_key == self.api_key.get_secret_value()
+                or test_key == self.admin_key.get_secret_value()
+            )
         return False
 
 
 # Global auth constants
 AUTH_KEYS: Optional[AuthKeys] = None
-DISABLE_AUTH: bool = False
 
 
-async def load_auth_keys(disable_from_config: bool):
+async def load_auth_keys():
     """Load the authentication keys from api_tokens.yml. If the file does not
     exist, generate new keys and save them to api_tokens.yml."""
     global AUTH_KEYS
-    global DISABLE_AUTH
 
-    DISABLE_AUTH = disable_from_config
-    if disable_from_config:
+    if config.network.disable_auth:
         logger.warning(
             "Disabling authentication makes your instance vulnerable. "
             "Set the `disable_auth` flag to False in config.yml if you "
@@ -67,9 +70,7 @@ async def load_auth_keys(disable_from_config: bool):
             auth_keys_dict = yaml.load(contents)
             AUTH_KEYS = AuthKeys.model_validate(auth_keys_dict)
     except FileNotFoundError:
-        new_auth_keys = AuthKeys(
-            api_key=secrets.token_hex(16), admin_key=secrets.token_hex(16)
-        )
+        new_auth_keys = AuthKeys()
         AUTH_KEYS = new_auth_keys
 
         async with aiofiles.open("api_tokens.yml", "w", encoding="utf8") as auth_file:
@@ -79,8 +80,8 @@ async def load_auth_keys(disable_from_config: bool):
             await auth_file.write(string_stream.getvalue())
 
     logger.info(
-        f"Your API key is: {AUTH_KEYS.api_key}\n"
-        f"Your admin key is: {AUTH_KEYS.admin_key}\n\n"
+        f"Your API key is: {AUTH_KEYS.api_key.get_secret_value()}\n"
+        f"Your admin key is: {AUTH_KEYS.admin_key.get_secret_value()}\n\n"
         "If these keys get compromised, make sure to delete api_tokens.yml "
         "and restart the server. Have fun!"
     )
@@ -94,7 +95,7 @@ def get_key_permission(request: Request):
     """
 
     # Give full admin permissions if auth is disabled
-    if DISABLE_AUTH:
+    if config.network.disable_auth:
         return "admin"
 
     # Hyphens are okay here
@@ -124,7 +125,7 @@ async def check_api_key(
     """Check if the API key is valid."""
 
     # Allow request if auth is disabled
-    if DISABLE_AUTH:
+    if config.network.disable_auth:
         return
 
     if x_api_key:
@@ -152,7 +153,7 @@ async def check_admin_key(
     """Check if the admin key is valid."""
 
     # Allow request if auth is disabled
-    if DISABLE_AUTH:
+    if config.network.disable_auth:
         return
 
     if x_admin_key:

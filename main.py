@@ -16,9 +16,11 @@ from common.logger import setup_logger
 from common.networking import is_port_in_use
 from common.signals import signal_handler
 from common.tabby_config import config
+from common.utils import cast_model
 from endpoints.server import start_api
 
 from backends.exllamav2.version import check_exllama_version
+from backends.exllamav2.types import DraftModelInstanceConfig, ModelInstanceConfig
 
 
 async def entrypoint_async():
@@ -47,7 +49,7 @@ async def entrypoint_async():
             port = fallback_port
 
     # Initialize auth keys
-    await load_auth_keys(config.network.disable_auth)
+    await load_auth_keys()
 
     gen_logging.broadcast_status()
 
@@ -61,16 +63,10 @@ async def entrypoint_async():
 
     # If an initial model name is specified, create a container
     # and load the model
-    model_name = config.model.model_name
-    if model_name:
-        model_path = pathlib.Path(config.model.model_dir)
-        model_path = model_path / model_name
-
-        # TODO: remove model_dump()
+    if config.model.model_name:
         await model.load_model(
-            model_path.resolve(),
-            **config.model.model_dump(),
-            draft=config.draft_model.model_dump(),
+            model=cast_model(config.model, ModelInstanceConfig),
+            draft=cast_model(config.draft_model, DraftModelInstanceConfig),
         )
 
         # Load loras after loading the model

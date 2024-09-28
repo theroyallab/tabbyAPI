@@ -1,12 +1,14 @@
 """Common utility functions"""
 
 from types import NoneType
-from typing import Dict, Optional, Type, Union, get_args, get_origin, TypeVar
+from typing import Dict, Type, Union, get_args, get_origin, TypeVar
+from pydantic import BaseModel
 
 T = TypeVar("T")
+M = TypeVar("M", bound=BaseModel)
 
 
-def unwrap(wrapped: Optional[T], default: T = None) -> T:
+def unwrap(wrapped: Type[T], default: Type[T]) -> T:
     """Unwrap function for Optionals."""
     if wrapped is None:
         return default
@@ -85,3 +87,7 @@ def unwrap_optional_type(type_hint) -> Type:
                     return arg
 
     return type_hint
+
+
+def cast_model(model: BaseModel, new: Type[M]) -> M:
+    return new(**model.model_dump())
