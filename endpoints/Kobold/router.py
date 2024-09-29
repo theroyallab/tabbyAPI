@@ -26,14 +26,14 @@ from endpoints.Kobold.utils.generation import (
 
 
 api_name = "KoboldAI"
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", tags=[Tags.Kobold])
 urls = {
     "Generation": "http://{host}:{port}/api/v1/generate",
     "Streaming": "http://{host}:{port}/api/extra/generate/stream",
 }
 
-kai_router = APIRouter()
-extra_kai_router = APIRouter()
+kai_router = APIRouter(tags=[Tags.Kobold])
+extra_kai_router = APIRouter(tags=[Tags.Kobold])
 
 
 def setup():
@@ -50,6 +50,7 @@ def setup():
     tags=[Tags.Kobold],
 )
 async def generate(request: Request, data: GenerateRequest) -> GenerateResponse:
+    """Generate a response to a prompt."""
     response = await get_generation(data, request)
 
     return response
@@ -61,6 +62,7 @@ async def generate(request: Request, data: GenerateRequest) -> GenerateResponse:
     tags=[Tags.Kobold],
 )
 async def generate_stream(request: Request, data: GenerateRequest) -> GenerateResponse:
+    """Stream the chat response to a prompt."""
     response = EventSourceResponse(stream_generation(data, request), ping=maxsize)
 
     return response
@@ -72,6 +74,7 @@ async def generate_stream(request: Request, data: GenerateRequest) -> GenerateRe
     tags=[Tags.Kobold],
 )
 async def abort_generate(data: AbortRequest) -> AbortResponse:
+    """Aborts a generation from the cache."""
     response = await abort_generation(data.genkey)
 
     return response
@@ -88,6 +91,7 @@ async def abort_generate(data: AbortRequest) -> AbortResponse:
     tags=[Tags.Kobold],
 )
 async def check_generate(data: CheckGenerateRequest) -> GenerateResponse:
+    """Fetches the status of a generation from the cache."""
     response = await generation_status(data.genkey)
 
     return response
@@ -111,6 +115,7 @@ async def current_model() -> CurrentModelResponse:
     tags=[Tags.Kobold],
 )
 async def get_tokencount(data: TokenCountRequest) -> TokenCountResponse:
+    """Get the number of tokens in a given prompt."""
     raw_tokens = model.container.encode_tokens(data.prompt)
     tokens = unwrap(raw_tokens, [])
     return TokenCountResponse(value=len(tokens), ids=tokens)

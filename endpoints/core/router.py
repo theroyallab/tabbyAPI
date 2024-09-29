@@ -325,6 +325,8 @@ async def get_embedding_model() -> ModelCard:
 async def load_embedding_model(
     request: Request, data: EmbeddingModelLoadRequest
 ) -> ModelLoadResponse:
+    """Loads an embedding model."""
+
     # Verify request parameters
     if not data.name:
         error_message = handle_request_error(

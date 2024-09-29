@@ -29,7 +29,7 @@ from endpoints.core.types.tags import Tags
 
 
 api_name = "OAI"
-router = APIRouter()
+router = APIRouter(tags=[Tags.OpenAI])
 urls = {
     "Completions": "http://{host}:{port}/v1/completions",
     "Chat completions": "http://{host}:{port}/v1/chat/completions",
@@ -158,6 +158,10 @@ async def chat_completion_request(
     tags=[Tags.OpenAI],
 )
 async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsResponse:
+    """Generate Text embeddings for a given text input.
+
+    Requires Infinity embed to be installed and an embedding model to be loaded.
+    """
     embeddings_task = asyncio.create_task(get_embeddings(data, request))
     response = await run_with_request_disconnect(
         request,
