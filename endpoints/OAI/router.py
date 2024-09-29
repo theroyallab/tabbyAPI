@@ -25,6 +25,7 @@ from endpoints.OAI.utils.completion import (
     stream_generate_completion,
 )
 from endpoints.OAI.utils.embeddings import get_embeddings
+from endpoints.core.types.tags import Tags
 
 
 api_name = "OAI"
@@ -41,8 +42,7 @@ def setup():
 
 # Completions endpoint
 @router.post(
-    "/v1/completions",
-    dependencies=[Depends(check_api_key)],
+    "/v1/completions", dependencies=[Depends(check_api_key)], tags=[Tags.OpenAI]
 )
 async def completion_request(
     request: Request, data: CompletionRequest
@@ -96,8 +96,7 @@ async def completion_request(
 
 # Chat completions endpoint
 @router.post(
-    "/v1/chat/completions",
-    dependencies=[Depends(check_api_key)],
+    "/v1/chat/completions", dependencies=[Depends(check_api_key)], tags=[Tags.OpenAI]
 )
 async def chat_completion_request(
     request: Request, data: ChatCompletionRequest
@@ -156,6 +155,7 @@ async def chat_completion_request(
 @router.post(
     "/v1/embeddings",
     dependencies=[Depends(check_api_key), Depends(check_embeddings_container)],
+    tags=[Tags.OpenAI],
 )
 async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsResponse:
     embeddings_task = asyncio.create_task(get_embeddings(data, request))
