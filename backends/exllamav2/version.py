@@ -25,7 +25,7 @@ def check_exllama_version():
     if not dependencies.exllamav2:
         raise SystemExit(("Exllamav2 is not installed.\n" + install_message))
 
-    required_version = version.parse("0.2.2")
+    required_version = version.parse("0.2.3")
     current_version = version.parse(package_version("exllamav2").split("+")[0])
 
     unsupported_message = (
