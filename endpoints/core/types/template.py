@@ -12,4 +12,4 @@ class TemplateList(BaseModel):
 class TemplateSwitchRequest(BaseModel):
     """Request to switch a template."""
 
-    name: str
+    name: str = Field(description="The name of the template to switch to")
