@@ -106,7 +106,6 @@ class ModelLoadRequest(BaseModel):
     chunk_size: Optional[int] = None
     prompt_template: Optional[str] = None
     num_experts_per_token: Optional[int] = None
-    fasttensors: Optional[bool] = None
 
     # Non-config arguments
     draft: Optional[DraftModelLoadRequest] = None

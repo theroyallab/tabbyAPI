@@ -251,9 +251,6 @@ class ExllamaV2Container:
         else:
             self.config.scale_alpha_value = rope_alpha
 
-        # Enable fasttensors loading if present
-        self.config.fasttensors = unwrap(kwargs.get("fasttensors"), False)
-
         # Set max batch size to the config override
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"))
 
