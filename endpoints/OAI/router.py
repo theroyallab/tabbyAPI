@@ -13,6 +13,10 @@ from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.tabby_config import config
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
+from endpoints.OAI.types.common import (
+        ModelItem, ModelListResponse
+)
+import hashlib
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -173,28 +177,14 @@ async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsRes
 
     return response
 
-from pydantic import BaseModel, Field
-from typing import List, Optional
-import hashlib
-
-class ModelItem(BaseModel):
-    model: str
-    name: str
-    digest: str
-    urls: List[int]
-
-class ModelListResponse(BaseModel):
-    object: str = Field("list", description="Type of the response object.")
-    models: List[ModelItem]
 
 async def fetch_models():
     models_dir = "models"
     models = []
-    # Iterate over the files in the models directory
     if os.path.exists(models_dir):
         for model in os.listdir(models_dir):
             model_path = os.path.join(models_dir, model)
-            if os.path.isdir(model_path):  # Assuming each model is in its own directory
+            if os.path.isdir(model_path):  
                 digest = hashlib.md5(model.encode()).hexdigest()
                 models.append({
                     "model":f"{model}:latest",
@@ -225,17 +215,12 @@ async def dummy(request: Request):
     dependencies=[Depends(check_api_key)]
 )
 async def get_all_models(request: Request) -> ModelListResponse:
-    print(f"Processing request for models {request.state.id}")
-    
     response = await run_with_request_disconnect(
         request,
         asyncio.create_task(fetch_models()),
-        disconnect_message=f"All models fetched",
+        disconnect_message="All models fetched",
     )
-
     return response
-
-    
 
 @router.post(
     "/api/chat",
@@ -285,7 +270,6 @@ async def chat_completion_request_ollama(
     if data.stream and not disable_request_streaming:
         return StreamingResponse(stream_response(request), media_type="application/x-ndjson")
         
-        
     else:
         generate_task = asyncio.create_task(
             generate_chat_completion(prompt, data, request, model_path)
@@ -297,4 +281,3 @@ async def chat_completion_request_ollama(
             disconnect_message=f"Chat completion {request.state.id} cancelled by user.",
         )
         return response
-    

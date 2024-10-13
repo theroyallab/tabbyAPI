@@ -165,7 +165,7 @@ def _create_stream_chunk_ollama(
             delta=message,
             logprobs=logprob_response,
         )
-    ollama_bit = {
+    ollama_chunk = {
         "model":model_name,
         "created_at": datetime.utcnow().isoformat(timespec='microseconds') + "Z",
         "message": {"role":choice.delta.role if hasattr(choice.delta, 'role') else 'none',
@@ -173,7 +173,7 @@ def _create_stream_chunk_ollama(
         "done_reason": choice.finish_reason,
         "done": choice.finish_reason=="stop",
     }
-    return ollama_bit
+    return ollama_chunk
 
 def _create_stream_chunk(
     request_id: str,

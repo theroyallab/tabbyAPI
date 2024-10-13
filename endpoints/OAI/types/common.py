@@ -1,6 +1,6 @@
 """Common types for OAI."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, List
 from typing import Optional
 
 from common.sampling import BaseSamplerRequest, get_default_sampler_value
@@ -68,3 +68,14 @@ class CommonCompletionRequest(BaseSamplerRequest):
         }
 
         return super().to_gen_params(**extra_gen_params)
+
+
+class ModelItem(BaseModel):
+    model: str
+    name: str
+    digest: str
+    urls: List[int]
+
+class ModelListResponse(BaseModel):
+    object: str = Field("list", description="Type of the response object.")
+    models: List[ModelItem]

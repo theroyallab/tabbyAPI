@@ -139,14 +139,6 @@ async def load_inline_model(model_name: str, request: Request):
 
         return
 
-    if model.container is not None:
-        if model.container.model_dir.name != model_name:
-            logger.info(f"New model requested: {model_name}. Unloading current model.")
-            await model.unload_model()
-        elif model.container.model_loaded:
-            logger.info(f"Model {model_name} is already loaded.")
-            return
-
     model_path = pathlib.Path(config.model.model_dir)
     model_path = model_path / model_name
 
