@@ -20,7 +20,7 @@ class CompletionResponseFormat(BaseModel):
 
 class ChatCompletionStreamOptions(BaseModel):
     include_usage: Optional[bool] = False
-
+    
 
 class CommonCompletionRequest(BaseSamplerRequest):
     """Represents a common completion request."""

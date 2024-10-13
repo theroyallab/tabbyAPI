@@ -88,3 +88,20 @@ class ChatCompletionStreamChunk(BaseModel):
     model: str
     object: str = "chat.completion.chunk"
     usage: Optional[UsageStats] = None
+
+class ChatCompletionResponseOllama(BaseModel):
+    id: str = Field(default_factory=lambda: f"chatcmpl-{uuid4().hex}")
+    choices: List[ChatCompletionRespChoice]
+    created: int = Field(default_factory=lambda: int(time()))
+    model: str
+    object: str = "chat.completion"
+    usage: Optional[UsageStats] = None
+
+
+class ChatCompletionStreamChunkOllama(BaseModel):
+    id: str = Field(default_factory=lambda: f"chatcmpl-{uuid4().hex}")
+    choices: List[ChatCompletionStreamChoice]
+    created: int = Field(default_factory=lambda: int(time()))
+    model: str
+    object: str = "chat.completion.chunk"
+    usage: Optional[UsageStats] = None

@@ -6,7 +6,7 @@ from asyncio import CancelledError
 from copy import deepcopy
 from typing import List, Optional
 import json
-
+from datetime import datetime
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
 from loguru import logger
@@ -98,6 +98,82 @@ def _create_response(
 
     return response
 
+
+def _create_stream_chunk_ollama(
+    request_id: str,
+    generation: Optional[dict] = None,
+    model_name: Optional[str] = None,
+    is_usage_chunk: bool = False,
+):
+    """Create a chat completion stream chunk from the provided text."""
+
+    index = generation.get("index")
+    choices = []
+    usage_stats = None
+
+    if is_usage_chunk:
+        prompt_tokens = unwrap(generation.get("prompt_tokens"), 0)
+        completion_tokens = unwrap(generation.get("generated_tokens"), 0)
+
+        usage_stats = UsageStats(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+        )
+    elif "finish_reason" in generation:
+        choice = ChatCompletionStreamChoice(
+            index=index,
+            finish_reason=generation.get("finish_reason"),
+        )
+
+        # lets check if we have tool calls since we are at the end of the generation
+        if "tool_calls" in generation:
+            tool_calls = generation["tool_calls"]
+            message = ChatCompletionMessage(
+                tool_calls=postprocess_tool_call(tool_calls)
+            )
+            choice.delta = message
+
+        choices.append(choice)
+
+    else:
+        message = ChatCompletionMessage(
+            role="assistant", content=unwrap(generation.get("text"), "")
+        )
+
+        logprob_response = None
+
+        token_probs = unwrap(generation.get("token_probs"), {})
+        if token_probs:
+            logprobs = unwrap(generation.get("logprobs"), {})
+            top_logprobs = [
+                ChatCompletionLogprob(token=token, logprob=logprob)
+                for token, logprob in logprobs.items()
+            ]
+
+            generated_token = next(iter(token_probs))
+            token_prob_response = ChatCompletionLogprob(
+                token=generated_token,
+                logprob=token_probs[generated_token],
+                top_logprobs=top_logprobs,
+            )
+
+            logprob_response = ChatCompletionLogprobs(content=[token_prob_response])
+
+        choice = ChatCompletionStreamChoice(
+            index=index,
+            delta=message,
+            logprobs=logprob_response,
+        )
+    ollama_bit = {
+        "model":model_name,
+        "created_at": datetime.utcnow().isoformat(timespec='microseconds') + "Z",
+        "message": {"role":choice.delta.role if hasattr(choice.delta, 'role') else 'none',
+         "content": choice.delta.content if hasattr(choice.delta, 'content') else 'none'},
+        "done_reason": choice.finish_reason,
+        "done": choice.finish_reason=="stop",
+    }
+    return ollama_bit
 
 def _create_stream_chunk(
     request_id: str,
@@ -279,6 +355,101 @@ async def format_prompt_with_template(
         raise HTTPException(400, error_message) from exc
 
 
+async def stream_generate_chat_completion_ollama(
+    prompt: str, data: ChatCompletionRequest, request: Request, model_path: pathlib.Path
+):
+    """Generator for the generation process."""
+    abort_event = asyncio.Event()
+    gen_queue = asyncio.Queue()
+    gen_tasks: List[asyncio.Task] = []
+    disconnect_task = asyncio.create_task(request_disconnect_loop(request))
+
+    try:
+        logger.info(f"Received chat completion streaming request {request.state.id}")
+
+        gen_params = data.to_gen_params()
+
+        for n in range(0, data.n):
+            if n > 0:
+                task_gen_params = deepcopy(gen_params)
+            else:
+                task_gen_params = gen_params
+
+            gen_task = asyncio.create_task(
+                _stream_collector(
+                    n,
+                    gen_queue,
+                    prompt,
+                    request.state.id,
+                    abort_event,
+                    **task_gen_params,
+                )
+            )
+
+            gen_tasks.append(gen_task)
+
+        # We need to keep track of the text generated so we can resume the tool calls
+        current_generation_text = ""
+
+        # Consumer loop
+        while True:
+            if disconnect_task.done():
+                abort_event.set()
+                handle_request_disconnect(
+                    f"Chat completion generation {request.state.id} cancelled by user."
+                )
+
+            generation = await gen_queue.get()
+            # lets only append the text if we need it for tool calls later
+            if data.tool_call_start and "text" in generation:
+                current_generation_text += generation["text"]
+
+            # check if we are running a tool model, and that we are at stop
+            if data.tool_call_start and "stop_str" in generation:
+                generations = await generate_tool_calls(
+                    data,
+                    [generation],
+                    request,
+                    current_generations=current_generation_text,
+                )
+                generation = generations[0]  # We only have one generation in this case
+
+            # Stream collector will push an exception to the queue if it fails
+            if isinstance(generation, Exception):
+                raise generation
+
+            chunk = _create_stream_chunk_ollama(
+                request.state.id, generation, model_path.name
+            )
+
+            yield chunk
+
+            # Check if all tasks are completed
+            if all(task.done() for task in gen_tasks) and gen_queue.empty():
+                # Send a usage chunk
+                if data.stream_options and data.stream_options.include_usage:
+                    usage_chunk = _create_stream_chunk_ollama(
+                        request.state.id,
+                        generation,
+                        model_path.name,
+                        is_usage_chunk=True,
+                    )
+                    yield usage_chunk
+
+                logger.info(
+                    f"Finished chat completion streaming request {request.state.id}"
+                )
+                break
+    except CancelledError:
+        # Get out if the request gets disconnected
+
+        if not disconnect_task.done():
+            abort_event.set()
+            handle_request_disconnect("Chat completion generation cancelled by user.")
+    except Exception:
+        yield get_generator_error(
+            "Chat completion aborted. Please check the server console."
+        )
 async def stream_generate_chat_completion(
     prompt: str, data: ChatCompletionRequest, request: Request, model_path: pathlib.Path
 ):

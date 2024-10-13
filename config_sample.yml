@@ -49,7 +49,7 @@ model:
   model_dir: models
 
   # Allow direct loading of models from a completion or chat completion request (default: False).
-  inline_model_loading: false
+  inline_model_loading: true
 
   # Sends dummy model names when the models endpoint is queried.
   # Enable this if the client is looking for specific OAI models.
