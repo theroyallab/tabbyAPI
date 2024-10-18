@@ -9,6 +9,7 @@ from enum import Enum
 from fastapi import HTTPException
 from loguru import logger
 from typing import Optional
+import time
 
 from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
@@ -74,6 +75,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     load_status = container.load_gen(load_progress, **kwargs)
 
     progress = get_loading_progress_bar()
+    model_loading_started = time.time()
     progress.start()
 
     try:
@@ -95,6 +97,8 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                     progress.stop()
     finally:
         progress.stop()
+        model_loading_time = time.time() - model_loading_started
+        logger.info("Model loading took {:.2f} seconds.".format(model_loading_time))
 
 
 async def load_model(model_path: pathlib.Path, **kwargs):
