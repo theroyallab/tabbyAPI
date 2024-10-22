@@ -388,7 +388,7 @@ class ExllamaV2Container:
             if draft_override_args:
                 kwargs["draft_model"] = {
                     **draft_override_args,
-                    **kwargs.get("draft_model"),
+                    **unwrap(kwargs.get("draft_model"), {}),
                 }
 
             # Merge the override and model kwargs
