@@ -135,8 +135,8 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
     model_path = model_path / data.name
 
     draft_model_path = None
-    if data.draft:
-        if not data.draft.draft_model_name:
+    if data.draft_model:
+        if not data.draft_model.draft_model_name:
             error_message = handle_request_error(
                 "Could not find the draft model name for model load.",
                 exc_info=False,

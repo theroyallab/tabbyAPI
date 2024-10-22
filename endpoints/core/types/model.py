@@ -1,6 +1,6 @@
 """Contains model card types."""
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import AliasChoices, BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Literal, Optional, Union
 
@@ -64,7 +64,7 @@ class ModelLoadRequest(BaseModel):
     """Represents a model load request."""
 
     # Required
-    name: str
+    name: str = Field(alias=AliasChoices("model_name", "name"))
 
     # Config arguments
 
@@ -108,7 +108,10 @@ class ModelLoadRequest(BaseModel):
     num_experts_per_token: Optional[int] = None
 
     # Non-config arguments
-    draft: Optional[DraftModelLoadRequest] = None
+    draft_model: Optional[DraftModelLoadRequest] = Field(
+        default=None,
+        alias=AliasChoices("draft_model", "draft"),
+    )
     skip_queue: Optional[bool] = False
 
 

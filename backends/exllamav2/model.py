@@ -129,8 +129,27 @@ class ExllamaV2Container:
         # Check if the model arch is compatible with various exl2 features
         self.config.arch_compat_overrides()
 
+        # Create the hf_config
+        self.hf_config = await HuggingFaceConfig.from_file(model_directory)
+
+        # Load generation config overrides
+        generation_config_path = model_directory / "generation_config.json"
+        if generation_config_path.exists():
+            try:
+                self.generation_config = await GenerationConfig.from_file(
+                    generation_config_path.parent
+                )
+            except Exception:
+                logger.error(traceback.format_exc())
+                logger.warning(
+                    "Skipping generation config load because of an unexpected error."
+                )
+
+        # Apply a model's config overrides while respecting user settings
+        kwargs = await self.set_model_overrides(**kwargs)
+
         # Prepare the draft model config if necessary
-        draft_args = unwrap(kwargs.get("draft"), {})
+        draft_args = unwrap(kwargs.get("draft_model"), {})
         draft_model_name = draft_args.get("draft_model_name")
         enable_draft = draft_args and draft_model_name
 
@@ -153,25 +172,6 @@ class ExllamaV2Container:
             self.draft_model_dir = draft_model_path
             self.draft_config.model_dir = str(draft_model_path.resolve())
             self.draft_config.prepare()
-
-        # Create the hf_config
-        self.hf_config = await HuggingFaceConfig.from_file(model_directory)
-
-        # Load generation config overrides
-        generation_config_path = model_directory / "generation_config.json"
-        if generation_config_path.exists():
-            try:
-                self.generation_config = await GenerationConfig.from_file(
-                    generation_config_path.parent
-                )
-            except Exception:
-                logger.error(traceback.format_exc())
-                logger.warning(
-                    "Skipping generation config load because of an unexpected error."
-                )
-
-        # Apply a model's config overrides while respecting user settings
-        kwargs = await self.set_model_overrides(**kwargs)
 
         # MARK: User configuration
 
@@ -384,9 +384,12 @@ class ExllamaV2Container:
             override_args = unwrap(yaml.load(contents), {})
 
             # Merge draft overrides beforehand
-            draft_override_args = unwrap(override_args.get("draft"), {})
-            if self.draft_config and draft_override_args:
-                kwargs["draft"] = {**draft_override_args, **kwargs.get("draft")}
+            draft_override_args = unwrap(override_args.get("draft_model"), {})
+            if draft_override_args:
+                kwargs["draft_model"] = {
+                    **draft_override_args,
+                    **kwargs.get("draft_model"),
+                }
 
             # Merge the override and model kwargs
             merged_kwargs = {**override_args, **kwargs}
