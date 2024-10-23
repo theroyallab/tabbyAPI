@@ -441,7 +441,7 @@ async def list_templates(request: Request) -> TemplateList:
 async def switch_template(data: TemplateSwitchRequest):
     """Switch the currently loaded template."""
 
-    if not data.name:
+    if not data.prompt_template_name:
         error_message = handle_request_error(
             "New template name not found.",
             exc_info=False,
@@ -450,11 +450,12 @@ async def switch_template(data: TemplateSwitchRequest):
         raise HTTPException(400, error_message)
 
     try:
-        template_path = pathlib.Path("templates") / data.name
+        template_path = pathlib.Path("templates") / data.prompt_template_name
         model.container.prompt_template = await PromptTemplate.from_file(template_path)
     except FileNotFoundError as e:
         error_message = handle_request_error(
-            f"The template name {data.name} doesn't exist. Check the spelling?",
+            f"The template name {data.prompt_template_name} doesn't exist. "
+            + "Check the spelling?",
             exc_info=False,
         ).error.message
 
