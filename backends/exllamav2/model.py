@@ -338,9 +338,6 @@ class ExllamaV2Container:
 
         # Set user-configured draft model values
         if enable_draft:
-            # Fetch from the updated kwargs
-            draft_args = unwrap(kwargs.get("draft"), {})
-
             self.draft_config.max_seq_len = self.config.max_seq_len
 
             self.draft_config.scale_pos_emb = unwrap(
