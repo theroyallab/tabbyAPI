@@ -301,7 +301,7 @@ async def load_embedding_model(
     request: Request, data: EmbeddingModelLoadRequest
 ) -> ModelLoadResponse:
     # Verify request parameters
-    if not data.name:
+    if not data.embedding_model_name:
         error_message = handle_request_error(
             "A model name was not provided for load.",
             exc_info=False,
@@ -310,7 +310,7 @@ async def load_embedding_model(
         raise HTTPException(400, error_message)
 
     embedding_model_dir = pathlib.Path(config.embeddings.embedding_model_dir)
-    embedding_model_path = embedding_model_dir / data.name
+    embedding_model_path = embedding_model_dir / data.embedding_model_name
 
     if not embedding_model_path.exists():
         error_message = handle_request_error(

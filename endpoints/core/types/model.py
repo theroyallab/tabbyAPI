@@ -116,7 +116,9 @@ class ModelLoadRequest(BaseModel):
 
 
 class EmbeddingModelLoadRequest(BaseModel):
-    name: str
+    embedding_model_name: str = Field(
+        alias=AliasChoices("embedding_model_name", "name"),
+    )
 
     # Set default from the config
     embeddings_device: Optional[str] = Field(config.embeddings.embeddings_device)
