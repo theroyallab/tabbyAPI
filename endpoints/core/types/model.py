@@ -50,6 +50,7 @@ class DraftModelLoadRequest(BaseModel):
     # Required
     draft_model_name: str = Field(
         alias=AliasChoices("draft_model_name", "name"),
+        description="Aliases: name",
     )
 
     # Config arguments
@@ -69,7 +70,10 @@ class ModelLoadRequest(BaseModel):
     model_config = ConfigDict(protected_namespaces=[])
 
     # Required
-    model_name: str = Field(alias=AliasChoices("model_name", "name"))
+    model_name: str = Field(
+        alias=AliasChoices("model_name", "name"),
+        description="Aliases: name",
+    )
 
     # Config arguments
 
@@ -123,6 +127,7 @@ class ModelLoadRequest(BaseModel):
 class EmbeddingModelLoadRequest(BaseModel):
     embedding_model_name: str = Field(
         alias=AliasChoices("embedding_model_name", "name"),
+        description="Aliases: name",
     )
 
     # Set default from the config

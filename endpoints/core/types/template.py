@@ -14,4 +14,5 @@ class TemplateSwitchRequest(BaseModel):
 
     prompt_template_name: str = Field(
         alias=AliasChoices("prompt_template_name", "name"),
+        description="Aliases: name",
     )
