@@ -104,7 +104,7 @@ async def stream_model_load(
 
     # Set the draft model path if it exists
     if draft_model_path:
-        load_data["draft"]["draft_model_dir"] = draft_model_path
+        load_data["draft_model"]["draft_model_dir"] = draft_model_path
 
     load_status = model.load_model_gen(
         model_path, skip_wait=data.skip_queue, **load_data

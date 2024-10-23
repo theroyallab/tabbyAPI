@@ -149,8 +149,11 @@ async def load_inline_model(model_name: str, request: Request):
 
         return
 
-    # Load the model
-    await model.load_model(model_path)
+    # Load the model and also add draft dir
+    await model.load_model(
+        model_path,
+        draft_model=config.draft_model.model_dump(include={"draft_model_dir"}),
+    )
 
 
 async def stream_generate_completion(
