@@ -65,8 +65,11 @@ class DraftModelLoadRequest(BaseModel):
 class ModelLoadRequest(BaseModel):
     """Represents a model load request."""
 
+    # Avoids pydantic namespace warning
+    model_config = ConfigDict(protected_namespaces=[])
+
     # Required
-    name: str = Field(alias=AliasChoices("model_name", "name"))
+    model_name: str = Field(alias=AliasChoices("model_name", "name"))
 
     # Config arguments
 

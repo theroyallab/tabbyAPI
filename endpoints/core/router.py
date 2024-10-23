@@ -123,7 +123,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
     """Loads a model into the model container. This returns an SSE stream."""
 
     # Verify request parameters
-    if not data.name:
+    if not data.model_name:
         error_message = handle_request_error(
             "A model name was not provided for load.",
             exc_info=False,
@@ -132,7 +132,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
         raise HTTPException(400, error_message)
 
     model_path = pathlib.Path(config.model.model_dir)
-    model_path = model_path / data.name
+    model_path = model_path / data.model_name
 
     draft_model_path = None
     if data.draft_model:
