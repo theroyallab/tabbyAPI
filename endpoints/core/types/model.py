@@ -48,7 +48,9 @@ class DraftModelLoadRequest(BaseModel):
     """Represents a draft model load request."""
 
     # Required
-    draft_model_name: str
+    draft_model_name: str = Field(
+        alias=AliasChoices("draft_model_name", "name"),
+    )
 
     # Config arguments
     draft_rope_scale: Optional[float] = None
