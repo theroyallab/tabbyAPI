@@ -123,7 +123,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
     """Loads a model into the model container. This returns an SSE stream."""
 
     # Verify request parameters
-    if not data.name:
+    if not data.model_name:
         error_message = handle_request_error(
             "A model name was not provided for load.",
             exc_info=False,
@@ -132,11 +132,11 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
         raise HTTPException(400, error_message)
 
     model_path = pathlib.Path(config.model.model_dir)
-    model_path = model_path / data.name
+    model_path = model_path / data.model_name
 
     draft_model_path = None
-    if data.draft:
-        if not data.draft.draft_model_name:
+    if data.draft_model:
+        if not data.draft_model.draft_model_name:
             error_message = handle_request_error(
                 "Could not find the draft model name for model load.",
                 exc_info=False,
@@ -301,7 +301,7 @@ async def load_embedding_model(
     request: Request, data: EmbeddingModelLoadRequest
 ) -> ModelLoadResponse:
     # Verify request parameters
-    if not data.name:
+    if not data.embedding_model_name:
         error_message = handle_request_error(
             "A model name was not provided for load.",
             exc_info=False,
@@ -310,7 +310,7 @@ async def load_embedding_model(
         raise HTTPException(400, error_message)
 
     embedding_model_dir = pathlib.Path(config.embeddings.embedding_model_dir)
-    embedding_model_path = embedding_model_dir / data.name
+    embedding_model_path = embedding_model_dir / data.embedding_model_name
 
     if not embedding_model_path.exists():
         error_message = handle_request_error(
@@ -441,7 +441,7 @@ async def list_templates(request: Request) -> TemplateList:
 async def switch_template(data: TemplateSwitchRequest):
     """Switch the currently loaded template."""
 
-    if not data.name:
+    if not data.prompt_template_name:
         error_message = handle_request_error(
             "New template name not found.",
             exc_info=False,
@@ -450,11 +450,12 @@ async def switch_template(data: TemplateSwitchRequest):
         raise HTTPException(400, error_message)
 
     try:
-        template_path = pathlib.Path("templates") / data.name
+        template_path = pathlib.Path("templates") / data.prompt_template_name
         model.container.prompt_template = await PromptTemplate.from_file(template_path)
     except FileNotFoundError as e:
         error_message = handle_request_error(
-            f"The template name {data.name} doesn't exist. Check the spelling?",
+            f"The template name {data.prompt_template_name} doesn't exist. "
+            + "Check the spelling?",
             exc_info=False,
         ).error.message
 

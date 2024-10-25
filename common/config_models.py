@@ -290,13 +290,6 @@ class ModelConfig(BaseConfigModel):
         ),
         ge=1,
     )
-    fasttensors: Optional[bool] = Field(
-        False,
-        description=(
-            "Enables fasttensors to possibly increase model loading speeds "
-            "(default: False)."
-        ),
-    )
 
     _metadata: Metadata = PrivateAttr(Metadata())
     model_config = ConfigDict(protected_namespaces=())
