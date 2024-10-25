@@ -300,7 +300,7 @@ async def stream_generate_chat_completion(
                     prompt,
                     request.state.id,
                     abort_event,
-                    **task_gen_params.model_dump(),
+                    **task_gen_params.model_dump(exclude={"prompt"}),
                 )
             )
 
@@ -381,7 +381,7 @@ async def generate_chat_completion(
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
-                        prompt, request.state.id, **data.model_dump()
+                        prompt, request.state.id, **data.model_dump(exclude={"prompt"})
                     )
                 )
             )

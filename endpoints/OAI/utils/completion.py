@@ -175,7 +175,7 @@ async def stream_generate_completion(
                     data.prompt,
                     request.state.id,
                     abort_event,
-                    **task_gen_params.model_dump(),
+                    **task_gen_params.model_dump(exclude={"prompt"}),
                 )
             )
 
@@ -233,7 +233,9 @@ async def generate_completion(
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
-                        data.prompt, request.state.id, **task_gen_params.model_dump()
+                        data.prompt,
+                        request.state.id,
+                        **task_gen_params.model_dump(exclude={"prompt"}),
                     )
                 )
             )
