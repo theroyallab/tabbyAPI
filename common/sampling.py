@@ -92,7 +92,7 @@ class BaseSamplerRequest(BaseModel):
 
     top_k: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("top_k", 0),
-        ge=0,
+        ge=-1,
     )
 
     top_p: Optional[float] = Field(
@@ -301,6 +301,14 @@ class BaseSamplerRequest(BaseModel):
             raise ValidationError("min tokens cannot be more then max tokens")
 
         return self
+
+    @field_validator("top_k", mode="before")
+    def convert_top_k(cls, v):
+        if v == -1:
+            logger.warning("Provided a top-k value of -1. Converting to 0 instead.")
+            return 0
+
+        return v
 
     @field_validator("stop", "banned_strings", mode="before")
     def convert_str_to_list(cls, v):
