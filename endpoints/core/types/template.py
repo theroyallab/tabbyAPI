@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 from typing import List
 
 
@@ -12,4 +12,7 @@ class TemplateList(BaseModel):
 class TemplateSwitchRequest(BaseModel):
     """Request to switch a template."""
 
-    name: str
+    prompt_template_name: str = Field(
+        alias=AliasChoices("prompt_template_name", "name"),
+        description="Aliases: name",
+    )
