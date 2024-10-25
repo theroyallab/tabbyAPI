@@ -304,6 +304,8 @@ class BaseSamplerRequest(BaseModel):
 
     @field_validator("top_k", mode="before")
     def convert_top_k(cls, v):
+        """Fixes instance if Top-K is -1."""
+
         if v == -1:
             logger.warning("Provided a top-k value of -1. Converting to 0 instead.")
             return 0
@@ -313,20 +315,25 @@ class BaseSamplerRequest(BaseModel):
     @field_validator("stop", "banned_strings", mode="before")
     def convert_str_to_list(cls, v):
         """Convert single string to list of strings."""
+
         if isinstance(v, str):
             return [v]
+
         return v
 
     @field_validator("banned_tokens", "allowed_tokens", mode="before")
     def convert_tokens_to_int_list(cls, v):
         """Convert comma-separated string of numbers to a list of integers."""
+
         if isinstance(v, str):
             return [int(x) for x in v.split(",") if x.isdigit()]
+
         return v
 
     @field_validator("dry_sequence_breakers", mode="before")
     def parse_json_if_needed(cls, v):
         """Parse dry_sequence_breakers string to JSON array."""
+
         if isinstance(v, str) and not v.startswith("["):
             v = f"[{v}]"
         try:
@@ -337,6 +344,7 @@ class BaseSamplerRequest(BaseModel):
     @field_validator("mirostat", mode="before")
     def convert_mirostat(cls, v, values):
         """Mirostat is enabled if mirostat_mode == 2."""
+
         return values.get("mirostat_mode") == 2
 
 
