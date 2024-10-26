@@ -336,6 +336,7 @@ class BaseSamplerRequest(BaseModel):
 
         if isinstance(v, str) and not v.startswith("["):
             v = f"[{v}]"
+
         try:
             return json.loads(v) if isinstance(v, str) else v
         except Exception:
