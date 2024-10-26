@@ -342,10 +342,10 @@ class BaseSamplerRequest(BaseModel):
             return []  # Return empty list if parsing fails
 
     @field_validator("mirostat", mode="before")
-    def convert_mirostat(cls, v, values):
+    def convert_mirostat(cls, _, values):
         """Mirostat is enabled if mirostat_mode == 2."""
 
-        return values.get("mirostat_mode") == 2
+        return values.data.get("mirostat_mode") == 2
 
 
 class SamplerOverridesContainer(BaseModel):
