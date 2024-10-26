@@ -326,7 +326,7 @@ class BaseSamplerRequest(BaseModel):
         """Convert comma-separated string of numbers to a list of integers."""
 
         if isinstance(v, str):
-            return [int(x) for x in v.split(",") if x.isdigit()]
+            return [int(x) for x in v.replace(" ", "").split(",") if x.isdigit()]
 
         return v
 
