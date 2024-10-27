@@ -325,10 +325,10 @@ class BaseSamplerRequest(BaseModel):
             return []  # Return empty list if parsing fails
 
     @field_validator("mirostat", mode="before")
-    def convert_mirostat(cls, _, values):
+    def convert_mirostat(cls, _, field_info):
         """Mirostat is enabled if mirostat_mode == 2."""
 
-        return values.data.get("mirostat_mode") == 2
+        return field_info.data.get("mirostat_mode") == 2
 
     @model_validator(mode="after")
     def after_validate(self):

@@ -58,4 +58,5 @@ class CommonCompletionRequest(BaseSamplerRequest):
     def validate_params(self):
         if self.n < 1:
             raise ValueError(f"n must be greater than or equal to 1. Got {self.n}")
+
         return self
