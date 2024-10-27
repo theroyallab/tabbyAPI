@@ -84,7 +84,6 @@ class ExllamaV2Container:
     draft_cache_mode: str = "FP16"
     max_batch_size: Optional[int] = None
     generation_config: Optional[GenerationConfig] = None
-    hf_config: Optional[HuggingFaceConfig] = None
 
     # GPU split vars
     gpu_split: Optional[list] = None
@@ -128,9 +127,6 @@ class ExllamaV2Container:
 
         # Check if the model arch is compatible with various exl2 features
         self.config.arch_compat_overrides()
-
-        # Create the hf_config
-        self.hf_config = await HuggingFaceConfig.from_file(model_directory)
 
         # Load generation config overrides
         generation_config_path = model_directory / "generation_config.json"
