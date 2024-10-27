@@ -340,6 +340,9 @@ class BaseSamplerRequest(BaseModel):
         try:
             return json.loads(v) if isinstance(v, str) else v
         except Exception:
+            logger.warning(
+                "Could not parse DRY sequence breakers. Using an empty array."
+            )
             return []  # Return empty list if parsing fails
 
     @field_validator("mirostat", mode="before")
