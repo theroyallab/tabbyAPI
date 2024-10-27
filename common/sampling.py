@@ -185,7 +185,7 @@ class BaseSamplerRequest(BaseModel):
 
     dry_range: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("dry_range", 0),
-        alias=AliasChoices("dry_range", "dry_penalty_last_n"),
+        validation_alias=AliasChoices("dry_range", "dry_penalty_last_n"),
         description=("Aliases: dry_penalty_last_n"),
     )
 
