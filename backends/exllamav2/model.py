@@ -55,7 +55,7 @@ from common.templating import (
     TemplateLoadError,
     find_template_from_model,
 )
-from common.transformers_utils import GenerationConfig, HuggingFaceConfig
+from common.transformers_utils import GenerationConfig
 from common.utils import coalesce, unwrap
 
 
