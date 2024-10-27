@@ -10,7 +10,6 @@ from loguru import logger
 from pydantic import (
     AliasChoices,
     BaseModel,
-    ConfigDict,
     Field,
     field_validator,
     model_validator,
@@ -324,11 +323,14 @@ class BaseSamplerRequest(BaseModel):
             )
             return []  # Return empty list if parsing fails
 
-    @field_validator("mirostat", mode="before")
-    def convert_mirostat(cls, _, field_info):
+    @field_validator("mirostat_mode", mode="before")
+    def convert_mirostat(cls, v, field_info):
         """Mirostat is enabled if mirostat_mode == 2."""
 
-        return field_info.data.get("mirostat_mode") == 2
+        if v == 2:
+            field_info.data["mirostat"] = True
+
+        return v
 
     @model_validator(mode="after")
     def after_validate(self):
@@ -344,9 +346,6 @@ class BaseSamplerRequest(BaseModel):
             raise ValidationError("min tokens cannot be more then max tokens")
 
         return self
-
-    # Force validate default values for sampler overrides
-    model_config = ConfigDict(validate_default=True)
 
 
 class SamplerOverridesContainer(BaseModel):
