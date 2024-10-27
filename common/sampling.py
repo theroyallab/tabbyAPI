@@ -281,27 +281,6 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
-    model_config = ConfigDict(validate_assignment=True)
-
-    @model_validator(mode="after")
-    def validate_params(self):
-        """
-        Validates sampler parameters to be within sane ranges.
-        """
-
-        # FIXME: find a better way to register this
-        # Maybe make a function to assign values to the
-        # model if they do not exist post creation
-        apply_forced_sampler_overrides(self)
-
-        if self.min_temp and self.max_temp and self.min_temp > self.max_temp:
-            raise ValidationError("min temp cannot be more then max temp")
-
-        if self.min_tokens and self.max_tokens and self.min_tokens > self.max_tokens:
-            raise ValidationError("min tokens cannot be more then max tokens")
-
-        return self
-
     @field_validator("top_k", mode="before")
     def convert_top_k(cls, v):
         """Fixes instance if Top-K is -1."""
@@ -350,6 +329,24 @@ class BaseSamplerRequest(BaseModel):
         """Mirostat is enabled if mirostat_mode == 2."""
 
         return values.data.get("mirostat_mode") == 2
+
+    @model_validator(mode="after")
+    def after_validate(self):
+        # FIXME: find a better way to register this
+        # Maybe make a function to assign values to the
+        # model if they do not exist post creation
+        apply_forced_sampler_overrides(self)
+
+        if self.min_temp and self.max_temp and self.min_temp > self.max_temp:
+            raise ValidationError("min temp cannot be more then max temp")
+
+        if self.min_tokens and self.max_tokens and self.min_tokens > self.max_tokens:
+            raise ValidationError("min tokens cannot be more then max tokens")
+
+        return self
+
+    # Force validate default values for sampler overrides
+    model_config = ConfigDict(validate_default=True)
 
 
 class SamplerOverridesContainer(BaseModel):
