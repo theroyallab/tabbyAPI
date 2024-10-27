@@ -1,9 +1,9 @@
+from functools import partial
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
-from common import model
 from common.sampling import BaseSamplerRequest, get_default_sampler_value
-from common.utils import flat_map, unwrap
+from common.utils import unwrap
 
 
 class GenerateRequest(BaseSamplerRequest):
@@ -11,29 +11,31 @@ class GenerateRequest(BaseSamplerRequest):
     genkey: Optional[str] = None
     use_default_badwordsids: Optional[bool] = False
     dynatemp_range: Optional[float] = Field(
-        default_factory=get_default_sampler_value("dynatemp_range")
+        default_factory=partial(get_default_sampler_value, "dynatemp_range")
     )
 
-    def to_gen_params(self, **kwargs):
-        # Exl2 uses -1 to include all tokens in repetition penalty
-        if self.penalty_range == 0:
-            self.penalty_range = -1
+    # Validate on the parent class's fields
+    @field_validator("penalty_range", mode="before")
+    def validate_penalty_range(cls, v):
+        return -1 if v == 0 else v
 
-        if self.dynatemp_range:
-            self.min_temp = self.temperature - self.dynatemp_range
-            self.max_temp = self.temperature + self.dynatemp_range
+    @field_validator("dynatemp_range", mode="before")
+    def validate_temp_range(cls, v, field_info):
+        if v > 0:
+            # A default temperature is always 1
+            temperature = unwrap(field_info.data.get("temperature"), 1)
 
-        # Move badwordsids into banned tokens for generation
-        if self.use_default_badwordsids:
-            bad_words_ids = unwrap(
-                model.container.generation_config.bad_words_ids,
-                model.container.hf_config.get_badwordsids(),
-            )
+            field_info.data["min_temp"] = temperature - v
+            field_info.data["max_temp"] = temperature + v
 
-            if bad_words_ids:
-                self.banned_tokens += flat_map(bad_words_ids)
+        return v
 
-        return super().to_gen_params(**kwargs)
+    # Currently only serves to ban EOS token, but can change
+    @field_validator("use_default_badwordsids", mode="before")
+    def validate_badwordsids(cls, v, field_info):
+        field_info.data["ban_eos_token"] = v
+
+        return v
 
 
 class GenerateResponseResult(BaseModel):

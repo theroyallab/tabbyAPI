@@ -33,12 +33,16 @@ class CommonCompletionRequest(BaseSamplerRequest):
     stream: Optional[bool] = False
     stream_options: Optional[ChatCompletionStreamOptions] = None
     logprobs: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("logprobs", 0)
+        default_factory=lambda: get_default_sampler_value("logprobs", 0),
+        ge=0,
     )
     response_format: Optional[CompletionResponseFormat] = Field(
         default_factory=CompletionResponseFormat
     )
-    n: Optional[int] = Field(default_factory=lambda: get_default_sampler_value("n", 1))
+    n: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("n", 1),
+        ge=1,
+    )
 
     # Extra OAI request stuff
     best_of: Optional[int] = Field(
@@ -53,18 +57,3 @@ class CommonCompletionRequest(BaseSamplerRequest):
     user: Optional[str] = Field(
         description="Not parsed. Only used for OAI compliance.", default=None
     )
-
-    def validate_params(self):
-        # Temperature
-        if self.n < 1:
-            raise ValueError(f"n must be greater than or equal to 1. Got {self.n}")
-
-        return super().validate_params()
-
-    def to_gen_params(self):
-        extra_gen_params = {
-            "stream": self.stream,
-            "logprobs": self.logprobs,
-        }
-
-        return super().to_gen_params(**extra_gen_params)
