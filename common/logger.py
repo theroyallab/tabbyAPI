@@ -21,11 +21,10 @@ from common.utils import unwrap
 
 RICH_CONSOLE = Console()
 LOG_LEVEL = os.getenv("TABBY_LOG_LEVEL", "INFO")
-
+LOG_FILE = os.getenv("TABBY_LOG_FILE", "tabbyAPI.log")
 
 def get_progress_bar():
     return Progress(console=RICH_CONSOLE)
-
 
 def get_loading_progress_bar():
     """Gets a pre-made progress bar for loading tasks."""
@@ -38,7 +37,6 @@ def get_loading_progress_bar():
         TimeRemainingColumn(),
         console=RICH_CONSOLE,
     )
-
 
 def _log_formatter(record: dict):
     """Log message formatter."""
@@ -75,7 +73,6 @@ def _log_formatter(record: dict):
 
     return fmt
 
-
 # Uvicorn log handler
 # Uvicorn log portions inspired from https://github.com/encode/uvicorn/discussions/2027#discussioncomment-6432362
 class UvicornLoggingHandler(logging.Handler):
@@ -83,7 +80,6 @@ class UvicornLoggingHandler(logging.Handler):
         logger.opt(exception=record.exc_info).log(
             record.levelname, self.format(record).rstrip()
         )
-
 
 # Uvicorn config for logging. Passed into run when creating all loggers in server
 UVICORN_LOG_CONFIG = {
@@ -97,8 +93,7 @@ UVICORN_LOG_CONFIG = {
     "root": {"handlers": ["uvicorn"], "propagate": False, "level": LOG_LEVEL},
 }
 
-
-def setup_logger():
+def setup_logger(log_to_file: bool):
     """Bootstrap the logger."""
 
     logger.remove()
@@ -109,3 +104,14 @@ def setup_logger():
         format=_log_formatter,
         colorize=True,
     )
+
+    # Conditionally add file output
+    if log_to_file:
+        logger.add(
+            LOG_FILE,
+            level=LOG_LEVEL,
+            format="{time} {level} {message}",
+            rotation="500 MB",  # Automatically rotate logs at 500 MB
+            retention="7 days",  # Keep logs for 7 days
+            serialize=True,  # Serialize logs to JSON format
+        )

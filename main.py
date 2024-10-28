@@ -100,11 +100,6 @@ async def entrypoint_async():
 
 
 def entrypoint(arguments: Optional[dict] = None):
-    setup_logger()
-
-    # Set up signal aborting
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
 
     # Parse and override config from args
     if arguments is None:
@@ -113,6 +108,13 @@ def entrypoint(arguments: Optional[dict] = None):
 
     # load config
     config.load(arguments)
+
+    # Pass log_to_file to setup_logger
+    setup_logger(log_to_file=config.logging.log_to_file)
+
+    # Set up signal aborting
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     # branch to default paths if required
     if branch_to_actions():

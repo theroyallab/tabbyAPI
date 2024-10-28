@@ -40,6 +40,11 @@ logging:
   # NOTE: Only use this for debugging!
   log_requests: false
 
+  # Enable logging to file in addtion to stout. Writes to ./tabbyAPI.log
+  # by default
+  # NOTE: Set TABBY_LOG_FILE environment varaible to change output path
+  log_to_file: false
+
 # Options for model overrides and loading
 # Please read the comments to understand how arguments are handled
 # between initial and API loads

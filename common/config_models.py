@@ -120,6 +120,10 @@ class LoggingConfig(BaseConfigModel):
             "NOTE: Only use this for debugging!"
         ),
     )
+    log_to_file: Optional[bool] = Field(
+        False,
+        description=("Enable logging to a file (default: False)."),
+    )
 
 
 class ModelConfig(BaseConfigModel):
