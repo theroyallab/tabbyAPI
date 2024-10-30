@@ -82,13 +82,6 @@ class ModelLoadRequest(BaseModel):
         default=None,
         examples=[4096],
     )
-    override_base_seq_len: Optional[int] = Field(
-        description=(
-            "Overrides the model's base sequence length. " "Leave blank if unsure"
-        ),
-        default=None,
-        examples=[4096],
-    )
     cache_size: Optional[int] = Field(
         description=("Number in tokens, must be greater than or equal to max_seq_len"),
         default=None,
