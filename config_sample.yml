@@ -69,11 +69,6 @@ model:
   # Fetched from the model's base sequence length in config.json by default.
   max_seq_len:
 
-  # Overrides base model context length (default: Empty).
-  # WARNING: Don't set this unless you know what you're doing!
-  # Again, do NOT use this for configuring context length, use max_seq_len above ^
-  override_base_seq_len:
-
   # Load model with tensor parallelism.
   # Falls back to autosplit if GPU split isn't provided.
   # This ignores the gpu_split_auto value.

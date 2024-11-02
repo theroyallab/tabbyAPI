@@ -220,11 +220,6 @@ class ExllamaV2Container:
         # Hardcode max output length to 16
         self.config.max_output_len = 16
 
-        # Then override the base_seq_len if present
-        override_base_seq_len = kwargs.get("override_base_seq_len")
-        if override_base_seq_len:
-            self.config.max_seq_len = override_base_seq_len
-
         # Grab the base model's sequence length before overrides for
         # rope calculations
         base_seq_len = self.config.max_seq_len
