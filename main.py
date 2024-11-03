@@ -100,7 +100,6 @@ async def entrypoint_async():
 
 
 def entrypoint(arguments: Optional[dict] = None):
-
     # Parse and override config from args
     if arguments is None:
         parser = init_argparser()
