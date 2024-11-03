@@ -180,16 +180,6 @@ class ModelConfig(BaseConfigModel):
         ),
         ge=0,
     )
-    override_base_seq_len: Optional[int] = Field(
-        None,
-        description=(
-            "Overrides base model context length (default: Empty).\n"
-            "WARNING: Don't set this unless you know what you're doing!\n"
-            "Again, do NOT use this for configuring context length, "
-            "use max_seq_len above ^"
-        ),
-        ge=0,
-    )
     tensor_parallel: Optional[bool] = Field(
         False,
         description=(
