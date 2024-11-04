@@ -30,8 +30,6 @@ from endpoints.OAI.utils.embeddings import get_embeddings
 
 api_name = "OAI"
 router = APIRouter()
-host = None
-port = None
 
 urls = {
     "Completions": "http://{host}:{port}/v1/completions",
@@ -39,10 +37,7 @@ urls = {
 }
 
 
-def setup(server_host: str = None, server_port: int = None):
-    global host, port
-    host = server_host
-    port = server_port
+def setup():
     return router
 
 
@@ -177,7 +172,7 @@ async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsRes
 @router.get("/.well-known/serviceinfo")
 async def service_info():
     return JSONResponse(content={
-        "version": 0.1,
+        "version": 0.2,
         "software": {
             "name": "TabbyAPI",
             "repository": "https://github.com/theroyallab/tabbyAPI",
@@ -186,13 +181,13 @@ async def service_info():
         "api": {
             "openai": {
                 "name": "OpenAI API",
-                "base_url": f"http://{host}:{port}/v1",
+                "relative_url": "/v1",
                 "documentation": "https://theroyallab.github.io/tabbyAPI",
                 "version": 1
             },
             "koboldai": {
                 "name": "KoboldAI API",
-                "base_url": f"http://{host}:{port}/api",
+                "relative_url": "/api",
                 "documentation": "https://theroyallab.github.io/tabbyAPI",
                 "version": 1
             }
