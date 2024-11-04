@@ -14,6 +14,23 @@ from shutil import copyfile
 start_options = {}
 
 
+def print_commit_hash():
+    """Prints the commit hash of the current branch or a
+    placeholder if git is not available (probably windows users)"""
+    try:
+        commit_hash = subprocess.check_output(["git",
+                                               "rev-parse",
+                                               "HEAD"]).decode("utf-8").strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        commit_hash = "placeholder"
+    
+    with open("endpoints/OAI/_commit.py", "w") as commit_file:
+        contents = f"""commit_hash = "{commit_hash}" """
+        commit_file.write(contents)
+
+print_commit_hash()
+
+
 def get_user_choice(question: str, options_dict: dict):
     """
     Gets user input in a commandline script.
