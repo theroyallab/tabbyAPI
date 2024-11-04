@@ -20,6 +20,7 @@ def print_commit_hash():
     try:
         commit_hash = subprocess.check_output(["git",
                                                "rev-parse",
+                                               "--short",
                                                "HEAD"]).decode("utf-8").strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         commit_hash = "placeholder"
