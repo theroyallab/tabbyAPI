@@ -52,7 +52,7 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
         selected_server = router_mapping.get(server.lower())
 
         if selected_server:
-            app.include_router(selected_server.setup())
+            app.include_router(selected_server.setup(host, port))
 
             logger.info(f"Starting {selected_server.api_name} API")
             for path, url in selected_server.urls.items():

@@ -1,5 +1,6 @@
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sse_starlette import EventSourceResponse
 from sys import maxsize
 
@@ -29,13 +30,19 @@ from endpoints.OAI.utils.embeddings import get_embeddings
 
 api_name = "OAI"
 router = APIRouter()
+host = None
+port = None
+
 urls = {
     "Completions": "http://{host}:{port}/v1/completions",
     "Chat completions": "http://{host}:{port}/v1/chat/completions",
 }
 
 
-def setup():
+def setup(server_host: str = None, server_port: int = None):
+    global host, port
+    host = server_host
+    port = server_port
     return router
 
 
@@ -166,3 +173,28 @@ async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsRes
     )
 
     return response
+
+@router.get("/.well-known/serviceinfo")
+async def service_info():
+    return JSONResponse(content={
+        "version": 0.1,
+        "software": {
+            "name": "TabbyAPI",
+            "repository": "https://github.com/theroyallab/tabbyAPI",
+            "homepage": "https://github.com/theroyallab/tabbyAPI",
+        },
+        "api": {
+            "openai": {
+                "name": "OpenAI API",
+                "base_url": f"http://{host}:{port}/v1",
+                "documentation": "https://theroyallab.github.io/tabbyAPI",
+                "version": 1
+            },
+            "koboldai": {
+                "name": "KoboldAI API",
+                "base_url": f"http://{host}:{port}/api",
+                "documentation": "https://theroyallab.github.io/tabbyAPI",
+                "version": 1
+            }
+        }
+    })
