@@ -390,6 +390,10 @@ class ExllamaV2Container:
 
         find_template_functions = [
             lambda: PromptTemplate.from_model_json(
+                pathlib.Path(self.config.model_dir) / "chat_template.json",
+                key="chat_template",
+            ),
+            lambda: PromptTemplate.from_model_json(
                 pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
                 key="chat_template",
             ),
