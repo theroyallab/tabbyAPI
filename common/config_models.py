@@ -270,6 +270,12 @@ class ModelConfig(BaseConfigModel):
             "NOTE: Only works with chat completion message lists!"
         ),
     )
+    vision: Optional[bool] = Field(
+        False,
+        description=(
+            "Enables vision support if the model supports it. (default: False)"
+        ),
+    )
     num_experts_per_token: Optional[int] = Field(
         None,
         description=(
