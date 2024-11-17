@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +10,7 @@ class UsageInfo(BaseModel):
 
 
 class EmbeddingsRequest(BaseModel):
-    input: List[str] = Field(
+    input: Union[str, List[str]] = Field(
         ..., description="List of input texts to generate embeddings for."
     )
     encoding_format: str = Field(
