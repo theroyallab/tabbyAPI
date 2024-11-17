@@ -119,8 +119,19 @@ async def load_inline_model(model_name: str, request: Request):
     ):
         return
 
-    # Inline model loading isn't enabled or the user isn't an admin
-    if not get_key_permission(request) == "admin":
+    # Return if inline loading is disabled
+    # Also warn if an admin key is used
+    if not config.model.inline_model_loading:
+        if get_key_permission(request) == "admin":
+            logger.warning(
+                f"Unable to switch model to {model_name} because "
+                '"inline_model_loading" is not True in config.yml.'
+            )
+
+        return
+
+    # Error if an invalid key is passed
+    if get_key_permission(request) != "admin":
         error_message = handle_request_error(
             f"Unable to switch model to {model_name} because "
             + "an admin key isn't provided",
@@ -129,14 +140,8 @@ async def load_inline_model(model_name: str, request: Request):
 
         raise HTTPException(401, error_message)
 
-    if not config.model.inline_model_loading:
-        logger.warning(
-            f"Unable to switch model to {model_name} because "
-            '"inline_model_loading" is not True in config.yml.'
-        )
-
-        return
-
+    # Start inline loading
+    # Past here, user is assumed to be admin
     model_path = pathlib.Path(config.model.model_dir)
     model_path = model_path / model_name
 
