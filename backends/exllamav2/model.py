@@ -6,6 +6,8 @@ import gc
 import math
 import pathlib
 import traceback
+from backends.exllamav2.vision import clear_image_embedding_cache
+from common.multimodal import MultimodalEmbeddingWrapper
 import torch
 import uuid
 from copy import deepcopy
@@ -816,6 +818,9 @@ class ExllamaV2Container:
             # Delete references held in the grammar module
             clear_grammar_func_cache()
 
+            # Clear the image embedding cache
+            clear_image_embedding_cache()
+
             # Unload LoRAs
             if self.generator and self.generator.generator.current_loras:
                 for lora in self.generator.generator.current_loras:
@@ -908,12 +913,17 @@ class ExllamaV2Container:
         return dict(zip_longest(top_tokens, cleaned_values))
 
     async def generate(
-        self, prompt: str, request_id: str, abort_event: asyncio.Event = None, **kwargs
+        self,
+        prompt: str,
+        embeddings: MultimodalEmbeddingWrapper,
+        request_id: str,
+        abort_event: asyncio.Event = None,
+        **kwargs,
     ):
         """Generate a response to a prompt."""
         generations = []
         async for generation in self.generate_gen(
-            prompt, request_id, abort_event, **kwargs
+            prompt, embeddings, request_id, abort_event, **kwargs
         ):
             generations.append(generation)
 
@@ -979,6 +989,7 @@ class ExllamaV2Container:
     async def generate_gen(
         self,
         prompt: str,
+        embeddings: MultimodalEmbeddingWrapper,
         request_id: str,
         abort_event: Optional[asyncio.Event] = None,
         **kwargs,
@@ -1246,7 +1257,10 @@ class ExllamaV2Container:
         # Encode both positive and negative prompts
         input_ids = [
             self.tokenizer.encode(
-                prompt, add_bos=add_bos_token, encode_special_tokens=True
+                prompt,
+                add_bos=add_bos_token,
+                encode_special_tokens=True,
+                embeddings=embeddings.content,
             )
             for prompt in prompts
         ]
@@ -1297,6 +1311,7 @@ class ExllamaV2Container:
             banned_strings=banned_strings,
             token_healing=token_healing,
             identifier=job_id,
+            embeddings=embeddings.content,
         )
 
         # Save generated tokens and full response

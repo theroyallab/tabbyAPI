@@ -7,6 +7,7 @@ Also serves as a common module for completions and chat completions.
 import asyncio
 import pathlib
 from asyncio import CancelledError
+from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import HTTPException, Request
 from typing import List, Union
 
@@ -87,6 +88,7 @@ async def _stream_collector(
     task_idx: int,
     gen_queue: asyncio.Queue,
     prompt: str,
+    embeddings: MultimodalEmbeddingWrapper,
     request_id: str,
     abort_event: asyncio.Event,
     **kwargs,
@@ -95,7 +97,7 @@ async def _stream_collector(
 
     try:
         new_generation = model.container.generate_gen(
-            prompt, request_id, abort_event, **kwargs
+            prompt, embeddings, request_id, abort_event, **kwargs
         )
         async for generation in new_generation:
             generation["index"] = task_idx

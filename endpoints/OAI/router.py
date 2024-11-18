@@ -17,6 +17,7 @@ from endpoints.OAI.types.embedding import EmbeddingsRequest, EmbeddingsResponse
 from endpoints.OAI.utils.chat_completion import (
     format_prompt_with_template,
     generate_chat_completion,
+    preprocess_vision_request,
     stream_generate_chat_completion,
 )
 from endpoints.OAI.utils.completion import (
@@ -126,6 +127,8 @@ async def chat_completion_request(
     if isinstance(data.messages, str):
         prompt = data.messages
     else:
+        if model.container.use_vision:
+            data.messages, embeddings = await preprocess_vision_request(data.messages)
         prompt = await format_prompt_with_template(data)
 
     # Set an empty JSON schema if the request wants a JSON response
@@ -136,12 +139,14 @@ async def chat_completion_request(
 
     if data.stream and not disable_request_streaming:
         return EventSourceResponse(
-            stream_generate_chat_completion(prompt, data, request, model_path),
+            stream_generate_chat_completion(
+                prompt, embeddings, data, request, model_path
+            ),
             ping=maxsize,
         )
     else:
         generate_task = asyncio.create_task(
-            generate_chat_completion(prompt, data, request, model_path)
+            generate_chat_completion(prompt, embeddings, data, request, model_path)
         )
 
         response = await run_with_request_disconnect(

@@ -4,18 +4,14 @@ import io
 import base64
 import re
 from PIL import Image
+from common import model
 import aiohttp
 from common.networking import (
     handle_request_error,
 )
 from fastapi import HTTPException
-from exllamav2 import (
-    ExLlamaV2,
-    ExLlamaV2Tokenizer,
-    ExLlamaV2VisionTower,
-    ExLlamaV2MMEmbedding,
-)
-from functools import lru_cache
+from exllamav2.generator import ExLlamaV2MMEmbedding
+from async_lru import alru_cache
 
 
 async def get_image(url: str) -> Image:
@@ -50,14 +46,16 @@ async def get_image(url: str) -> Image:
     return Image.open(io.BytesIO(bytes_image))
 
 
-@lru_cache(20)
-async def get_image_embedding(
-    model: ExLlamaV2,
-    tokenizer: ExLlamaV2Tokenizer,
-    vision_model: ExLlamaV2VisionTower,
-    url: str,
-) -> ExLlamaV2MMEmbedding:
+@alru_cache(20)
+async def get_image_embedding(url: str) -> ExLlamaV2MMEmbedding:
     image = await get_image(url)
-    return vision_model.get_image_embeddings(
-        model=model, tokenizer=tokenizer, image=image
+    return model.container.vision_model.get_image_embeddings(
+        model=model.container.model,
+        tokenizer=model.container.tokenizer,
+        image=image,
+        text_alias=None,
     )
+
+
+def clear_image_embedding_cache():
+    get_image_embedding.cache_clear()
