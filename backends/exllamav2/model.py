@@ -322,9 +322,20 @@ class ExllamaV2Container:
         if num_experts_override:
             self.config.num_experts_per_token = kwargs.get("num_experts_per_token")
 
-        # Make sure chunk size is >= 16 and <= max seq length
+        # Make sure chunk size is >= 256, keep near or below max seq len
         user_chunk_size = unwrap(kwargs.get("chunk_size"), 2048)
-        chunk_size = sorted((16, user_chunk_size, self.config.max_seq_len))[1]
+        chunk_size = sorted((256, user_chunk_size, self.config.max_seq_len))[1]
+        chunk_remainder = chunk_size % 256
+        if chunk_remainder != 0:
+            rounded_chunk_size = int(256 * ((chunk_size - chunk_remainder) / 256 + 1))
+
+            logger.warning(
+                f"The given chunk size ({chunk_size}) is "
+                "not a multiple of 256.\n"
+                "Overriding chunk_size with an overestimated value of "
+                f"{rounded_chunk_size} tokens."
+            )
+            chunk_size = rounded_chunk_size
         self.config.max_input_len = chunk_size
         self.config.max_attention_size = chunk_size**2
 
