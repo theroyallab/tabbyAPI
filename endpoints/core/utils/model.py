@@ -92,6 +92,13 @@ def get_current_model():
     return model_card
 
 
+def get_dummy_models():
+    if config.model.dummy_model_names:
+        return [ModelCard(id=dummy_id) for dummy_id in config.model.dummy_model_names]
+    else:
+        return [ModelCard(id="gpt-3.5-turbo")]
+
+
 async def stream_model_load(
     data: ModelLoadRequest,
     model_path: pathlib.Path,

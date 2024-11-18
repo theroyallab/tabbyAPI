@@ -130,18 +130,33 @@ async def load_inline_model(model_name: str, request: Request):
 
         return
 
-    # Error if an invalid key is passed
-    if get_key_permission(request) != "admin":
-        error_message = handle_request_error(
-            f"Unable to switch model to {model_name} because "
-            + "an admin key isn't provided",
-            exc_info=False,
-        ).error.message
+    is_dummy_model = (
+        config.model.use_dummy_models and model_name in config.model.dummy_model_names
+    )
 
-        raise HTTPException(401, error_message)
+    # Error if an invalid key is passed
+    # If a dummy model is provided, don't error
+    if get_key_permission(request) != "admin":
+        if not is_dummy_model:
+            error_message = handle_request_error(
+                f"Unable to switch model to {model_name} because "
+                + "an admin key isn't provided",
+                exc_info=False,
+            ).error.message
+
+            raise HTTPException(401, error_message)
+        else:
+            return
 
     # Start inline loading
     # Past here, user is assumed to be admin
+
+    # Skip if the model is a dummy
+    if is_dummy_model:
+        logger.warning(f"Dummy model {model_name} provided. Skipping inline load.")
+
+        return
+
     model_path = pathlib.Path(config.model.model_dir)
     model_path = model_path / model_name
 

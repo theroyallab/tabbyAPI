@@ -49,11 +49,17 @@ model:
   model_dir: models
 
   # Allow direct loading of models from a completion or chat completion request (default: False).
+  # This method of loading is strict by default.
+  # Enable dummy models to add exceptions for invalid model names.
   inline_model_loading: false
 
-  # Sends dummy model names when the models endpoint is queried.
+  # Sends dummy model names when the models endpoint is queried. (default: False)
   # Enable this if the client is looking for specific OAI models.
   use_dummy_models: false
+
+  # A list of fake model names that are sent via the /v1/models endpoint. (default: ["gpt-3.5-turbo"])
+  # Also used as bypasses for strict mode if inline_model_loading is true.
+  dummy_model_names: ["gpt-3.5-turbo"]
 
   # An initial model to load.
   # Make sure the model is located in the model directory!
