@@ -78,6 +78,13 @@ class NetworkConfig(BaseConfigModel):
             "Turn on this option if you are ONLY connecting from localhost."
         ),
     )
+    disable_fetch_requests: Optional[bool] = Field(
+        False,
+        description=(
+            "Disable fetching external content in response to requests,"
+            "such as images from URLs."
+        ),
+    )
     send_tracebacks: Optional[bool] = Field(
         False,
         description=(

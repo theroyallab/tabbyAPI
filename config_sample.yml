@@ -20,6 +20,9 @@ network:
   # Turn on this option if you are ONLY connecting from localhost.
   disable_auth: false
 
+  # Disable fetching external content in response to requests, such as images from URLs.
+  disable_fetch_requests: false
+
   # Send tracebacks over the API (default: False).
   # NOTE: Only enable this for debug purposes.
   send_tracebacks: false

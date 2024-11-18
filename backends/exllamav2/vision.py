@@ -9,6 +9,7 @@ import aiohttp
 from common.networking import (
     handle_request_error,
 )
+from common.tabby_config import config
 from fastapi import HTTPException
 from exllamav2.generator import ExLlamaV2MMEmbedding
 from async_lru import alru_cache
@@ -31,6 +32,14 @@ async def get_image(url: str) -> Image:
 
     else:
         # Handle image URL
+        if config.network.disable_fetch_requests:
+            error_message = handle_request_error(
+                f"Failed to fetch image from {url} as fetch requests are disabled.",
+                exc_info=False,
+            ).error.message
+
+            raise HTTPException(400, error_message)
+
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 if response.status == 200:
