@@ -476,6 +476,7 @@ class ExllamaV2Container:
             "prompt_template": self.prompt_template.name
             if self.prompt_template
             else None,
+            "use_vision": self.use_vision,
         }
 
         if self.draft_config:
