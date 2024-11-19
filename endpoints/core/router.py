@@ -379,6 +379,20 @@ async def encode_tokens(data: TokenEncodeRequest) -> TokenEncodeResponse:
         if model.container.use_vision:
             data.text, embeddings = await preprocess_vision_request(data.text)
 
+        # Keeping behavior consistent with format_prompt_with_template
+        # Deal with list in messages.content
+        # Just replace the content list with the very first text message
+        for message in data.text:
+            if isinstance(message["content"], list):
+                message["content"] = next(
+                    (
+                        content["text"]
+                        for content in message["content"]
+                        if content["type"] == "text"
+                    ),
+                    "",
+                )
+
         special_tokens_dict = model.container.get_special_tokens(
             unwrap(data.add_bos_token, True)
         )
