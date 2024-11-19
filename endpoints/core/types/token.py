@@ -23,7 +23,7 @@ class CommonTokenRequest(BaseModel):
 class TokenEncodeRequest(CommonTokenRequest):
     """Represents a tokenization request."""
 
-    text: Union[str, List[Dict[str, str]]]
+    text: Union[str, List[Dict]]
 
 
 class TokenEncodeResponse(BaseModel):

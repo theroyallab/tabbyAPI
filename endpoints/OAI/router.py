@@ -1,4 +1,5 @@
 import asyncio
+from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
 from sys import maxsize
@@ -123,6 +124,8 @@ async def chat_completion_request(
         raise HTTPException(422, error_message)
 
     model_path = model.container.model_dir
+
+    embeddings = MultimodalEmbeddingWrapper()
 
     if isinstance(data.messages, str):
         prompt = data.messages

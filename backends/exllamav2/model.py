@@ -862,7 +862,9 @@ class ExllamaV2Container:
                 async with self.load_condition:
                     self.load_condition.notify_all()
 
-    def encode_tokens(self, text: str, **kwargs):
+    def encode_tokens(
+        self, text: str, embeddings: MultimodalEmbeddingWrapper, **kwargs
+    ):
         """Wrapper to encode tokens from a text string."""
 
         return (
@@ -870,6 +872,7 @@ class ExllamaV2Container:
                 text,
                 add_bos=unwrap(kwargs.get("add_bos_token"), True),
                 encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
+                embeddings=embeddings.content,
             )
             .flatten()
             .tolist()
