@@ -132,6 +132,7 @@ async def chat_completion_request(
     else:
         if model.container.use_vision:
             data.messages, embeddings = await preprocess_vision_request(data.messages)
+
         prompt = await format_prompt_with_template(data)
 
     # Set an empty JSON schema if the request wants a JSON response
