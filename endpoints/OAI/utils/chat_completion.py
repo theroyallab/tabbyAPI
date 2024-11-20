@@ -10,7 +10,7 @@ from jinja2 import TemplateError
 from loguru import logger
 
 from common import model
-from common.multimodal import MultimodalEmbeddingWrapper, add_image_embedding
+from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import (
     get_generator_error,
     handle_request_disconnect,
@@ -483,9 +483,7 @@ async def preprocess_vision_request(messages: List[ChatCompletionMessage]):
                 if content.type == "text":
                     concatenated_content += content.text
                 elif content.type == "image_url":
-                    embeddings = await add_image_embedding(
-                        embeddings, content.image_url.url
-                    )
+                    await embeddings.add(content.image_url.url)
                     concatenated_content += embeddings.text_alias[-1]
 
             message.content = concatenated_content
