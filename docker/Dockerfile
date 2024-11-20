@@ -19,8 +19,8 @@ WORKDIR /app
 # Get requirements
 COPY pyproject.toml .
 
-# Install packages specified in pyproject.toml cu121
-RUN pip3 install --no-cache-dir .[cu121]
+# Install packages specified in pyproject.toml cu121, extras
+RUN pip3 install --no-cache-dir .[cu121,extras]
 
 RUN rm pyproject.toml
 

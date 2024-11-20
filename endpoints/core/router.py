@@ -40,6 +40,7 @@ from endpoints.core.utils.lora import get_active_loras, get_lora_list
 from endpoints.core.utils.model import (
     get_current_model,
     get_current_model_list,
+    get_dummy_models,
     get_model_list,
     stream_model_load,
 )
@@ -83,7 +84,7 @@ async def list_models(request: Request) -> ModelList:
         models = await get_current_model_list()
 
     if config.model.use_dummy_models:
-        models.data.insert(0, ModelCard(id="gpt-3.5-turbo"))
+        models.data[:0] = get_dummy_models()
 
     return models
 

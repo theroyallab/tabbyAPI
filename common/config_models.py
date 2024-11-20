@@ -148,14 +148,25 @@ class ModelConfig(BaseConfigModel):
         False,
         description=(
             "Allow direct loading of models "
-            "from a completion or chat completion request (default: False)."
+            "from a completion or chat completion request (default: False).\n"
+            "This method of loading is strict by default.\n"
+            "Enable dummy models to add exceptions for invalid model names."
         ),
     )
     use_dummy_models: Optional[bool] = Field(
         False,
         description=(
-            "Sends dummy model names when the models endpoint is queried.\n"
-            "Enable this if the client is looking for specific OAI models."
+            "Sends dummy model names when the models endpoint is queried. "
+            "(default: False)\n"
+            "Enable this if the client is looking for specific OAI models.\n"
+        ),
+    )
+    dummy_model_names: List[str] = Field(
+        default=["gpt-3.5-turbo"],
+        description=(
+            "A list of fake model names that are sent via the /v1/models endpoint. "
+            '(default: ["gpt-3.5-turbo"])\n'
+            "Also used as bypasses for strict mode if inline_model_loading is true."
         ),
     )
     model_name: Optional[str] = Field(

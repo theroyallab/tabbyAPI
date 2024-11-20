@@ -121,21 +121,41 @@ async def load_inline_model(model_name: str, request: Request):
     ):
         return
 
-    # Inline model loading isn't enabled or the user isn't an admin
-    if not get_key_permission(request) == "admin":
-        error_message = handle_request_error(
-            f"Unable to switch model to {model_name} because "
-            + "an admin key isn't provided",
-            exc_info=False,
-        ).error.message
-
-        raise HTTPException(401, error_message)
-
+    # Return if inline loading is disabled
+    # Also warn if an admin key is used
     if not config.model.inline_model_loading:
-        logger.warning(
-            f"Unable to switch model to {model_name} because "
-            '"inline_model_loading" is not True in config.yml.'
-        )
+        if get_key_permission(request) == "admin":
+            logger.warning(
+                f"Unable to switch model to {model_name} because "
+                '"inline_model_loading" is not True in config.yml.'
+            )
+
+        return
+
+    is_dummy_model = (
+        config.model.use_dummy_models and model_name in config.model.dummy_model_names
+    )
+
+    # Error if an invalid key is passed
+    # If a dummy model is provided, don't error
+    if get_key_permission(request) != "admin":
+        if not is_dummy_model:
+            error_message = handle_request_error(
+                f"Unable to switch model to {model_name} because "
+                + "an admin key isn't provided",
+                exc_info=False,
+            ).error.message
+
+            raise HTTPException(401, error_message)
+        else:
+            return
+
+    # Start inline loading
+    # Past here, user is assumed to be admin
+
+    # Skip if the model is a dummy
+    if is_dummy_model:
+        logger.warning(f"Dummy model {model_name} provided. Skipping inline load.")
 
         return
 
