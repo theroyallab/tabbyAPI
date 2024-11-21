@@ -88,14 +88,15 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     try:
         index = 0
         async for module, modules in load_status:
+            current_model_type = model_type[index].value
             if module == 0:
                 loading_task = progress.add_task(
-                    f"[cyan]Loading {model_type[index].value} modules", total=modules
+                    f"[cyan]Loading {current_model_type} modules", total=modules
                 )
             else:
                 progress.advance(loading_task)
 
-            yield module, modules, model_type
+            yield module, modules, current_model_type
 
             if module == modules:
                 # Switch to model progress if the draft model is loaded
