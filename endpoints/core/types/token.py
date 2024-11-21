@@ -1,7 +1,9 @@
 """Tokenization types"""
 
 from pydantic import BaseModel
-from typing import Dict, List, Union
+from typing import List, Union
+
+from endpoints.OAI.types.chat_completion import ChatCompletionMessage
 
 
 class CommonTokenRequest(BaseModel):
@@ -23,7 +25,7 @@ class CommonTokenRequest(BaseModel):
 class TokenEncodeRequest(CommonTokenRequest):
     """Represents a tokenization request."""
 
-    text: Union[str, List[Dict]]
+    text: Union[str, List[ChatCompletionMessage]]
 
 
 class TokenEncodeResponse(BaseModel):

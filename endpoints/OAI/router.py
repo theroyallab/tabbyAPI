@@ -1,5 +1,4 @@
 import asyncio
-from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
 from sys import maxsize
@@ -16,9 +15,8 @@ from endpoints.OAI.types.chat_completion import (
 )
 from endpoints.OAI.types.embedding import EmbeddingsRequest, EmbeddingsResponse
 from endpoints.OAI.utils.chat_completion import (
-    format_prompt_with_template,
+    apply_chat_template,
     generate_chat_completion,
-    preprocess_vision_request,
     stream_generate_chat_completion,
 )
 from endpoints.OAI.utils.completion import (
@@ -125,15 +123,7 @@ async def chat_completion_request(
 
     model_path = model.container.model_dir
 
-    embeddings = MultimodalEmbeddingWrapper()
-
-    if isinstance(data.messages, str):
-        prompt = data.messages
-    else:
-        if model.container.use_vision:
-            data.messages, embeddings = await preprocess_vision_request(data.messages)
-
-        prompt = await format_prompt_with_template(data)
+    prompt, embeddings = await apply_chat_template(data)
 
     # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":
