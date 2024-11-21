@@ -152,7 +152,7 @@ class ExllamaV2Container:
         kwargs = await self.set_model_overrides(**kwargs)
 
         # Set vision state
-        self.use_vision = unwrap(kwargs.get("vision"), True)
+        self.use_vision = unwrap(kwargs.get("vision"), False)
 
         # Prepare the draft model config if necessary
         draft_args = unwrap(kwargs.get("draft_model"), {})
