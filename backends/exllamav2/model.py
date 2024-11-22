@@ -151,8 +151,14 @@ class ExllamaV2Container:
         # Apply a model's config overrides while respecting user settings
         kwargs = await self.set_model_overrides(**kwargs)
 
-        # Set vision state
+        # Set vision state and error if vision isn't supported on the current model
         self.use_vision = unwrap(kwargs.get("vision"), False)
+        if self.use_vision and not self.config.vision_model_type:
+            raise ValueError(
+                "The provided model does not have vision capabilities that are "
+                "supported by ExllamaV2. "
+                "Please reload with vision disabled."
+            )
 
         # Prepare the draft model config if necessary
         draft_args = unwrap(kwargs.get("draft_model"), {})
@@ -372,8 +378,6 @@ class ExllamaV2Container:
             if chunk_size:
                 self.draft_config.max_input_len = chunk_size
                 self.draft_config.max_attention_size = chunk_size**2
-
-        self.prompt_template = None
 
         # Return the created instance
         return self
@@ -847,6 +851,16 @@ class ExllamaV2Container:
                 if self.model:
                     self.model.unload()
                 self.model = None
+
+                if self.vision_model:
+                    # TODO: Remove this with newer exl2 versions
+                    # Required otherwise unload function won't finish
+                    try:
+                        self.vision_model.unload()
+                    except AttributeError:
+                        pass
+
+                self.vision_model = None
 
                 if self.draft_model:
                     self.draft_model.unload()
