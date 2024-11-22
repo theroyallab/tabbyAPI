@@ -6,6 +6,8 @@ import gc
 import math
 import pathlib
 import traceback
+from backends.exllamav2.vision import clear_image_embedding_cache
+from common.multimodal import MultimodalEmbeddingWrapper
 import torch
 import uuid
 from copy import deepcopy
@@ -20,6 +22,7 @@ from exllamav2 import (
     ExLlamaV2Cache_TP,
     ExLlamaV2Tokenizer,
     ExLlamaV2Lora,
+    ExLlamaV2VisionTower,
 )
 from exllamav2.generator import (
     ExLlamaV2Sampler,
@@ -91,6 +94,10 @@ class ExllamaV2Container:
     autosplit_reserve: List[float] = [96 * 1024**2]
     use_tp: bool = False
 
+    # Vision vars
+    use_vision: bool = False
+    vision_model: Optional[ExLlamaV2VisionTower] = None
+
     # Load state
     model_is_loading: bool = False
     model_loaded: bool = False
@@ -143,6 +150,15 @@ class ExllamaV2Container:
 
         # Apply a model's config overrides while respecting user settings
         kwargs = await self.set_model_overrides(**kwargs)
+
+        # Set vision state and error if vision isn't supported on the current model
+        self.use_vision = unwrap(kwargs.get("vision"), False)
+        if self.use_vision and not self.config.vision_model_type:
+            raise ValueError(
+                "The provided model does not have vision capabilities that are "
+                "supported by ExllamaV2. "
+                "Please reload with vision disabled."
+            )
 
         # Prepare the draft model config if necessary
         draft_args = unwrap(kwargs.get("draft_model"), {})
@@ -477,6 +493,7 @@ class ExllamaV2Container:
             "prompt_template": self.prompt_template.name
             if self.prompt_template
             else None,
+            "use_vision": self.use_vision,
         }
 
         if self.draft_config:
@@ -619,6 +636,14 @@ class ExllamaV2Container:
             # Test VRAM allocation with a full-length forward pass
             input_ids = torch.zeros((1, self.config.max_input_len), dtype=torch.long)
             self.draft_model.forward(input_ids, cache=self.cache, preprocess_only=True)
+
+        # Load vision tower if it exists
+        if self.use_vision:
+            self.vision_model = ExLlamaV2VisionTower(self.config)
+
+            for value in self.vision_model.load_gen(callback_gen=progress_callback):
+                if value:
+                    yield value
 
         self.model = ExLlamaV2(self.config)
         if not self.quiet:
@@ -811,6 +836,9 @@ class ExllamaV2Container:
             # Delete references held in the grammar module
             clear_grammar_func_cache()
 
+            # Clear the image embedding cache
+            clear_image_embedding_cache()
+
             # Unload LoRAs
             if self.generator and self.generator.generator.current_loras:
                 for lora in self.generator.generator.current_loras:
@@ -823,6 +851,16 @@ class ExllamaV2Container:
                 if self.model:
                     self.model.unload()
                 self.model = None
+
+                if self.vision_model:
+                    # TODO: Remove this with newer exl2 versions
+                    # Required otherwise unload function won't finish
+                    try:
+                        self.vision_model.unload()
+                    except AttributeError:
+                        pass
+
+                self.vision_model = None
 
                 if self.draft_model:
                     self.draft_model.unload()
@@ -855,11 +893,15 @@ class ExllamaV2Container:
     def encode_tokens(self, text: str, **kwargs):
         """Wrapper to encode tokens from a text string."""
 
+        mm_embeddings: MultimodalEmbeddingWrapper = kwargs.get("embeddings")
+        mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
+
         return (
             self.tokenizer.encode(
                 text,
                 add_bos=unwrap(kwargs.get("add_bos_token"), True),
                 encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
+                embeddings=mm_embeddings_content,
             )
             .flatten()
             .tolist()
@@ -903,7 +945,11 @@ class ExllamaV2Container:
         return dict(zip_longest(top_tokens, cleaned_values))
 
     async def generate(
-        self, prompt: str, request_id: str, abort_event: asyncio.Event = None, **kwargs
+        self,
+        prompt: str,
+        request_id: str,
+        abort_event: asyncio.Event = None,
+        **kwargs,
     ):
         """Generate a response to a prompt."""
         generations = []
@@ -1238,10 +1284,17 @@ class ExllamaV2Container:
         else:
             stop_conditions += eos_tokens
 
+        # Get multimodal embeddings if present
+        mm_embeddings: MultimodalEmbeddingWrapper = kwargs.get("embeddings")
+        mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
+
         # Encode both positive and negative prompts
         input_ids = [
             self.tokenizer.encode(
-                prompt, add_bos=add_bos_token, encode_special_tokens=True
+                prompt,
+                add_bos=add_bos_token,
+                encode_special_tokens=True,
+                embeddings=mm_embeddings_content,
             )
             for prompt in prompts
         ]
@@ -1292,6 +1345,7 @@ class ExllamaV2Container:
             banned_strings=banned_strings,
             token_healing=token_healing,
             identifier=job_id,
+            embeddings=mm_embeddings_content,
         )
 
         # Save generated tokens and full response

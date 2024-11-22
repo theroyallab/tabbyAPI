@@ -20,6 +20,9 @@ network:
   # Turn on this option if you are ONLY connecting from localhost.
   disable_auth: false
 
+  # Disable fetching external content in response to requests, such as images from URLs.
+  disable_fetch_requests: false
+
   # Send tracebacks over the API (default: False).
   # NOTE: Only enable this for debug purposes.
   send_tracebacks: false
@@ -129,6 +132,9 @@ model:
   # set prompt_template to the name of the template you want to use.
   # NOTE: Only works with chat completion message lists!
   prompt_template:
+
+  # Enables vision support if the model supports it. (default: False)
+  vision: false
 
   # Number of experts to use per token.
   # Fetched from the model's config.json if empty.

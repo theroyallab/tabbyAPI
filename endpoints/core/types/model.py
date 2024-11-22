@@ -21,6 +21,7 @@ class ModelCardParameters(BaseModel):
     chunk_size: Optional[int] = 2048
     prompt_template: Optional[str] = None
     num_experts_per_token: Optional[int] = None
+    use_vision: Optional[bool] = False
 
     # Draft is another model, so include it in the card params
     draft: Optional["ModelCard"] = None
@@ -107,6 +108,7 @@ class ModelLoadRequest(BaseModel):
     cache_mode: Optional[str] = None
     chunk_size: Optional[int] = None
     prompt_template: Optional[str] = None
+    vision: Optional[bool] = None
     num_experts_per_token: Optional[int] = None
 
     # Non-config arguments

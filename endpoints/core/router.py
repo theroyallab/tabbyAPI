@@ -1,6 +1,8 @@
 import asyncio
 import pathlib
 from sys import maxsize
+from typing import Optional
+from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sse_starlette import EventSourceResponse
 
@@ -13,6 +15,7 @@ from common.tabby_config import config
 from common.templating import PromptTemplate, get_all_templates
 from common.utils import unwrap
 from common.health import HealthManager
+from endpoints.OAI.utils.chat_completion import format_messages_with_template
 from endpoints.core.types.auth import AuthPermissionResponse
 from endpoints.core.types.download import DownloadRequest, DownloadResponse
 from endpoints.core.types.lora import LoraList, LoraLoadRequest, LoraLoadResponse
@@ -359,22 +362,47 @@ async def unload_embedding_model():
 async def encode_tokens(data: TokenEncodeRequest) -> TokenEncodeResponse:
     """Encodes a string or chat completion messages into tokens."""
 
+    mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None
+
     if isinstance(data.text, str):
         text = data.text
-    else:
-        special_tokens_dict = model.container.get_special_tokens(
-            unwrap(data.add_bos_token, True)
-        )
+    elif isinstance(data.text, list):
+        if "oai" not in config.network.api_servers:
+            error_message = handle_request_error(
+                "Enable the OAI server to handle chat completion messages.",
+                exc_info=False,
+            ).error.message
+
+            raise HTTPException(422, error_message)
+
+        if not model.container.prompt_template:
+            error_message = handle_request_error(
+                "Cannot tokenize chat completion message because "
+                + "a prompt template is not set.",
+                exc_info=False,
+            ).error.message
+
+            raise HTTPException(422, error_message)
 
         template_vars = {
-            "messages": data.text,
             "add_generation_prompt": False,
-            **special_tokens_dict,
         }
 
-        text, _ = model.container.prompt_template.render(template_vars)
+        # Don't need template vars again
+        text, mm_embeddings, _ = await format_messages_with_template(
+            data.text, template_vars, data.add_bos_token
+        )
+    else:
+        error_message = handle_request_error(
+            "Unable to tokenize the provided text. Check your formatting?",
+            exc_info=False,
+        ).error.message
 
-    raw_tokens = model.container.encode_tokens(text, **data.get_params())
+        raise HTTPException(422, error_message)
+
+    raw_tokens = model.container.encode_tokens(
+        text, embeddings=mm_embeddings, **data.get_params()
+    )
     tokens = unwrap(raw_tokens, [])
     response = TokenEncodeResponse(tokens=tokens, length=len(tokens))
 

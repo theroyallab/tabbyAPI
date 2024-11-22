@@ -78,6 +78,13 @@ class NetworkConfig(BaseConfigModel):
             "Turn on this option if you are ONLY connecting from localhost."
         ),
     )
+    disable_fetch_requests: Optional[bool] = Field(
+        False,
+        description=(
+            "Disable fetching external content in response to requests,"
+            "such as images from URLs."
+        ),
+    )
     send_tracebacks: Optional[bool] = Field(
         False,
         description=(
@@ -279,6 +286,12 @@ class ModelConfig(BaseConfigModel):
             "If a model contains multiple templates in its tokenizer_config.json,\n"
             "set prompt_template to the name of the template you want to use.\n"
             "NOTE: Only works with chat completion message lists!"
+        ),
+    )
+    vision: Optional[bool] = Field(
+        False,
+        description=(
+            "Enables vision support if the model supports it. (default: False)"
         ),
     )
     num_experts_per_token: Optional[int] = Field(
