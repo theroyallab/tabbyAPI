@@ -220,10 +220,11 @@ async def format_messages_with_template(
                     await mm_embeddings.add(content.image_url.url)
                     concatenated_content += mm_embeddings.text_alias[-1]
 
+            # Convert the message content into a concatenated string
+            message.content = concatenated_content
+
         if message.tool_calls:
             message.tool_calls_json = json.dumps(message.tool_calls, indent=2)
-
-        message.content = concatenated_content
 
     special_tokens_dict = model.container.get_special_tokens(
         add_bos_token, ban_eos_token
