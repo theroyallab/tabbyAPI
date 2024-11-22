@@ -1,18 +1,24 @@
 """Vision utilities for ExLlamaV2."""
 
-import io
-import base64
-import re
-from PIL import Image
-from common import model
 import aiohttp
+import base64
+import io
+import re
+from async_lru import alru_cache
+from fastapi import HTTPException
+from PIL import Image
+
+from common import model
 from common.networking import (
     handle_request_error,
 )
+from common.optional_dependencies import dependencies
 from common.tabby_config import config
-from fastapi import HTTPException
-from exllamav2.generator import ExLlamaV2MMEmbedding
-from async_lru import alru_cache
+
+# Since this is used outside the Exl2 backend, the dependency
+# may be optional
+if dependencies.exllamav2:
+    from exllamav2.generator import ExLlamaV2MMEmbedding
 
 
 async def get_image(url: str) -> Image:
@@ -55,8 +61,9 @@ async def get_image(url: str) -> Image:
     return Image.open(io.BytesIO(bytes_image))
 
 
+# Fetch the return type on runtime
 @alru_cache(20)
-async def get_image_embedding(url: str) -> ExLlamaV2MMEmbedding:
+async def get_image_embedding(url: str) -> "ExLlamaV2MMEmbedding":
     image = await get_image(url)
     return model.container.vision_model.get_image_embeddings(
         model=model.container.model,
