@@ -17,12 +17,8 @@ class InfinityContainer:
     model_is_loading: bool = False
     model_loaded: bool = False
 
-    # Conditionally set the type hint based on importablity
-    # TODO: Clean this up
-    if dependencies.extras:
-        engine: Optional[AsyncEmbeddingEngine] = None
-    else:
-        engine = None
+    # Use a runtime type hint here
+    engine: Optional["AsyncEmbeddingEngine"] = None
 
     def __init__(self, model_directory: pathlib.Path):
         self.model_dir = model_directory
