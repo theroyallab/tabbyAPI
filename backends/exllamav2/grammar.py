@@ -93,9 +93,8 @@ class ExLlamaV2Grammar:
             # Validate KBNF and create formatter
             f = FormatterBuilder()
             f.append_line(
-                f"{f.extractor(
-                    lambda nonterminal: CFGExtractor(nonterminal, kbnf_string)
-                    )}"
+                f"""{f.extractor(lambda nonterminal:
+                    CFGExtractor(nonterminal, kbnf_string))}"""
             )
         except Exception:
             logger.error(

@@ -39,7 +39,6 @@ from common.health import HealthManager
 
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
-    clear_grammar_func_cache,
 )
 from backends.exllamav2.utils import (
     exllama_disabled_flash_attn,
