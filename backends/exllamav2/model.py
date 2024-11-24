@@ -833,9 +833,6 @@ class ExllamaV2Container:
                 # Wait for other jobs to finish
                 await self.wait_for_jobs(kwargs.get("skip_wait"))
 
-            # Delete references held in the grammar module
-            clear_grammar_func_cache()
-
             # Clear the image embedding cache
             clear_image_embedding_cache()
 
