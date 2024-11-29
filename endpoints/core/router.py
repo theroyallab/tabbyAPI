@@ -4,6 +4,7 @@ from sys import maxsize
 from typing import Optional
 from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from sse_starlette import EventSourceResponse
 
 from common import model, sampling
@@ -62,6 +63,34 @@ async def healthcheck(response: Response) -> HealthCheckResponse:
 
     return HealthCheckResponse(
         status="healthy" if healthy else "unhealthy", issues=issues
+    )
+
+
+@router.get("/.well-known/serviceinfo")
+async def service_info():
+    return JSONResponse(
+        content={
+            "version": 0.1,
+            "software": {
+                "name": "TabbyAPI",
+                "repository": "https://github.com/theroyallab/tabbyAPI",
+                "homepage": "https://github.com/theroyallab/tabbyAPI",
+            },
+            "api": {
+                "openai": {
+                    "name": "OpenAI API",
+                    "relative_url": "/v1",
+                    "documentation": "https://theroyallab.github.io/tabbyAPI",
+                    "version": 1,
+                },
+                "koboldai": {
+                    "name": "KoboldAI API",
+                    "relative_url": "/api",
+                    "documentation": "https://theroyallab.github.io/tabbyAPI",
+                    "version": 1,
+                },
+            },
+        }
     )
 
 
