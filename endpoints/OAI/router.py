@@ -1,6 +1,5 @@
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
 from sse_starlette import EventSourceResponse
 from sys import maxsize
 
@@ -30,7 +29,6 @@ from endpoints.OAI.utils.embeddings import get_embeddings
 
 api_name = "OAI"
 router = APIRouter()
-
 urls = {
     "Completions": "http://{host}:{port}/v1/completions",
     "Chat completions": "http://{host}:{port}/v1/chat/completions",
@@ -168,28 +166,3 @@ async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsRes
     )
 
     return response
-
-@router.get("/.well-known/serviceinfo")
-async def service_info():
-    return JSONResponse(content={
-        "version": 0.2,
-        "software": {
-            "name": "TabbyAPI",
-            "repository": "https://github.com/theroyallab/tabbyAPI",
-            "homepage": "https://github.com/theroyallab/tabbyAPI",
-        },
-        "api": {
-            "openai": {
-                "name": "OpenAI API",
-                "relative_url": "/v1",
-                "documentation": "https://theroyallab.github.io/tabbyAPI",
-                "version": 1
-            },
-            "koboldai": {
-                "name": "KoboldAI API",
-                "relative_url": "/api",
-                "documentation": "https://theroyallab.github.io/tabbyAPI",
-                "version": 1
-            }
-        }
-    })
