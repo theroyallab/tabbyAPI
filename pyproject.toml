@@ -27,6 +27,7 @@ dependencies = [
     "packaging",
     "tokenizers",
     "formatron",
+    "kbnf>=0.4.1",
     "aiofiles",
     "aiohttp",
     "async_lru",
