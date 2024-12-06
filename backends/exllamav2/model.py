@@ -39,6 +39,7 @@ from common.health import HealthManager
 
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
+    clear_grammar_func_cache,
 )
 from backends.exllamav2.utils import (
     exllama_disabled_flash_attn,
@@ -831,6 +832,9 @@ class ExllamaV2Container:
 
                 # Wait for other jobs to finish
                 await self.wait_for_jobs(kwargs.get("skip_wait"))
+
+            # Delete references held in the grammar module
+            clear_grammar_func_cache()
 
             # Clear the image embedding cache
             clear_image_embedding_cache()
