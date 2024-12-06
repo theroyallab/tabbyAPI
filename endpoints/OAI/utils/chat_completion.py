@@ -454,16 +454,23 @@ async def generate_tool_calls(
         if gen["stop_str"] in tool_data.tool_call_start:
             if "text" in gen:
                 # non streaming, all generations will have the text they generated
-                pre_tool_prompt = await apply_chat_template(data, gen["text"])
+                pre_tool_prompt, mm_embeddings = await apply_chat_template(
+                    data, gen["text"]
+                )
             elif current_generations is not None:
                 # streaming, we wont have text in the generation,
                 # we'll have to use the current_generations
-                pre_tool_prompt = await apply_chat_template(data, current_generations)
+                pre_tool_prompt, mm_embeddings = await apply_chat_template(
+                    data, current_generations
+                )
 
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
-                        pre_tool_prompt, request.state.id, **gen_params
+                        pre_tool_prompt,
+                        request.state.id,
+                        embeddings=mm_embeddings,
+                        **gen_params,
                     )
                 )
             )
