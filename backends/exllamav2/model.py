@@ -1194,7 +1194,7 @@ class ExllamaV2Container:
         # Add EBNF filter if it exists
         grammar_string = unwrap(kwargs.get("grammar_string"))
         if grammar_string:
-            grammar_handler.add_ebnf_filter(grammar_string, self.model, self.tokenizer)
+            grammar_handler.add_kbnf_filter(grammar_string, self.model, self.tokenizer)
 
         # Set banned strings
         banned_strings: List[str] = unwrap(kwargs.get("banned_strings"), [])
