@@ -26,7 +26,8 @@ dependencies = [
     "sse-starlette",
     "packaging",
     "tokenizers",
-    "lm-format-enforcer >= 0.9.6",
+    "formatron",
+    "kbnf>=0.4.1",
     "aiofiles",
     "aiohttp",
     "async_lru",
@@ -53,7 +54,6 @@ dependencies = [
 [project.optional-dependencies]
 extras = [
     # Heavy dependencies that aren't for everyday use
-    "outlines",
     "infinity-emb",
     "sentence-transformers",
 ]
