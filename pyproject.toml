@@ -25,7 +25,7 @@ dependencies = [
     "loguru",
     "sse-starlette",
     "packaging",
-    "tokenizers",
+    "tokenizers>=0.21.0",
     "formatron",
     "kbnf>=0.4.1",
     "aiofiles",
