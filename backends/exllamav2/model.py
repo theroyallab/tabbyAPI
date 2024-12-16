@@ -1,4 +1,5 @@
 """The model container class for ExLlamaV2 models."""
+from backends.exllamav2.control_vectors import ExLlamaV2ModuleWrapper
 
 import asyncio
 import gc
@@ -54,6 +55,10 @@ from endpoints.core.types.model import ModelCard, ModelCardParameters
 
 class ExllamaV2Container(BaseModelContainer):
     """The model container class for ExLlamaV2 models."""
+
+    # Control vector vars
+    control_vectors_enabled: bool = False
+    control_vectors: Optional[str] = None
 
     # Model directories
     model_dir: pathlib.Path = pathlib.Path("models")
@@ -123,6 +128,15 @@ class ExllamaV2Container(BaseModelContainer):
 
         # Check if the model arch is compatible with various exl2 features
         self.config.arch_compat_overrides()
+
+        # Add control vector settings here
+        self.control_vectors_enabled = unwrap(kwargs.get("control_vectors_enabled"), False)
+        self.control_vectors = kwargs.get("control_vectors")
+        
+        # Add these debug prints
+        logger.info(f"Control vectors settings in kwargs: {kwargs}")
+        logger.info(f"Control vectors enabled: {self.control_vectors_enabled}")
+        logger.info(f"Control vectors config: {self.control_vectors}")
 
         # Load generation config overrides
         generation_config_path = model_directory / "generation_config.json"
@@ -620,6 +634,15 @@ class ExllamaV2Container(BaseModelContainer):
             ):
                 if value:
                     yield value
+        ###
+        # Apply control vectors if enabled
+        if self.control_vectors_enabled and self.control_vectors:
+            logger.info(f"Applying control vectors: {self.control_vectors}")
+            try:
+                from backends.exllamav2.control_vectors import ExLlamaV2ModuleWrapper
+                ExLlamaV2ModuleWrapper.wrap(self.model, self.control_vectors)
+            except Exception as e:
+                logger.error(f"Error applying control vectors: {str(e)}")
 
         # Create the model cache
         self.cache = self.create_cache(
@@ -683,6 +706,7 @@ class ExllamaV2Container(BaseModelContainer):
                 lazy=autosplit,
                 batch_size=1,
             )
+
 
     async def create_generator(self):
         """Create and save a Exllama generator class."""

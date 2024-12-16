@@ -113,6 +113,22 @@ class ModelConfig(BaseConfigModel):
     between initial and API loads
     """
 
+    control_vectors_enabled: Optional[bool] = Field(
+        False,
+        description=(
+            "Enable control vectors for model behavior modification (default: False).\n"
+            "Requires .gguf vector files in model-directory-vectors/"
+        ),
+    )
+
+    control_vectors: Optional[str] = Field(
+        None,
+        description=(
+            "Control vector configuration string (default: None).\n"
+            "Format: vector:direction:weight,vector2:direction2:weight2"
+        ),
+    )
+
     # TODO: convert this to a pathlib.path?
     model_dir: str = Field(
         "models",
