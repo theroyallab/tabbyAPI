@@ -1315,7 +1315,7 @@ class ExllamaV2Container:
             self.config.max_seq_len - max(context_len, negative_context_len),
         )
         if max_tokens < 1:
-            logger.warning("max_tokens must be a positive integer, " "setting to 1.")
+            logger.warning("max_tokens must be a positive integer, setting to 1.")
             max_tokens = 1
 
         # Check total length of request
