@@ -62,6 +62,26 @@ def uri_encode_image(location_type, value):
             return image_uri
     raise TypeError("Unsupported image location type")
 
+def check_model():
+    response = requests.get(
+        "http://127.0.0.1:5000/v1/model",
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": X_API_KEY
+        }
+    )
+    model_info = response.json()
+    for k, v in model_info.items():
+        if k not in ["logging", "parameters"]:
+            print(f"{k}: {v}")
+        else:
+            for k2, v2 in model_info[k].items():
+                print(f"{k2}: {v2}")
+    if not model_info["parameters"]["use_vision"]:
+        print("FAILURE: The active model does not support vision")
+        exit()
+    return model_info
+
 
 def tabbyapi_server(messages, max_tokens=500, temperature=0.0):
     response = requests.post(
@@ -101,6 +121,11 @@ def get_messages(instructions, images):
 
 
 ### MAIN ###
+try:
+    check_model()
+except requests.exceptions.ConnectionError:
+    print("FAILURE: tabbyAPI server is not active.")
+    exit()
 print(f"USER: {instructions}")
 for image_cli in get_images_as_cli(images):
     print(image_cli)
