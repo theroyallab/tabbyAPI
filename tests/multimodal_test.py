@@ -77,9 +77,6 @@ def check_model():
         else:
             for k2, v2 in model_info[k].items():
                 print(f"{k2}: {v2}")
-    if not model_info["parameters"]["use_vision"]:
-        print("FAILURE: The active model does not support vision")
-        exit()
     return model_info
 
 
@@ -122,7 +119,10 @@ def get_messages(instructions, images):
 
 ### MAIN ###
 try:
-    check_model()
+    model_info = check_model()
+    if not model_info["parameters"]["use_vision"]:
+        print("FAILURE: The active model does not support vision")
+        exit()
 except requests.exceptions.ConnectionError:
     print("FAILURE: tabbyAPI server is not active.")
     exit()
