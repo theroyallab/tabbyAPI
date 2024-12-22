@@ -2,7 +2,7 @@ import asyncio
 from asyncio import CancelledError
 from fastapi import HTTPException, Request
 from loguru import logger
-from sse_starlette import ServerSentEvent
+from sse_starlette.event import ServerSentEvent
 
 from common import model
 from common.networking import (
