@@ -19,9 +19,9 @@ if os.environ.get("X_API_KEY", False):
     X_API_KEY = os.environ["X_API_KEY"]
 else:
     print("You must pass in an environment variable for the API key.")
-    print(f"ex: X_API_KEY=123456789abcdef python {os.path.basename(__file__)}")
-    exit()
+    exit(f"ex: X_API_KEY=123456789abcdef python {os.path.basename(__file__)}")
 
+instructions = "Compare and contrast the two experiments."
 images = [
     {"file": "test_image_1.jpg"},
     {"file": "test_image_2.jpg"},
@@ -30,9 +30,8 @@ images = [
     # {"url": "https://images.fineartamerica.com/images-medium-large-5/metal-household-objects-trevor-clifford-photography.jpg"}
 ]
 
-instructions = "Compare and contrast the two experiments."
 
-def get_images_as_cli(images):
+def get_cli_images(images):
     cli_images = list()
     for image in images:
         for k, v in image.items():
@@ -48,6 +47,7 @@ def get_images_as_cli(images):
                 cli_images.append(output)
     return cli_images
 
+
 def uri_encode_image(location_type, value):
     if location_type == "url":
         return value
@@ -61,6 +61,7 @@ def uri_encode_image(location_type, value):
             image_uri = "data:" + mime_type + ";" + "base64," + str(data)[2:-1]
             return image_uri
     raise TypeError("Unsupported image location type")
+
 
 def check_model():
     response = requests.get(
@@ -96,6 +97,7 @@ def tabbyapi_server(messages, max_tokens=500, temperature=0.0):
     )
     return response.json()
 
+
 def get_messages(instructions, images):
     messages=[
         {
@@ -121,13 +123,11 @@ def get_messages(instructions, images):
 try:
     model_info = check_model()
     if not model_info["parameters"]["use_vision"]:
-        print("FAILURE: The active model does not support vision")
-        exit()
+        exit("FAILURE: The active model does not support vision")
 except requests.exceptions.ConnectionError:
-    print("FAILURE: tabbyAPI server is not active.")
-    exit()
+    exit("FAILURE: tabbyAPI server is not active.")
 print(f"USER: {instructions}")
-for image_cli in get_images_as_cli(images):
-    print(image_cli)
+for cli_image in get_cli_images(images):
+    print(cli_image)
 output = tabbyapi_server(get_messages(instructions, images))
 print(f'VISION ASSISTANT: {output["choices"][0]["message"]["content"]}')
