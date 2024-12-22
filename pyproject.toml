@@ -23,7 +23,7 @@ dependencies = [
     "uvicorn >= 0.28.1",
     "jinja2 >= 3.0.0",
     "loguru",
-    "sse-starlette",
+    "sse-starlette >= 2.2.0",
     "packaging",
     "tokenizers>=0.21.0",
     "formatron",
