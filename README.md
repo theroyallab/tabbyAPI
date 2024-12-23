@@ -1,25 +1,16 @@
-# TabbyAPI
 
-<p align="left">
-    <img src="https://img.shields.io/badge/Python-3.10%20|%203.11%20|%203.12-blue" alt="Python 3.10, 3.11, and 3.12">
-    <a href="/LICENSE">
-        <img src="https://img.shields.io/badge/License-AGPLv3-blue.svg" alt="License: AGPL v3"/>
-    </a>
-    <a href="https://discord.gg/sYQxnuD7Fj">
-        <img src="https://img.shields.io/discord/545740643247456267.svg?logo=discord&color=blue" alt="Discord Server"/>
-    </a>
+# TabbyAPI with Control Vectors Support
+
+<p  align="left">
+<img  src="https://img.shields.io/badge/Python-3.10%20|%203.11%20|%203.12-blue"  alt="Python 3.10, 3.11, and 3.12">
+<a  href="/LICENSE">
+<img  src="https://img.shields.io/badge/License-AGPLv3-blue.svg"  alt="License: AGPL v3"/>
+</a>
 </p>
-
-<p align="left">
-    <a href="https://theroyallab.github.io/tabbyAPI">
-        <img src="https://img.shields.io/badge/Documentation-API-orange" alt="Developer facing API documentation">
-    </a>
-</p>
-
-<p align="left">
-    <a href="https://ko-fi.com/I2I3BDTSW">
-        <img src="https://img.shields.io/badge/Support_on_Ko--fi-FF5E5B?logo=ko-fi&style=for-the-badge&logoColor=white" alt="Support on Ko-Fi">
-    </a>
+<p  align="left">
+<a  href="https://theroyallab.github.io/tabbyAPI">
+<img  src="https://img.shields.io/badge/Documentation-API-orange"  alt="Developer facing API documentation">
+</a>
 </p>
 
 > [!IMPORTANT]
@@ -65,6 +56,7 @@ For a step-by-step guide, choose the format that works best for you:
 - JSON schema + Regex + EBNF support
 - AI Horde support
 - Speculative decoding via draft models
+
 - Multi-lora with independent scaling (ex. a weight of 0.9)
 - Inbuilt proxy to override client request parameters/samplers
 - Flexible Jinja2 template engine for chat completions that conforms to HuggingFace
@@ -113,12 +105,14 @@ TabbyAPI would not exist without the work of other contributors and FOSS project
 - [Text Generation WebUI](https://github.com/oobabooga/text-generation-webui)
 - [SillyTavern](https://github.com/SillyTavern/SillyTavern)
 
+  
+
 ## Developers and Permissions
 
-Creators/Developers:
-
+This fork adds control vector support to the original TabbyAPI. Original TabbyAPI developers:
 - [kingbri](https://github.com/bdashore3)
-
 - [Splice86](https://github.com/Splice86)
-
 - [Turboderp](https://github.com/turboderp)
+
+Control vectors implementation by [Gapeleon](https://github.com/gapeleon)
+
