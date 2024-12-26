@@ -486,15 +486,17 @@ class ExllamaV2Container:
             "rope_scale": self.config.scale_pos_emb,
             "rope_alpha": self.config.scale_alpha_value,
             "max_seq_len": self.config.max_seq_len,
+            "max_batch_size": self.max_batch_size,
             "cache_size": self.cache_size,
             "cache_mode": self.cache_mode,
             "chunk_size": self.config.max_input_len,
             "num_experts_per_token": self.config.num_experts_per_token,
-            "prompt_template": self.prompt_template.name
-            if self.prompt_template
-            else None,
             "use_vision": self.use_vision,
         }
+
+        if self.prompt_template:
+            model_params["prompt_template"] = self.prompt_template.name
+            model_params["prompt_template_content"] = self.prompt_template.raw_template
 
         if self.draft_config:
             draft_model_params = {
@@ -759,6 +761,10 @@ class ExllamaV2Container:
                 max_batch_size=self.max_batch_size,
                 paged=self.paged,
             )
+
+            # Update the state of the container var
+            if self.max_batch_size is None:
+                self.max_batch_size = self.generator.generator.max_batch_size
         finally:
             # This means the generator is being recreated
             # The load lock is already released in the load function
