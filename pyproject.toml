@@ -16,31 +16,30 @@ version = "0.0.1"
 description = "An OAI compatible exllamav2 API that's both lightweight and fast"
 requires-python = ">=3.10"
 dependencies = [
-    "fastapi-slim >= 0.110.0",
+    "fastapi-slim >= 0.115",
     "pydantic >= 2.0.0",
     "ruamel.yaml",
     "rich",
     "uvicorn >= 0.28.1",
     "jinja2 >= 3.0.0",
     "loguru",
-    "sse-starlette",
+    "sse-starlette >= 2.2.0",
     "packaging",
-    "tokenizers>=0.21.0",
-    "formatron",
-    "kbnf>=0.4.1",
+    "tokenizers >= 0.21.0",
+    "formatron >= 0.4.10",
+    "kbnf >= 0.4.1",
     "aiofiles",
     "aiohttp",
     "async_lru",
     "huggingface_hub",
     "psutil",
-    "httptools>=0.5.0",
+    "httptools >= 0.5.0",
     "pillow",
 
     # Improved asyncio loops
     "uvloop ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "winloop ; platform_system == 'Windows'",
 
-    # TEMP: Remove once 2.x is fixed in upstream
     "numpy < 2.0.0",
 
     # For python 3.12

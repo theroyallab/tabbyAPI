@@ -23,9 +23,11 @@ from endpoints.core.types.lora import LoraList, LoraLoadRequest, LoraLoadRespons
 from endpoints.core.types.model import (
     EmbeddingModelLoadRequest,
     ModelCard,
+    ModelDefaultGenerationSettings,
     ModelList,
     ModelLoadRequest,
     ModelLoadResponse,
+    ModelPropsResponse,
 )
 from endpoints.core.types.health import HealthCheckResponse
 from endpoints.core.types.sampler_overrides import (
@@ -129,6 +131,30 @@ async def current_model() -> ModelCard:
     """Returns the currently loaded model."""
 
     return get_current_model()
+
+
+@router.get(
+    "/props", dependencies=[Depends(check_api_key), Depends(check_model_container)]
+)
+async def model_props() -> ModelPropsResponse:
+    """
+    Returns specific properties of a model for clients.
+
+    To get all properties, use /v1/model instead.
+    """
+
+    current_model_card = get_current_model()
+    resp = ModelPropsResponse(
+        total_slots=current_model_card.parameters.max_batch_size,
+        default_generation_settings=ModelDefaultGenerationSettings(
+            n_ctx=current_model_card.parameters.max_seq_len,
+        ),
+    )
+
+    if current_model_card.parameters.prompt_template_content:
+        resp.chat_template = current_model_card.parameters.prompt_template_content
+
+    return resp
 
 
 @router.get("/v1/model/draft/list", dependencies=[Depends(check_api_key)])

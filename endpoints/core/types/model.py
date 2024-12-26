@@ -16,10 +16,12 @@ class ModelCardParameters(BaseModel):
     max_seq_len: Optional[int] = None
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
+    max_batch_size: Optional[int] = 1
     cache_size: Optional[int] = None
     cache_mode: Optional[str] = "FP16"
     chunk_size: Optional[int] = 2048
     prompt_template: Optional[str] = None
+    prompt_template_content: Optional[str] = None
     num_experts_per_token: Optional[int] = None
     use_vision: Optional[bool] = False
 
@@ -139,3 +141,17 @@ class ModelLoadResponse(BaseModel):
     module: int
     modules: int
     status: str
+
+
+class ModelDefaultGenerationSettings(BaseModel):
+    """Contains default generation settings for model props."""
+
+    n_ctx: int
+
+
+class ModelPropsResponse(BaseModel):
+    """Represents a model props response."""
+
+    total_slots: int = 1
+    chat_template: str = ""
+    default_generation_settings: ModelDefaultGenerationSettings
