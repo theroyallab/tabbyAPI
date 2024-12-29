@@ -63,7 +63,7 @@ Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started)
 - Concurrent inference with asyncio
 - Utilizes modern python paradigms
 - Continuous batching engine using paged attention
-- Fast classifer-free guidance
+- Fast classifier-free guidance
 - OAI style tool/function calling
 
 And much more. If something is missing here, PR it in!
