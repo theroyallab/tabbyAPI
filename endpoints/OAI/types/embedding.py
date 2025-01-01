@@ -27,7 +27,7 @@ class EmbeddingsRequest(BaseModel):
 
 class EmbeddingObject(BaseModel):
     object: str = Field("embedding", description="Type of the object.")
-    embedding: List[float] = Field(
+    embedding: Union[List[float], str] = Field(
         ..., description="Embedding values as a list of floats."
     )
     index: int = Field(
