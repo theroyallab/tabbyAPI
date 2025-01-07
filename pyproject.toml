@@ -26,7 +26,7 @@ dependencies = [
     "sse-starlette >= 2.2.0",
     "packaging",
     "tokenizers >= 0.21.0",
-    "formatron >= 0.4.10",
+    "formatron >= 0.4.11",
     "kbnf >= 0.4.1",
     "aiofiles",
     "aiohttp",
