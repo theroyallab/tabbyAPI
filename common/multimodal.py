@@ -9,6 +9,7 @@ from common.optional_dependencies import dependencies
 if dependencies.exllamav2:
     from exllamav2 import ExLlamaV2VisionTower
 
+
 class MultimodalEmbeddingWrapper(BaseModel):
     """Common multimodal embedding wrapper"""
 
