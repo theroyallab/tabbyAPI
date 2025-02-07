@@ -52,6 +52,10 @@ def _log_formatter(record: dict):
         "ERROR": "red",
         "CRITICAL": "bold white on red",
     }
+
+    time = record.get("time")
+    colored_time = f"[grey37]{time:YYYY-DD-MM HH:mm:ss.SSS}[/grey37]"
+
     level = record.get("level")
     level_color = color_map.get(level.name, "cyan")
     colored_level = f"[{level_color}]{level.name}[/{level_color}]:"
@@ -69,9 +73,11 @@ def _log_formatter(record: dict):
 
     fmt = ""
     if len(lines) > 1:
-        fmt = "\n".join([f"{colored_level}{separator}{line}" for line in lines])
+        fmt = "\n".join(
+            [f"{colored_time} {colored_level}{separator}{line}" for line in lines]
+        )
     else:
-        fmt = f"{colored_level}{separator}{message}"
+        fmt = f"{colored_time} {colored_level}{separator}{message}"
 
     return fmt
 
