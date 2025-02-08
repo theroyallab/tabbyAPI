@@ -89,8 +89,8 @@ class ExllamaV2Container:
     generation_config: Optional[GenerationConfig] = None
 
     # GPU split vars
-    gpu_split: Optional[list] = None
-    draft_gpu_split: Optional[list] = None
+    gpu_split: List[float] = []
+    draft_gpu_split: List[float] = []
     gpu_split_auto: bool = True
     autosplit_reserve: List[float] = [96 * 1024**2]
     use_tp: bool = False
@@ -234,10 +234,9 @@ class ExllamaV2Container:
                     for value in autosplit_reserve_megabytes
                 ]
 
-            if self.draft_gpu_split:
-                self.gpu_split_auto = False
-                self.gpu_split = gpu_split
-
+            # Change the GPU device list only if gpu_split's list is too small
+            # This allows for an uneven list specification
+            if self.draft_gpu_split and len(self.draft_gpu_split) > len(self.gpu_split):
                 gpu_device_list = [
                     device_idx
                     for device_idx, memory in enumerate(self.draft_gpu_split)
@@ -387,6 +386,7 @@ class ExllamaV2Container:
             # Set draft cache mode
             self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
 
+            # Edit the draft config size
             if chunk_size:
                 self.draft_config.max_input_len = chunk_size
                 self.draft_config.max_attention_size = chunk_size**2
@@ -633,6 +633,8 @@ class ExllamaV2Container:
             draft_cache_class = self.get_cache_class(self.draft_cache_mode)
 
             if self.draft_gpu_split:
+                logger.info("Loading with a manual GPU split (or a one GPU setup)")
+
                 for value in self.draft_model.load_gen(
                     self.draft_gpu_split,
                     callback_gen=progress_callback,
@@ -647,6 +649,8 @@ class ExllamaV2Container:
                     model=self.draft_model,
                 )
             else:
+                logger.info("Loading with autosplit")
+
                 self.draft_cache = self.create_cache(
                     cache_class=draft_cache_class,
                     autosplit=True,

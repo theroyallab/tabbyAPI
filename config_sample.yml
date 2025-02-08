@@ -20,7 +20,7 @@ network:
   # Turn on this option if you are ONLY connecting from localhost.
   disable_auth: false
 
-  # Disable fetching external content in response to requests, such as images from URLs.
+  # Disable fetching external content in response to requests,such as images from URLs.
   disable_fetch_requests: false
 
   # Send tracebacks over the API (default: False).
@@ -165,6 +165,10 @@ draft_model:
   # Cache mode for draft models to save VRAM (default: FP16).
   # Possible values: 'FP16', 'Q8', 'Q6', 'Q4'.
   draft_cache_mode: FP16
+
+  # An integer array of GBs of VRAM to split between GPUs (default: []).
+  # If this isn't filled in, the draft model is autosplit.
+  draft_gpu_split: []
 
 # Options for Loras
 lora:
