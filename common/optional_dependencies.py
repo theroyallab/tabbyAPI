@@ -14,14 +14,13 @@ class DependenciesModel(BaseModel):
     torch: bool
     exllamav2: bool
     flash_attn: bool
-    outlines: bool
     infinity_emb: bool
     sentence_transformers: bool
 
     @computed_field
     @property
     def extras(self) -> bool:
-        return self.outlines and self.infinity_emb and self.sentence_transformers
+        return self.infinity_emb and self.sentence_transformers
 
     @computed_field
     @property
