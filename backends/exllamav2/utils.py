@@ -52,8 +52,6 @@ def supports_paged_attn():
         "using the following command:\n\n"
         "For CUDA 12.1:\n"
         "pip install --upgrade .[cu121]\n\n"
-        "For CUDA 11.8:\n"
-        "pip install --upgrade .[cu118]\n\n"
         "NOTE: Windows users must use CUDA 12.x to use flash-attn."
     )
 

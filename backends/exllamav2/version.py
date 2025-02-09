@@ -16,8 +16,6 @@ def check_exllama_version():
         "using the following command:\n\n"
         "For CUDA 12.1:\n"
         "pip install --upgrade .[cu121]\n\n"
-        "For CUDA 11.8:\n"
-        "pip install --upgrade .[cu118]\n\n"
         "For ROCm:\n"
         "pip install --upgrade .[amd]\n\n"
     )
@@ -25,7 +23,7 @@ def check_exllama_version():
     if not dependencies.exllamav2:
         raise SystemExit(("Exllamav2 is not installed.\n" + install_message))
 
-    required_version = version.parse("0.2.3")
+    required_version = version.parse("0.2.8")
     current_version = version.parse(package_version("exllamav2").split("+")[0])
 
     unsupported_message = (
