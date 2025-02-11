@@ -351,6 +351,13 @@ class DraftModelConfig(BaseConfigModel):
             f"Possible values: {str(CACHE_SIZES)[15:-1]}."
         ),
     )
+    draft_gpu_split: List[float] = Field(
+        default_factory=list,
+        description=(
+            "An integer array of GBs of VRAM to split between GPUs (default: []).\n"
+            "If this isn't filled in, the draft model is autosplit."
+        ),
+    )
 
 
 class LoraInstanceModel(BaseConfigModel):
