@@ -275,8 +275,6 @@ if __name__ == "__main__":
         from common.args import convert_args_to_dict
         from main import entrypoint
 
-        converted_args = convert_args_to_dict(args, parser)
-
         # Create a config if it doesn't exist
         # This is not necessary to run TabbyAPI, but is new user proof
         config_path = (
@@ -292,7 +290,7 @@ if __name__ == "__main__":
             )
 
         print("Starting TabbyAPI...")
-        entrypoint(converted_args)
+        entrypoint(args, parser)
     except (ModuleNotFoundError, ImportError):
         traceback.print_exc()
         print(

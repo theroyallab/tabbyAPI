@@ -98,10 +98,10 @@ async def hf_repo_download(
     folder_name: Optional[str],
     revision: Optional[str],
     token: Optional[str],
-    chunk_limit: Optional[float],
     include: Optional[List[str]],
     exclude: Optional[List[str]],
-    timeout: Optional[int],
+    chunk_limit: Optional[float] = None,
+    timeout: Optional[int] = None,
     repo_type: Optional[str] = "model",
 ):
     """Gets a repo's information from HuggingFace and downloads it locally."""

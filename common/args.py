@@ -37,6 +37,8 @@ def init_argparser(
         existing_parser, argparse.ArgumentParser(description="TabbyAPI server")
     )
 
+    add_subcommands(parser)
+
     # Loop through each top-level field in the config
     for field_name, field_info in TabbyConfigModel.model_fields.items():
         field_type = unwrap_optional_type(field_info.annotation)
@@ -57,6 +59,57 @@ def init_argparser(
             group.add_argument(f"--{field_name}", help=f"Argument for {field_name}")
 
     return parser
+
+
+def add_subcommands(parser: argparse.ArgumentParser):
+    """Adds subcommands to an existing argparser"""
+
+    actions_subparsers = parser.add_subparsers(
+        dest="actions", help="Extra actions that can be run instead of the main server."
+    )
+
+    # Calls download action
+    download_parser = actions_subparsers.add_parser(
+        "download", help="Calls the model downloader"
+    )
+    download_parser.add_argument("repo_id", type=str, help="HuggingFace repo ID")
+    download_parser.add_argument(
+        "--folder-name",
+        type=str,
+        help="Folder name where the model should be downloaded",
+    )
+    download_parser.add_argument(
+        "--revision",
+        type=str,
+        help="Branch name in HuggingFace repo",
+    )
+    download_parser.add_argument(
+        "--token", type=str, help="HuggingFace access token for private repos"
+    )
+    download_parser.add_argument(
+        "--include", type=str, help="Glob pattern of files to include"
+    )
+    download_parser.add_argument(
+        "--exclude", type=str, help="Glob pattern of files to exclude"
+    )
+
+    # Calls openapi action
+    openapi_export_parser = actions_subparsers.add_parser(
+        "export-openapi", help="Exports an OpenAPI compliant JSON schema"
+    )
+    openapi_export_parser.add_argument(
+        "--export-path",
+        help="Path to export the generated OpenAPI JSON (default: openapi.json)",
+    )
+
+    # Calls config export action
+    config_export_parser = actions_subparsers.add_parser(
+        "export-config", help="Generates and exports a sample config YAML file"
+    )
+    config_export_parser.add_argument(
+        "--export-path",
+        help="Path to export the generated sample config (default: config_sample.yml)",
+    )
 
 
 def convert_args_to_dict(
