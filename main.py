@@ -106,6 +106,14 @@ def entrypoint(arguments: Optional[dict] = None):
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
+    if platform.system() == "Windows":
+        from winloop import install
+    else:
+        from uvloop import install
+
+    # Set loop event policy
+    install()
+
     # Parse and override config from args
     if arguments is None:
         parser = init_argparser()
@@ -132,18 +140,6 @@ def entrypoint(arguments: Optional[dict] = None):
     if config.developer.cuda_malloc_backend:
         os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
         logger.warning("EXPERIMENTAL: Enabled the pytorch CUDA malloc backend.")
-
-    # Use Uvloop/Winloop
-    if config.developer.uvloop:
-        if platform.system() == "Windows":
-            from winloop import install
-        else:
-            from uvloop import install
-
-        # Set loop event policy
-        install()
-
-        logger.warning("EXPERIMENTAL: Running program with Uvloop/Winloop.")
 
     # Set the process priority
     if config.developer.realtime_process_priority:

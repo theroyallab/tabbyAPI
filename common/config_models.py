@@ -437,14 +437,6 @@ class DeveloperConfig(BaseConfigModel):
     cuda_malloc_backend: Optional[bool] = Field(
         False, description=("Enable the torch CUDA malloc backend (default: False).")
     )
-    uvloop: Optional[bool] = Field(
-        False,
-        description=(
-            "Run asyncio using Uvloop or Winloop which can improve performance.\n"
-            "NOTE: It's recommended to enable this, but if something breaks "
-            "turn this off."
-        ),
-    )
     realtime_process_priority: Optional[bool] = Field(
         False,
         description=(

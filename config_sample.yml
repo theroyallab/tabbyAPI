@@ -212,10 +212,6 @@ developer:
   # Enable the torch CUDA malloc backend (default: False).
   cuda_malloc_backend: false
 
-  # Run asyncio using Uvloop or Winloop which can improve performance.
-  # NOTE: It's recommended to enable this, but if something breaks turn this off.
-  uvloop: false
-
   # Set process to use a higher priority.
   # For realtime process priority, run as administrator or sudo.
   # Otherwise, the priority will be set to high.
