@@ -1,9 +1,9 @@
 import asyncio
-from typing import Optional
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from typing import Optional
 
 from common.logger import UVICORN_LOG_CONFIG
 from common.networking import get_global_depends

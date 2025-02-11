@@ -101,6 +101,9 @@ def add_subcommands(parser: argparse.ArgumentParser):
         "--export-path",
         help="Path to export the generated OpenAPI JSON (default: openapi.json)",
     )
+    openapi_export_parser.add_argument(
+        "--api-servers", nargs="+", help="Sets API servers to run when exporting"
+    )
 
     # Calls config export action
     config_export_parser = actions_subparsers.add_parser(
