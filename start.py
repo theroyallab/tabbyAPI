@@ -272,7 +272,6 @@ if __name__ == "__main__":
 
     # Assume all dependencies are installed from here
     try:
-        from common.args import convert_args_to_dict
         from main import entrypoint
 
         # Create a config if it doesn't exist
