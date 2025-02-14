@@ -10,6 +10,8 @@ from jinja2.ext import loopcontrols
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from loguru import logger
 from packaging import version
+from datetime import datetime
+
 
 from common.utils import unwrap
 
@@ -95,10 +97,16 @@ class PromptTemplate:
     def compile(self, template_str: str):
         """Compiles and stores a jinja2 template"""
 
+        # Some models require strftime_now, e.g. Granite3
+        def strftime_now(format):
+            current_time = datetime.now()
+            return current_time.strftime(format)
+
         # Exception handler
         def raise_exception(message):
             raise TemplateError(message)
 
+        self.environment.globals["strftime_now"] = strftime_now
         self.environment.globals["raise_exception"] = raise_exception
 
         return self.environment.from_string(template_str)
