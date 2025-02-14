@@ -97,7 +97,7 @@ class PromptTemplate:
     def compile(self, template_str: str):
         """Compiles and stores a jinja2 template"""
 
-        # Some models require strftime_now, e.g. Granite3 
+        # Some models require strftime_now, e.g. Granite3
         def strftime_now(format):
             current_time = datetime.now()
             return current_time.strftime(format)
