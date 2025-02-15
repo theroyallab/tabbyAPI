@@ -44,9 +44,13 @@ TabbyAPI is a hobby project made for a small amount of users. It is not meant to
 
 > [!IMPORTANT]
 > 
->  This README does not have instructions for setting up. Please read the Wiki.
+> Looking for more information? Check out the Wiki.
 
-Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started) for more information. It contains user-facing documentation for installation, configuration, sampling, API usage, and so much more.
+For a step-by-step guide, choose the format that works best for you:
+
+📖 Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started) – Covers installation, configuration, API usage, and more.
+
+🎥 Watch the [Video Guide](https://www.youtube.com/watch?v=03jYz0ijbUU) – A hands-on walkthrough to get you up and running quickly.
 
 ## Features
 
@@ -63,7 +67,7 @@ Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started)
 - Concurrent inference with asyncio
 - Utilizes modern python paradigms
 - Continuous batching engine using paged attention
-- Fast classifer-free guidance
+- Fast classifier-free guidance
 - OAI style tool/function calling
 
 And much more. If something is missing here, PR it in!
