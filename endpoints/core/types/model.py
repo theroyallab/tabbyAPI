@@ -63,7 +63,10 @@ class DraftModelLoadRequest(BaseModel):
         default=None,
         examples=[1.0],
     )
-    draft_cache_mode: Optional[str] = None
+    draft_gpu_split: Optional[List[float]] = Field(
+        default_factory=list,
+        examples=[[24.0, 20.0]],
+    )
 
 
 class ModelLoadRequest(BaseModel):
@@ -94,7 +97,7 @@ class ModelLoadRequest(BaseModel):
     gpu_split_auto: Optional[bool] = None
     autosplit_reserve: Optional[List[float]] = None
     gpu_split: Optional[List[float]] = Field(
-        default=None,
+        default_factory=list,
         examples=[[24.0, 20.0]],
     )
     rope_scale: Optional[float] = Field(

@@ -181,7 +181,7 @@ class ExllamaV2Container:
             )
             draft_model_path = draft_model_path / draft_model_name
 
-            self.draft_gpu_split = draft_args.get("draft_gpu_split")
+            self.draft_gpu_split = unwrap(draft_args.get("draft_gpu_split"), [])
             self.draft_model_dir = draft_model_path
             self.draft_config.model_dir = str(draft_model_path.resolve())
             self.draft_config.prepare()
@@ -195,7 +195,7 @@ class ExllamaV2Container:
         gpu_count = torch.cuda.device_count()
         gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
         use_tp = unwrap(kwargs.get("tensor_parallel"), False)
-        gpu_split = kwargs.get("gpu_split")
+        gpu_split = unwrap(kwargs.get("gpu_split"), [])
         gpu_device_list = list(range(0, gpu_count))
 
         # Set GPU split options
@@ -691,8 +691,10 @@ class ExllamaV2Container:
         if self.use_tp:
             logger.info("Loading with tensor parallel")
 
+            # GPU split must be None if the array is empty
+            # Otherwise the TP loader fails
             for value in self.model.load_tp_gen(
-                self.gpu_split,
+                self.gpu_split or None,
                 callback_gen=progress_callback,
                 expect_cache_base=cache_class,
                 expect_cache_tokens=self.cache_size,
