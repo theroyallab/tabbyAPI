@@ -1,0 +1,19 @@
+name: Deploy to Wiki
+on:
+  push:
+    branches: ['main']
+
+concurrency:
+  group: "wiki-deploy-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  deploy-wiki:
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions4gh/deploy-wiki@v1
+        with:
+          path: ./docs
