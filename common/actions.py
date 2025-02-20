@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import json
+import traceback
 from loguru import logger
 
 from common.downloader import hf_repo_download
@@ -10,16 +11,20 @@ from endpoints.server import export_openapi
 
 
 def download_action(args: argparse.Namespace):
-    asyncio.run(
-        hf_repo_download(
-            repo_id=args.repo_id,
-            folder_name=args.folder_name,
-            revision=args.revision,
-            token=args.token,
-            include=args.include,
-            exclude=args.exclude,
+    try:
+        asyncio.run(
+            hf_repo_download(
+                repo_id=args.repo_id,
+                folder_name=args.folder_name,
+                revision=args.revision,
+                token=args.token,
+                include=args.include,
+                exclude=args.exclude,
+            )
         )
-    )
+    except Exception:
+        exception = traceback.format_exc()
+        logger.error(exception)
 
 
 def config_export_action(args: argparse.Namespace):
