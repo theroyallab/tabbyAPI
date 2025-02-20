@@ -54,7 +54,7 @@ def _log_formatter(record: dict):
     }
 
     time = record.get("time")
-    colored_time = f"[grey37]{time:YYYY-DD-MM HH:mm:ss.SSS}[/grey37]"
+    colored_time = f"[grey37]{time:YYYY-MM-DD HH:mm:ss.SSS}[/grey37]"
 
     level = record.get("level")
     level_color = color_map.get(level.name, "cyan")
