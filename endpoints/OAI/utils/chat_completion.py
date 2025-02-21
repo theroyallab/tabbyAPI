@@ -74,9 +74,21 @@ def _create_response(
 
             logprob_response = ChatCompletionLogprobs(content=collected_token_probs)
 
+        # Grab the original finish_reason
+        finish_reason = generation.get("finish_reason")
+
+        # In the case of tool call use, we mark the finish_reason for the choice as
+        # "tool_calls". I check for truthy finish_reason because for some reason I
+        # remember something about streaming chunks having no finish reason until
+        # the chunk is done or something like that. Feel free to correct me.
+        # I am purposly leaving stop_str because I don't know the ramifications
+        # of removing, and I don't have time.
+        if message.tool_calls and finish_reason:
+            finish_reason = "tool_calls"
+
         choice = ChatCompletionRespChoice(
             index=index,
-            finish_reason=generation.get("finish_reason"),
+            finish_reason=finish_reason,
             stop_str=generation.get("stop_str"),
             message=message,
             logprobs=logprob_response,
@@ -120,9 +132,11 @@ def _create_stream_chunk(
             total_tokens=prompt_tokens + completion_tokens,
         )
     elif "finish_reason" in generation:
+        # Get the finish reason from the generation
+        finish_reason = generation.get("finish_reason")
         choice = ChatCompletionStreamChoice(
             index=index,
-            finish_reason=generation.get("finish_reason"),
+            finish_reason=finish_reason
         )
 
         # lets check if we have tool calls since we are at the end of the generation
@@ -132,6 +146,13 @@ def _create_stream_chunk(
                 tool_calls=postprocess_tool_call(tool_calls)
             )
             choice.delta = message
+
+            # In the case of tool call use, we mark the finish_reason for the choice as
+            # "tool_calls". I check for truthy finish_reason because for some reason I
+            # remember something about streaming chunks having no finish reason until
+            # the chunk is done or something like that. Feel free to correct me.
+            if finish_reason:
+                choice.finish_reason = "tool_calls"
 
         choices.append(choice)
 
