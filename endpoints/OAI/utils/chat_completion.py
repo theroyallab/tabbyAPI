@@ -134,10 +134,7 @@ def _create_stream_chunk(
     elif "finish_reason" in generation:
         # Get the finish reason from the generation
         finish_reason = generation.get("finish_reason")
-        choice = ChatCompletionStreamChoice(
-            index=index,
-            finish_reason=finish_reason
-        )
+        choice = ChatCompletionStreamChoice(index=index, finish_reason=finish_reason)
 
         # lets check if we have tool calls since we are at the end of the generation
         if "tool_calls" in generation:
