@@ -4,7 +4,7 @@ import asyncio
 import json
 import pathlib
 from asyncio import CancelledError
-from typing import List, Optional
+from typing import Dict, List, Optional
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
 from loguru import logger
@@ -194,6 +194,31 @@ def _create_stream_chunk(
 
     return chunk
 
+def tool_calls_to_tool_calls_json(message: ChatCompletionMessage) -> str:
+    """
+    message.tool_calls is of type List[ToolCall], so we cannot simply json.dumps it.
+    Im just going to do this quick and dirty, feel free to improve.
+    Args:
+        message (ChatCompletionMessage): The chat completion message to convert the tool
+            calls to json.
+    Returns:
+        str: JSON representation of the tool calls
+    """
+    if not message.tool_calls:
+        return ""
+
+    list_of_tool_call_dicts: List[Dict] = []
+
+    for tool_call_obj in message.tool_calls:
+        # ToolCall stores arguments as a json dumped string, so we need to json.loads it
+        # back to a dict
+        func_dict = json.loads(tool_call_obj.model_dump_json())
+        func_dict["function"]["arguments"] = json.loads(
+            func_dict.get("function", {}
+        ).get("arguments", "{}"))
+        list_of_tool_call_dicts.append(func_dict)
+
+    return json.dumps(list_of_tool_call_dicts, indent=2)
 
 async def _append_template_metadata(data: ChatCompletionRequest, template_vars: dict):
     """Adding metadata is a one-time process."""
@@ -242,7 +267,7 @@ async def format_messages_with_template(
             message.content = concatenated_content
 
         if message.tool_calls:
-            message.tool_calls_json = json.dumps(message.tool_calls, indent=2)
+            message.tool_calls_json = tool_calls_to_tool_calls_json(message)
 
     special_tokens_dict = model.container.get_special_tokens(
         add_bos_token, ban_eos_token
