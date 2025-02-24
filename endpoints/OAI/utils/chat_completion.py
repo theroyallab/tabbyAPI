@@ -465,7 +465,7 @@ async def generate_chat_completion(
         if data.tool_call_start:
             generations = await generate_tool_calls(data, generations, request)
 
-        logger.info*f"generate_chat_completion.generations: -----------------------\n{generations}\n---------------"
+        logger.info(f"generate_chat_completion.generations: -----------------------\n{generations}\n---------------")
         response = _create_response(request.state.id, generations, model_path.name)
 
         logger.info(f"Finished chat completion request {request.state.id}")
