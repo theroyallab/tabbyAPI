@@ -465,6 +465,7 @@ async def generate_chat_completion(
         if data.tool_call_start:
             generations = await generate_tool_calls(data, generations, request)
 
+        logger.info*f"generate_chat_completion.generations: -----------------------\n{generations}\n---------------"
         response = _create_response(request.state.id, generations, model_path.name)
 
         logger.info(f"Finished chat completion request {request.state.id}")
@@ -503,13 +504,14 @@ async def generate_tool_calls(
                 pre_tool_prompt, mm_embeddings = await apply_chat_template(
                     data, gen["text"]
                 )
+                logger.info(f"Pre Tool Prompt [text]: ------------------\n{pre_tool_prompt}\n----------------------")
             elif current_generations is not None:
                 # streaming, we wont have text in the generation,
                 # we'll have to use the current_generations
                 pre_tool_prompt, mm_embeddings = await apply_chat_template(
                     data, current_generations
                 )
-
+                logger.info(f"Pre Tool Prompt [other]: ------------------\n{pre_tool_prompt}\n----------------------")
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
