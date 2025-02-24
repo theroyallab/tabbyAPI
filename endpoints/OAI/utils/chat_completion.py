@@ -50,6 +50,7 @@ def _create_response(
         tool_calls = generation["tool_calls"]
         if tool_calls:
             message.tool_calls = postprocess_tool_call(tool_calls)
+            logger.info(f"Tool Calls Generated\n-----------------\n{message.tool_calls}\n-----------------") # TODO: Remove
 
         logprob_response = None
 
@@ -297,9 +298,11 @@ async def apply_chat_template(
             }
         )
 
+        logger.info(f"Template_VARS:\n-------------------\n{data.template_vars}\n-----------------") # TODO: Remove
         prompt, mm_embeddings, template_vars = await format_messages_with_template(
             data.messages, data.template_vars, data.add_bos_token, data.ban_eos_token
         )
+        logger.info(f"Prompt:\n-------------------\n{prompt}\n-----------------") # TODO: Remove
 
         # Append response prefix if present
         if data.response_prefix:
