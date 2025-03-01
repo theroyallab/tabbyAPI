@@ -35,7 +35,8 @@ from endpoints.OAI.types.tools import ToolCall
 
 
 def _extract_think_content(text: str) -> tuple[Optional[str], Optional[str]]:
-    """Extract content between <think> tags and the remaining content. Only available in none-streaming mode."""
+    """Extract content between <think> tags and the remaining content.
+    Only available in none-streaming mode."""
     if (
         config.network.reasoning_start_token not in text
         and config.network.reasoning_end_token not in text
