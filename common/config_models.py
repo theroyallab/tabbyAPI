@@ -103,21 +103,19 @@ class NetworkConfig(BaseConfigModel):
         False,
         description=(
             "Enable the reasoning parser (default: False).\n"
-            "This will split response message into reasoning_content and content fields."
+            "Split response message into reasoning_content and content fields."
         ),
     )
     reasoning_start_token: str = Field(
         "<think>",
         description=(
-            "Start token for the reasoning parser (default: <think>).\n"
-            "This token is used to split the response message into reasoning_content and content fields."
+            "Start token for the reasoning parser (default: <think>)."
         ),
     )
     reasoning_end_token: str = Field(
         "</think>",
         description=(
-            "End token for the reasoning parser (default: </think>).\n"
-            "This token is used to split the response message into reasoning_content and content fields."
+            "End token for the reasoning parser (default: </think>)."
         ),
     )
 
