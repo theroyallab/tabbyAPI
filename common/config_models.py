@@ -108,15 +108,11 @@ class NetworkConfig(BaseConfigModel):
     )
     reasoning_start_token: str = Field(
         "<think>",
-        description=(
-            "Start token for the reasoning parser (default: <think>)."
-        ),
+        description=("Start token for the reasoning parser (default: <think>)."),
     )
     reasoning_end_token: str = Field(
         "</think>",
-        description=(
-            "End token for the reasoning parser (default: </think>)."
-        ),
+        description=("End token for the reasoning parser (default: </think>)."),
     )
 
     # Converts all strings in the api_servers list to lowercase
