@@ -36,7 +36,10 @@ from endpoints.OAI.types.tools import ToolCall
 
 def _extract_think_content(text: str) -> tuple[Optional[str], Optional[str]]:
     """Extract content between <think> tags and the remaining content. Only available in none-streaming mode."""
-    if config.network.reasoning_start_token not in text and config.network.reasoning_end_token not in text:
+    if (
+        config.network.reasoning_start_token not in text
+        and config.network.reasoning_end_token not in text
+    ):
         return None, text
     elif config.network.reasoning_start_token in text:
         start_reasoning = text.split(config.network.reasoning_start_token)[1]
@@ -47,6 +50,7 @@ def _extract_think_content(text: str) -> tuple[Optional[str], Optional[str]]:
         reasoning_content = text.split(config.network.reasoning_end_token)[0]
         content = text.split(config.network.reasoning_end_token)[1]
         return reasoning_content, content
+
 
 def _create_response(
     request_id: str, generations: List[dict], model_name: Optional[str]
@@ -159,10 +163,14 @@ def _create_stream_chunk(
         choices.append(choice)
 
     else:
-        message = ChatCompletionMessage(
-            role="assistant", reasoning_content=unwrap(generation.get("text"), "")
-        ) if is_reasoning_chunk else ChatCompletionMessage(
-            role="assistant", content=unwrap(generation.get("text"), "")
+        message = (
+            ChatCompletionMessage(
+                role="assistant", reasoning_content=unwrap(generation.get("text"), "")
+            )
+            if is_reasoning_chunk
+            else ChatCompletionMessage(
+                role="assistant", content=unwrap(generation.get("text"), "")
+            )
         )
 
         logprob_response = None
@@ -353,7 +361,7 @@ async def stream_generate_chat_completion(
 
         # We need to keep track of the text generated so we can resume the tool calls
         current_generation_text = ""
-        
+
         is_reasoning_chunk = config.network.reasoning_parser
 
         # Consumer loop
@@ -388,9 +396,12 @@ async def stream_generate_chat_completion(
                 is_reasoning_chunk = False
                 # And skip this token
                 continue
-            
+
             response = _create_stream_chunk(
-                request.state.id, generation, model_path.name, is_reasoning_chunk=is_reasoning_chunk
+                request.state.id,
+                generation,
+                model_path.name,
+                is_reasoning_chunk=is_reasoning_chunk,
             )
             yield response.model_dump_json()
 
