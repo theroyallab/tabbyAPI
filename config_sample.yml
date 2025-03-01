@@ -31,6 +31,16 @@ network:
   # Possible values: OAI, Kobold.
   api_servers: ["OAI"]
 
+  # Enable reasoning parser (default: False).
+  # Do NOT enable this if the model is not a reasoning model (e.g. deepseek-r1 series)
+  reasoning_parser: false
+
+  # The start token for reasoning conetnt (default: "<think>")
+  reasoning_start_token: "<think>"
+
+  # The end token for reasoning conetnt (default: "</think>")
+  reasoning_end_token: "</think>"
+
 # Options for logging
 logging:
   # Enable prompt logging (default: False).
