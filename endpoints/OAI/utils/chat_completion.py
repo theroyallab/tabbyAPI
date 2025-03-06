@@ -392,7 +392,19 @@ async def stream_generate_chat_completion(
             if isinstance(generation, Exception):
                 raise generation
 
-            if unwrap(generation.get("text"), "") == config.network.reasoning_end_token:
+            if (
+                unwrap(generation.get("text"), "")
+                == config.network.reasoning_start_token
+                and config.network.reasoning_parser
+            ):
+                # Update reasoning chunk flag
+                is_reasoning_chunk = True
+                # And skip this token
+                continue
+            if (
+                unwrap(generation.get("text"), "") == config.network.reasoning_end_token
+                and config.network.reasoning_parser
+            ):
                 # Update reasoning chunk flag
                 is_reasoning_chunk = False
                 # And skip this token
