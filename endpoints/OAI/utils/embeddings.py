@@ -39,6 +39,10 @@ async def get_embeddings(data: EmbeddingsRequest, request: Request) -> dict:
     model_path = model.embeddings_container.model_dir
 
     logger.info(f"Recieved embeddings request {request.state.id}")
+
+    if not isinstance(data.input, list):
+        data.input = [data.input]
+
     embedding_data = await model.embeddings_container.generate(data.input)
 
     # OAI expects a return of base64 if the input is base64
