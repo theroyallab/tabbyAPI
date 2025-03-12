@@ -1,0 +1,89 @@
+{# Metadata #}
+{% set stop_strings = ["<|im_start|>", "<|im_end|>"] %}
+{% set message_roles = ['system', 'user', 'assistant', 'tool'] %}
+{% set tool_start = "<tool_call>" %}
+{% set tool_end = "</tool_call>" %}
+{% set example_tool_call = '{"name": "example_tool", "arguments": {"arg_name": "value", "number_arg": 42}}' %}
+
+{% set initial_system_prompt %}
+You are Qwen, created by Alibaba Cloud. You are a helpful assistant.
+
+# Tools
+
+You may call one or more functions to assist with the user query.
+
+You are provided with function signatures within <tools></tools> XML tags:
+<tools>
+{{ tools_json }}
+</tools>
+
+For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{"name": "function_name", "arguments": {"arg1": "value1", "arg2": "value2"}}
+</tool_call>
+{% endset %}
+
+{% set tool_reminder %}
+Available Tools:
+<tools>
+{{ tools_json }}
+</tools>
+
+Tool Call Format Example:
+{{ tool_start }}
+{{ example_tool_call }}
+{{ tool_end }}
+
+Remember to:
+1. Begin tool calls with {{ tool_start }} and end with {{ tool_end }}
+2. Use correct data types for arguments (strings in quotes, numbers without quotes)
+3. Format your JSON properly
+{% endset %}
+
+{# Template #}
+{% for message in messages %}
+    {% set role = message['role'] | lower %}
+    {% if role not in message_roles %}
+        {{ raise_exception('Invalid role ' + message['role'] + '. Only ' + message_roles | join(', ') + ' are supported.') }}
+    {% endif %}
+    {% set content = message['content'] if message['content'] is defined else '' | trim %}
+    
+    {% if loop.first %}
+        {{ bos_token }}<|im_start|>{{ role }}
+        {% if role == 'system' %}
+            {{ initial_system_prompt }}
+        {% endif %}
+        {{ content }}<|im_end|>
+    {% else %}
+        <|im_start|>{{ role }}
+        {% if role == 'assistant' %}
+            {% if content %}
+                {{ content }}
+            {% endif %}
+            {% if 'tool_calls_json' in message and message['tool_calls_json'] %}
+                {% for tool_call in message['tool_calls_json'] | fromjson %}
+                    {{ tool_start }}
+                    {"name": "{{ tool_call.function.name }}", "arguments": {{ tool_call.function.arguments }}}
+                    {{ tool_end }}
+                {% endfor %}
+            {% endif %}
+        {% elif role == 'tool' %}
+            <tool_response>
+            {{ content }}
+            </tool_response>
+        {% else %}
+            {{ content }}
+        {% endif %}
+        <|im_end|>
+    {% endif %}
+{% endfor %}
+
+{% if tool_precursor %}
+    <|im_start|>system
+    {{ tool_reminder }}
+    <|im_end|>
+    <|im_start|>assistant
+    {{ tool_precursor }}{{ tool_start }}
+{% else %}
+    <|im_start|>assistant
+{% endif %}

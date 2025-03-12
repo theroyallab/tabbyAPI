@@ -1,0 +1,114 @@
+{# Metadata #}
+{%- set stop_strings = ["<|im_start|>", "<|im_end|>"] -%}
+{%- set message_roles = ['system', 'user', 'assistant', 'tool'] -%}
+{%- set tool_start = "<tool_call>" -%}
+{%- set tool_end = "</tool_call>" -%}
+{%- set example_tool_call = '{
+  "name": "example_tool",
+  "arguments": {
+    "arg_name": 3,
+    "string_arg": "example value",
+    "boolean_arg": true
+  }
+}' -%}
+
+{%- set initial_system_prompt %}
+You are Qwen, created by Alibaba Cloud. You are a helpful assistant.
+# Tools
+You may call one or more functions to assist with the user query.
+You are provided with function signatures within <tools></tools> XML tags:
+<tools>
+{{ tools_json }}
+</tools>
+For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{"name": "function_name", "arguments": {"arg1": "value1", "arg2": "value2"}}
+</tool_call>
+{% endset -%}
+
+{%- set tool_reminder %}
+Available Tools:
+<tools>
+{{ tools_json }}
+</tools>
+Tool Call Format Example:
+{{ tool_start }}
+{{ example_tool_call }}
+{{ tool_end }}
+Prefix & Suffix: Begin tool calls with {{ tool_start }} and end with {{ tool_end }}.
+Argument Types: Use correct data types for arguments (e.g., strings in quotes, numbers without).
+{% endset -%}
+
+{# Template #}
+{%- for message in messages -%}
+    {%- set role = message['role'] | lower -%}
+    {%- if role not in message_roles -%}
+        {{ raise_exception('Invalid role ' + message['role'] + '. Only ' + message_roles | join(', ') + ' are supported.') }}
+    {%- endif -%}
+    {%- set content = message['content'] if message['content'] is defined else '' | trim -%}
+    
+    {%- if loop.first and role == 'system' -%}
+        {{- '<|im_start|>system\n' -}}
+        {{- initial_system_prompt -}}
+        {{- '\n' -}}
+        {{- content -}}
+        {{- '<|im_end|>\n' -}}
+    {%- elif loop.first -%}
+        {{- '<|im_start|>system\n' -}}
+        {{- initial_system_prompt -}}
+        {{- '<|im_end|>\n' -}}
+        {{- '<|im_start|>' + role + '\n' -}}
+        {{- content -}}
+        {{- '<|im_end|>\n' -}}
+    {%- elif not loop.first -%}  
+        {%- if role == 'assistant' -%}
+            {{- '<|im_start|>assistant' -}}
+            {%- if content -%}
+                {%- set processed_content = (content.split('</think>')|last).lstrip('\n') if '</think>' in content else content -%}
+                {{- '\n' + processed_content -}}
+            {%- endif -%}
+            {%- if 'tool_calls_json' in message and message['tool_calls_json'] -%}
+                {{- '\n' + tool_start + '\n' -}}
+                {{- message['tool_calls_json'] -}}
+                {{- '\n' + tool_end -}}
+            {%- elif message.tool_calls is defined and message.tool_calls -%}
+                {%- for tool_call in message.tool_calls -%}
+                    {%- if tool_call.function is defined -%}
+                        {%- set func = tool_call.function -%}
+                    {%- else -%}
+                        {%- set func = tool_call -%}
+                    {%- endif -%}
+                    {{- '\n' + tool_start + '\n' -}}
+                    {"name": "{{ func.name }}", "arguments": {{ func.arguments | tojson }}}
+                    {{- '\n' + tool_end -}}
+                {%- endfor -%}
+            {%- endif -%}
+            {{- '<|im_end|>\n' -}}
+        {%- elif role == 'tool' -%}
+            {%- if (loop.index0 == 0) or (messages[loop.index0 - 1]['role'] != "tool") -%}
+                {{- '<|im_start|>user' -}}
+            {%- endif -%}
+            {{- '\n<tool_response>\n' -}}
+            {{- content -}}
+            {{- '\n</tool_response>' -}}
+            {%- if loop.last or (messages[loop.index0 + 1]['role'] != "tool") -%}
+                {{- '<|im_end|>\n' -}}
+            {%- endif -%}
+        {%- else -%}
+            {{- '<|im_start|>' + role + '\n' -}}
+            {{- content -}}
+            {{- '<|im_end|>\n' -}}
+        {%- endif -%}
+    {%- endif -%}
+{%- endfor -%}
+
+{%- if tool_precursor -%}
+    {{- '<|im_start|>system\n' -}}
+    {{- tool_reminder -}}
+    {{- '<|im_end|>\n' -}}
+    {{- '<|im_start|>assistant\n' -}}
+    {{- tool_precursor -}}
+    {{- tool_start -}}
+{%- else -%}
+    {{- '<|im_start|>assistant\n' -}}
+{%- endif -%}
