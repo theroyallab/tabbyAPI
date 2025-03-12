@@ -198,6 +198,16 @@ async def _append_template_metadata(data: ChatCompletionRequest, template_vars: 
         # Append to stop strings to halt for a tool call generation
         data.stop.extend(template_metadata.tool_starts)
 
+def serialize_tool_calls(tool_calls):
+    """Convert ToolCall objects to serializable dictionaries."""
+    result = []
+    for tc in tool_calls:
+        result.append({
+            "id": tc.id,
+            "type": tc.type,
+            "function": {"name": tc.function.name, "arguments": tc.function.arguments}
+        })
+    return result
 
 async def format_messages_with_template(
     messages: List[ChatCompletionMessage],
@@ -224,8 +234,9 @@ async def format_messages_with_template(
             message.content = concatenated_content
 
         if message.tool_calls:
-            message.tool_calls_json = json.dumps(message.tool_calls, indent=2)
-
+            # Convert ToolCall objects to serializable dictionaries
+            serializable_tool_calls = serialize_tool_calls(message.tool_calls)
+            message.tool_calls_json = json.dumps(serializable_tool_calls, indent=2)
     special_tokens_dict = model.container.get_special_tokens(
         add_bos_token, ban_eos_token
     )
