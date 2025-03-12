@@ -4,7 +4,7 @@ import asyncio
 import json
 import pathlib
 from asyncio import CancelledError
-from typing import List, Optional
+from typing import Dict, List, Optional
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
 from loguru import logger
@@ -74,9 +74,21 @@ def _create_response(
 
             logprob_response = ChatCompletionLogprobs(content=collected_token_probs)
 
+        # Grab the original finish_reason
+        finish_reason = generation.get("finish_reason")
+
+        # In the case of tool call use, we mark the finish_reason for the choice as
+        # "tool_calls". I check for truthy finish_reason because for some reason I
+        # remember something about streaming chunks having no finish reason until
+        # the chunk is done or something like that. Feel free to correct me.
+        # I am purposly leaving stop_str because I don't know the ramifications
+        # of removing, and I don't have time.
+        if message.tool_calls and finish_reason:
+            finish_reason = "tool_calls"
+
         choice = ChatCompletionRespChoice(
             index=index,
-            finish_reason=generation.get("finish_reason"),
+            finish_reason=finish_reason,
             stop_str=generation.get("stop_str"),
             message=message,
             logprobs=logprob_response,
@@ -120,10 +132,9 @@ def _create_stream_chunk(
             total_tokens=prompt_tokens + completion_tokens,
         )
     elif "finish_reason" in generation:
-        choice = ChatCompletionStreamChoice(
-            index=index,
-            finish_reason=generation.get("finish_reason"),
-        )
+        # Get the finish reason from the generation
+        finish_reason = generation.get("finish_reason")
+        choice = ChatCompletionStreamChoice(index=index, finish_reason=finish_reason)
 
         # lets check if we have tool calls since we are at the end of the generation
         if "tool_calls" in generation:
@@ -132,6 +143,13 @@ def _create_stream_chunk(
                 tool_calls=postprocess_tool_call(tool_calls)
             )
             choice.delta = message
+
+            # In the case of tool call use, we mark the finish_reason for the choice as
+            # "tool_calls". I check for truthy finish_reason because for some reason I
+            # remember something about streaming chunks having no finish reason until
+            # the chunk is done or something like that. Feel free to correct me.
+            if finish_reason:
+                choice.finish_reason = "tool_calls"
 
         choices.append(choice)
 
@@ -198,16 +216,37 @@ async def _append_template_metadata(data: ChatCompletionRequest, template_vars: 
         # Append to stop strings to halt for a tool call generation
         data.stop.extend(template_metadata.tool_starts)
 
-def serialize_tool_calls(tool_calls):
-    """Convert ToolCall objects to serializable dictionaries."""
-    result = []
-    for tc in tool_calls:
-        result.append({
-            "id": tc.id,
-            "type": tc.type,
-            "function": {"name": tc.function.name, "arguments": tc.function.arguments}
-        })
-    return result
+
+def tool_calls_to_tool_calls_json(message: ChatCompletionMessage) -> str:
+    """
+    Convert ToolCall objects to JSON string representation.
+
+    Args:
+        message (ChatCompletionMessage): The message containing tool calls
+
+    Returns:
+        str: JSON representation of the tool calls
+    """
+    if not message.tool_calls:
+        return ""
+
+    list_of_tool_call_dicts: List[Dict] = []
+    for tool_call_obj in message.tool_calls:
+        try:
+            # Convert ToolCall to dict via Pydantic's serialization
+            func_dict = json.loads(tool_call_obj.model_dump_json())
+
+            # Parse the arguments string to a proper JSON object
+            arguments_str = func_dict.get("function", {}).get("arguments", "{}")
+            func_dict["function"]["arguments"] = json.loads(arguments_str)
+
+            list_of_tool_call_dicts.append(func_dict)
+        except (json.JSONDecodeError, AttributeError) as e:
+            logger.warning(f"Error processing tool call: {e}")
+            # Could add fallback handling here if needed
+
+    return json.dumps(list_of_tool_call_dicts, indent=2)
+
 
 async def format_messages_with_template(
     messages: List[ChatCompletionMessage],
@@ -234,9 +273,7 @@ async def format_messages_with_template(
             message.content = concatenated_content
 
         if message.tool_calls:
-            # Convert ToolCall objects to serializable dictionaries
-            serializable_tool_calls = serialize_tool_calls(message.tool_calls)
-            message.tool_calls_json = json.dumps(serializable_tool_calls, indent=2)
+            message.tool_calls_json = tool_calls_to_tool_calls_json(message)
     special_tokens_dict = model.container.get_special_tokens(
         add_bos_token, ban_eos_token
     )
