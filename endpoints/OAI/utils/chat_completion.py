@@ -4,7 +4,7 @@ import asyncio
 import json
 import pathlib
 from asyncio import CancelledError
-from typing import List, Optional
+from typing import Dict, List, Optional
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
 from loguru import logger
@@ -74,9 +74,21 @@ def _create_response(
 
             logprob_response = ChatCompletionLogprobs(content=collected_token_probs)
 
+        # Grab the original finish_reason
+        finish_reason = generation.get("finish_reason")
+
+        # In the case of tool call use, we mark the finish_reason for the choice as
+        # "tool_calls". I check for truthy finish_reason because for some reason I
+        # remember something about streaming chunks having no finish reason until
+        # the chunk is done or something like that. Feel free to correct me.
+        # I am purposly leaving stop_str because I don't know the ramifications
+        # of removing, and I don't have time.
+        if message.tool_calls and finish_reason:
+            finish_reason = "tool_calls"
+
         choice = ChatCompletionRespChoice(
             index=index,
-            finish_reason=generation.get("finish_reason"),
+            finish_reason=finish_reason,
             stop_str=generation.get("stop_str"),
             message=message,
             logprobs=logprob_response,
@@ -120,10 +132,9 @@ def _create_stream_chunk(
             total_tokens=prompt_tokens + completion_tokens,
         )
     elif "finish_reason" in generation:
-        choice = ChatCompletionStreamChoice(
-            index=index,
-            finish_reason=generation.get("finish_reason"),
-        )
+        # Get the finish reason from the generation
+        finish_reason = generation.get("finish_reason")
+        choice = ChatCompletionStreamChoice(index=index, finish_reason=finish_reason)
 
         # lets check if we have tool calls since we are at the end of the generation
         if "tool_calls" in generation:
@@ -132,6 +143,13 @@ def _create_stream_chunk(
                 tool_calls=postprocess_tool_call(tool_calls)
             )
             choice.delta = message
+
+            # In the case of tool call use, we mark the finish_reason for the choice as
+            # "tool_calls". I check for truthy finish_reason because for some reason I
+            # remember something about streaming chunks having no finish reason until
+            # the chunk is done or something like that. Feel free to correct me.
+            if finish_reason:
+                choice.finish_reason = "tool_calls"
 
         choices.append(choice)
 
@@ -176,6 +194,31 @@ def _create_stream_chunk(
 
     return chunk
 
+def tool_calls_to_tool_calls_json(message: ChatCompletionMessage) -> str:
+    """
+    message.tool_calls is of type List[ToolCall], so we cannot simply json.dumps it.
+    Im just going to do this quick and dirty, feel free to improve.
+    Args:
+        message (ChatCompletionMessage): The chat completion message to convert the tool
+            calls to json.
+    Returns:
+        str: JSON representation of the tool calls
+    """
+    if not message.tool_calls:
+        return ""
+
+    list_of_tool_call_dicts: List[Dict] = []
+
+    for tool_call_obj in message.tool_calls:
+        # ToolCall stores arguments as a json dumped string, so we need to json.loads it
+        # back to a dict
+        func_dict = json.loads(tool_call_obj.model_dump_json())
+        func_dict["function"]["arguments"] = json.loads(
+            func_dict.get("function", {}
+        ).get("arguments", "{}"))
+        list_of_tool_call_dicts.append(func_dict)
+
+    return json.dumps(list_of_tool_call_dicts, indent=2)
 
 async def _append_template_metadata(data: ChatCompletionRequest, template_vars: dict):
     """Adding metadata is a one-time process."""
@@ -224,7 +267,7 @@ async def format_messages_with_template(
             message.content = concatenated_content
 
         if message.tool_calls:
-            message.tool_calls_json = json.dumps(message.tool_calls, indent=2)
+            message.tool_calls_json = tool_calls_to_tool_calls_json(message)
 
     special_tokens_dict = model.container.get_special_tokens(
         add_bos_token, ban_eos_token
