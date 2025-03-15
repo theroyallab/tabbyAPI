@@ -6,17 +6,12 @@ including loading, unloading, and switching between models.
 """
 
 import asyncio
-import gc
-import pathlib
 import time
-import traceback
 from enum import Enum
-from typing import Dict, List, Optional, Any, Callable, Tuple
+from typing import Dict
 
 from loguru import logger
-from fastapi import HTTPException
 
-from common.networking import handle_request_error
 
 
 class ModelState(Enum):
@@ -170,7 +165,8 @@ class ModelStateManager:
         }
 
         logger.info(
-            f"Starting generation {request_id}, active generations: {self.active_generations}"
+            f"Starting generation {request_id}, active generations: "
+            f"{self.active_generations}"
         )
 
     async def decrement_active_generations(self, request_id: str):
@@ -187,14 +183,16 @@ class ModelStateManager:
             generation_info = self.active_generation_info[request_id]
             duration = time.time() - generation_info["start_time"]
             logger.info(
-                f"Finished generation {request_id} in {duration:.2f}s, active generations: {self.active_generations}"
+                f"Finished generation {request_id} in {duration:.2f}s, "
+                f"active generations: {self.active_generations}"
             )
 
             # Remove from tracking
             del self.active_generation_info[request_id]
         else:
             logger.info(
-                f"Finished generation {request_id}, active generations: {self.active_generations}"
+                f"Finished generation {request_id}, active generations: "
+                f"{self.active_generations}"
             )
 
         # If no more active generations, set the event

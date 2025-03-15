@@ -57,7 +57,8 @@ async def unload_model(skip_wait: bool = False, shutdown: bool = False):
         else "Unknown"
     )
     logger.info(
-        f"Attempting to unload model {model_name}, skip_wait={skip_wait}, shutdown={shutdown}"
+        f"Attempting to unload model {model_name}, skip_wait={skip_wait}, "
+        f"shutdown={shutdown}"
     )
 
     # Check for active generations before unloading
@@ -68,13 +69,15 @@ async def unload_model(skip_wait: bool = False, shutdown: bool = False):
         and container.active_generations > 0
     ):
         logger.warning(
-            f"Cannot unload model with {container.active_generations} active generations. "
+            f"Cannot unload model with {container.active_generations} "
+            "active generations. "
             "Wait for generations to complete or use skip_wait=True to force unload."
         )
         return
 
     logger.info(
-        f"Proceeding with unload of model {model_name}, active_generations={getattr(container, 'active_generations', 0)}"
+        f"Proceeding with unload of model {model_name}, "
+        f"active_generations={getattr(container, 'active_generations', 0)}"
     )
 
     try:
@@ -102,7 +105,9 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     if container and container.model:
         loaded_model_name = container.model_dir.name
         logger.info(
-            f"Current loaded model: {loaded_model_name}, model_loaded={container.model_loaded}, active_generations={getattr(container, 'active_generations', 0)}"
+            f"Current loaded model: {loaded_model_name}, model_loaded="
+            f"{container.model_loaded}, active_generations="
+            f"{getattr(container, 'active_generations', 0)}"
         )
 
         if loaded_model_name == model_path.name and container.model_loaded:
@@ -120,15 +125,18 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
             and container.state_manager.active_generations > 0
         ):
             logger.warning(
-                f"Cannot load a new model while {container.state_manager.active_generations} generations are active"
+                f"Cannot load a new model while "
+                f"{container.state_manager.active_generations} generations are active"
             )
             raise ValueError(
-                f"Cannot load a new model while {container.state_manager.active_generations} generations are active. "
+                f"Cannot load a new model while "
+                f"{container.state_manager.active_generations} generations are active. "
                 "Wait for generations to complete before loading a new model."
             )
 
         logger.info(
-            f"Unloading existing model {loaded_model_name} before loading {model_path.name}"
+            f"Unloading existing model {loaded_model_name} before "
+            f"loading {model_path.name}"
         )
         await unload_model()
 
@@ -160,7 +168,8 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
             await asyncio.wait_for(progress_lock.acquire(), timeout=1.0)
         except asyncio.TimeoutError:
             logger.warning(
-                "Timeout acquiring progress lock during progress bar initialization; skipping progress visualization."
+                "Timeout acquiring progress lock during progress bar initialization; "
+                "skipping progress visualization."
             )
             async for module, modules in load_status:
                 yield module, modules, model_type[0].value
@@ -185,7 +194,8 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 await asyncio.wait_for(progress_lock.acquire(), timeout=1.0)
             except asyncio.TimeoutError:
                 logger.warning(
-                    "Timeout acquiring progress lock during progress update; skipping progress update."
+                    "Timeout acquiring progress lock during progress update; "
+                    "skipping progress update."
                 )
             else:
                 try:
@@ -209,7 +219,8 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                         await asyncio.wait_for(progress_lock.acquire(), timeout=1.0)
                     except asyncio.TimeoutError:
                         logger.warning(
-                            "Timeout acquiring progress lock while stopping progress bar; proceeding without stopping."
+                            "Timeout acquiring progress lock while stopping "
+                            "progress bar; proceeding without stopping."
                         )
                     else:
                         try:
@@ -228,7 +239,8 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 await asyncio.wait_for(progress_lock.acquire(), timeout=1.0)
             except asyncio.TimeoutError:
                 logger.warning(
-                    "Timeout acquiring progress lock during final progress bar stop; proceeding without stopping."
+                    "Timeout acquiring progress lock during final progress bar "
+                    "stop; proceeding without stopping."
                 )
             else:
                 try:

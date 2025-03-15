@@ -5,7 +5,6 @@ import asyncio
 import gc
 import math
 import pathlib
-import time
 import traceback
 from backends.exllamav2.vision import clear_image_embedding_cache
 from common.multimodal import MultimodalEmbeddingWrapper
@@ -930,12 +929,14 @@ class ExllamaV2Container:
                     and not loras_only
                 ):
                     logger.warning(
-                        f"There are {self.state_manager.active_generations} active generations. "
+                        f"There are {self.state_manager.active_generations} "
+                        "active generations. "
                         "Waiting for them to complete before unloading model."
                     )
                     # Wait for active generations to complete using event-based approach
                     logger.info(
-                        f"Waiting for {self.state_manager.active_generations} active generations to complete before unloading model"
+                        f"Waiting for {self.state_manager.active_generations} active "
+                        "generations to complete before unloading model"
                     )
                     try:
                         # Wait for the no_active_generations_event with a timeout
@@ -948,13 +949,16 @@ class ExllamaV2Container:
                         )
                     except asyncio.TimeoutError:
                         logger.warning(
-                            "Timed out waiting for active generations to complete after 5 minutes. Proceeding with unload anyway."
+                            "Timed out waiting for active generations "
+                            "to complete after "
+                            "5 minutes. Proceeding with unload anyway."
                         )
 
                 # Only force-terminate jobs if we're shutting down or explicitly told to
                 if skip_wait:
                     logger.warning(
-                        "Immediately terminating all jobs. Clients will have their requests cancelled.\n"
+                        "Immediately terminating all jobs. Clients will have their "
+                        "requests cancelled.\n"
                     )
                     # Requires a copy to avoid errors during iteration
                     if self.generator:
@@ -1039,7 +1043,8 @@ class ExllamaV2Container:
                 async with self.load_condition:
                     self.load_condition.notify_all()
 
-                # Signal to the state manager that the model is ready for switching again
+                # Signal to the state manager that the model is
+                # ready for switching again
                 if self.state_manager and not loras_only:
                     # Set the load complete event to avoid deadlocks
                     self.state_manager.load_complete_event.set()
@@ -1197,10 +1202,12 @@ class ExllamaV2Container:
         requested_model = kwargs.get("model", "")
         current_model = self.model_dir.name if self.model_dir else "None"
         logger.info(
-            f"Generation request {request_id} - Requested model: {requested_model}, Current model: {current_model}"
+            f"Generation request {request_id} - Requested model: "
+            f"{requested_model}, Current model: {current_model}"
         )
 
-        # Check if the model is being unloaded or is unavailable before waiting on the lock
+        # Check if the model is being unloaded or is
+        # unavailable before waiting on the lock
         if self.model_is_unloading or self.model is None or self.tokenizer is None:
             logger.warning(
                 "Model is being unloaded or already unloaded. Aborting generation."
@@ -1220,7 +1227,8 @@ class ExllamaV2Container:
                 )
                 await self.state_manager.decrement_active_generations(request_id)
                 logger.info(
-                    f"Aborting generation {request_id}, active generations: {self.state_manager.active_generations}"
+                    f"Aborting generation {request_id}, active generations: "
+                    f"{self.state_manager.active_generations}"
                 )
             yield {"error": "Model unavailable", "finish_reason": "model_unloaded"}
             return
@@ -1250,7 +1258,8 @@ class ExllamaV2Container:
                 )
                 await self.state_manager.decrement_active_generations(request_id)
             yield {
-                "error": "Model is currently being loaded or unloaded. Please try again in a moment.",
+                "error": "Model is currently being loaded or unloaded. "
+                "Please try again in a moment.",
                 "finish_reason": "timeout",
             }
             return
@@ -1258,7 +1267,8 @@ class ExllamaV2Container:
         # Check again after waiting for the lock in case the model state changed
         if self.model_is_unloading or self.model is None or self.tokenizer is None:
             logger.warning(
-                f"Model became unavailable while waiting for lock. Aborting generation {request_id}"
+                f"Model became unavailable while waiting for lock. "
+                f"Aborting generation {request_id}"
             )
             if self.state_manager:
                 await self.state_manager.increment_active_generations(
@@ -1289,7 +1299,10 @@ class ExllamaV2Container:
         )
 
         logger.info(
-            f"Starting generation {request_id}, active generations: {self.state_manager.active_generations}, requested model: {kwargs.get('model', 'None')}, current model: {self.model_dir.name if self.model_dir else 'None'}"
+            f"Starting generation {request_id}, active generations: "
+            f"{self.state_manager.active_generations}, requested model: "
+            f"{kwargs.get('model', 'None')}, current model: "
+            f"{self.model_dir.name if self.model_dir else 'None'}"
         )
 
         prompts = [prompt]
@@ -1746,7 +1759,8 @@ class ExllamaV2Container:
             # Decrement active generations counter using state manager
             await self.state_manager.decrement_active_generations(request_id)
             logger.info(
-                f"Finished generation {request_id}, active generations: {self.state_manager.active_generations}"
+                f"Finished generation {request_id}, active generations: "
+                f"{self.state_manager.active_generations}"
             )
 
             # Log generation options to console

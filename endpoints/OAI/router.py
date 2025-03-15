@@ -68,7 +68,8 @@ async def completion_request(
     # Check if model container exists and is fully loaded
     if model.container is None or not model.container.model_loaded:
         error_message = handle_request_error(
-            "Model is currently being loaded or unloaded. Please try again in a moment.",
+            "Model is currently being loaded or unloaded. Please try "
+            "again in a moment.",
             exc_info=False,
         ).error.message
         raise HTTPException(503, error_message)
@@ -132,7 +133,8 @@ async def chat_completion_request(
     # Check if model container exists and is fully loaded
     if model.container is None or not model.container.model_loaded:
         error_message = handle_request_error(
-            "Model is currently being loaded or unloaded. Please try again in a moment.",
+            "Model is currently being loaded or unloaded. Please try "
+            "again in a moment.",
             exc_info=False,
         ).error.message
         raise HTTPException(503, error_message)

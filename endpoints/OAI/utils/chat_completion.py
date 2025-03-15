@@ -15,7 +15,6 @@ from common import model
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.model_utils import (
     check_model_before_operation,
-    handle_model_unloading_error,
     track_generation_start,
     track_generation_end,
 )
@@ -385,7 +384,8 @@ async def stream_generate_chat_completion(
                     )
                     break
 
-                # Use a timeout when getting from the queue to periodically check model state
+                # Use a timeout when getting from the queue to periodically
+                # check model state
                 try:
                     generation = await asyncio.wait_for(gen_queue.get(), timeout=1.0)
                 except asyncio.TimeoutError:
@@ -462,7 +462,8 @@ async def stream_generate_chat_completion(
                         yield usage_chunk.model_dump_json()
 
                     logger.info(
-                        f"Finished chat completion streaming request {request.state.id}"
+                        f"Finished chat completion streaming request "
+                        f"{request.state.id}"
                     )
 
                     yield "[DONE]"
@@ -609,7 +610,8 @@ async def generate_tool_calls(
         )
         if error_dict:
             logger.warning(
-                f"Model was unloaded, cannot generate tool calls for request {request.state.id}"
+                f"Model was unloaded, cannot generate tool calls for "
+                f"request {request.state.id}"
             )
             # Return the original generations without tool calls
             return generations
@@ -625,7 +627,8 @@ async def generate_tool_calls(
             if stop_str in tool_data.tool_call_start:
                 try:
                     if "text" in gen:
-                        # non streaming, all generations will have the text they generated
+                        # non streaming, all generations will have the text
+                        # they generated
                         pre_tool_prompt, mm_embeddings = await apply_chat_template(
                             data, gen["text"]
                         )
@@ -645,7 +648,8 @@ async def generate_tool_calls(
                     )
                     if error_dict:
                         logger.warning(
-                            f"Model was unloaded, cannot generate tool calls for request {request.state.id}"
+                            f"Model was unloaded, cannot generate tool calls for "
+                            f"request {request.state.id}"
                         )
                         continue
 
@@ -673,7 +677,8 @@ async def generate_tool_calls(
                 )
                 if error_dict:
                     logger.warning(
-                        f"Model was unloaded during tool call generation for request {request.state.id}"
+                        f"Model was unloaded during tool call generation for "
+                        f"request {request.state.id}"
                     )
                     # Cancel any pending tasks
                     for task in gen_tasks:
@@ -703,7 +708,8 @@ async def generate_tool_calls(
                             in tool_calls[outer_idx]["error"].lower()
                         ):
                             logger.warning(
-                                f"Model was unloaded during tool call generation: {tool_calls[outer_idx]['error']}"
+                                f"Model was unloaded during tool call generation: "
+                                f"{tool_calls[outer_idx]['error']}"
                             )
                         else:
                             logger.error(

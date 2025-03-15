@@ -6,7 +6,7 @@ reducing redundancy in the codebase.
 """
 
 import asyncio
-from typing import Optional, Dict, Any, Union
+from typing import Dict, Any, Union
 
 from fastapi import HTTPException, Request
 from loguru import logger
@@ -79,7 +79,8 @@ async def handle_model_unloading_error(
     Returns:
         A dictionary with error information
     """
-    logger.warning(f"Model was unloaded during {operation} for request {request_id}")
+    logger.warning(f"Model was unloaded during {operation} for request "
+                  f"{request_id}")
     return {
         "error": f"Model was unloaded during {operation}",
         "finish_reason": "model_unloaded",
@@ -97,11 +98,14 @@ async def check_model_before_operation(
         operation: The operation to perform (e.g., "generation", "completion")
 
     Returns:
-        None if the model is available, otherwise a dictionary with error information
+        None if the model is available, otherwise a dictionary
+        with error information
     """
-    if model.container is None or getattr(model.container, "model_is_unloading", False):
+    if model.container is None or getattr(model.container,
+                                          "model_is_unloading", False):
         logger.warning(
-            f"Model is being unloaded, cannot start {operation} for request {request_id}"
+            f"Model is being unloaded, cannot start {operation} for request "
+            f"{request_id}"
         )
         return {"error": "Model unavailable", "finish_reason": "model_unloaded"}
     return None
@@ -138,7 +142,8 @@ async def track_generation_start(request_id: str, **kwargs):
                     }
 
                 logger.info(
-                    f"Starting generation {request_id}, active generations: {model.container.active_generations}"
+                    f"Starting generation {request_id}, active generations: "
+                    f"{model.container.active_generations}"
                 )
 
 
@@ -167,14 +172,16 @@ async def track_generation_end(request_id: str):
                         "start_time", 0
                     )
                     logger.info(
-                        f"Finished generation {request_id} in {duration:.2f}s, active generations: {model.container.active_generations}"
+                        f"Finished generation {request_id} in {duration:.2f}s, "
+                        f"active generations: {model.container.active_generations}"
                     )
 
                     # Remove from tracking
                     del model.container.active_generation_info[request_id]
                 else:
                     logger.info(
-                        f"Finished generation {request_id}, active generations: {model.container.active_generations}"
+                        f"Finished generation {request_id}, active generations: "
+                        f"{model.container.active_generations}"
                     )
 
                 # If no more active generations, set the event

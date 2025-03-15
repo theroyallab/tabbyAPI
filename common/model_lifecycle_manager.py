@@ -8,22 +8,16 @@ unloading, and switching operations.
 import asyncio
 import gc
 import pathlib
-import time
+import sys
 import traceback
-from typing import Dict, List, Optional, Any, Callable, Tuple, Union
 
 from fastapi import HTTPException, Request
 from loguru import logger
 
 from common import model
 from common.model_lifecycle import (
-    ModelState,
     ModelStateManager,
-    ModelSwitchError,
     ModelLoadTimeoutError,
-    ModelUnloadError,
-    is_model_available,
-    wait_for_event,
 )
 from common.networking import handle_request_error
 from common.tabby_config import config
@@ -79,7 +73,8 @@ class ModelLifecycleManager:
             model_name: The name of the model to check
 
         Returns:
-            True if the model is the current model, fully loaded, and not in a transitional state
+            True if the model is the current model, fully loaded,
+            and not in a transitional state
         """
         return (
             self.state_manager.current_model_name == model_name
@@ -120,7 +115,7 @@ class ModelLifecycleManager:
         """Start the background task to process model switch requests."""
         # Log the current state of the model switch processor
         self.log_model_switch(
-            f"Starting processor, ready_for_switch={self.state_manager.ready_for_switch_event.is_set()}, "
+            f"Starting processor, ready_for_switch={self.state_manager.ready_for_switch_event.is_set()}, "  # noqa: E501
             f"ready_timeout={self.ready_timeout}"
         )
 
@@ -135,22 +130,25 @@ class ModelLifecycleManager:
         self.log_model_switch("Queue processor started")
 
         while True:
-            item = None  # Will hold the tuple (model_name, request, future) once successfully fetched.
+            item = None  # Will hold the tuple (model_name, request, future)
+                         # once successfully fetched.
             try:
                 self.log_model_switch("Waiting for next model switch request")
                 item = (
                     await self.switch_queue.get()
                 )  # May raise CancelledError or other exceptions.
-                model_name, request, future = item
+                model_name, _, future = item
                 self.log_model_switch(
-                    f"Processing request for {model_name}, current model: {self.state_manager.current_model_name}, "
+                    f"Processing request for {model_name}, current model: "
+                    f"{self.state_manager.current_model_name}, "
                     f"currently loading: {self.state_manager.currently_loading_model}"
                 )
                 try:
                     # If the model is already loaded and stable, skip switching.
                     if self._is_model_fully_loaded_and_stable(model_name):
                         self.log_model_switch(
-                            f"Skipping switch since {model_name} is already the current model and fully loaded"
+                            f"Skipping switch since {model_name} is already "
+                            f"the current model and fully loaded"
                         )
                         if not future.done():
                             future.set_result(True)
@@ -159,7 +157,8 @@ class ModelLifecycleManager:
                     # If another model is loading, wait for that load event to complete.
                     if self.state_manager.currently_loading_model is not None:
                         self.log_model_switch(
-                            f"Waiting for currently loading model {self.state_manager.currently_loading_model} "
+                            f"Waiting for currently loading model "
+                            f"{self.state_manager.currently_loading_model} "
                             f"to complete before switching to {model_name}"
                         )
                         try:
@@ -168,7 +167,8 @@ class ModelLifecycleManager:
                                 timeout=300,
                             )
                         except asyncio.TimeoutError:
-                            error_msg = f"Timed out waiting for model {self.state_manager.currently_loading_model} to load"
+                            error_msg = "Timed out waiting for model "
+                            f"{self.state_manager.currently_loading_model} to load"
                             self.log_model_switch(error_msg, "ERROR")
                             if not future.done():
                                 future.set_exception(ModelLoadTimeoutError(error_msg))
@@ -177,7 +177,8 @@ class ModelLifecycleManager:
                     # Wait for the current model to be ready for switching.
                     if not self.state_manager.ready_for_switch_event.is_set():
                         self.log_model_switch(
-                            f"Waiting for current model to be ready for switching before switching to {model_name}"
+                            f"Waiting for current model to be ready for switching "
+                            f"before switching to {model_name}"
                         )
                         try:
                             await asyncio.wait_for(
@@ -186,7 +187,8 @@ class ModelLifecycleManager:
                             )
                         except asyncio.TimeoutError:
                             self.log_model_switch(
-                                f"Timed out waiting for model to be ready for switching, proceeding with switch to {model_name}",
+                                f"Timed out waiting for model to be ready for "
+                                f"switching, proceeding with switch to {model_name}",
                                 "WARNING",
                             )
 
@@ -238,7 +240,8 @@ class ModelLifecycleManager:
 
     async def _wait_for_no_active_generations(self, model_name: str):
         """
-        Wait for all active generations to complete using event-based approach when possible.
+        Wait for all active generations to complete using event-based
+        approach when possible.
 
         Args:
             model_name: The name of the model to switch to
@@ -251,19 +254,22 @@ class ModelLifecycleManager:
                 or model.container.state_manager is None
             ):
                 self.log_model_switch(
-                    f"Container does not have a state manager, cannot check active generations",
+                    "Container does not have a state manager, cannot "
+                    "check active generations",
                     "WARNING",
                 )
                 return
 
+            model_name = model.container.model_dir.name if model.container.model_dir else 'None'  # noqa: E501
+            active_gens = model.container.state_manager.active_generations
             self.log_model_switch(
-                f"Before active generations check: model={model.container.model_dir.name if model.container.model_dir else 'None'}, "
-                f"active_generations={model.container.state_manager.active_generations}"
+                f"Before active generations check: model={model_name}, "
+                f"active_generations={active_gens}"
             )
 
             # Always use the state manager's event for waiting
             self.log_model_switch(
-                f"Using state manager for waiting for active generations"
+                "Using state manager for waiting for active generations"
             )
             try:
                 await asyncio.wait_for(
@@ -271,11 +277,12 @@ class ModelLifecycleManager:
                     timeout=300,
                 )
                 self.log_model_switch(
-                    f"No active generations event triggered, safe to proceed with model switch"
+                    "No active generations event triggered, safe to "
+                    "proceed with model switch"
                 )
             except asyncio.TimeoutError:
                 self.log_model_switch(
-                    f"Timed out waiting for active generations to complete", "ERROR"
+                    "Timed out waiting for active generations to complete", "ERROR"
                 )
 
     async def _perform_model_switch(self, model_name: str):
@@ -303,10 +310,12 @@ class ModelLifecycleManager:
                 f"Setting model_is_unloading flag, active_generations={active_gens}"
             )
 
-            # Reset current_model_name when unloading to prevent incorrect model state reporting
+            # Reset current_model_name when unloading to prevent
+            # incorrect model state reporting
             if self.state_manager.current_model_name == model.container.model_dir.name:
                 self.log_model_switch(
-                    f"Resetting current_model_name during unload of {self.state_manager.current_model_name}"
+                    f"Resetting current_model_name during unload of "
+                    f"{self.state_manager.current_model_name}"
                 )
                 self.state_manager.current_model_name = None
 
@@ -356,7 +365,8 @@ class ModelLifecycleManager:
         self, model_name: str, request: Request
     ) -> asyncio.Future:
         """
-        Queue a model switch and return a future that will be completed when the switch is done.
+        Queue a model switch and return a future that will be
+        completed when the switch is done.
 
         Args:
             model_name: The name of the model to switch to
@@ -395,7 +405,8 @@ class ModelLifecycleManager:
             f"currently_loading: {self.state_manager.currently_loading_model}"
         )
         self.log_model_switch(
-            f"Model ready state: load_complete_event={self.state_manager.load_complete_event.is_set()}, "
+            f"Model ready state: load_complete_event="
+            f"{self.state_manager.load_complete_event.is_set()}, "
             f"ready_for_switch={self.state_manager.ready_for_switch_event.is_set()}"
         )
 
@@ -428,7 +439,8 @@ class ModelLifecycleManager:
         # Check if we're currently loading this exact model
         if self.state_manager.currently_loading_model == model_name:
             self.log_model_switch(
-                f"Model {model_name} is currently being loaded, waiting for it to complete"
+                f"Model {model_name} is currently being loaded, "
+                "waiting for it to complete"
             )
             try:
                 # Wait for the current model load to complete
@@ -436,21 +448,23 @@ class ModelLifecycleManager:
                     self.state_manager.load_complete_event.wait(), timeout=300
                 )  # 5 minute timeout
 
-                # After loading completes, check if the loaded model matches what we requested
+                # After loading completes, check if the loaded model
+                # matches what we requested
                 if (
                     model.container
                     and model.container.model_dir.name == model_name
                     and model.container.model_loaded
                 ):
                     self.log_model_switch(
-                        f"Model {model_name} has finished loading, proceeding with request"
+                        f"Model {model_name} has finished loading, "
+                        "proceeding with request"
                     )
                     self.state_manager.current_model_name = model_name
                     return
                 else:
                     self.log_model_switch(
                         f"Expected model {model_name} to be loaded, but found "
-                        f"{model.container.model_dir.name if model.container else 'None'}",
+                        f"{model.container.model_dir.name if model.container else 'None'}",  # noqa: E501
                         "WARNING",
                     )
             except asyncio.TimeoutError:
@@ -458,10 +472,11 @@ class ModelLifecycleManager:
                     f"Timed out waiting for model {model_name} to load", "ERROR"
                 )
                 error_message = handle_request_error(
-                    f"Timed out waiting for model {model_name} to load. Please try again later.",
+                    f"Timed out waiting for model {model_name} to load. "
+                    f"Please try again later.",
                     exc_info=False,
                 ).error.message
-                raise HTTPException(503, error_message)
+                raise HTTPException(503, error_message) from None
 
         # Check if there are active generations or if another model is currently loading
         active_gens = 0
@@ -476,7 +491,8 @@ class ModelLifecycleManager:
             self.state_manager.currently_loading_model is not None
             and self.state_manager.currently_loading_model != model_name
         ):
-            # If there are active generations or another model is loading, queue the model switch
+            # If there are active generations or another model is loading,
+            # queue the model switch
             self.log_model_switch(
                 f"Queuing switch to {model_name} (active generations: "
                 f"{active_gens}, "
@@ -488,7 +504,8 @@ class ModelLifecycleManager:
 
             # Wait for the model switch to complete before proceeding
             self.log_model_switch(
-                f"Waiting for model switch to {model_name} to complete before processing request"
+                f"Waiting for model switch to {model_name} to complete "
+                f"before processing request"
             )
             try:
                 # Set a reasonable timeout to avoid hanging indefinitely
@@ -502,10 +519,11 @@ class ModelLifecycleManager:
                     f"Timed out waiting for model switch to {model_name}", "ERROR"
                 )
                 error_message = handle_request_error(
-                    f"Timed out waiting for model switch to {model_name}. Please try again later.",
+                    f"Timed out waiting for model switch to "
+                    f"{model_name}. Please try again later.",
                     exc_info=False,
                 ).error.message
-                raise HTTPException(503, error_message)
+                raise HTTPException(503, error_message) from None
 
         # If there are no active generations, we can switch immediately
         # Use a lock to prevent concurrent model loading
@@ -514,7 +532,8 @@ class ModelLifecycleManager:
                 # Mark this model as currently loading and clear the completion event
                 self.state_manager.currently_loading_model = model_name
                 self.state_manager.load_complete_event.clear()
-                self.state_manager.ready_for_switch_event.clear()  # Mark that the model is not ready for switching
+                # Mark that the model is not ready for switching
+                self.state_manager.ready_for_switch_event.clear()
 
                 self.log_model_switch(f"Starting to load model {model_name}")
 
@@ -528,21 +547,25 @@ class ModelLifecycleManager:
                         "Waiting for existing model operations to complete..."
                     )
 
-                # Flag the container as unloading first so streaming operations can detect it
+                # Flag the container as unloading first so
+                # streaming operations can detect it
                 if model.container and hasattr(model.container, "model_is_unloading"):
                     model.container.model_is_unloading = True
                     self.log_model_switch(
                         f"Setting model_is_unloading flag, "
-                        f"active_generations={model.container.state_manager.active_generations}"
+                        f"active_generations="
+                        f"{model.container.state_manager.active_generations}"
                     )
 
-                    # Reset current_model_name when unloading to prevent incorrect model state reporting
+                    # Reset current_model_name when unloading to prevent
+                    # incorrect model state reporting
                     if (
                         self.state_manager.current_model_name
                         == model.container.model_dir.name
                     ):
                         self.log_model_switch(
-                            f"Resetting current_model_name during unload of {self.state_manager.current_model_name}"
+                            f"Resetting current_model_name during unload of "
+                            f"{self.state_manager.current_model_name}"
                         )
                         self.state_manager.current_model_name = None
 
@@ -584,15 +607,18 @@ class ModelLifecycleManager:
                     loaded_model_name = model_name
 
                     # Schedule setting the model ready for switch event after a delay
-                    # This gives the model time to serve at least one request before being unloaded
-                    # Use a separate variable to avoid race conditions with model_name changing
+                    # This gives the model time to serve at least one
+                    # request before being unloaded
+                    # Use a separate variable to avoid race conditions with
+                    # model_name changing
                     asyncio.create_task(
                         self._set_model_ready_after_delay(loaded_model_name)
                     )
                 except RuntimeError as e:
                     if "Insufficient VRAM" in str(e):
                         error_message = handle_request_error(
-                            f"Unable to load model {model_name} due to insufficient VRAM. "
+                            f"Unable to load model {model_name} "
+                            "due to insufficient VRAM. "
                             "Try unloading other models first or use a smaller model.",
                             exc_info=False,
                         ).error.message
@@ -607,25 +633,31 @@ class ModelLifecycleManager:
                 # This handles the case where an exception occurred during loading
                 if self.state_manager.currently_loading_model == model_name:
                     self.state_manager.currently_loading_model = None
-
-                    # Only log and set these events if we had an exception
-                    # (successful loads already set the load_complete_event)
-                    if "e" in locals() and isinstance(e, Exception):
-                        # Make sure the events are set so other requests don't wait forever
-                        if not self.state_manager.load_complete_event.is_set():
-                            self.log_model_switch(
-                                f"Model load failed or was interrupted, resetting load complete event"
-                            )
-                            self.state_manager.load_complete_event.set()
-                        if not self.state_manager.ready_for_switch_event.is_set():
-                            self.log_model_switch(
-                                f"Model load failed or was interrupted, resetting model ready for switch event"
-                            )
-                            self.state_manager.ready_for_switch_event.set()
+                
+                # Track whether an exception occurred
+                exception_occurred = sys.exc_info()[1] is not None
+                
+                # Only log and set these events if we had an exception
+                # (successful loads already set the load_complete_event)
+                if exception_occurred:
+                    # Make sure the events are set so other requests don't wait forever
+                    if not self.state_manager.load_complete_event.is_set():
+                        self.log_model_switch(
+                            "Model load failed or was interrupted, resetting "
+                            "load complete event"
+                        )
+                        self.state_manager.load_complete_event.set()
+                    if not self.state_manager.ready_for_switch_event.is_set():
+                        self.log_model_switch(
+                            "Model load failed or was interrupted, resetting "
+                            "model ready for switch event"
+                        )
+                        self.state_manager.ready_for_switch_event.set()
 
     async def _set_model_ready_after_delay(self, model_name: str):
         """
-        Set the model ready for switch event after a delay and when there are no active generations.
+        Set the model ready for switch event after a delay and
+        when there are no active generations.
 
         Args:
             model_name: The name of the model that was loaded
@@ -638,14 +670,16 @@ class ModelLifecycleManager:
         # Check if the model is still the expected one and in a stable state
         if not self._is_expected_model_loaded(model_name):
             self.log_model_switch(
-                f"Not setting model ready because model {model_name} is no longer loaded"
+                f"Not setting model ready because model {model_name} "
+                "is no longer loaded"
             )
             return
 
         # Check if model is in a transitional state
         if self._is_model_in_transition():
             self.log_model_switch(
-                f"Not setting model ready because model is loading={model.container.model_is_loading} or "
+                f"Not setting model ready because model is "
+                f"loading={model.container.model_is_loading} or "
                 f"unloading={getattr(model.container, 'model_is_unloading', False)}"
             )
             return
@@ -656,7 +690,8 @@ class ModelLifecycleManager:
             or model.container.state_manager is None
         ):
             self.log_model_switch(
-                f"Container does not have a state manager, assuming no active generations",
+                "Container does not have a state manager, assuming "
+                "no active generations",
                 "WARNING",
             )
             self.state_manager.ready_for_switch_event.set()
@@ -665,12 +700,14 @@ class ModelLifecycleManager:
         # Check if there are active generations before setting ready
         if model.container.state_manager.active_generations > 0:
             self.log_model_switch(
-                f"Not setting model ready yet because there are {model.container.state_manager.active_generations} active generations"
+                f"Not setting model ready yet because there are "
+                f"{model.container.state_manager.active_generations} "
+                f"active generations"
             )
 
             # Wait for the state manager's no_active_generations_event
             self.log_model_switch(
-                f"Waiting for no_active_generations_event before setting model ready"
+                "Waiting for no_active_generations_event before setting model ready"
             )
             try:
                 # Wait for the event with a timeout to avoid hanging indefinitely
@@ -686,7 +723,7 @@ class ModelLifecycleManager:
                     or model.container.model_dir.name != model_name
                 ):
                     self.log_model_switch(
-                        f"Model changed during wait for active generations to complete"
+                        "Model changed during wait for active generations to complete"
                     )
                     return
 
@@ -695,19 +732,21 @@ class ModelLifecycleManager:
                     model.container, "model_is_unloading", False
                 ):
                     self.log_model_switch(
-                        f"Model is now loading or unloading after waiting for active generations"
+                        "Model is now loading or unloading after waiting "
+                        "for active generations"
                     )
                     return
 
                 # Now safe to set the ready event
                 self.log_model_switch(
-                    f"No active generations event triggered, model {model_name} is now ready for switching"
+                    f"No active generations event triggered, model {model_name} "
+                    f"is now ready for switching"
                 )
                 self.state_manager.ready_for_switch_event.set()
                 return
             except asyncio.TimeoutError:
                 self.log_model_switch(
-                    f"Timed out waiting for active generations to complete", "WARNING"
+                    "Timed out waiting for active generations to complete", "WARNING"
                 )
                 # Set the ready event anyway after timeout to avoid deadlock
                 self.state_manager.ready_for_switch_event.set()
@@ -718,7 +757,8 @@ class ModelLifecycleManager:
 
     async def _check_model_ready_once(self, model_name: str):
         """
-        Check once if the model is ready for switching without creating additional tasks.
+        Check once if the model is ready for switching
+        without creating additional tasks.
 
         Args:
             model_name: The name of the model to check
@@ -737,7 +777,8 @@ class ModelLifecycleManager:
             or model.container.state_manager is None
         ):
             self.log_model_switch(
-                f"Container does not have a state manager, assuming no active generations",
+                "Container does not have a state manager, assuming no "
+                "active generations",
                 "WARNING",
             )
             self.state_manager.ready_for_switch_event.set()
@@ -767,7 +808,8 @@ class ModelLifecycleManager:
         # Check if model is in a transitional state
         if self._is_model_in_transition():
             self.log_model_switch(
-                f"Model ready check: model is loading={model.container.model_is_loading} or "
+                f"Model ready check: model is "
+                f"loading={model.container.model_is_loading} or "
                 f"unloading={getattr(model.container, 'model_is_unloading', False)}"
             )
             return False
@@ -778,14 +820,16 @@ class ModelLifecycleManager:
             or model.container.state_manager is None
         ):
             self.log_model_switch(
-                f"Container does not have a state manager, assuming no active generations",
+                "Container does not have a state manager, assuming no "
+                "active generations",
                 "WARNING",
             )
             return True
 
         # Check active generations
         self.log_model_switch(
-            f"Model ready check: active_generations={model.container.state_manager.active_generations}"
+            f"Model ready check: "
+            f"active_generations={model.container.state_manager.active_generations}"
         )
         return model.container.state_manager.active_generations == 0
 

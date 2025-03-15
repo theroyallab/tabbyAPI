@@ -9,12 +9,12 @@ import asyncio
 import pathlib
 from asyncio import CancelledError
 from fastapi import HTTPException, Request
-from typing import List, Optional, Union, Dict, Any
+from typing import List, Union
 
 from loguru import logger
 
 from common import model
-from common.model_lifecycle_manager import load_model, check_model_ready_state
+from common.model_lifecycle_manager import load_model
 from common.model_utils import (
     validate_model_load_permissions,
     check_model_before_operation,
@@ -40,7 +40,6 @@ from endpoints.OAI.types.common import UsageStats
 
 
 # Re-export the start_model_switch_processor function for backwards compatibility
-from common.model_lifecycle_manager import start_model_switch_processor
 
 
 def _create_response(
@@ -203,7 +202,8 @@ async def stream_generate_completion(
                 )
 
             try:
-                # Use a timeout when getting from the queue to periodically check model state
+                # Use a timeout when getting from the queue to periodically
+                # check model state
                 try:
                     generation = await asyncio.wait_for(gen_queue.get(), timeout=1.0)
                 except asyncio.TimeoutError:
@@ -213,7 +213,8 @@ async def stream_generate_completion(
                     )
                     if error_dict:
                         logger.warning(
-                            f"Model was unloaded while waiting for generation results for {request.state.id}"
+                            f"Model was unloaded while waiting for generation "
+                            f"results for {request.state.id}"
                         )
                         yield get_generator_error(
                             f"Completion aborted: {error_dict['error']}"
@@ -320,12 +321,14 @@ async def generate_completion(
             model.container, "model_is_unloading", False
         ):
             error_message = handle_request_error(
-                f"Completion {request.state.id} aborted because the model was unloaded during generation.",
+                f"Completion {request.state.id} aborted because the model was "
+                f"unloaded during generation.",
                 exc_info=False,
             ).error.message
         else:
             error_message = handle_request_error(
-                f"Completion {request.state.id} aborted. Please check the server console.",
+                f"Completion {request.state.id} aborted. "
+                f"Please check the server console.",
                 exc_info=True,
             ).error.message
 
