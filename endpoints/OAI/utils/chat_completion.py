@@ -4,13 +4,21 @@ import asyncio
 import json
 import pathlib
 from asyncio import CancelledError
+import traceback
 from typing import List, Optional
+from common.health import HealthManager
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
 from loguru import logger
 
 from common import model
 from common.multimodal import MultimodalEmbeddingWrapper
+from common.model_utils import (
+    check_model_before_operation,
+    handle_model_unloading_error,
+    track_generation_start,
+    track_generation_end
+)
 from common.networking import (
     get_generator_error,
     handle_request_disconnect,
@@ -234,6 +242,11 @@ async def format_messages_with_template(
         if message.tool_calls:
             message.tool_calls_json = ToolCallProcessor.to_json(message.tool_calls)
 
+    # Ensure model container and tokenizer exist
+    if model.container is None or model.container.model_is_unloading:
+        # If model is being unloaded, raise a clear error
+        raise ValueError("Model is currently being unloaded. Please try again in a moment.")
+        
     special_tokens_dict = model.container.get_special_tokens(
         add_bos_token, ban_eos_token
     )
@@ -262,9 +275,19 @@ async def apply_chat_template(
             }
         )
 
-        prompt, mm_embeddings, template_vars = await format_messages_with_template(
-            data.messages, data.template_vars, data.add_bos_token, data.ban_eos_token
-        )
+        try:
+            prompt, mm_embeddings, template_vars = await format_messages_with_template(
+                data.messages, data.template_vars, data.add_bos_token, data.ban_eos_token
+            )
+        except ValueError as e:
+            # Handle the case where model is being unloaded
+            if "Model is currently being unloaded" in str(e):
+                error_message = handle_request_error(
+                    str(e),
+                    exc_info=False,
+                ).error.message
+                raise HTTPException(503, error_message) from e
+            raise  # Re-raise other ValueError exceptions
 
         # Append response prefix if present
         if data.response_prefix:
@@ -345,59 +368,125 @@ async def stream_generate_chat_completion(
                     f"Chat completion generation {request.state.id} cancelled by user."
                 )
 
-            generation = await gen_queue.get()
-            # lets only append the text if we need it for tool calls later
-            if data.tool_call_start and "text" in generation:
-                current_generation_text += generation["text"]
-
-            # check if we are running a tool model, and that we are at stop
-            if data.tool_call_start and "stop_str" in generation:
-                generations = await generate_tool_calls(
-                    data,
-                    [generation],
-                    request,
-                    current_generations=current_generation_text,
-                )
-                generation = generations[0]  # We only have one generation in this case
-
-            # Stream collector will push an exception to the queue if it fails
-            if isinstance(generation, Exception):
-                raise generation
-
-            response = _create_stream_chunk(
-                request.state.id, generation, model_path.name
-            )
-            yield response.model_dump_json()
-
-            # Check if all tasks are completed
-            if all(task.done() for task in gen_tasks) and gen_queue.empty():
-                # Send a usage chunk
-                if data.stream_options and data.stream_options.include_usage:
-                    usage_chunk = _create_stream_chunk(
-                        request.state.id,
-                        generation,
-                        model_path.name,
-                        is_usage_chunk=True,
+            try:
+                # Check if model container is still valid before getting from queue
+                error_dict = await check_model_before_operation(request.state.id, "chat completion")
+                if error_dict:
+                    logger.warning("Model was unloaded during generation. Aborting.")
+                    yield get_generator_error(
+                        f"Chat completion aborted: {error_dict['error']}"
                     )
-                    yield usage_chunk.model_dump_json()
+                    break
+                
+                # Use a timeout when getting from the queue to periodically check model state
+                try:
+                    generation = await asyncio.wait_for(gen_queue.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    # Check model state again after timeout
+                    error_dict = await check_model_before_operation(request.state.id, "chat completion")
+                    if error_dict:
+                        logger.warning("Model was unloaded while waiting for generation. Aborting.")
+                        yield get_generator_error(
+                            f"Chat completion aborted: {error_dict['error']}"
+                        )
+                        break
+                    continue  # Try again
+                
+                # Stream collector will push an exception to the queue if it fails
+                if isinstance(generation, Exception):
+                    raise generation
+                    
+                # Check for special error indicator
+                if isinstance(generation, dict) and "error" in generation:
+                    logger.error(f"Generation error: {generation['error']}")
+                    yield get_generator_error(
+                        f"Chat completion error: {generation['error']}"
+                    )
+                    break
+                
+                # Only try to append text if generation is a dict and has 'text'
+                if data.tool_call_start and isinstance(generation, dict) and "text" in generation:
+                    current_generation_text += generation["text"]
 
-                logger.info(
-                    f"Finished chat completion streaming request {request.state.id}"
+                # check if we are running a tool model, and that we are at stop
+                if data.tool_call_start and isinstance(generation, dict) and "stop_str" in generation:
+                    try:
+                        generations = await generate_tool_calls(
+                            data,
+                            [generation],
+                            request,
+                            current_generations=current_generation_text,
+                        )
+                        generation = generations[0]  # We only have one generation in this case
+                    except Exception as e:
+                        logger.error(f"Tool call error: {str(e)}")
+                        logger.error(traceback.format_exc())
+                        # Continue with the original generation if tool call fails
+                
+                response = _create_stream_chunk(
+                    request.state.id, generation, model_path.name
                 )
+                yield response.model_dump_json()
 
-                yield "[DONE]"
+                # Check if all tasks are completed
+                if all(task.done() for task in gen_tasks) and gen_queue.empty():
+                    # Send a usage chunk
+                    if data.stream_options and data.stream_options.include_usage:
+                        usage_chunk = _create_stream_chunk(
+                            request.state.id,
+                            generation,
+                            model_path.name,
+                            is_usage_chunk=True,
+                        )
+                        yield usage_chunk.model_dump_json()
+
+                    logger.info(
+                        f"Finished chat completion streaming request {request.state.id}"
+                    )
+
+                    yield "[DONE]"
+                    break
+            except asyncio.CancelledError:
+                # Just re-raise cancellation to be handled by outer try/except
+                raise
+            except Exception as e:
+                # Log the error for debugging
+                logger.error(f"Error processing generation: {str(e)}")
+                logger.error(traceback.format_exc())
+                
+                # Push the error to the health manager
+                await HealthManager.add_unhealthy_event(e)
+                
+                # Yield an error message
+                yield get_generator_error(
+                    "Chat completion aborted. Please check the server console."
+                )
                 break
+                
     except CancelledError:
         # Get out if the request gets disconnected
-
         if not disconnect_task.done():
             abort_event.set()
             handle_request_disconnect("Chat completion generation cancelled by user.")
-    except Exception:
+    except Exception as e:
+        # Log the error
+        logger.error(f"Stream generation error: {str(e)}")
+        logger.error(traceback.format_exc())
+        
+        # Add to health manager
+        await HealthManager.add_unhealthy_event(e)
+        
         yield get_generator_error(
             "Chat completion aborted. Please check the server console."
         )
-
+    finally:
+        # Make sure to clean up any tasks
+        for task in gen_tasks:
+            if not task.done():
+                task.cancel()
+        
+        if not disconnect_task.done():
+            disconnect_task.cancel()
 
 async def generate_chat_completion(
     prompt: str,
@@ -409,35 +498,66 @@ async def generate_chat_completion(
     gen_tasks: List[asyncio.Task] = []
 
     try:
-        for _ in range(0, data.n):
-            gen_tasks.append(
-                asyncio.create_task(
-                    model.container.generate(
-                        prompt,
-                        request.state.id,
-                        embeddings=embeddings,
-                        **data.model_dump(exclude={"prompt"}),
+        # Check if model container is still valid
+        error_dict = await check_model_before_operation(request.state.id, "chat completion")
+        if error_dict:
+            logger.warning("Model was unloaded during generation. Aborting.")
+            error_message = handle_request_error(
+                f"Chat completion aborted: {error_dict['error']}",
+                exc_info=False,
+            ).error.message
+            raise HTTPException(503, error_message)
+        
+        # Track the start of the generation
+        await track_generation_start(request.state.id, model=data.model)
+        
+        try:
+            for _ in range(0, data.n):
+                gen_tasks.append(
+                    asyncio.create_task(
+                        model.container.generate(
+                            prompt,
+                            request.state.id,
+                            embeddings=embeddings,
+                            **data.model_dump(exclude={"prompt"}),
+                        )
                     )
                 )
-            )
 
-        generations = await asyncio.gather(*gen_tasks)
+            generations = await asyncio.gather(*gen_tasks)
 
-        # Let's not waste our time if we arn't running a tool model
-        if data.tool_call_start:
-            generations = await generate_tool_calls(data, generations, request)
+            # Let's not waste our time if we aren't running a tool model
+            if data.tool_call_start:
+                generations = await generate_tool_calls(data, generations, request)
 
-        response = _create_response(request.state.id, generations, model_path.name)
+            response = _create_response(request.state.id, generations, model_path.name)
 
-        logger.info(f"Finished chat completion request {request.state.id}")
+            logger.info(f"Finished chat completion request {request.state.id}")
 
-        return response
+            return response
+        finally:
+            # Track the end of the generation
+            await track_generation_end(request.state.id)
+    except asyncio.CancelledError:
+        # Make sure to cancel all tasks if one is cancelled
+        for task in gen_tasks:
+            if not task.done():
+                task.cancel()
+        raise
     except Exception as exc:
+        # Cancel any remaining tasks
+        for task in gen_tasks:
+            if not task.done():
+                task.cancel()
+                
         error_message = handle_request_error(
             f"Chat completion {request.state.id} aborted. "
             "Maybe the model was unloaded? "
             "Please check the server console."
         ).error.message
+
+        # Add the issue to the health manager
+        await HealthManager.add_unhealthy_event(exc)
 
         # Server error if there's a generation exception
         raise HTTPException(503, error_message) from exc
@@ -458,35 +578,105 @@ async def generate_tool_calls(
     tool_data.json_schema = tool_data.tool_call_schema
     gen_params = tool_data.model_dump()
 
-    for idx, gen in enumerate(generations):
-        if gen["stop_str"] in tool_data.tool_call_start:
-            if "text" in gen:
-                # non streaming, all generations will have the text they generated
-                pre_tool_prompt, mm_embeddings = await apply_chat_template(
-                    data, gen["text"]
-                )
-            elif current_generations is not None:
-                # streaming, we wont have text in the generation,
-                # we'll have to use the current_generations
-                pre_tool_prompt, mm_embeddings = await apply_chat_template(
-                    data, current_generations
-                )
+    try:
+        # Check if model container is still valid
+        error_dict = await check_model_before_operation(request.state.id, "tool call generation")
+        if error_dict:
+            logger.warning(f"Model was unloaded, cannot generate tool calls for request {request.state.id}")
+            # Return the original generations without tool calls
+            return generations
+        for idx, gen in enumerate(generations):
+            if not isinstance(gen, dict):
+                logger.warning(f"Unexpected generation type: {type(gen)}")
+                continue
+                
+            stop_str = gen.get("stop_str")
+            if not stop_str:
+                continue
+                
+            if stop_str in tool_data.tool_call_start:
+                try:
+                    if "text" in gen:
+                        # non streaming, all generations will have the text they generated
+                        pre_tool_prompt, mm_embeddings = await apply_chat_template(
+                            data, gen["text"]
+                        )
+                    elif current_generations is not None:
+                        # streaming, we wont have text in the generation,
+                        # we'll have to use the current_generations
+                        pre_tool_prompt, mm_embeddings = await apply_chat_template(
+                            data, current_generations
+                        )
+                    else:
+                        logger.warning("No text available for tool call generation")
+                        continue
 
-            gen_tasks.append(
-                asyncio.create_task(
-                    model.container.generate(
-                        pre_tool_prompt,
-                        request.state.id,
-                        embeddings=mm_embeddings,
-                        **gen_params,
+                    # Check if model is still available before creating task
+                    error_dict = await check_model_before_operation(request.state.id, "tool call generation")
+                    if error_dict:
+                        logger.warning(f"Model was unloaded, cannot generate tool calls for request {request.state.id}")
+                        continue
+                        
+                    gen_tasks.append(
+                        asyncio.create_task(
+                            model.container.generate(
+                                pre_tool_prompt,
+                                request.state.id,
+                                embeddings=mm_embeddings,
+                                **gen_params,
+                            )
+                        )
                     )
-                )
-            )
-            tool_idx.append(idx)
+                    tool_idx.append(idx)
+                except Exception as e:
+                    logger.error(f"Error setting up tool call: {str(e)}")
+                    logger.error(traceback.format_exc())
+                    await HealthManager.add_unhealthy_event(e)
 
-    tool_calls = await asyncio.gather(*gen_tasks)
-    for outer_idx in range(0, len(tool_idx)):
-        gen_idx = tool_idx[outer_idx]
-        generations[gen_idx]["tool_calls"] = tool_calls[outer_idx]["text"]
+        if gen_tasks:
+            try:
+                # Check if model is still available before gathering results
+                error_dict = await check_model_before_operation(request.state.id, "tool call generation")
+                if error_dict:
+                    logger.warning(f"Model was unloaded during tool call generation for request {request.state.id}")
+                    # Cancel any pending tasks
+                    for task in gen_tasks:
+                        if not task.done():
+                            task.cancel()
+                    return generations
+                
+                tool_calls = await asyncio.gather(*gen_tasks, return_exceptions=True)
+                
+                for outer_idx in range(0, len(tool_idx)):
+                    gen_idx = tool_idx[outer_idx]
+                    
+                    # Check if we got an error
+                    if isinstance(tool_calls[outer_idx], Exception):
+                        logger.error(f"Tool call generation error: {tool_calls[outer_idx]}")
+                        continue
+                    
+                    # Check for model unloading error
+                    if isinstance(tool_calls[outer_idx], dict) and "error" in tool_calls[outer_idx]:
+                        if "model was unloaded" in tool_calls[outer_idx]["error"].lower():
+                            logger.warning(f"Model was unloaded during tool call generation: {tool_calls[outer_idx]['error']}")
+                        else:
+                            logger.error(f"Tool call error: {tool_calls[outer_idx]['error']}")
+                        continue
+                        
+                    # Only set tool_calls if we have valid text
+                    if isinstance(tool_calls[outer_idx], dict) and "text" in tool_calls[outer_idx]:
+                        generations[gen_idx]["tool_calls"] = tool_calls[outer_idx]["text"]
+            except asyncio.CancelledError:
+                # Re-raise cancellation
+                raise
+            except Exception as e:
+                logger.error(f"Error gathering tool call results: {str(e)}")
+                logger.error(traceback.format_exc())
+                await HealthManager.add_unhealthy_event(e)
+    except Exception as e:
+        # Log the error and continue
+        logger.error(f"Error in generate_tool_calls: {str(e)}")
+        logger.error(traceback.format_exc())
+        await HealthManager.add_unhealthy_event(e)
 
     return generations

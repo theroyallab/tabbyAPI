@@ -2,6 +2,7 @@
 Internal logging utility.
 """
 
+import asyncio
 import logging
 import os
 
@@ -21,6 +22,10 @@ from common.utils import unwrap
 
 RICH_CONSOLE = Console()
 LOG_LEVEL = os.getenv("TABBY_LOG_LEVEL", "INFO")
+
+# Add a lock for progress bar management
+_progress_lock = asyncio.Lock()
+_active_progress = None
 
 
 def get_progress_bar():
@@ -65,7 +70,7 @@ def _log_formatter(record: dict):
     message = unwrap(record.get("message"), "")
 
     # Replace once loguru allows for turning off str.format
-    message = message.replace("{", "{{").replace("}", "}}").replace("<", "\<")
+    message = message.replace("{", "{{").replace("}", "}}").replace("<", "\\<")
 
     # Escape markup tags from Rich
     message = escape(message)

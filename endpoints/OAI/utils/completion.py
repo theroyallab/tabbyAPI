@@ -4,16 +4,24 @@ Completion utilities for OAI server.
 Also serves as a common module for completions and chat completions.
 """
 
+import traceback
 import asyncio
 import pathlib
 from asyncio import CancelledError
 from fastapi import HTTPException, Request
-from typing import List, Union
+from typing import List, Optional, Union, Dict, Any
 
 from loguru import logger
 
 from common import model
-from common.auth import get_key_permission
+from common.model_lifecycle_manager import load_model, check_model_ready_state
+from common.model_utils import (
+    validate_model_load_permissions,
+    check_model_before_operation,
+    handle_model_unloading_error,
+    track_generation_start,
+    track_generation_end
+)
 from common.networking import (
     get_generator_error,
     handle_request_disconnect,
@@ -30,6 +38,9 @@ from endpoints.OAI.types.completion import (
 )
 from endpoints.OAI.types.common import UsageStats
 
+
+# Re-export the start_model_switch_processor function for backwards compatibility
+from common.model_lifecycle_manager import start_model_switch_processor
 
 def _create_response(
     request_id: str, generations: Union[dict, List[dict]], model_name: str = ""
@@ -94,85 +105,60 @@ async def _stream_collector(
     """Collects a stream and places results in a common queue"""
 
     try:
-        new_generation = model.container.generate_gen(
-            prompt, request_id, abort_event, **kwargs
-        )
-        async for generation in new_generation:
-            generation["index"] = task_idx
+        # Check if model is being unloaded before starting generation
+        error_dict = await check_model_before_operation(request_id, "generation")
+        if error_dict:
+            await gen_queue.put(error_dict)
+            return
 
-            await gen_queue.put(generation)
+        # Track the start of the generation
+        await track_generation_start(request_id, model=kwargs.get('model'))
 
-            if "finish_reason" in generation:
-                break
+        try:
+            new_generation = model.container.generate_gen(
+                prompt, request_id, abort_event, **kwargs
+            )
+            async for generation in new_generation:
+                # Check if model was unloaded during generation
+                if model.container is None or model.container.model_is_unloading:
+                    error_dict = await handle_model_unloading_error(request_id, "generation")
+                    await gen_queue.put(error_dict)
+                    break
+
+                # Ensure generation is a dictionary before modifying
+                if isinstance(generation, dict):
+                    generation["index"] = task_idx
+
+                await gen_queue.put(generation)
+
+                # Only check for finish_reason on dict generations
+                if isinstance(generation, dict) and "finish_reason" in generation:
+                    break
+        finally:
+            # Track the end of the generation
+            await track_generation_end(request_id)
     except Exception as e:
+        logger.error(f"Error in _stream_collector: {str(e)}")
+        logger.error(traceback.format_exc())
         await gen_queue.put(e)
-
+        raise  # Propagate the exception so that pending tasks can be cleaned up
 
 async def load_inline_model(model_name: str, request: Request):
     """Load a model from the data.model parameter"""
-
-    # Return if the model container already exists and the model is fully loaded
-    if (
-        model.container
-        and model.container.model_dir.name == model_name
-        and model.container.model_loaded
-    ):
+    # Check permissions and validate model path before attempting to load
+    if not await validate_model_load_permissions(model_name, request):
         return
-
-    # Return if inline loading is disabled
-    # Also warn if an admin key is used
-    if not config.model.inline_model_loading:
-        if get_key_permission(request) == "admin":
-            logger.warning(
-                f"Unable to switch model to {model_name} because "
-                '"inline_model_loading" is not True in config.yml.'
-            )
-
-        return
-
-    is_dummy_model = (
-        config.model.use_dummy_models and model_name in config.model.dummy_model_names
-    )
-
-    # Error if an invalid key is passed
-    # If a dummy model is provided, don't error
-    if get_key_permission(request) != "admin":
-        if not is_dummy_model:
-            error_message = handle_request_error(
-                f"Unable to switch model to {model_name} because "
-                + "an admin key isn't provided",
-                exc_info=False,
-            ).error.message
-
-            raise HTTPException(401, error_message)
-        else:
-            return
-
-    # Start inline loading
-    # Past here, user is assumed to be admin
-
-    # Skip if the model is a dummy
-    if is_dummy_model:
-        logger.warning(f"Dummy model {model_name} provided. Skipping inline load.")
-
-        return
-
-    model_path = pathlib.Path(config.model.model_dir)
-    model_path = model_path / model_name
-
-    # Model path doesn't exist
+    
+    # Validate model path exists
+    model_path = pathlib.Path(config.model.model_dir) / model_name
     if not model_path.exists():
         logger.warning(
             f"Could not find model path {str(model_path)}. Skipping inline model load."
         )
-
         return
-
-    # Load the model and also add draft dir
-    await model.load_model(
-        model_path,
-        draft_model=config.draft_model.model_dump(include={"draft_model_dir"}),
-    )
+        
+    # Use the model lifecycle manager to handle the model loading
+    await load_model(model_name, request)
 
 
 async def stream_generate_completion(
@@ -212,14 +198,44 @@ async def stream_generate_completion(
                     f"Completion generation {request.state.id} cancelled by user."
                 )
 
-            generation = await gen_queue.get()
+            try:
+                # Use a timeout when getting from the queue to periodically check model state
+                try:
+                    generation = await asyncio.wait_for(gen_queue.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    # Check model state again after timeout
+                    error_dict = await check_model_before_operation(request.state.id, "completion")
+                    if error_dict:
+                        logger.warning(f"Model was unloaded while waiting for generation results for {request.state.id}")
+                        yield get_generator_error(
+                            f"Completion aborted: {error_dict['error']}"
+                        )
+                        break
+                    continue  # Try again
+                
+                # Stream collector will push an exception to the queue if it fails
+                if isinstance(generation, Exception):
+                    raise generation
+                
+                # Check for special error indicator
+                if isinstance(generation, dict) and "error" in generation:
+                    logger.error(f"Generation error: {generation['error']}")
+                    yield get_generator_error(
+                        f"Completion error: {generation['error']}"
+                    )
+                    break
 
-            # Stream collector will push an exception to the queue if it fails
-            if isinstance(generation, Exception):
-                raise generation
-
-            response = _create_response(request.state.id, generation, model_path.name)
-            yield response.model_dump_json()
+                response = _create_response(request.state.id, generation, model_path.name)
+                yield response.model_dump_json()
+            except Exception as e:
+                if not isinstance(e, asyncio.CancelledError):
+                    logger.error(f"Error in stream_generate_completion: {str(e)}")
+                    logger.error(traceback.format_exc())
+                    yield get_generator_error(
+                        f"Completion error: {str(e)}"
+                    )
+                    break
+                raise
 
             # Check if all tasks are completed
             if all(task.done() for task in gen_tasks) and gen_queue.empty():
@@ -248,32 +264,60 @@ async def generate_completion(
     gen_tasks: List[asyncio.Task] = []
 
     try:
-        logger.info(f"Recieved completion request {request.state.id}")
+        logger.info(f"Received completion request {request.state.id}")
 
-        for _ in range(0, data.n):
-            task_gen_params = data.model_copy(deep=True)
+        # Check if model is being unloaded before starting generation
+        error_dict = await check_model_before_operation(request.state.id, "completion")
+        if error_dict:
+            error_message = handle_request_error(
+                f"Completion aborted: {error_dict['error']}",
+                exc_info=False,
+            ).error.message
+            raise HTTPException(503, error_message)
 
-            gen_tasks.append(
-                asyncio.create_task(
-                    model.container.generate(
-                        data.prompt,
-                        request.state.id,
-                        **task_gen_params.model_dump(exclude={"prompt"}),
+        # Track the start of the generation
+        await track_generation_start(request.state.id, model=data.model)
+
+        try:
+            for _ in range(0, data.n):
+                task_gen_params = data.model_copy(deep=True)
+
+                gen_tasks.append(
+                    asyncio.create_task(
+                        model.container.generate(
+                            data.prompt,
+                            request.state.id,
+                            **task_gen_params.model_dump(exclude={"prompt"}),
+                        )
                     )
                 )
-            )
 
-        generations = await asyncio.gather(*gen_tasks)
-        response = _create_response(request.state.id, generations, model_path.name)
+            generations = await asyncio.gather(*gen_tasks)
+            response = _create_response(request.state.id, generations, model_path.name)
 
-        logger.info(f"Finished completion request {request.state.id}")
+            logger.info(f"Finished completion request {request.state.id}")
 
-        return response
+            return response
+        finally:
+            # Track the end of the generation
+            await track_generation_end(request.state.id)
     except Exception as exc:
-        error_message = handle_request_error(
-            f"Completion {request.state.id} aborted. Maybe the model was unloaded? "
-            "Please check the server console."
-        ).error.message
+        # Cancel any remaining tasks
+        for task in gen_tasks:
+            if not task.done():
+                task.cancel()
+                
+        # Check if the exception is related to model unloading
+        if model.container is None or getattr(model.container, 'model_is_unloading', False):
+            error_message = handle_request_error(
+                f"Completion {request.state.id} aborted because the model was unloaded during generation.",
+                exc_info=False,
+            ).error.message
+        else:
+            error_message = handle_request_error(
+                f"Completion {request.state.id} aborted. Please check the server console.",
+                exc_info=True,
+            ).error.message
 
         # Server error if there's a generation exception
         raise HTTPException(503, error_message) from exc

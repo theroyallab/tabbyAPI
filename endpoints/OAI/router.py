@@ -65,6 +65,22 @@ async def completion_request(
     else:
         await check_model_container()
 
+    # Check if model container exists and is fully loaded
+    if model.container is None or not model.container.model_loaded:
+        error_message = handle_request_error(
+            "Model is currently being loaded or unloaded. Please try again in a moment.",
+            exc_info=False,
+        ).error.message
+        raise HTTPException(503, error_message)
+
+    # Check if tokenizer exists
+    if model.container.tokenizer is None:
+        error_message = handle_request_error(
+            "Model tokenizer is not available. Please try again in a moment.",
+            exc_info=False,
+        ).error.message
+        raise HTTPException(503, error_message)
+
     model_path = model.container.model_dir
 
     if isinstance(data.prompt, list):
@@ -112,6 +128,22 @@ async def chat_completion_request(
         await load_inline_model(data.model, request)
     else:
         await check_model_container()
+
+    # Check if model container exists and is fully loaded
+    if model.container is None or not model.container.model_loaded:
+        error_message = handle_request_error(
+            "Model is currently being loaded or unloaded. Please try again in a moment.",
+            exc_info=False,
+        ).error.message
+        raise HTTPException(503, error_message)
+
+    # Check if tokenizer exists
+    if model.container.tokenizer is None:
+        error_message = handle_request_error(
+            "Model tokenizer is not available. Please try again in a moment.",
+            exc_info=False,
+        ).error.message
+        raise HTTPException(503, error_message)
 
     if model.container.prompt_template is None:
         error_message = handle_request_error(
