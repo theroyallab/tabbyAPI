@@ -76,7 +76,7 @@ def _create_response(
 
         # Initialize finish_reason with a default value or from generation data
         finish_reason = generation.get("finish_reason", "stop")
-        
+
         # If a tool call is present, mark the finish reason as such
         if message.tool_calls:
             finish_reason = "tool_calls"
