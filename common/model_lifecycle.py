@@ -13,7 +13,6 @@ from typing import Dict
 from loguru import logger
 
 
-
 class ModelState(Enum):
     """Enum representing the possible states of a model."""
 

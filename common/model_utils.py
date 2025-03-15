@@ -79,8 +79,9 @@ async def handle_model_unloading_error(
     Returns:
         A dictionary with error information
     """
-    logger.warning(f"Model was unloaded during {operation} for request "
-                  f"{request_id}")
+    logger.warning(
+        f"Model was unloaded during {operation} for request " f"{request_id}"
+    )
     return {
         "error": f"Model was unloaded during {operation}",
         "finish_reason": "model_unloaded",
@@ -101,8 +102,7 @@ async def check_model_before_operation(
         None if the model is available, otherwise a dictionary
         with error information
     """
-    if model.container is None or getattr(model.container,
-                                          "model_is_unloading", False):
+    if model.container is None or getattr(model.container, "model_is_unloading", False):
         logger.warning(
             f"Model is being unloaded, cannot start {operation} for request "
             f"{request_id}"

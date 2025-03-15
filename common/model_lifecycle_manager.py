@@ -131,7 +131,7 @@ class ModelLifecycleManager:
 
         while True:
             item = None  # Will hold the tuple (model_name, request, future)
-                         # once successfully fetched.
+            # once successfully fetched.
             try:
                 self.log_model_switch("Waiting for next model switch request")
                 item = (
@@ -260,7 +260,9 @@ class ModelLifecycleManager:
                 )
                 return
 
-            model_name = model.container.model_dir.name if model.container.model_dir else 'None'  # noqa: E501
+            model_name = (
+                model.container.model_dir.name if model.container.model_dir else "None"
+            )  # noqa: E501
             active_gens = model.container.state_manager.active_generations
             self.log_model_switch(
                 f"Before active generations check: model={model_name}, "
@@ -633,10 +635,10 @@ class ModelLifecycleManager:
                 # This handles the case where an exception occurred during loading
                 if self.state_manager.currently_loading_model == model_name:
                     self.state_manager.currently_loading_model = None
-                
+
                 # Track whether an exception occurred
                 exception_occurred = sys.exc_info()[1] is not None
-                
+
                 # Only log and set these events if we had an exception
                 # (successful loads already set the load_complete_event)
                 if exception_occurred:
