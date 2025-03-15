@@ -17,7 +17,7 @@ from common.model_utils import (
     check_model_before_operation,
     handle_model_unloading_error,
     track_generation_start,
-    track_generation_end
+    track_generation_end,
 )
 from common.networking import (
     get_generator_error,
@@ -245,8 +245,10 @@ async def format_messages_with_template(
     # Ensure model container and tokenizer exist
     if model.container is None or model.container.model_is_unloading:
         # If model is being unloaded, raise a clear error
-        raise ValueError("Model is currently being unloaded. Please try again in a moment.")
-        
+        raise ValueError(
+            "Model is currently being unloaded. Please try again in a moment."
+        )
+
     special_tokens_dict = model.container.get_special_tokens(
         add_bos_token, ban_eos_token
     )
@@ -277,7 +279,10 @@ async def apply_chat_template(
 
         try:
             prompt, mm_embeddings, template_vars = await format_messages_with_template(
-                data.messages, data.template_vars, data.add_bos_token, data.ban_eos_token
+                data.messages,
+                data.template_vars,
+                data.add_bos_token,
+                data.ban_eos_token,
             )
         except ValueError as e:
             # Handle the case where model is being unloaded
@@ -370,32 +375,38 @@ async def stream_generate_chat_completion(
 
             try:
                 # Check if model container is still valid before getting from queue
-                error_dict = await check_model_before_operation(request.state.id, "chat completion")
+                error_dict = await check_model_before_operation(
+                    request.state.id, "chat completion"
+                )
                 if error_dict:
                     logger.warning("Model was unloaded during generation. Aborting.")
                     yield get_generator_error(
                         f"Chat completion aborted: {error_dict['error']}"
                     )
                     break
-                
+
                 # Use a timeout when getting from the queue to periodically check model state
                 try:
                     generation = await asyncio.wait_for(gen_queue.get(), timeout=1.0)
                 except asyncio.TimeoutError:
                     # Check model state again after timeout
-                    error_dict = await check_model_before_operation(request.state.id, "chat completion")
+                    error_dict = await check_model_before_operation(
+                        request.state.id, "chat completion"
+                    )
                     if error_dict:
-                        logger.warning("Model was unloaded while waiting for generation. Aborting.")
+                        logger.warning(
+                            "Model was unloaded while waiting for generation. Aborting."
+                        )
                         yield get_generator_error(
                             f"Chat completion aborted: {error_dict['error']}"
                         )
                         break
                     continue  # Try again
-                
+
                 # Stream collector will push an exception to the queue if it fails
                 if isinstance(generation, Exception):
                     raise generation
-                    
+
                 # Check for special error indicator
                 if isinstance(generation, dict) and "error" in generation:
                     logger.error(f"Generation error: {generation['error']}")
@@ -403,13 +414,21 @@ async def stream_generate_chat_completion(
                         f"Chat completion error: {generation['error']}"
                     )
                     break
-                
+
                 # Only try to append text if generation is a dict and has 'text'
-                if data.tool_call_start and isinstance(generation, dict) and "text" in generation:
+                if (
+                    data.tool_call_start
+                    and isinstance(generation, dict)
+                    and "text" in generation
+                ):
                     current_generation_text += generation["text"]
 
                 # check if we are running a tool model, and that we are at stop
-                if data.tool_call_start and isinstance(generation, dict) and "stop_str" in generation:
+                if (
+                    data.tool_call_start
+                    and isinstance(generation, dict)
+                    and "stop_str" in generation
+                ):
                     try:
                         generations = await generate_tool_calls(
                             data,
@@ -417,12 +436,14 @@ async def stream_generate_chat_completion(
                             request,
                             current_generations=current_generation_text,
                         )
-                        generation = generations[0]  # We only have one generation in this case
+                        generation = generations[
+                            0
+                        ]  # We only have one generation in this case
                     except Exception as e:
                         logger.error(f"Tool call error: {str(e)}")
                         logger.error(traceback.format_exc())
                         # Continue with the original generation if tool call fails
-                
+
                 response = _create_stream_chunk(
                     request.state.id, generation, model_path.name
                 )
@@ -453,16 +474,16 @@ async def stream_generate_chat_completion(
                 # Log the error for debugging
                 logger.error(f"Error processing generation: {str(e)}")
                 logger.error(traceback.format_exc())
-                
+
                 # Push the error to the health manager
                 await HealthManager.add_unhealthy_event(e)
-                
+
                 # Yield an error message
                 yield get_generator_error(
                     "Chat completion aborted. Please check the server console."
                 )
                 break
-                
+
     except CancelledError:
         # Get out if the request gets disconnected
         if not disconnect_task.done():
@@ -472,10 +493,10 @@ async def stream_generate_chat_completion(
         # Log the error
         logger.error(f"Stream generation error: {str(e)}")
         logger.error(traceback.format_exc())
-        
+
         # Add to health manager
         await HealthManager.add_unhealthy_event(e)
-        
+
         yield get_generator_error(
             "Chat completion aborted. Please check the server console."
         )
@@ -484,9 +505,10 @@ async def stream_generate_chat_completion(
         for task in gen_tasks:
             if not task.done():
                 task.cancel()
-        
+
         if not disconnect_task.done():
             disconnect_task.cancel()
+
 
 async def generate_chat_completion(
     prompt: str,
@@ -499,7 +521,9 @@ async def generate_chat_completion(
 
     try:
         # Check if model container is still valid
-        error_dict = await check_model_before_operation(request.state.id, "chat completion")
+        error_dict = await check_model_before_operation(
+            request.state.id, "chat completion"
+        )
         if error_dict:
             logger.warning("Model was unloaded during generation. Aborting.")
             error_message = handle_request_error(
@@ -507,10 +531,10 @@ async def generate_chat_completion(
                 exc_info=False,
             ).error.message
             raise HTTPException(503, error_message)
-        
+
         # Track the start of the generation
         await track_generation_start(request.state.id, model=data.model)
-        
+
         try:
             for _ in range(0, data.n):
                 gen_tasks.append(
@@ -549,7 +573,7 @@ async def generate_chat_completion(
         for task in gen_tasks:
             if not task.done():
                 task.cancel()
-                
+
         error_message = handle_request_error(
             f"Chat completion {request.state.id} aborted. "
             "Maybe the model was unloaded? "
@@ -580,20 +604,24 @@ async def generate_tool_calls(
 
     try:
         # Check if model container is still valid
-        error_dict = await check_model_before_operation(request.state.id, "tool call generation")
+        error_dict = await check_model_before_operation(
+            request.state.id, "tool call generation"
+        )
         if error_dict:
-            logger.warning(f"Model was unloaded, cannot generate tool calls for request {request.state.id}")
+            logger.warning(
+                f"Model was unloaded, cannot generate tool calls for request {request.state.id}"
+            )
             # Return the original generations without tool calls
             return generations
         for idx, gen in enumerate(generations):
             if not isinstance(gen, dict):
                 logger.warning(f"Unexpected generation type: {type(gen)}")
                 continue
-                
+
             stop_str = gen.get("stop_str")
             if not stop_str:
                 continue
-                
+
             if stop_str in tool_data.tool_call_start:
                 try:
                     if "text" in gen:
@@ -612,11 +640,15 @@ async def generate_tool_calls(
                         continue
 
                     # Check if model is still available before creating task
-                    error_dict = await check_model_before_operation(request.state.id, "tool call generation")
+                    error_dict = await check_model_before_operation(
+                        request.state.id, "tool call generation"
+                    )
                     if error_dict:
-                        logger.warning(f"Model was unloaded, cannot generate tool calls for request {request.state.id}")
+                        logger.warning(
+                            f"Model was unloaded, cannot generate tool calls for request {request.state.id}"
+                        )
                         continue
-                        
+
                     gen_tasks.append(
                         asyncio.create_task(
                             model.container.generate(
@@ -636,36 +668,57 @@ async def generate_tool_calls(
         if gen_tasks:
             try:
                 # Check if model is still available before gathering results
-                error_dict = await check_model_before_operation(request.state.id, "tool call generation")
+                error_dict = await check_model_before_operation(
+                    request.state.id, "tool call generation"
+                )
                 if error_dict:
-                    logger.warning(f"Model was unloaded during tool call generation for request {request.state.id}")
+                    logger.warning(
+                        f"Model was unloaded during tool call generation for request {request.state.id}"
+                    )
                     # Cancel any pending tasks
                     for task in gen_tasks:
                         if not task.done():
                             task.cancel()
                     return generations
-                
+
                 tool_calls = await asyncio.gather(*gen_tasks, return_exceptions=True)
-                
+
                 for outer_idx in range(0, len(tool_idx)):
                     gen_idx = tool_idx[outer_idx]
-                    
+
                     # Check if we got an error
                     if isinstance(tool_calls[outer_idx], Exception):
-                        logger.error(f"Tool call generation error: {tool_calls[outer_idx]}")
+                        logger.error(
+                            f"Tool call generation error: {tool_calls[outer_idx]}"
+                        )
                         continue
-                    
+
                     # Check for model unloading error
-                    if isinstance(tool_calls[outer_idx], dict) and "error" in tool_calls[outer_idx]:
-                        if "model was unloaded" in tool_calls[outer_idx]["error"].lower():
-                            logger.warning(f"Model was unloaded during tool call generation: {tool_calls[outer_idx]['error']}")
+                    if (
+                        isinstance(tool_calls[outer_idx], dict)
+                        and "error" in tool_calls[outer_idx]
+                    ):
+                        if (
+                            "model was unloaded"
+                            in tool_calls[outer_idx]["error"].lower()
+                        ):
+                            logger.warning(
+                                f"Model was unloaded during tool call generation: {tool_calls[outer_idx]['error']}"
+                            )
                         else:
-                            logger.error(f"Tool call error: {tool_calls[outer_idx]['error']}")
+                            logger.error(
+                                f"Tool call error: {tool_calls[outer_idx]['error']}"
+                            )
                         continue
-                        
+
                     # Only set tool_calls if we have valid text
-                    if isinstance(tool_calls[outer_idx], dict) and "text" in tool_calls[outer_idx]:
-                        generations[gen_idx]["tool_calls"] = tool_calls[outer_idx]["text"]
+                    if (
+                        isinstance(tool_calls[outer_idx], dict)
+                        and "text" in tool_calls[outer_idx]
+                    ):
+                        generations[gen_idx]["tool_calls"] = tool_calls[outer_idx][
+                            "text"
+                        ]
             except asyncio.CancelledError:
                 # Re-raise cancellation
                 raise

@@ -86,6 +86,7 @@ async def start_api(host: str, port: int):
 
     # Start the model switch processor
     from common.model_lifecycle_manager import start_model_switch_processor
+
     start_model_switch_processor()
     logger.info("Model switch queue processor started")
 

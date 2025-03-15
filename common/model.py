@@ -49,21 +49,34 @@ async def unload_model(skip_wait: bool = False, shutdown: bool = False):
 
     if container is None:
         return
-    
+
     # Log the current state before unloading
-    model_name = container.model_dir.name if hasattr(container, 'model_dir') and container.model_dir else "Unknown"
-    logger.info(f"Attempting to unload model {model_name}, skip_wait={skip_wait}, shutdown={shutdown}")
-    
+    model_name = (
+        container.model_dir.name
+        if hasattr(container, "model_dir") and container.model_dir
+        else "Unknown"
+    )
+    logger.info(
+        f"Attempting to unload model {model_name}, skip_wait={skip_wait}, shutdown={shutdown}"
+    )
+
     # Check for active generations before unloading
-    if not shutdown and not skip_wait and hasattr(container, 'active_generations') and container.active_generations > 0:
+    if (
+        not shutdown
+        and not skip_wait
+        and hasattr(container, "active_generations")
+        and container.active_generations > 0
+    ):
         logger.warning(
             f"Cannot unload model with {container.active_generations} active generations. "
             "Wait for generations to complete or use skip_wait=True to force unload."
         )
         return
-        
-    logger.info(f"Proceeding with unload of model {model_name}, active_generations={getattr(container, 'active_generations', 0)}")
-    
+
+    logger.info(
+        f"Proceeding with unload of model {model_name}, active_generations={getattr(container, 'active_generations', 0)}"
+    )
+
     try:
         if shutdown:
             # Only terminate jobs if we're shutting down the entire application
@@ -74,7 +87,7 @@ async def unload_model(skip_wait: bool = False, shutdown: bool = False):
     finally:
         # Always set container to None to ensure references are cleared
         container = None
-        
+
         # Force garbage collection to free memory
         gc.collect()
 
@@ -84,27 +97,39 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     global container
 
     logger.info(f"Request to load model: {model_path.name}")
-    
+
     # Check if the model is already loaded
     if container and container.model:
         loaded_model_name = container.model_dir.name
-        logger.info(f"Current loaded model: {loaded_model_name}, model_loaded={container.model_loaded}, active_generations={getattr(container, 'active_generations', 0)}")
+        logger.info(
+            f"Current loaded model: {loaded_model_name}, model_loaded={container.model_loaded}, active_generations={getattr(container, 'active_generations', 0)}"
+        )
 
         if loaded_model_name == model_path.name and container.model_loaded:
-            logger.info(f"Model {loaded_model_name} is already loaded, aborting load request")
+            logger.info(
+                f"Model {loaded_model_name} is already loaded, aborting load request"
+            )
             raise ValueError(
                 f'Model "{loaded_model_name}" is already loaded! Aborting.'
             )
-            
+
         # Check for active generations before unloading the current model
-        if hasattr(container, 'state_manager') and container.state_manager and container.state_manager.active_generations > 0:
-            logger.warning(f"Cannot load a new model while {container.state_manager.active_generations} generations are active")
+        if (
+            hasattr(container, "state_manager")
+            and container.state_manager
+            and container.state_manager.active_generations > 0
+        ):
+            logger.warning(
+                f"Cannot load a new model while {container.state_manager.active_generations} generations are active"
+            )
             raise ValueError(
                 f"Cannot load a new model while {container.state_manager.active_generations} generations are active. "
                 "Wait for generations to complete before loading a new model."
             )
 
-        logger.info(f"Unloading existing model {loaded_model_name} before loading {model_path.name}")
+        logger.info(
+            f"Unloading existing model {loaded_model_name} before loading {model_path.name}"
+        )
         await unload_model()
 
     # Merge with config defaults
@@ -128,13 +153,15 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     # Create the progress bar and associated lock for non-blocking operations
     progress = None
     progress_lock = asyncio.Lock()
-    
+
     try:
         # Attempt to acquire the progress lock with a timeout for initialization
         try:
             await asyncio.wait_for(progress_lock.acquire(), timeout=1.0)
         except asyncio.TimeoutError:
-            logger.warning("Timeout acquiring progress lock during progress bar initialization; skipping progress visualization.")
+            logger.warning(
+                "Timeout acquiring progress lock during progress bar initialization; skipping progress visualization."
+            )
             async for module, modules in load_status:
                 yield module, modules, model_type[0].value
             return
@@ -148,16 +175,18 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
             return
         finally:
             progress_lock.release()
-            
+
         index = 0
         async for module, modules in load_status:
             current_model_type = model_type[index].value
-            
+
             # Update progress bar in a non-blocking manner using the lock with timeout
             try:
                 await asyncio.wait_for(progress_lock.acquire(), timeout=1.0)
             except asyncio.TimeoutError:
-                logger.warning("Timeout acquiring progress lock during progress update; skipping progress update.")
+                logger.warning(
+                    "Timeout acquiring progress lock during progress update; skipping progress update."
+                )
             else:
                 try:
                     if module == 0:
@@ -170,7 +199,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                     logger.warning(f"Progress visualization error: {str(e)}")
                 finally:
                     progress_lock.release()
-                    
+
             yield module, modules, current_model_type
 
             if module == modules:
@@ -179,7 +208,9 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                     try:
                         await asyncio.wait_for(progress_lock.acquire(), timeout=1.0)
                     except asyncio.TimeoutError:
-                        logger.warning("Timeout acquiring progress lock while stopping progress bar; proceeding without stopping.")
+                        logger.warning(
+                            "Timeout acquiring progress lock while stopping progress bar; proceeding without stopping."
+                        )
                     else:
                         try:
                             progress.stop()
@@ -196,7 +227,9 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
             try:
                 await asyncio.wait_for(progress_lock.acquire(), timeout=1.0)
             except asyncio.TimeoutError:
-                logger.warning("Timeout acquiring progress lock during final progress bar stop; proceeding without stopping.")
+                logger.warning(
+                    "Timeout acquiring progress lock during final progress bar stop; proceeding without stopping."
+                )
             else:
                 try:
                     progress.stop()
