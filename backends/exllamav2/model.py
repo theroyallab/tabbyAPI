@@ -1288,12 +1288,17 @@ class ExllamaV2Container:
             try:
                 async with self.load_condition:
                     await asyncio.wait_for(
-                        self.load_condition.wait_for(lambda: not (self.model_is_loading or self.model_is_unloading)),
+                        self.load_condition.wait_for(
+                            lambda: not (
+                                self.model_is_loading or self.model_is_unloading
+                            )
+                        ),
                         timeout=30,  # 30 second timeout
                     )
             except asyncio.TimeoutError:
                 logger.warning(
-                    f"Timed out waiting for model to finish loading/unloading for request {request_id}"
+                    f"Timed out waiting for model to finish loading/unloading "
+                    f"for request {request_id}"
                 )
                 if self.state_manager:
                     await self.state_manager.increment_active_generations(
@@ -1303,7 +1308,9 @@ class ExllamaV2Container:
                             "requested_model": kwargs.get("model", None),
                             "status": "timeout_waiting_for_model",
                             **{
-                                k: v for k, v in kwargs.items() if k not in ["embeddings"]
+                                k: v
+                                for k, v in kwargs.items()
+                                if k not in ["embeddings"]
                             },  # Exclude large objects
                         },
                     )
