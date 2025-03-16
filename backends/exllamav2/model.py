@@ -612,8 +612,8 @@ class ExllamaV2Container:
             if self.state_manager:
                 self.state_manager.load_complete_event.set()  # Set to avoid deadlocks
                 self.state_manager.ready_for_switch_event.set()  # Also set
-                                                                 # ready_for_switch to
-                                                                 # avoid deadlocks
+                # ready_for_switch to
+                # avoid deadlocks
             raise
         finally:
             # Always ensure we release the lock and update flags
