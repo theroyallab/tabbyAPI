@@ -1283,17 +1283,37 @@ class ExllamaV2Container:
             yield {"error": "Model unavailable", "finish_reason": "model_unloaded"}
             return
 
-        # Wait for load lock to be freed before processing
-        try:
-            async with self.load_condition:
-                await asyncio.wait_for(
-                    self.load_condition.wait_for(lambda: not self.load_lock.locked()),
-                    timeout=30,  # 30 second timeout
+        # Only wait if the model is actively loading or unloading
+        if self.model_is_loading or self.model_is_unloading:
+            try:
+                async with self.load_condition:
+                    await asyncio.wait_for(
+                        self.load_condition.wait_for(lambda: not (self.model_is_loading or self.model_is_unloading)),
+                        timeout=30,  # 30 second timeout
+                    )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Timed out waiting for model to finish loading/unloading for request {request_id}"
                 )
-        except asyncio.TimeoutError:
-            logger.warning(
-                f"Timed out waiting for load lock to be freed for request {request_id}"
-            )
+                if self.state_manager:
+                    await self.state_manager.increment_active_generations(
+                        request_id=request_id,
+                        model_name=self.model_dir.name if self.model_dir else None,
+                        params={
+                            "requested_model": kwargs.get("model", None),
+                            "status": "timeout_waiting_for_model",
+                            **{
+                                k: v for k, v in kwargs.items() if k not in ["embeddings"]
+                            },  # Exclude large objects
+                        },
+                    )
+                    await self.state_manager.decrement_active_generations(request_id)
+                yield {
+                    "error": "Model is currently being loaded or unloaded. "
+                    "Please try again in a moment.",
+                    "finish_reason": "timeout",
+                }
+                return
             if self.state_manager:
                 await self.state_manager.increment_active_generations(
                     request_id=request_id,
