@@ -62,6 +62,9 @@ from common.transformers_utils import GenerationConfig
 from common.utils import coalesce, unwrap
 
 
+from common.model_lifecycle import ModelStateManager
+
+
 class ExllamaV2Container:
     """The model container class for ExLlamaV2 models."""
 
@@ -101,7 +104,12 @@ class ExllamaV2Container:
 
     # Load state
     model_is_loading: bool = False
+    model_is_unloading: bool = False
     model_loaded: bool = False
+    pending_generation: bool = False
+
+    # State manager for centralized tracking
+    state_manager: ModelStateManager = None
 
     # Load synchronization
     # The lock keeps load tasks sequential
@@ -121,6 +129,11 @@ class ExllamaV2Container:
         self = cls()
 
         self.quiet = quiet
+
+        # Initialize the state manager for centralized tracking
+        from common.model_lifecycle import ModelStateManager
+
+        self.state_manager = ModelStateManager()
 
         # Initialize config
         self.config = ExLlamaV2Config()
@@ -564,9 +577,15 @@ class ExllamaV2Container:
 
         # Indicate that model load has started
         # Do this operation under the load lock's context
+        progress = None
         try:
             await self.load_lock.acquire()
             self.model_is_loading = True
+
+            # Signal to the state manager that loading has started
+            if self.state_manager:
+                self.state_manager.load_complete_event.clear()
+                self.state_manager.ready_for_switch_event.clear()
 
             # Wait for existing generation jobs to finish
             await self.wait_for_jobs(kwargs.get("skip_wait"))
@@ -587,12 +606,34 @@ class ExllamaV2Container:
             # Cleanup and update model load state
             self.model_loaded = True
             logger.info("Model successfully loaded.")
+        except Exception as e:
+            logger.error(f"Error during model loading: {str(e)}")
+            # Make sure to signal that loading failed
+            if self.state_manager:
+                self.state_manager.load_complete_event.set()  # Set to avoid deadlocks
+                self.state_manager.ready_for_switch_event.set()  # Also set
+                # ready_for_switch to
+                # avoid deadlocks
+            raise
         finally:
+            # Always ensure we release the lock and update flags
             self.load_lock.release()
             self.model_is_loading = False
 
+            # Ensure progress bar is stopped if it exists
+            if progress:
+                try:
+                    progress.stop()
+                except Exception as e:
+                    logger.warning(f"Error stopping progress bar: {str(e)}")
+
+            # Notify waiting tasks that loading is complete
             async with self.load_condition:
                 self.load_condition.notify_all()
+
+            # Signal to the state manager that loading is complete
+            if self.state_manager:
+                self.state_manager.load_complete_event.set()
 
     @torch.inference_mode()
     def load_model_sync(self, progress_callback=None):
@@ -865,70 +906,198 @@ class ExllamaV2Container:
 
         # Shutdown immediately unloads and bypasses all locks
         do_shutdown = kwargs.get("shutdown")
+        skip_wait = kwargs.get("skip_wait", False)
+
+        # Set the unloading flag before acquiring the lock
+        self.model_is_unloading = True
+        active_gens = 0
+        if self.state_manager:
+            active_gens = self.state_manager.active_generations
+            # Signal that the model is being unloaded
+            self.state_manager.ready_for_switch_event.clear()
+
+        logger.info(
+            f"Setting model_is_unloading=True, active_generations={active_gens}"
+        )
 
         try:
             if not do_shutdown:
                 await self.load_lock.acquire()
 
-                # Wait for other jobs to finish
-                await self.wait_for_jobs(kwargs.get("skip_wait"))
-
-            # Delete references held in the grammar module
-            clear_grammar_func_cache()
-
-            # Clear the image embedding cache
-            clear_image_embedding_cache()
-
-            # Unload LoRAs
-            if self.generator and self.generator.generator.current_loras:
-                for lora in self.generator.generator.current_loras:
-                    lora.unload()
-
-                self.generator.generator.set_loras([])
-
-            # Unload the entire model if not just unloading loras
-            if not loras_only:
-                if self.model:
-                    self.model.unload()
-                self.model = None
-
-                if self.vision_model:
-                    # TODO: Remove this with newer exl2 versions
-                    # Required otherwise unload function won't finish
+                # Check if there are active generations and we're not in skip_wait mode
+                if (
+                    self.state_manager
+                    and self.state_manager.active_generations > 0
+                    and not skip_wait
+                    and not loras_only
+                ):
+                    logger.warning(
+                        f"There are {self.state_manager.active_generations} "
+                        "active generations. "
+                        "Waiting for them to complete before unloading model."
+                    )
+                    # Wait for active generations to complete using event-based approach
+                    logger.info(
+                        f"Waiting for {self.state_manager.active_generations} active "
+                        "generations to complete before unloading model"
+                    )
                     try:
-                        self.vision_model.unload()
-                    except AttributeError:
-                        pass
+                        # Wait for the no_active_generations_event with a timeout
+                        await asyncio.wait_for(
+                            self.state_manager.no_active_generations_event.wait(),
+                            timeout=300,
+                        )
+                        logger.info(
+                            "All active generations completed. Proceeding with unload."
+                        )
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            "Timed out waiting for active generations "
+                            "to complete after "
+                            "5 minutes. Proceeding with unload anyway."
+                        )
 
-                self.vision_model = None
+                # Only force-terminate jobs if we're shutting down or explicitly told to
+                if skip_wait:
+                    logger.warning(
+                        "Immediately terminating all jobs. Clients will have their "
+                        "requests cancelled.\n"
+                    )
+                    # Requires a copy to avoid errors during iteration
+                    if self.generator:
+                        jobs_copy = self.generator.jobs.copy()
+                        for job in jobs_copy.values():
+                            await job.cancel()
+                else:
+                    # Otherwise, wait for jobs to complete naturally
+                    if self.generator:
+                        while self.generator.jobs:
+                            await asyncio.sleep(0.01)
 
-                if self.draft_model:
-                    self.draft_model.unload()
-                self.draft_model = None
+            try:
+                # Delete references held in the grammar module
+                try:
+                    clear_grammar_func_cache()
+                except Exception as e:
+                    logger.error(f"Error clearing grammar cache: {str(e)}")
+                    logger.error(traceback.format_exc())
 
-                self.config = None
-                self.cache = None
-                self.tokenizer = None
+                # Clear the image embedding cache
+                try:
+                    clear_image_embedding_cache()
+                except Exception as e:
+                    logger.error(f"Error clearing image embedding cache: {str(e)}")
+                    logger.error(traceback.format_exc())
 
-                # Cleanup the generator from any pending jobs
-                if self.generator is not None:
-                    await self.generator.close()
-                    self.generator = None
+                # Unload LoRAs
+                if self.generator and self.generator.generator.current_loras:
+                    try:
+                        for lora in self.generator.generator.current_loras:
+                            try:
+                                lora.unload()
+                            except Exception as e:
+                                logger.error(f"Error unloading LoRA: {str(e)}")
+                                logger.error(traceback.format_exc())
 
-                # Set all model state variables to False
-                self.model_is_loading = False
-                self.model_loaded = False
+                        self.generator.generator.set_loras([])
+                    except Exception as e:
+                        logger.error(f"Error clearing LoRAs list: {str(e)}")
+                        logger.error(traceback.format_exc())
 
-            gc.collect()
-            torch.cuda.empty_cache()
+                # Unload the entire model if not just unloading loras
+                if not loras_only:
+                    # Unload main model
+                    if self.model:
+                        try:
+                            self.model.unload()
+                        except Exception as e:
+                            logger.error(f"Error unloading main model: {str(e)}")
+                            logger.error(traceback.format_exc())
+                    self.model = None
 
-            logger.info("Loras unloaded." if loras_only else "Model unloaded.")
+                    # Unload vision model
+                    if self.vision_model:
+                        try:
+                            # TODO: Remove this with newer exl2 versions
+                            # Required otherwise unload function won't finish
+                            try:
+                                self.vision_model.unload()
+                            except AttributeError:
+                                pass
+                        except Exception as e:
+                            logger.error(f"Error unloading vision model: {str(e)}")
+                            logger.error(traceback.format_exc())
+                    self.vision_model = None
+
+                    # Unload draft model
+                    if self.draft_model:
+                        try:
+                            self.draft_model.unload()
+                        except Exception as e:
+                            logger.error(f"Error unloading draft model: {str(e)}")
+                            logger.error(traceback.format_exc())
+                    self.draft_model = None
+
+                    # Clear references
+                    self.config = None
+                    self.cache = None
+                    self.tokenizer = None
+
+                    # Cleanup the generator from any pending jobs
+                    if self.generator is not None:
+                        try:
+                            await self.generator.close()
+                        except Exception as e:
+                            logger.error(f"Error closing generator: {str(e)}")
+                            logger.error(traceback.format_exc())
+                        self.generator = None
+
+                    # Set all model state variables to False
+                    self.model_is_loading = False
+                    self.model_loaded = False
+
+                # Force garbage collection to free memory
+                try:
+                    gc.collect()
+                except Exception as e:
+                    logger.error(f"Error during garbage collection: {str(e)}")
+                    logger.error(traceback.format_exc())
+
+                # Let the ExLlamaV2 backend handle CUDA memory cleanup
+                # Don't call torch.cuda.empty_cache() directly
+
+                logger.info("Loras unloaded." if loras_only else "Model unloaded.")
+            except Exception as e:
+                logger.error(f"Error during model unloading: {str(e)}")
+                logger.error(traceback.format_exc())
+                # Don't re-raise the exception to ensure cleanup continues
         finally:
-            if not do_shutdown:
-                self.load_lock.release()
+            try:
+                # Always reset the unloading flag if we're not just unloading loras
+                # This ensures the flag is reset even if an exception occurs
+                if not loras_only:
+                    self.model_is_unloading = False
+                    logger.info("Reset model_is_unloading to False")
 
-                async with self.load_condition:
-                    self.load_condition.notify_all()
+                if not do_shutdown:
+                    self.load_lock.release()
+
+                    # Notify waiting tasks that unloading is complete
+                    async with self.load_condition:
+                        self.load_condition.notify_all()
+
+                    # Signal to the state manager that the model is
+                    # ready for switching again
+                    if self.state_manager and not loras_only:
+                        # Set both events to avoid deadlocks
+                        self.state_manager.load_complete_event.set()
+                        self.state_manager.ready_for_switch_event.set()
+            except Exception as e:
+                logger.error(f"Error in unload cleanup: {str(e)}")
+                logger.error(traceback.format_exc())
+                # Ensure flag is reset even if cleanup fails
+                if not loras_only:
+                    self.model_is_unloading = False
 
     def encode_tokens(self, text: str, **kwargs):
         """Wrapper to encode tokens from a text string."""
@@ -960,6 +1129,16 @@ class ExllamaV2Container:
     def get_special_tokens(
         self, add_bos_token: bool = True, ban_eos_token: bool = False
     ):
+        # Check if tokenizer exists to avoid NoneType errors during model switching
+        if self.tokenizer is None:
+            logger.warning("Attempted to get special tokens but tokenizer is None")
+            return {
+                "bos_token": "",
+                "eos_token": "",
+                "pad_token": "",
+                "unk_token": "",
+            }
+
         return {
             "bos_token": self.tokenizer.bos_token if add_bos_token else "",
             "eos_token": self.tokenizer.eos_token if not ban_eos_token else "",
@@ -1052,7 +1231,7 @@ class ExllamaV2Container:
             ExLlamaV2Sampler.Settings, "xtc_probability"
         ):
             logger.warning(
-                "XTC is not supported by the currently " "installed ExLlamaV2 version."
+                "XTC is not supported by the currently installed ExLlamaV2 version."
             )
 
         return kwargs
@@ -1069,16 +1248,146 @@ class ExllamaV2Container:
 
         for kwargs, check common/sampling.py
         """
+        # Log requested model name if provided
+        requested_model = kwargs.get("model", "")
+        current_model = self.model_dir.name if self.model_dir else "None"
+        logger.info(
+            f"Generation request {request_id} - Requested model: "
+            f"{requested_model}, Current model: {current_model}"
+        )
 
-        # Wait for load lock to be freed before processing
-        async with self.load_condition:
-            await self.load_condition.wait_for(lambda: not self.load_lock.locked())
+        # Check if the model is being unloaded or is
+        # unavailable before waiting on the lock
+        if self.model_is_unloading or self.model is None or self.tokenizer is None:
+            logger.warning(
+                "Model is being unloaded or already unloaded. Aborting generation."
+            )
+            # If we have a state manager, track the generation attempt
+            if self.state_manager:
+                await self.state_manager.increment_active_generations(
+                    request_id=request_id,
+                    model_name=self.model_dir.name if self.model_dir else None,
+                    params={
+                        "requested_model": kwargs.get("model", None),
+                        "status": "aborted_before_start",
+                        **{
+                            k: v for k, v in kwargs.items() if k not in ["embeddings"]
+                        },  # Exclude large objects
+                    },
+                )
+                await self.state_manager.decrement_active_generations(request_id)
+                logger.info(
+                    f"Aborting generation {request_id}, active generations: "
+                    f"{self.state_manager.active_generations}"
+                )
+            yield {"error": "Model unavailable", "finish_reason": "model_unloaded"}
+            return
+
+        # Only wait if the model is actively loading or unloading
+        if self.model_is_loading or self.model_is_unloading:
+            try:
+                async with self.load_condition:
+                    await asyncio.wait_for(
+                        self.load_condition.wait_for(
+                            lambda: not (
+                                self.model_is_loading or self.model_is_unloading
+                            )
+                        ),
+                        timeout=30,  # 30 second timeout
+                    )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    f"Timed out waiting for model to finish loading/unloading "
+                    f"for request {request_id}"
+                )
+                if self.state_manager:
+                    await self.state_manager.increment_active_generations(
+                        request_id=request_id,
+                        model_name=self.model_dir.name if self.model_dir else None,
+                        params={
+                            "requested_model": kwargs.get("model", None),
+                            "status": "timeout_waiting_for_model",
+                            **{
+                                k: v
+                                for k, v in kwargs.items()
+                                if k not in ["embeddings"]
+                            },  # Exclude large objects
+                        },
+                    )
+                    await self.state_manager.decrement_active_generations(request_id)
+                yield {
+                    "error": "Model is currently being loaded or unloaded. "
+                    "Please try again in a moment.",
+                    "finish_reason": "timeout",
+                }
+                return
+            if self.state_manager:
+                await self.state_manager.increment_active_generations(
+                    request_id=request_id,
+                    model_name=self.model_dir.name if self.model_dir else None,
+                    params={
+                        "requested_model": kwargs.get("model", None),
+                        "status": "timeout_waiting_for_lock",
+                        **{
+                            k: v for k, v in kwargs.items() if k not in ["embeddings"]
+                        },  # Exclude large objects
+                    },
+                )
+                await self.state_manager.decrement_active_generations(request_id)
+            yield {
+                "error": "Model is currently being loaded or unloaded. "
+                "Please try again in a moment.",
+                "finish_reason": "timeout",
+            }
+            return
+
+        # Check again after waiting for the lock in case the model state changed
+        if self.model_is_unloading or self.model is None or self.tokenizer is None:
+            logger.warning(
+                f"Model became unavailable while waiting for lock. "
+                f"Aborting generation {request_id}"
+            )
+            if self.state_manager:
+                await self.state_manager.increment_active_generations(
+                    request_id=request_id,
+                    model_name=self.model_dir.name if self.model_dir else None,
+                    params={
+                        "requested_model": kwargs.get("model", None),
+                        "status": "model_unavailable_after_lock_wait",
+                        **{
+                            k: v for k, v in kwargs.items() if k not in ["embeddings"]
+                        },  # Exclude large objects
+                    },
+                )
+                await self.state_manager.decrement_active_generations(request_id)
+            yield {"error": "Model unavailable", "finish_reason": "model_unloaded"}
+            return
+
+        # Use state manager to track active generations
+        await self.state_manager.increment_active_generations(
+            request_id=request_id,
+            model_name=self.model_dir.name if self.model_dir else None,
+            params={
+                "requested_model": kwargs.get("model", None),
+                **{
+                    k: v for k, v in kwargs.items() if k not in ["embeddings"]
+                },  # Exclude large objects
+            },
+        )
+
+        logger.info(
+            f"Starting generation {request_id}, active generations: "
+            f"{self.state_manager.active_generations}, requested model: "
+            f"{kwargs.get('model', 'None')}, current model: "
+            f"{self.model_dir.name if self.model_dir else 'None'}"
+        )
 
         prompts = [prompt]
 
         token_healing = unwrap(kwargs.get("token_healing"), False)
         generate_window = max(
-            unwrap(kwargs.get("generate_window"), 512), self.config.max_seq_len // 8
+            unwrap(kwargs.get("generate_window"), 512),
+            self.config.max_seq_len // 8 if self.config else 512,
         )
 
         # Sampler settings
@@ -1524,6 +1833,13 @@ class ExllamaV2Container:
 
             raise ex
         finally:
+            # Decrement active generations counter using state manager
+            await self.state_manager.decrement_active_generations(request_id)
+            logger.info(
+                f"Finished generation {request_id}, active generations: "
+                f"{self.state_manager.active_generations}"
+            )
+
             # Log generation options to console
             # Some options are too large, so log the args instead
             log_generation_params(
