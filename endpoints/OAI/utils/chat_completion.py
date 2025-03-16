@@ -146,9 +146,7 @@ def _create_stream_chunk(
         # Check if we have a tool call error
         if "tool_call_error" in generation:
             error_msg = generation["tool_call_error"]
-            message = ChatCompletionMessage(
-                content=f"\n\nTool call error: {error_msg}"
-            )
+            message = ChatCompletionMessage(content=f"\n\nTool call error: {error_msg}")
             choice.delta = message
             choice.finish_reason = "tool_call_error"
         # Check if we have tool calls
@@ -477,8 +475,7 @@ async def stream_generate_chat_completion(
                         yield usage_chunk.model_dump_json()
 
                     logger.info(
-                        f"Finished chat completion streaming request "
-                        f"{request.state.id}"
+                        f"Finished chat completion streaming request {request.state.id}"
                     )
 
                     yield "[DONE]"
@@ -710,7 +707,7 @@ async def generate_tool_calls(
                     if isinstance(tool_calls[outer_idx], Exception):
                         error_msg = str(tool_calls[outer_idx])
                         logger.error(f"Tool call generation error: {error_msg}")
-                        
+
                         # Add error information to the generation
                         generations[gen_idx]["tool_call_error"] = error_msg
                         generations[gen_idx]["finish_reason"] = "tool_call_error"
@@ -729,7 +726,7 @@ async def generate_tool_calls(
                             )
                         else:
                             logger.error(f"Tool call error: {error_msg}")
-                        
+
                         # Add error information to the generation
                         generations[gen_idx]["tool_call_error"] = error_msg
                         generations[gen_idx]["finish_reason"] = "tool_call_error"

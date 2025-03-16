@@ -611,7 +611,9 @@ class ExllamaV2Container:
             # Make sure to signal that loading failed
             if self.state_manager:
                 self.state_manager.load_complete_event.set()  # Set to avoid deadlocks
-                self.state_manager.ready_for_switch_event.set()  # Also set ready_for_switch to avoid deadlocks
+                self.state_manager.ready_for_switch_event.set()  # Also set
+                                                                 # ready_for_switch to
+                                                                 # avoid deadlocks
             raise
         finally:
             # Always ensure we release the lock and update flags
@@ -1229,7 +1231,7 @@ class ExllamaV2Container:
             ExLlamaV2Sampler.Settings, "xtc_probability"
         ):
             logger.warning(
-                "XTC is not supported by the currently " "installed ExLlamaV2 version."
+                "XTC is not supported by the currently installed ExLlamaV2 version."
             )
 
         return kwargs

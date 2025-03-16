@@ -48,21 +48,24 @@ class ModelLifecycleManager:
 
         # Configuration with defaults
         self.ready_timeout = ready_timeout
-        
+
         # Timeout configuration with defaults
         # These can be overridden in config.yml
         self.load_timeout = getattr(config.model, "load_timeout", 300)
         self.unload_timeout = getattr(config.model, "unload_timeout", 300)
         self.switch_ready_timeout = getattr(config.model, "switch_ready_timeout", 60)
-        self.active_generations_timeout = getattr(config.model, "active_generations_timeout", 300)
+        self.active_generations_timeout = getattr(
+            config.model, "active_generations_timeout", 300
+        )
 
         # Logging level for model switch operations
         self.log_level = "INFO"
-        
+
         # Log the timeout configuration
         logger.info(
             f"Model lifecycle timeouts: load={self.load_timeout}s, "
-            f"unload={self.unload_timeout}s, switch_ready={self.switch_ready_timeout}s, "
+            f"unload={self.unload_timeout}s, "
+            f"switch_ready={self.switch_ready_timeout}s, "
             f"active_generations={self.active_generations_timeout}s"
         )
 
@@ -215,10 +218,10 @@ class ModelLifecycleManager:
                         self.state_manager.currently_loading_model = model_name
                         self.state_manager.load_complete_event.clear()
                         self.state_manager.ready_for_switch_event.clear()
-                        
+
                         # Store the previous model name for rollback if needed
                         previous_model_name = self.state_manager.current_model_name
-                        
+
                         try:
                             # Perform the model switch.
                             await self._perform_model_switch(model_name)
@@ -240,7 +243,8 @@ class ModelLifecycleManager:
                             if not future.done():
                                 future.set_exception(e)
                         finally:
-                            # Always clear the currently_loading_model flag if it matches
+                            # Always clear the currently_loading_model
+                            # flag if it matches
                             if self.state_manager.currently_loading_model == model_name:
                                 self.state_manager.currently_loading_model = None
                 except Exception as inner_exc:
@@ -474,7 +478,7 @@ class ModelLifecycleManager:
                 # Wait for the current model load to complete
                 await asyncio.wait_for(
                     self.state_manager.load_complete_event.wait(),
-                    timeout=self.load_timeout
+                    timeout=self.load_timeout,
                 )
 
                 # After loading completes, check if the loaded model
