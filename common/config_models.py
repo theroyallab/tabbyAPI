@@ -305,6 +305,36 @@ class ModelConfig(BaseConfigModel):
         ge=1,
     )
 
+    # Timeout configuration
+    load_timeout: Optional[int] = Field(
+        300,
+        description=("Timeout in seconds for model loading operations (default: 300)."),
+        gt=0,
+    )
+    unload_timeout: Optional[int] = Field(
+        300,
+        description=(
+            "Timeout in seconds for model unloading operations (default: 300)."
+        ),
+        gt=0,
+    )
+    switch_ready_timeout: Optional[int] = Field(
+        60,
+        description=(
+            "Timeout in seconds for waiting until a model is ready for\n"
+            "switching (default: 60)."
+        ),
+        gt=0,
+    )
+    active_generations_timeout: Optional[int] = Field(
+        300,
+        description=(
+            "Timeout in seconds for waiting for active generations\n"
+            "to complete (default: 300)."
+        ),
+        gt=0,
+    )
+
     _metadata: Metadata = PrivateAttr(Metadata())
     model_config = ConfigDict(protected_namespaces=())
 
