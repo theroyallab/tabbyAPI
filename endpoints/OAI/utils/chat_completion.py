@@ -338,6 +338,7 @@ async def apply_chat_template(
         raise HTTPException(400, error_message) from exc
 
 
+# Fixed version for endpoints/OAI/utils/chat_completion.py
 async def stream_generate_chat_completion(
     prompt: str,
     embeddings: MultimodalEmbeddingWrapper,
@@ -350,9 +351,15 @@ async def stream_generate_chat_completion(
     gen_queue = asyncio.Queue()
     gen_tasks: List[asyncio.Task] = []
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
+    model_check_task = None
 
     try:
         logger.info(f"Received chat completion streaming request {request.state.id}")
+        
+        # Start a separate task to periodically check model status
+        model_check_task = asyncio.create_task(
+            _periodic_model_check(request.state.id, abort_event)
+        )
 
         for n in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
@@ -383,35 +390,16 @@ async def stream_generate_chat_completion(
                 )
 
             try:
-                # Check if model container is still valid before getting from queue
-                error_dict = await check_model_before_operation(
-                    request.state.id, "chat completion"
-                )
-                if error_dict:
-                    logger.warning("Model was unloaded during generation. Aborting.")
+                # Get from queue without timeout to ensure prompt delivery of tokens
+                generation = await gen_queue.get()
+                
+                # Check if abort event was set (could happen in model_check_task)
+                if abort_event.is_set():
+                    logger.warning("Aborting generation due to model unload or disconnect")
                     yield get_generator_error(
-                        f"Chat completion aborted: {error_dict['error']}"
+                        "Chat completion aborted: Model unavailable"
                     )
                     break
-
-                # Use a timeout when getting from the queue to periodically
-                # check model state
-                try:
-                    generation = await asyncio.wait_for(gen_queue.get(), timeout=1.0)
-                except asyncio.TimeoutError:
-                    # Check model state again after timeout
-                    error_dict = await check_model_before_operation(
-                        request.state.id, "chat completion"
-                    )
-                    if error_dict:
-                        logger.warning(
-                            "Model was unloaded while waiting for generation. Aborting."
-                        )
-                        yield get_generator_error(
-                            f"Chat completion aborted: {error_dict['error']}"
-                        )
-                        break
-                    continue  # Try again
 
                 # Stream collector will push an exception to the queue if it fails
                 if isinstance(generation, Exception):
@@ -514,6 +502,10 @@ async def stream_generate_chat_completion(
             "Chat completion aborted. Please check the server console."
         )
     finally:
+        # Cancel model check task
+        if model_check_task and not model_check_task.done():
+            model_check_task.cancel()
+            
         # Make sure to clean up any tasks
         for task in gen_tasks:
             if not task.done():
@@ -522,6 +514,25 @@ async def stream_generate_chat_completion(
         if not disconnect_task.done():
             disconnect_task.cancel()
 
+# Add this new helper function for periodic model checking
+async def _periodic_model_check(request_id: str, abort_event: asyncio.Event):
+    """Periodically check if the model is still available."""
+    try:
+        while not abort_event.is_set():
+            # Check model state every second
+            error_dict = await check_model_before_operation(request_id, "chat completion")
+            if error_dict:
+                logger.warning("Model was unloaded during generation. Setting abort event.")
+                abort_event.set()
+                break
+            
+            # Sleep briefly to avoid too frequent checks
+            await asyncio.sleep(1.0)
+    except asyncio.CancelledError:
+        # Task was cancelled, just exit
+        pass
+    except Exception as e:
+        logger.error(f"Error in model check task: {str(e)}")
 
 async def generate_chat_completion(
     prompt: str,
