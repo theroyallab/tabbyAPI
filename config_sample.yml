@@ -142,6 +142,18 @@ model:
   # WARNING: Don't set this unless you know what you're doing!
   num_experts_per_token:
 
+  # Timeout in seconds for model loading operations (default: 300).
+  load_timeout: 300
+
+  # Timeout in seconds for model unloading operations (default: 300).
+  unload_timeout: 300
+
+  # Timeout in seconds for waiting until a model is ready for switching (default: 60).
+  switch_ready_timeout: 60
+
+  # Timeout in seconds for waiting for active generations to complete (default: 300).
+  active_generations_timeout: 300
+
 # Options for draft models (speculative decoding)
 # This will use more VRAM!
 draft_model:

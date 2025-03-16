@@ -84,8 +84,13 @@ def _create_response(
         # Initialize finish_reason with a default value or from generation data
         finish_reason = generation.get("finish_reason", "stop")
 
+        # If a tool call error occurred, add it to the message content
+        if "tool_call_error" in generation:
+            error_msg = generation["tool_call_error"]
+            message.content += f"\n\nTool call error: {error_msg}"
+            finish_reason = "tool_call_error"
         # If a tool call is present, mark the finish reason as such
-        if message.tool_calls:
+        elif message.tool_calls:
             finish_reason = "tool_calls"
 
         choice = ChatCompletionRespChoice(
@@ -138,9 +143,16 @@ def _create_stream_chunk(
         finish_reason = generation.get("finish_reason")
         choice = ChatCompletionStreamChoice(index=index, finish_reason=finish_reason)
 
-        # lets check if we have tool calls since we are at the end of the generation
-        # Mark finish_reason as tool_calls since this is the last chunk
-        if "tool_calls" in generation:
+        # Check if we have a tool call error
+        if "tool_call_error" in generation:
+            error_msg = generation["tool_call_error"]
+            message = ChatCompletionMessage(
+                content=f"\n\nTool call error: {error_msg}"
+            )
+            choice.delta = message
+            choice.finish_reason = "tool_call_error"
+        # Check if we have tool calls
+        elif "tool_calls" in generation:
             tool_calls = generation["tool_calls"]
             message = ChatCompletionMessage(
                 tool_calls=ToolCallProcessor.from_json(tool_calls)
@@ -440,9 +452,12 @@ async def stream_generate_chat_completion(
                             0
                         ]  # We only have one generation in this case
                     except Exception as e:
-                        logger.error(f"Tool call error: {str(e)}")
+                        error_msg = str(e)
+                        logger.error(f"Tool call error: {error_msg}")
                         logger.error(traceback.format_exc())
-                        # Continue with the original generation if tool call fails
+                        # Add error information to the generation
+                        generation["tool_call_error"] = error_msg
+                        generation["finish_reason"] = "tool_call_error"
 
                 response = _create_stream_chunk(
                     request.state.id, generation, model_path.name
@@ -693,9 +708,12 @@ async def generate_tool_calls(
 
                     # Check if we got an error
                     if isinstance(tool_calls[outer_idx], Exception):
-                        logger.error(
-                            f"Tool call generation error: {tool_calls[outer_idx]}"
-                        )
+                        error_msg = str(tool_calls[outer_idx])
+                        logger.error(f"Tool call generation error: {error_msg}")
+                        
+                        # Add error information to the generation
+                        generations[gen_idx]["tool_call_error"] = error_msg
+                        generations[gen_idx]["finish_reason"] = "tool_call_error"
                         continue
 
                     # Check for model unloading error
@@ -703,18 +721,18 @@ async def generate_tool_calls(
                         isinstance(tool_calls[outer_idx], dict)
                         and "error" in tool_calls[outer_idx]
                     ):
-                        if (
-                            "model was unloaded"
-                            in tool_calls[outer_idx]["error"].lower()
-                        ):
+                        error_msg = tool_calls[outer_idx]["error"]
+                        if "model was unloaded" in error_msg.lower():
                             logger.warning(
                                 f"Model was unloaded during tool call generation: "
-                                f"{tool_calls[outer_idx]['error']}"
+                                f"{error_msg}"
                             )
                         else:
-                            logger.error(
-                                f"Tool call error: {tool_calls[outer_idx]['error']}"
-                            )
+                            logger.error(f"Tool call error: {error_msg}")
+                        
+                        # Add error information to the generation
+                        generations[gen_idx]["tool_call_error"] = error_msg
+                        generations[gen_idx]["finish_reason"] = "tool_call_error"
                         continue
 
                     # Only set tool_calls if we have valid text

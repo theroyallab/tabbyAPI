@@ -611,6 +611,7 @@ class ExllamaV2Container:
             # Make sure to signal that loading failed
             if self.state_manager:
                 self.state_manager.load_complete_event.set()  # Set to avoid deadlocks
+                self.state_manager.ready_for_switch_event.set()  # Also set ready_for_switch to avoid deadlocks
             raise
         finally:
             # Always ensure we release the lock and update flags
@@ -973,45 +974,80 @@ class ExllamaV2Container:
 
             try:
                 # Delete references held in the grammar module
-                clear_grammar_func_cache()
+                try:
+                    clear_grammar_func_cache()
+                except Exception as e:
+                    logger.error(f"Error clearing grammar cache: {str(e)}")
+                    logger.error(traceback.format_exc())
 
                 # Clear the image embedding cache
-                clear_image_embedding_cache()
+                try:
+                    clear_image_embedding_cache()
+                except Exception as e:
+                    logger.error(f"Error clearing image embedding cache: {str(e)}")
+                    logger.error(traceback.format_exc())
 
                 # Unload LoRAs
                 if self.generator and self.generator.generator.current_loras:
-                    for lora in self.generator.generator.current_loras:
-                        lora.unload()
+                    try:
+                        for lora in self.generator.generator.current_loras:
+                            try:
+                                lora.unload()
+                            except Exception as e:
+                                logger.error(f"Error unloading LoRA: {str(e)}")
+                                logger.error(traceback.format_exc())
 
-                    self.generator.generator.set_loras([])
+                        self.generator.generator.set_loras([])
+                    except Exception as e:
+                        logger.error(f"Error clearing LoRAs list: {str(e)}")
+                        logger.error(traceback.format_exc())
 
                 # Unload the entire model if not just unloading loras
                 if not loras_only:
+                    # Unload main model
                     if self.model:
-                        self.model.unload()
+                        try:
+                            self.model.unload()
+                        except Exception as e:
+                            logger.error(f"Error unloading main model: {str(e)}")
+                            logger.error(traceback.format_exc())
                     self.model = None
 
+                    # Unload vision model
                     if self.vision_model:
-                        # TODO: Remove this with newer exl2 versions
-                        # Required otherwise unload function won't finish
                         try:
-                            self.vision_model.unload()
-                        except AttributeError:
-                            pass
-
+                            # TODO: Remove this with newer exl2 versions
+                            # Required otherwise unload function won't finish
+                            try:
+                                self.vision_model.unload()
+                            except AttributeError:
+                                pass
+                        except Exception as e:
+                            logger.error(f"Error unloading vision model: {str(e)}")
+                            logger.error(traceback.format_exc())
                     self.vision_model = None
 
+                    # Unload draft model
                     if self.draft_model:
-                        self.draft_model.unload()
+                        try:
+                            self.draft_model.unload()
+                        except Exception as e:
+                            logger.error(f"Error unloading draft model: {str(e)}")
+                            logger.error(traceback.format_exc())
                     self.draft_model = None
 
+                    # Clear references
                     self.config = None
                     self.cache = None
                     self.tokenizer = None
 
                     # Cleanup the generator from any pending jobs
                     if self.generator is not None:
-                        await self.generator.close()
+                        try:
+                            await self.generator.close()
+                        except Exception as e:
+                            logger.error(f"Error closing generator: {str(e)}")
+                            logger.error(traceback.format_exc())
                         self.generator = None
 
                     # Set all model state variables to False
@@ -1019,7 +1055,11 @@ class ExllamaV2Container:
                     self.model_loaded = False
 
                 # Force garbage collection to free memory
-                gc.collect()
+                try:
+                    gc.collect()
+                except Exception as e:
+                    logger.error(f"Error during garbage collection: {str(e)}")
+                    logger.error(traceback.format_exc())
 
                 # Let the ExLlamaV2 backend handle CUDA memory cleanup
                 # Don't call torch.cuda.empty_cache() directly
@@ -1028,26 +1068,34 @@ class ExllamaV2Container:
             except Exception as e:
                 logger.error(f"Error during model unloading: {str(e)}")
                 logger.error(traceback.format_exc())
-                raise
+                # Don't re-raise the exception to ensure cleanup continues
         finally:
-            # Reset the unloading flag if we're not just unloading loras
-            # or if we're in shutdown mode
-            if not loras_only or do_shutdown:
-                self.model_is_unloading = False
-                logger.info("Reset model_is_unloading to False")
+            try:
+                # Always reset the unloading flag if we're not just unloading loras
+                # This ensures the flag is reset even if an exception occurs
+                if not loras_only:
+                    self.model_is_unloading = False
+                    logger.info("Reset model_is_unloading to False")
 
-            if not do_shutdown:
-                self.load_lock.release()
+                if not do_shutdown:
+                    self.load_lock.release()
 
-                # Notify waiting tasks that unloading is complete
-                async with self.load_condition:
-                    self.load_condition.notify_all()
+                    # Notify waiting tasks that unloading is complete
+                    async with self.load_condition:
+                        self.load_condition.notify_all()
 
-                # Signal to the state manager that the model is
-                # ready for switching again
-                if self.state_manager and not loras_only:
-                    # Set the load complete event to avoid deadlocks
-                    self.state_manager.load_complete_event.set()
+                    # Signal to the state manager that the model is
+                    # ready for switching again
+                    if self.state_manager and not loras_only:
+                        # Set both events to avoid deadlocks
+                        self.state_manager.load_complete_event.set()
+                        self.state_manager.ready_for_switch_event.set()
+            except Exception as e:
+                logger.error(f"Error in unload cleanup: {str(e)}")
+                logger.error(traceback.format_exc())
+                # Ensure flag is reset even if cleanup fails
+                if not loras_only:
+                    self.model_is_unloading = False
 
     def encode_tokens(self, text: str, **kwargs):
         """Wrapper to encode tokens from a text string."""

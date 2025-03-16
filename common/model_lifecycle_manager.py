@@ -46,11 +46,25 @@ class ModelLifecycleManager:
         self.switch_queue = asyncio.Queue()
         self.switch_task = None
 
-        # Configuration
+        # Configuration with defaults
         self.ready_timeout = ready_timeout
+        
+        # Timeout configuration with defaults
+        # These can be overridden in config.yml
+        self.load_timeout = getattr(config.model, "load_timeout", 300)
+        self.unload_timeout = getattr(config.model, "unload_timeout", 300)
+        self.switch_ready_timeout = getattr(config.model, "switch_ready_timeout", 60)
+        self.active_generations_timeout = getattr(config.model, "active_generations_timeout", 300)
 
         # Logging level for model switch operations
         self.log_level = "INFO"
+        
+        # Log the timeout configuration
+        logger.info(
+            f"Model lifecycle timeouts: load={self.load_timeout}s, "
+            f"unload={self.unload_timeout}s, switch_ready={self.switch_ready_timeout}s, "
+            f"active_generations={self.active_generations_timeout}s"
+        )
 
     def log_model_switch(self, message: str, level: str = None):
         """
@@ -164,7 +178,7 @@ class ModelLifecycleManager:
                         try:
                             await asyncio.wait_for(
                                 self.state_manager.load_complete_event.wait(),
-                                timeout=300,
+                                timeout=self.load_timeout,
                             )
                         except asyncio.TimeoutError:
                             error_msg = "Timed out waiting for model "
@@ -183,7 +197,7 @@ class ModelLifecycleManager:
                         try:
                             await asyncio.wait_for(
                                 self.state_manager.ready_for_switch_event.wait(),
-                                timeout=60,
+                                timeout=self.switch_ready_timeout,
                             )
                         except asyncio.TimeoutError:
                             self.log_model_switch(
@@ -195,28 +209,40 @@ class ModelLifecycleManager:
                     # Wait until there are no active generations.
                     await self._wait_for_no_active_generations(model_name)
 
-                    # Mark this model as currently loading and clear events.
-                    self.state_manager.currently_loading_model = model_name
-                    self.state_manager.load_complete_event.clear()
-                    self.state_manager.ready_for_switch_event.clear()
-
-                    try:
-                        # Perform the model switch.
-                        await self._perform_model_switch(model_name)
-                        self.state_manager.current_model_name = model_name
-                        self.state_manager.load_complete_event.set()
-                        # Schedule setting the model ready after a delay.
-                        asyncio.create_task(
-                            self._set_model_ready_after_delay(model_name)
-                        )
-                        if not future.done():
-                            future.set_result(True)
-                    except Exception as e:
-                        if not future.done():
-                            future.set_exception(e)
-                    finally:
-                        if self.state_manager.currently_loading_model == model_name:
-                            self.state_manager.currently_loading_model = None
+                    # Use a lock to ensure atomic state transitions
+                    async with self.load_lock:
+                        # Mark this model as currently loading and clear events.
+                        self.state_manager.currently_loading_model = model_name
+                        self.state_manager.load_complete_event.clear()
+                        self.state_manager.ready_for_switch_event.clear()
+                        
+                        # Store the previous model name for rollback if needed
+                        previous_model_name = self.state_manager.current_model_name
+                        
+                        try:
+                            # Perform the model switch.
+                            await self._perform_model_switch(model_name)
+                            # Update current model name atomically
+                            self.state_manager.current_model_name = model_name
+                            self.state_manager.load_complete_event.set()
+                            # Schedule setting the model ready after a delay.
+                            asyncio.create_task(
+                                self._set_model_ready_after_delay(model_name)
+                            )
+                            if not future.done():
+                                future.set_result(True)
+                        except Exception as e:
+                            # Rollback to previous model name if switch fails
+                            self.state_manager.current_model_name = previous_model_name
+                            # Make sure events are set to avoid deadlocks
+                            self.state_manager.load_complete_event.set()
+                            self.state_manager.ready_for_switch_event.set()
+                            if not future.done():
+                                future.set_exception(e)
+                        finally:
+                            # Always clear the currently_loading_model flag if it matches
+                            if self.state_manager.currently_loading_model == model_name:
+                                self.state_manager.currently_loading_model = None
                 except Exception as inner_exc:
                     if not future.done():
                         future.set_exception(inner_exc)
@@ -276,7 +302,7 @@ class ModelLifecycleManager:
             try:
                 await asyncio.wait_for(
                     model.container.state_manager.no_active_generations_event.wait(),
-                    timeout=300,
+                    timeout=self.active_generations_timeout,
                 )
                 self.log_model_switch(
                     "No active generations event triggered, safe to "
@@ -447,8 +473,9 @@ class ModelLifecycleManager:
             try:
                 # Wait for the current model load to complete
                 await asyncio.wait_for(
-                    self.state_manager.load_complete_event.wait(), timeout=300
-                )  # 5 minute timeout
+                    self.state_manager.load_complete_event.wait(),
+                    timeout=self.load_timeout
+                )
 
                 # After loading completes, check if the loaded model
                 # matches what we requested
@@ -511,7 +538,7 @@ class ModelLifecycleManager:
             )
             try:
                 # Set a reasonable timeout to avoid hanging indefinitely
-                await asyncio.wait_for(future, timeout=300)  # 5 minute timeout
+                await asyncio.wait_for(future, timeout=self.load_timeout)
                 self.log_model_switch(
                     f"Model switch to {model_name} completed, proceeding with request"
                 )
@@ -715,7 +742,7 @@ class ModelLifecycleManager:
                 # Wait for the event with a timeout to avoid hanging indefinitely
                 await asyncio.wait_for(
                     model.container.state_manager.no_active_generations_event.wait(),
-                    timeout=300,
+                    timeout=self.active_generations_timeout,
                 )
 
                 # After event is triggered, verify the model is still the one we expect
