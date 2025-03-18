@@ -257,9 +257,9 @@ async def apply_chat_template(
             {
                 "add_generation_prompt": data.add_generation_prompt,
                 "tools": data.model_dump()["tools"],
-                "tools_json": json.dumps(data.model_dump()["tools"], indent=2),
+                "tools_json": "{{ tools | tojson(2) }}",
                 "functions": data.functions,
-                "functions_json": json.dumps(data.functions, indent=2),
+                "functions_json": "{{ functions | tojson(2) }}",
                 "tool_precursor": tool_precursor,
             }
         )
