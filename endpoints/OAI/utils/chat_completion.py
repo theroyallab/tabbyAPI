@@ -38,18 +38,18 @@ def _extract_think_content(text: str) -> tuple[Optional[str], Optional[str]]:
     """Extract content between <think> tags and the remaining content.
     Only available in none-streaming mode."""
     if (
-        config.network.reasoning_start_token not in text
-        and config.network.reasoning_end_token not in text
+        config.model.reasoning_start_token not in text
+        and config.model.reasoning_end_token not in text
     ):
         return None, text
-    elif config.network.reasoning_start_token in text:
-        start_reasoning = text.split(config.network.reasoning_start_token)[1]
-        reasoning_content = start_reasoning.split(config.network.reasoning_end_token)[0]
-        content = start_reasoning.split(config.network.reasoning_end_token)[1]
+    elif config.model.reasoning_start_token in text:
+        start_reasoning = text.split(config.model.reasoning_start_token)[1]
+        reasoning_content = start_reasoning.split(config.model.reasoning_end_token)[0]
+        content = start_reasoning.split(config.model.reasoning_end_token)[1]
         return reasoning_content, content
     else:
-        reasoning_content = text.split(config.network.reasoning_end_token)[0]
-        content = text.split(config.network.reasoning_end_token)[1]
+        reasoning_content = text.split(config.model.reasoning_end_token)[0]
+        content = text.split(config.model.reasoning_end_token)[1]
         return reasoning_content, content
 
 
@@ -63,7 +63,7 @@ def _create_response(
 
     choices = []
     for index, generation in enumerate(generations):
-        if config.network.reasoning_parser:
+        if config.model.reasoning:
             raw_content = unwrap(generation.get("text"), "")
             reasoning_content, content = _extract_think_content(raw_content)
             message = ChatCompletionMessage(
@@ -363,7 +363,7 @@ async def stream_generate_chat_completion(
         # We need to keep track of the text generated so we can resume the tool calls
         current_generation_text = ""
 
-        is_reasoning_chunk = config.network.reasoning_parser
+        is_reasoning_chunk = config.model.reasoning
 
         # Consumer loop
         while True:
@@ -393,17 +393,16 @@ async def stream_generate_chat_completion(
                 raise generation
 
             if (
-                unwrap(generation.get("text"), "")
-                == config.network.reasoning_start_token
-                and config.network.reasoning_parser
+                unwrap(generation.get("text"), "") == config.model.reasoning_start_token
+                and config.model.reasoning
             ):
                 # Update reasoning chunk flag
                 is_reasoning_chunk = True
                 # And skip this token
                 continue
             if (
-                unwrap(generation.get("text"), "") == config.network.reasoning_end_token
-                and config.network.reasoning_parser
+                unwrap(generation.get("text"), "") == config.model.reasoning_end_token
+                and config.model.reasoning
             ):
                 # Update reasoning chunk flag
                 is_reasoning_chunk = False

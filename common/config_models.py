@@ -99,21 +99,6 @@ class NetworkConfig(BaseConfigModel):
             "Possible values: OAI, Kobold."
         ),
     )
-    reasoning_parser: bool = Field(
-        False,
-        description=(
-            "Enable the reasoning parser (default: False).\n"
-            "Split response message into reasoning_content and content fields."
-        ),
-    )
-    reasoning_start_token: str = Field(
-        "<think>",
-        description=("Start token for the reasoning parser (default: <think>)."),
-    )
-    reasoning_end_token: str = Field(
-        "</think>",
-        description=("End token for the reasoning parser (default: </think>)."),
-    )
 
     # Converts all strings in the api_servers list to lowercase
     # NOTE: Expand if more models need this validator
@@ -308,6 +293,21 @@ class ModelConfig(BaseConfigModel):
         description=(
             "Enables vision support if the model supports it. (default: False)"
         ),
+    )
+    reasoning: bool = Field(
+        False,
+        description=(
+            "Enable the reasoning parser (default: False).\n"
+            "Split response message into reasoning_content and content fields."
+        ),
+    )
+    reasoning_start_token: str = Field(
+        "<think>",
+        description=("Start token for the reasoning parser (default: <think>)."),
+    )
+    reasoning_end_token: str = Field(
+        "</think>",
+        description=("End token for the reasoning parser (default: </think>)."),
     )
     num_experts_per_token: Optional[int] = Field(
         None,
