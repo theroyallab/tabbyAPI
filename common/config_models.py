@@ -294,16 +294,6 @@ class ModelConfig(BaseConfigModel):
             "Enables vision support if the model supports it. (default: False)"
         ),
     )
-    num_experts_per_token: Optional[int] = Field(
-        None,
-        description=(
-            "Number of experts to use per token.\n"
-            "Fetched from the model's config.json if empty.\n"
-            "NOTE: For MoE models only.\n"
-            "WARNING: Don't set this unless you know what you're doing!"
-        ),
-        ge=1,
-    )
 
     _metadata: Metadata = PrivateAttr(Metadata())
     model_config = ConfigDict(protected_namespaces=())

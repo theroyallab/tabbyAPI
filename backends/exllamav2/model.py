@@ -344,11 +344,6 @@ class ExllamaV2Container:
                 "template wasn't provided or auto-detected."
             )
 
-        # Set num of experts per token if provided
-        num_experts_override = kwargs.get("num_experts_per_token")
-        if num_experts_override:
-            self.config.num_experts_per_token = kwargs.get("num_experts_per_token")
-
         # Make sure chunk size is >= 256, keep near or below max seq len
         user_chunk_size = unwrap(kwargs.get("chunk_size"), 2048)
         chunk_size = sorted((256, user_chunk_size, self.config.max_seq_len))[1]
@@ -502,7 +497,6 @@ class ExllamaV2Container:
             "cache_size": self.cache_size,
             "cache_mode": self.cache_mode,
             "chunk_size": self.config.max_input_len,
-            "num_experts_per_token": self.config.num_experts_per_token,
             "use_vision": self.use_vision,
         }
 
