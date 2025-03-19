@@ -95,6 +95,9 @@ model:
   # Used with tensor parallelism.
   gpu_split: []
 
+  # NOTE: If a model has YaRN rope scaling, it will automatically be enabled by ExLlama.
+  # rope_scale and rope_alpha settings won't apply in this case.
+
   # Rope scale (default: 1.0).
   # Same as compress_pos_emb.
   # Use if the model was trained on long context with rope.
