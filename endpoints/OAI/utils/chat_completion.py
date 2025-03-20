@@ -233,6 +233,9 @@ async def format_messages_with_template(
 
         if message.tool_calls:
             message.tool_calls_json = ToolCallProcessor.to_json(message.tool_calls)
+            # Make sure message.tool_calls matches tool_calls_json
+            # when this is used in the template.
+            message.tool_calls = json.loads(message.tool_calls_json)
 
     special_tokens_dict = model.container.get_special_tokens(
         add_bos_token, ban_eos_token
