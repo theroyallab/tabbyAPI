@@ -136,15 +136,25 @@ async def _stream_collector(
                 # Only check for finish_reason on dict generations
                 if isinstance(generation, dict) and "finish_reason" in generation:
                     break
+
+        except ValueError as exc:
+            # Handle context length errors explicitly
+            if "greater than max_seq_len" in str(exc):
+                error_message = f"Request aborted: {str(exc)}"
+                logger.error(error_message)
+                await gen_queue.put({"error": error_message, "finish_reason": "length"})
+            else:
+                raise
+
         finally:
-            # Track the end of the generation
+            # Always decrement the active generation counter
             await track_generation_end(request_id)
+
     except Exception as e:
         logger.error(f"Error in _stream_collector: {str(e)}")
         logger.error(traceback.format_exc())
-        await gen_queue.put(e)
+        await gen_queue.put({"error": f"Generation error: {str(e)}"})
         raise  # Propagate the exception so that pending tasks can be cleaned up
-
 
 async def load_inline_model(model_name: str, request: Request):
     """Load a model from the data.model parameter"""
@@ -268,14 +278,11 @@ async def stream_generate_completion(
 async def generate_completion(
     data: CompletionRequest, request: Request, model_path: pathlib.Path
 ):
-    """Non-streaming generate for completions"""
-
     gen_tasks: List[asyncio.Task] = []
 
     try:
         logger.info(f"Received completion request {request.state.id}")
 
-        # Check if model is being unloaded before starting generation
         error_dict = await check_model_before_operation(request.state.id, "completion")
         if error_dict:
             error_message = handle_request_error(
@@ -284,7 +291,6 @@ async def generate_completion(
             ).error.message
             raise HTTPException(503, error_message)
 
-        # Track the start of the generation
         await track_generation_start(request.state.id, model=data.model)
 
         try:
@@ -307,30 +313,27 @@ async def generate_completion(
             logger.info(f"Finished completion request {request.state.id}")
 
             return response
-        finally:
-            # Track the end of the generation
-            await track_generation_end(request.state.id)
+
+        except ValueError as exc:
+            # Handle context length errors explicitly
+            if "context length" in str(exc).lower():
+                error_message = handle_request_error(
+                    f"Completion aborted: {str(exc)}",
+                    exc_info=False,
+                ).error.message
+                raise HTTPException(400, error_message) from exc
+            else:
+                raise
+
+    except HTTPException:
+        raise  # re-raise HTTPExceptions directly
     except Exception as exc:
-        # Cancel any remaining tasks
-        for task in gen_tasks:
-            if not task.done():
-                task.cancel()
-
-        # Check if the exception is related to model unloading
-        if model.container is None or getattr(
-            model.container, "model_is_unloading", False
-        ):
-            error_message = handle_request_error(
-                f"Completion {request.state.id} aborted because the model was "
-                f"unloaded during generation.",
-                exc_info=False,
-            ).error.message
-        else:
-            error_message = handle_request_error(
-                f"Completion {request.state.id} aborted. "
-                f"Please check the server console.",
-                exc_info=True,
-            ).error.message
-
-        # Server error if there's a generation exception
+        error_message = handle_request_error(
+            f"Completion {request.state.id} aborted. Please check the server console.",
+            exc_info=True,
+        ).error.message
         raise HTTPException(503, error_message) from exc
+
+    finally:
+        # Always decrement the active generation counter
+        await track_generation_end(request.state.id)

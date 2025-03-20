@@ -1248,6 +1248,28 @@ class ExllamaV2Container:
 
         for kwargs, check common/sampling.py
         """
+        
+        min_tokens = 0
+        max_tokens = 0
+        context_len = 0
+        max_seq_len = self.config.max_seq_len if self.config else 0
+        gen_settings_log_dict = {}
+        token_healing = False
+        auto_scale_penalty_range = False
+        generate_window = 0
+        eos_tokens = []
+        add_bos_token = True
+        ban_eos_token = False
+        decode_special_tokens = True
+        request_logprobs = 0
+        stop_conditions = []
+        banned_tokens = []
+        allowed_tokens = []
+        banned_strings = []
+        logit_bias = {}
+        grammar_handler = ExLlamaV2Grammar()
+        metrics_result = {}
+        
         # Log requested model name if provided
         requested_model = kwargs.get("model", "")
         current_model = self.model_dir.name if self.model_dir else "None"
@@ -1382,363 +1404,363 @@ class ExllamaV2Container:
             f"{self.model_dir.name if self.model_dir else 'None'}"
         )
 
-        prompts = [prompt]
+        try:
+            prompts = [prompt]
 
-        token_healing = unwrap(kwargs.get("token_healing"), False)
-        generate_window = max(
-            unwrap(kwargs.get("generate_window"), 512),
-            self.config.max_seq_len // 8 if self.config else 512,
-        )
-
-        # Sampler settings
-        gen_settings = ExLlamaV2Sampler.Settings()
-
-        # Check unsupported settings for dev wheels
-        kwargs = self.check_unsupported_settings(**kwargs)
-
-        # Apply settings
-        gen_settings.temperature = unwrap(kwargs.get("temperature"), 1.0)
-        gen_settings.temperature_last = unwrap(kwargs.get("temperature_last"), False)
-        gen_settings.smoothing_factor = unwrap(kwargs.get("smoothing_factor"), 0.0)
-        gen_settings.top_k = unwrap(kwargs.get("top_k"), 0)
-        gen_settings.top_p = unwrap(kwargs.get("top_p"), 1.0)
-        gen_settings.top_a = unwrap(kwargs.get("top_a"), 0.0)
-        gen_settings.min_p = unwrap(kwargs.get("min_p"), 0.0)
-        gen_settings.tfs = unwrap(kwargs.get("tfs"), 1.0)
-        gen_settings.typical = unwrap(kwargs.get("typical"), 1.0)
-        gen_settings.mirostat = unwrap(kwargs.get("mirostat"), False)
-        gen_settings.skew = unwrap(kwargs.get("skew"), 0)
-
-        # XTC
-        xtc_probability = unwrap(kwargs.get("xtc_probability"), 0.0)
-        if xtc_probability > 0.0:
-            gen_settings.xtc_probability = xtc_probability
-
-            # 0.1 is the default for this value
-            gen_settings.xtc_threshold = unwrap(kwargs.get("xtc_threshold", 0.1))
-
-        # DynaTemp settings
-        max_temp = unwrap(kwargs.get("max_temp"), 1.0)
-        min_temp = unwrap(kwargs.get("min_temp"), 1.0)
-
-        if max_temp > min_temp:
-            gen_settings.max_temp = max_temp
-            gen_settings.min_temp = min_temp
-            gen_settings.temp_exponent = unwrap(kwargs.get("temp_exponent"), 1.0)
-        else:
-            # Force to default values
-            gen_settings.max_temp = 1.0
-            gen_settings.min_temp = 1.0
-            gen_settings.temp_exponent = 1.0
-
-        # Warn if max/min temp values are > 0
-        # and if they're less than or equal to each other
-        if max_temp < min_temp or (
-            1 not in {min_temp, max_temp} and max_temp == min_temp
-        ):
-            logger.warning(
-                "Max temp is less than or equal to min temp, skipping DynaTemp."
+            token_healing = unwrap(kwargs.get("token_healing"), False)
+            generate_window = max(
+                unwrap(kwargs.get("generate_window"), 512),
+                self.config.max_seq_len // 8 if self.config else 512,
             )
 
-        # Default tau and eta fallbacks don't matter if mirostat is off
-        gen_settings.mirostat_tau = unwrap(kwargs.get("mirostat_tau"), 1.5)
-        gen_settings.mirostat_eta = unwrap(kwargs.get("mirostat_eta"), 0.1)
+            # Sampler settings
+            gen_settings = ExLlamaV2Sampler.Settings()
 
-        # Set CFG scale and negative prompt
-        cfg_scale = unwrap(kwargs.get("cfg_scale"), 1.0)
-        negative_prompt = None
-        if cfg_scale not in [None, 1.0]:
-            if self.paged:
-                gen_settings.cfg_scale = cfg_scale
+            # Check unsupported settings for dev wheels
+            kwargs = self.check_unsupported_settings(**kwargs)
 
-                # If the negative prompt is empty, use the BOS token
-                negative_prompt = unwrap(
-                    kwargs.get("negative_prompt"), self.tokenizer.bos_token
-                )
+            # Apply settings
+            gen_settings.temperature = unwrap(kwargs.get("temperature"), 1.0)
+            gen_settings.temperature_last = unwrap(kwargs.get("temperature_last"), False)
+            gen_settings.smoothing_factor = unwrap(kwargs.get("smoothing_factor"), 0.0)
+            gen_settings.top_k = unwrap(kwargs.get("top_k"), 0)
+            gen_settings.top_p = unwrap(kwargs.get("top_p"), 1.0)
+            gen_settings.top_a = unwrap(kwargs.get("top_a"), 0.0)
+            gen_settings.min_p = unwrap(kwargs.get("min_p"), 0.0)
+            gen_settings.tfs = unwrap(kwargs.get("tfs"), 1.0)
+            gen_settings.typical = unwrap(kwargs.get("typical"), 1.0)
+            gen_settings.mirostat = unwrap(kwargs.get("mirostat"), False)
+            gen_settings.skew = unwrap(kwargs.get("skew"), 0)
 
-                prompts.append(negative_prompt)
+            # XTC
+            xtc_probability = unwrap(kwargs.get("xtc_probability"), 0.0)
+            if xtc_probability > 0.0:
+                gen_settings.xtc_probability = xtc_probability
+
+                # 0.1 is the default for this value
+                gen_settings.xtc_threshold = unwrap(kwargs.get("xtc_threshold", 0.1))
+
+            # DynaTemp settings
+            max_temp = unwrap(kwargs.get("max_temp"), 1.0)
+            min_temp = unwrap(kwargs.get("min_temp"), 1.0)
+
+            if max_temp > min_temp:
+                gen_settings.max_temp = max_temp
+                gen_settings.min_temp = min_temp
+                gen_settings.temp_exponent = unwrap(kwargs.get("temp_exponent"), 1.0)
             else:
+                # Force to default values
+                gen_settings.max_temp = 1.0
+                gen_settings.min_temp = 1.0
+                gen_settings.temp_exponent = 1.0
+
+            # Warn if max/min temp values are > 0
+            # and if they're less than or equal to each other
+            if max_temp < min_temp or (
+                1 not in {min_temp, max_temp} and max_temp == min_temp
+            ):
                 logger.warning(
-                    "CFG is currently disabled because paged mode is disabled. "
-                    "Please use an ampere (30 series) or higher GPU for CFG support."
+                    "Max temp is less than or equal to min temp, skipping DynaTemp."
                 )
 
-        # Penalties
-        gen_settings.token_repetition_penalty = unwrap(
-            kwargs.get("repetition_penalty"), 1.0
-        )
-        gen_settings.token_frequency_penalty = unwrap(
-            kwargs.get("frequency_penalty"), 0.0
-        )
-        gen_settings.token_presence_penalty = unwrap(
-            kwargs.get("presence_penalty"), 0.0
-        )
+            # Default tau and eta fallbacks don't matter if mirostat is off
+            gen_settings.mirostat_tau = unwrap(kwargs.get("mirostat_tau"), 1.5)
+            gen_settings.mirostat_eta = unwrap(kwargs.get("mirostat_eta"), 0.1)
 
-        # Applies for all penalties despite being called token_repetition_range
-        gen_settings.token_repetition_range = unwrap(
-            kwargs.get("penalty_range"), self.config.max_seq_len
-        )
+            # Set CFG scale and negative prompt
+            cfg_scale = unwrap(kwargs.get("cfg_scale"), 1.0)
+            negative_prompt = None
+            if cfg_scale not in [None, 1.0]:
+                if self.paged:
+                    gen_settings.cfg_scale = cfg_scale
 
-        # Dynamically scale penalty range to output tokens
-        # Only do this if freq/pres pen is enabled
-        # and the repetition range is -1
-        auto_scale_penalty_range = (
-            gen_settings.token_frequency_penalty != 0
-            or gen_settings.token_presence_penalty != 0
-        ) and gen_settings.token_repetition_range == -1
-
-        # Always make sure the fallback is 0 if range < 0
-        # It's technically fine to use -1, but this just validates the passed
-        # fallback
-        # Always default to 0 if something goes wrong
-        if gen_settings.token_repetition_range < 0:
-            fallback_decay = 0
-        else:
-            fallback_decay = gen_settings.token_repetition_range
-        gen_settings.token_repetition_decay = coalesce(
-            kwargs.get("repetition_decay"), fallback_decay, 0
-        )
-
-        # DRY options
-        dry_multiplier = unwrap(kwargs.get("dry_multiplier"), 0.0)
-
-        # < 0 = disabled
-        if dry_multiplier > 0:
-            gen_settings.dry_multiplier = dry_multiplier
-
-            # TODO: Maybe set the "sane" defaults instead?
-            gen_settings.dry_allowed_length = unwrap(
-                kwargs.get("dry_allowed_length"), 0
-            )
-            gen_settings.dry_base = unwrap(kwargs.get("dry_base"), 0.0)
-
-            # Exl2 has dry_range as 0 for unlimited unlike -1 for penalty_range
-            # Use max_seq_len as the fallback to stay consistent
-            gen_settings.dry_range = unwrap(
-                kwargs.get("dry_range"), self.config.max_seq_len
-            )
-
-            # Tokenize sequence breakers
-            dry_sequence_breakers_json = kwargs.get("dry_sequence_breakers")
-            if dry_sequence_breakers_json:
-                gen_settings.dry_sequence_breakers = {
-                    self.encode_tokens(s)[-1] for s in dry_sequence_breakers_json
-                }
-
-        # Initialize grammar handler
-        grammar_handler = ExLlamaV2Grammar()
-
-        # Add JSON schema filter if it exists
-        json_schema = unwrap(kwargs.get("json_schema"))
-        if json_schema:
-            grammar_handler.add_json_schema_filter(
-                json_schema, self.model, self.tokenizer
-            )
-
-        # Add regex filter if it exists
-        regex_pattern = unwrap(kwargs.get("regex_pattern"))
-        if regex_pattern:
-            grammar_handler.add_regex_filter(regex_pattern, self.model, self.tokenizer)
-
-        # Add EBNF filter if it exists
-        grammar_string = unwrap(kwargs.get("grammar_string"))
-        if grammar_string:
-            grammar_handler.add_kbnf_filter(grammar_string, self.model, self.tokenizer)
-
-        # Set banned strings
-        banned_strings: List[str] = unwrap(kwargs.get("banned_strings"), [])
-        if banned_strings and len(grammar_handler.filters) > 0:
-            logger.warning(
-                "Disabling banned_strings because "
-                "they cannot be used with grammar filters."
-            )
-
-            banned_strings = []
-
-        stop_conditions: List[Union[str, int]] = unwrap(kwargs.get("stop"), [])
-        add_bos_token = unwrap(kwargs.get("add_bos_token"), True)
-        ban_eos_token = unwrap(kwargs.get("ban_eos_token"), False)
-        logit_bias = kwargs.get("logit_bias")
-
-        # Logprobs
-        request_logprobs = unwrap(kwargs.get("logprobs"), 0)
-
-        # Speculative Ngram
-        self.generator.speculative_ngram = unwrap(
-            kwargs.get("speculative_ngram"), False
-        )
-
-        # Override sampler settings for temp = 0
-        if gen_settings.temperature == 0:
-            gen_settings.temperature = 1.0
-            gen_settings.top_k = 1
-            gen_settings.top_p = 0
-            gen_settings.typical = 0
-
-            logger.warning(
-                "".join(
-                    [
-                        "Temperature is set to 0. Overriding temp, ",
-                        "top_k, top_p, and typical to 1.0, 1, 0, and 0.",
-                    ]
-                )
-            )
-
-        # Store the gen settings for logging purposes
-        # Deepcopy to save a snapshot of vars
-        gen_settings_log_dict = deepcopy(vars(gen_settings))
-
-        # Set banned tokens
-        banned_tokens = unwrap(kwargs.get("banned_tokens"), [])
-        if banned_tokens:
-            gen_settings.disallow_tokens(self.tokenizer, banned_tokens)
-
-        # Set allowed tokens
-        allowed_tokens = unwrap(kwargs.get("allowed_tokens"), [])
-        if allowed_tokens:
-            gen_settings.allow_tokens(self.tokenizer, allowed_tokens)
-
-        # Set logit bias
-        if logit_bias:
-            # Create a vocab tensor if it doesn't exist for token biasing
-            if gen_settings.token_bias is None:
-                padding = -self.tokenizer.config.vocab_size % 32
-                gen_settings.token_bias = torch.zeros(
-                    (self.tokenizer.config.vocab_size + padding,),
-                    dtype=torch.float,
-                )
-
-            # Map logits to the tensor with their biases
-            for token_id, bias in logit_bias.items():
-                if 0 <= token_id < len(self.tokenizer.get_id_to_piece_list(True)):
-                    gen_settings.token_bias[token_id] = bias
-                else:
-                    logger.warning(
-                        f"Logit bias: Token {token_id} not present "
-                        "in the model's vocab. Skipping."
+                    # If the negative prompt is empty, use the BOS token
+                    negative_prompt = unwrap(
+                        kwargs.get("negative_prompt"), self.tokenizer.bos_token
                     )
 
-        # Fetch EOS tokens from generation_config if they exist
-        eos_tokens = (
-            self.generation_config.eos_tokens()
-            if self.generation_config
-            else [self.tokenizer.eos_token_id]
-        )
+                    prompts.append(negative_prompt)
+                else:
+                    logger.warning(
+                        "CFG is currently disabled because paged mode is disabled. "
+                        "Please use an ampere (30 series) or higher GPU for CFG support."
+                    )
 
-        # Ban the EOS token if specified. If not, append to stop conditions
-        # as well.
-        # Set this below logging to avoid polluting the stop strings array
-        if ban_eos_token:
-            gen_settings.disallow_tokens(self.tokenizer, eos_tokens)
-        else:
-            stop_conditions += eos_tokens
+            # Penalties
+            gen_settings.token_repetition_penalty = unwrap(
+                kwargs.get("repetition_penalty"), 1.0
+            )
+            gen_settings.token_frequency_penalty = unwrap(
+                kwargs.get("frequency_penalty"), 0.0
+            )
+            gen_settings.token_presence_penalty = unwrap(
+                kwargs.get("presence_penalty"), 0.0
+            )
 
-        # Get multimodal embeddings if present
-        mm_embeddings: MultimodalEmbeddingWrapper = kwargs.get("embeddings")
-        mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
+            # Applies for all penalties despite being called token_repetition_range
+            gen_settings.token_repetition_range = unwrap(
+                kwargs.get("penalty_range"), self.config.max_seq_len
+            )
 
-        # Encode both positive and negative prompts
-        input_ids = [
-            self.tokenizer.encode(
-                prompt,
-                add_bos=add_bos_token,
-                encode_special_tokens=True,
+            # Dynamically scale penalty range to output tokens
+            # Only do this if freq/pres pen is enabled
+            # and the repetition range is -1
+            auto_scale_penalty_range = (
+                gen_settings.token_frequency_penalty != 0
+                or gen_settings.token_presence_penalty != 0
+            ) and gen_settings.token_repetition_range == -1
+
+            # Always make sure the fallback is 0 if range < 0
+            # It's technically fine to use -1, but this just validates the passed
+            # fallback
+            # Always default to 0 if something goes wrong
+            if gen_settings.token_repetition_range < 0:
+                fallback_decay = 0
+            else:
+                fallback_decay = gen_settings.token_repetition_range
+            gen_settings.token_repetition_decay = coalesce(
+                kwargs.get("repetition_decay"), fallback_decay, 0
+            )
+
+            # DRY options
+            dry_multiplier = unwrap(kwargs.get("dry_multiplier"), 0.0)
+
+            # < 0 = disabled
+            if dry_multiplier > 0:
+                gen_settings.dry_multiplier = dry_multiplier
+
+                # TODO: Maybe set the "sane" defaults instead?
+                gen_settings.dry_allowed_length = unwrap(
+                    kwargs.get("dry_allowed_length"), 0
+                )
+                gen_settings.dry_base = unwrap(kwargs.get("dry_base"), 0.0)
+
+                # Exl2 has dry_range as 0 for unlimited unlike -1 for penalty_range
+                # Use max_seq_len as the fallback to stay consistent
+                gen_settings.dry_range = unwrap(
+                    kwargs.get("dry_range"), self.config.max_seq_len
+                )
+
+                # Tokenize sequence breakers
+                dry_sequence_breakers_json = kwargs.get("dry_sequence_breakers")
+                if dry_sequence_breakers_json:
+                    gen_settings.dry_sequence_breakers = {
+                        self.encode_tokens(s)[-1] for s in dry_sequence_breakers_json
+                    }
+
+            # Initialize grammar handler
+            grammar_handler = ExLlamaV2Grammar()
+
+            # Add JSON schema filter if it exists
+            json_schema = unwrap(kwargs.get("json_schema"))
+            if json_schema:
+                grammar_handler.add_json_schema_filter(
+                    json_schema, self.model, self.tokenizer
+                )
+
+            # Add regex filter if it exists
+            regex_pattern = unwrap(kwargs.get("regex_pattern"))
+            if regex_pattern:
+                grammar_handler.add_regex_filter(regex_pattern, self.model, self.tokenizer)
+
+            # Add EBNF filter if it exists
+            grammar_string = unwrap(kwargs.get("grammar_string"))
+            if grammar_string:
+                grammar_handler.add_kbnf_filter(grammar_string, self.model, self.tokenizer)
+
+            # Set banned strings
+            banned_strings: List[str] = unwrap(kwargs.get("banned_strings"), [])
+            if banned_strings and len(grammar_handler.filters) > 0:
+                logger.warning(
+                    "Disabling banned_strings because "
+                    "they cannot be used with grammar filters."
+                )
+
+                banned_strings = []
+
+            stop_conditions: List[Union[str, int]] = unwrap(kwargs.get("stop"), [])
+            add_bos_token = unwrap(kwargs.get("add_bos_token"), True)
+            ban_eos_token = unwrap(kwargs.get("ban_eos_token"), False)
+            logit_bias = kwargs.get("logit_bias")
+
+            # Logprobs
+            request_logprobs = unwrap(kwargs.get("logprobs"), 0)
+
+            # Speculative Ngram
+            self.generator.speculative_ngram = unwrap(
+                kwargs.get("speculative_ngram"), False
+            )
+
+            # Override sampler settings for temp = 0
+            if gen_settings.temperature == 0:
+                gen_settings.temperature = 1.0
+                gen_settings.top_k = 1
+                gen_settings.top_p = 0
+                gen_settings.typical = 0
+
+                logger.warning(
+                    "".join(
+                        [
+                            "Temperature is set to 0. Overriding temp, ",
+                            "top_k, top_p, and typical to 1.0, 1, 0, and 0.",
+                        ]
+                    )
+                )
+
+            # Store the gen settings for logging purposes
+            # Deepcopy to save a snapshot of vars
+            gen_settings_log_dict = deepcopy(vars(gen_settings))
+
+            # Set banned tokens
+            banned_tokens = unwrap(kwargs.get("banned_tokens"), [])
+            if banned_tokens:
+                gen_settings.disallow_tokens(self.tokenizer, banned_tokens)
+
+            # Set allowed tokens
+            allowed_tokens = unwrap(kwargs.get("allowed_tokens"), [])
+            if allowed_tokens:
+                gen_settings.allow_tokens(self.tokenizer, allowed_tokens)
+
+            # Set logit bias
+            if logit_bias:
+                # Create a vocab tensor if it doesn't exist for token biasing
+                if gen_settings.token_bias is None:
+                    padding = -self.tokenizer.config.vocab_size % 32
+                    gen_settings.token_bias = torch.zeros(
+                        (self.tokenizer.config.vocab_size + padding,),
+                        dtype=torch.float,
+                    )
+
+                # Map logits to the tensor with their biases
+                for token_id, bias in logit_bias.items():
+                    if 0 <= token_id < len(self.tokenizer.get_id_to_piece_list(True)):
+                        gen_settings.token_bias[token_id] = bias
+                    else:
+                        logger.warning(
+                            f"Logit bias: Token {token_id} not present "
+                            "in the model's vocab. Skipping."
+                        )
+
+            # Fetch EOS tokens from generation_config if they exist
+            eos_tokens = (
+                self.generation_config.eos_tokens()
+                if self.generation_config
+                else [self.tokenizer.eos_token_id]
+            )
+
+            # Ban the EOS token if specified. If not, append to stop conditions
+            # as well.
+            # Set this below logging to avoid polluting the stop strings array
+            if ban_eos_token:
+                gen_settings.disallow_tokens(self.tokenizer, eos_tokens)
+            else:
+                stop_conditions += eos_tokens
+
+            # Get multimodal embeddings if present
+            mm_embeddings: MultimodalEmbeddingWrapper = kwargs.get("embeddings")
+            mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
+
+            # Encode both positive and negative prompts
+            input_ids = [
+                self.tokenizer.encode(
+                    prompt,
+                    add_bos=add_bos_token,
+                    encode_special_tokens=True,
+                    embeddings=mm_embeddings_content,
+                )
+                for prompt in prompts
+            ]
+
+            # The first index will always be the positive prompt
+            context_len = input_ids[0].size(dim=-1)
+
+            # The second index will be the negative prompt if CFG is enabled
+            negative_context_len = input_ids[1].size(dim=-1) if negative_prompt else 0
+
+            # Automatically set max_tokens to fill up the context
+            # This should be an OK default, but may be changed in the future
+            max_tokens = unwrap(
+                kwargs.get("max_tokens"),
+                self.config.max_seq_len - max(context_len, negative_context_len),
+            )
+            if max_tokens < 1:
+                logger.warning("max_tokens must be a positive integer, setting to 1.")
+                max_tokens = 1
+
+            # Determine if the negative context or the context length is bigger
+            context_to_check = max(negative_context_len, context_len)
+
+            # Check highest possible total length of request
+            if context_to_check + max_tokens > self.config.max_seq_len:
+                preamble = (
+                    "Negative prompt request"
+                    if negative_context_len > context_len
+                    else "Request"
+                )
+
+                raise ValueError(
+                    f"{preamble} length {context_to_check} + {max_tokens} is greater than "
+                    f"max_seq_len {self.config.max_seq_len}"
+                )
+
+            # Check total required pages for CFG request to avoid overallocation
+            if negative_prompt and (
+                sum(
+                    256 * math.ceil((context + max_tokens) / 256)
+                    for context in (context_len, negative_context_len)
+                )
+                > self.cache_size
+            ):
+                raise ValueError(
+                    f"Total required page size for request "
+                    f"{context_len} + {negative_context_len} + {max_tokens} * 2 "
+                    f"is greater than cache_size {self.cache_size}"
+                )
+
+            # Set min_tokens to generate while keeping EOS banned
+            min_tokens = unwrap(kwargs.get("min_tokens"), 0)
+
+            # This is an inverse of skip_special_tokens
+            decode_special_tokens = unwrap(not kwargs.get("skip_special_tokens"), False)
+
+            # Log prompt to console. Add the BOS token if specified
+            log_prompt(
+                f"{self.tokenizer.bos_token if add_bos_token else ''}{prompt}",
+                request_id,
+                negative_prompt,
+            )
+
+            # Create and add a new job
+            # Don't use the request ID here as there can be multiple jobs per request
+            job_id = uuid.uuid4().hex
+            job = ExLlamaV2DynamicJobAsync(
+                self.generator,
+                input_ids=input_ids,
+                max_new_tokens=max_tokens,
+                min_new_tokens=min_tokens,
+                gen_settings=gen_settings,
+                stop_conditions=stop_conditions,
+                decode_special_tokens=decode_special_tokens,
+                filters=grammar_handler.filters,
+                filter_prefer_eos=bool(grammar_handler.filters),
+                return_probs=request_logprobs > 0,
+                return_top_tokens=request_logprobs,
+                return_logits=request_logprobs > 0,
+                banned_strings=banned_strings,
+                token_healing=token_healing,
+                identifier=job_id,
                 embeddings=mm_embeddings_content,
             )
-            for prompt in prompts
-        ]
 
-        # The first index will always be the positive prompt
-        context_len = input_ids[0].size(dim=-1)
+            # Save generated tokens and full response
+            # Copy over max seq len incase model is unloaded and stored jobs can complete
+            # Full response is required for offset calculation
+            max_seq_len = self.config.max_seq_len
+            generated_tokens = 0
+            full_response = ""
+            metrics_result = {}
 
-        # The second index will be the negative prompt if CFG is enabled
-        negative_context_len = input_ids[1].size(dim=-1) if negative_prompt else 0
-
-        # Automatically set max_tokens to fill up the context
-        # This should be an OK default, but may be changed in the future
-        max_tokens = unwrap(
-            kwargs.get("max_tokens"),
-            self.config.max_seq_len - max(context_len, negative_context_len),
-        )
-        if max_tokens < 1:
-            logger.warning("max_tokens must be a positive integer, setting to 1.")
-            max_tokens = 1
-
-        # Determine if the negative context or the context length is bigger
-        context_to_check = max(negative_context_len, context_len)
-
-        # Check highest possible total length of request
-        if context_to_check + max_tokens > self.config.max_seq_len:
-            preamble = (
-                "Negative prompt request"
-                if negative_context_len > context_len
-                else "Request"
-            )
-
-            raise ValueError(
-                f"{preamble} length {context_to_check} + {max_tokens} is greater than "
-                f"max_seq_len {self.config.max_seq_len}"
-            )
-
-        # Check total required pages for CFG request to avoid overallocation
-        if negative_prompt and (
-            sum(
-                256 * math.ceil((context + max_tokens) / 256)
-                for context in (context_len, negative_context_len)
-            )
-            > self.cache_size
-        ):
-            raise ValueError(
-                f"Total required page size for request "
-                f"{context_len} + {negative_context_len} + {max_tokens} * 2 "
-                f"is greater than cache_size {self.cache_size}"
-            )
-
-        # Set min_tokens to generate while keeping EOS banned
-        min_tokens = unwrap(kwargs.get("min_tokens"), 0)
-
-        # This is an inverse of skip_special_tokens
-        decode_special_tokens = unwrap(not kwargs.get("skip_special_tokens"), False)
-
-        # Log prompt to console. Add the BOS token if specified
-        log_prompt(
-            f"{self.tokenizer.bos_token if add_bos_token else ''}{prompt}",
-            request_id,
-            negative_prompt,
-        )
-
-        # Create and add a new job
-        # Don't use the request ID here as there can be multiple jobs per request
-        job_id = uuid.uuid4().hex
-        job = ExLlamaV2DynamicJobAsync(
-            self.generator,
-            input_ids=input_ids,
-            max_new_tokens=max_tokens,
-            min_new_tokens=min_tokens,
-            gen_settings=gen_settings,
-            stop_conditions=stop_conditions,
-            decode_special_tokens=decode_special_tokens,
-            filters=grammar_handler.filters,
-            filter_prefer_eos=bool(grammar_handler.filters),
-            return_probs=request_logprobs > 0,
-            return_top_tokens=request_logprobs,
-            return_logits=request_logprobs > 0,
-            banned_strings=banned_strings,
-            token_healing=token_healing,
-            identifier=job_id,
-            embeddings=mm_embeddings_content,
-        )
-
-        # Save generated tokens and full response
-        # Copy over max seq len incase model is unloaded and stored jobs can complete
-        # Full response is required for offset calculation
-        max_seq_len = self.config.max_seq_len
-        generated_tokens = 0
-        full_response = ""
-        metrics_result = {}
-
-        # Get the generation status once it's ready
-        try:
+            # Get the generation status once it's ready
             async for result in job:
                 # Abort if the event is set while streaming
                 if abort_event and abort_event.is_set():
@@ -1817,23 +1839,38 @@ class ExllamaV2Container:
 
                         yield generation
                         break
+
+        except ValueError as e:
+            # Catch context length errors explicitly
+            if "greater than max_seq_len" in str(e):
+                logger.error(f"Context length error for request {request_id}: {str(e)}")
+                yield {"error": str(e), "finish_reason": "context_length"}
+            else:
+                # Handle other ValueError exceptions
+                logger.error(f"ValueError in generation for request {request_id}: {str(e)}")
+                yield {"error": str(e), "finish_reason": "error"}
+                
         except asyncio.CancelledError:
-            await job.cancel()
+            logger.info(f"Generation {request_id} was cancelled")
+            raise
+            
         except Exception as ex:
             # Create a new generator since the current state is broken
             # No need to wait for this to finish
             logger.error(
-                "FATAL ERROR with generation. "
+                f"FATAL ERROR with generation {request_id}: {str(ex)}\n"
                 "Attempting to recreate the generator. "
                 "If this fails, please restart the server.\n"
             )
+            logger.error(traceback.format_exc())
             asyncio.ensure_future(self.create_generator())
 
             await HealthManager.add_unhealthy_event(ex)
-
-            raise ex
+            
+            yield {"error": str(ex), "finish_reason": "error"}
+            
         finally:
-            # Decrement active generations counter using state manager
+            # Always decrement active generations counter
             await self.state_manager.decrement_active_generations(request_id)
             logger.info(
                 f"Finished generation {request_id}, active generations: "
