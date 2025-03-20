@@ -30,6 +30,10 @@
 > 
 >  Need help? Join the [Discord Server](https://discord.gg/sYQxnuD7Fj) and get the `Tabby` role. Please be nice when asking questions.
 
+> [!NOTE]
+> 
+> Want to run GGUF models? Take a look at [YALS](https://github.com/theroyallab/YALS), TabbyAPI's sister project.
+
 A FastAPI based application that allows for generating text using an LLM (large language model) using the [Exllamav2 backend](https://github.com/turboderp/exllamav2)
 
 TabbyAPI is also the official API backend server for ExllamaV2.

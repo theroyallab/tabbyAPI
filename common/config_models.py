@@ -1,4 +1,3 @@
-from pathlib import Path
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -30,28 +29,6 @@ class ConfigOverrideConfig(BaseConfigModel):
     # TODO: convert this to a pathlib.path?
     config: Optional[str] = Field(
         None, description=("Path to an overriding config.yml file")
-    )
-
-    _metadata: Metadata = PrivateAttr(Metadata(include_in_config=False))
-
-
-class UtilityActions(BaseConfigModel):
-    """Model used for arg actions."""
-
-    # YAML export options
-    export_config: Optional[str] = Field(
-        None, description="generate a template config file"
-    )
-    config_export_path: Optional[Path] = Field(
-        "config_sample.yml", description="path to export configuration file to"
-    )
-
-    # OpenAPI JSON export options
-    export_openapi: Optional[bool] = Field(
-        False, description="export openapi schema files"
-    )
-    openapi_export_path: Optional[Path] = Field(
-        "openapi.json", description="path to export openapi schema to"
     )
 
     _metadata: Metadata = PrivateAttr(Metadata(include_in_config=False))
@@ -309,16 +286,6 @@ class ModelConfig(BaseConfigModel):
         "</think>",
         description=("End token for the reasoning parser (default: </think>)."),
     )
-    num_experts_per_token: Optional[int] = Field(
-        None,
-        description=(
-            "Number of experts to use per token.\n"
-            "Fetched from the model's config.json if empty.\n"
-            "NOTE: For MoE models only.\n"
-            "WARNING: Don't set this unless you know what you're doing!"
-        ),
-        ge=1,
-    )
 
     _metadata: Metadata = PrivateAttr(Metadata())
     model_config = ConfigDict(protected_namespaces=())
@@ -494,9 +461,6 @@ class TabbyConfigModel(BaseModel):
     )
     developer: Optional[DeveloperConfig] = Field(
         default_factory=DeveloperConfig.model_construct
-    )
-    actions: Optional[UtilityActions] = Field(
-        default_factory=UtilityActions.model_construct
     )
 
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())

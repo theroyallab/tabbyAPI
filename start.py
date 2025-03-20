@@ -236,6 +236,20 @@ if __name__ == "__main__":
         subprocess.run(install_command)
         print()
 
+        if first_run:
+            start_options["first_run_done"] = True
+
+            # Save start options on first run
+            with open("start_options.json", "w") as start_file:
+                start_file.write(json.dumps(start_options))
+
+                print(
+                    "Successfully wrote your start script options to "
+                    "`start_options.json`. \n"
+                    "If something goes wrong, editing or deleting the file "
+                    "will reinstall TabbyAPI as a first-time user."
+                )
+
         if args.update_deps:
             print(
                 f"Dependencies updated. Please run TabbyAPI with `start.{script_ext}`. "
@@ -246,21 +260,6 @@ if __name__ == "__main__":
             print(
                 f"Dependencies installed. Update them with `update_deps.{script_ext}` "
                 "inside the `update_scripts` folder."
-            )
-
-    # First run options
-    if first_run:
-        start_options["first_run_done"] = True
-
-        # Save start options
-        with open("start_options.json", "w") as start_file:
-            start_file.write(json.dumps(start_options))
-
-            print(
-                "Successfully wrote your start script options to "
-                "`start_options.json`. \n"
-                "If something goes wrong, editing or deleting the file "
-                "will reinstall TabbyAPI as a first-time user."
             )
 
     # Expand the parser if it's not fully created
