@@ -46,11 +46,11 @@ def _extract_think_content(text: str) -> tuple[Optional[str], Optional[str]]:
         start_reasoning = text.split(config.model.reasoning_start_token)[1]
         reasoning_content = start_reasoning.split(config.model.reasoning_end_token)[0]
         content = start_reasoning.split(config.model.reasoning_end_token)[1]
-        return reasoning_content, content
+        return reasoning_content.strip(), content.strip()
     else:
         reasoning_content = text.split(config.model.reasoning_end_token)[0]
         content = text.split(config.model.reasoning_end_token)[1]
-        return reasoning_content, content
+        return reasoning_content.strip(), content.strip()
 
 
 def _create_response(
