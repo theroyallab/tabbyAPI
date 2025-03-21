@@ -457,8 +457,6 @@ async def generate_tool_calls(
     gen_tasks: List[asyncio.Task] = []
     tool_idx: List[int] = []
 
-    logger.info(f"Generating tool calls {generations}")
-
     # Copy to make sure the parent JSON schema doesn't get modified
     # FIXME: May not be necessary depending on how the codebase evolves
     tool_data = data.model_copy(deep=True)
@@ -467,6 +465,8 @@ async def generate_tool_calls(
 
     for idx, gen in enumerate(generations):
         if gen["stop_str"] in tool_data.tool_call_start:
+            logger.info("Tool calls detected")
+
             if "text" in gen:
                 # non streaming, all generations will have the text they generated
                 pre_tool_prompt, mm_embeddings = await apply_chat_template(
