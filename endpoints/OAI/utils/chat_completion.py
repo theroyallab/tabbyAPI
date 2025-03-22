@@ -233,8 +233,8 @@ async def format_messages_with_template(
 
         if message.tool_calls:
             message.tool_calls_json = ToolCallProcessor.to_json(message.tool_calls)
-            # Make sure message.tool_calls matches tool_calls_json
-            # when this is used in the template.
+
+            # The tools variable is inspectable in the template, so load the JSON string
             message.tool_calls = json.loads(message.tool_calls_json)
 
     special_tokens_dict = model.container.get_special_tokens(
@@ -255,14 +255,17 @@ async def apply_chat_template(
     Template stop strings can be overriden by sampler overrides if force is true.
     """
 
+    # Locally store tools dict
+    tools = data.model_dump()["tools"]
+
     try:
         data.template_vars.update(
             {
                 "add_generation_prompt": data.add_generation_prompt,
-                "tools": data.model_dump()["tools"],
-                "tools_json": "{{ tools | tojson(2) }}",
+                "tools": tools,
+                "tools_json": json.dumps(tools, indent=2),
                 "functions": data.functions,
-                "functions_json": "{{ functions | tojson(2) }}",
+                "functions_json": json.dumps(data.functions, indent=2),
                 "tool_precursor": tool_precursor,
             }
         )
@@ -465,7 +468,9 @@ async def generate_tool_calls(
 
     for idx, gen in enumerate(generations):
         if gen["stop_str"] in tool_data.tool_call_start:
-            logger.info("Tool calls detected")
+            logger.info(
+                f"Detected tool call in chat completion request {request.state.id}"
+            )
 
             if "text" in gen:
                 # non streaming, all generations will have the text they generated
