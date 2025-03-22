@@ -234,8 +234,9 @@ async def format_messages_with_template(
         if message.tool_calls:
             message.tool_calls_json = ToolCallProcessor.to_json(message.tool_calls)
 
-            # The tools variable is inspectable in the template, so load the JSON string
-            message.tool_calls = json.loads(message.tool_calls_json)
+            # The tools variable is inspectable in the template, so
+            # store the list of dicts rather than the ToolCallProcessor object.
+            message.tool_calls = ToolCallProcessor.dump(message.tool_calls)
 
     special_tokens_dict = model.container.get_special_tokens(
         add_bos_token, ban_eos_token
