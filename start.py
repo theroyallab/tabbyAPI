@@ -158,6 +158,7 @@ def migrate_gpu_lib():
         "The old file has been deleted."
     )
 
+
 def write_start_options_if_first_run(first_run, start_options):
     # First run options
     if first_run:
