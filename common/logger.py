@@ -115,3 +115,12 @@ def setup_logger():
         format=_log_formatter,
         colorize=True,
     )
+    # Add file logging
+    _ = logger.add(
+        "/var/log/tabbyapi/{time}.log",
+        level=LOG_LEVEL,
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {message}",
+        rotation="20 MB",  # Rotate file when it reaches 20MB
+        retention="1 week",  # Keep logs for 1 week
+        compression="zip",  # Compress rotated log
+    )
