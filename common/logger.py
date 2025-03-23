@@ -115,7 +115,6 @@ def setup_logger():
         format=_log_formatter,
         colorize=True,
     )
-    
     # Add file logging
     _ = logger.add(
         "/var/log/tabbyapi/{time}.log",
