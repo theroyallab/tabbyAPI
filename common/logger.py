@@ -122,5 +122,5 @@ def setup_logger():
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {message}",
         rotation="20 MB",  # Rotate file when it reaches 20MB
         retention="1 week",  # Keep logs for 1 week
-        compression="zip",  # Compress rotated logs
+        compression="zip",  # Compress rotated log
     )
