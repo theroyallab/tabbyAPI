@@ -1,5 +1,6 @@
 """Common utility functions"""
 
+import inspect
 from types import NoneType
 from typing import Dict, Optional, Type, Union, get_args, get_origin, TypeVar
 
@@ -85,3 +86,54 @@ def unwrap_optional_type(type_hint) -> Type:
                     return arg
 
     return type_hint
+
+
+def with_defer(func):
+    """
+    Decorator for a go-style defer
+    """
+
+    def wrapper(*args, **kwargs):
+        deferred_calls = []
+
+        # This 'defer' function is what you'll call inside your decorated function
+        def defer(fn, *fn_args, **fn_kwargs):
+            deferred_calls.append((fn, fn_args, fn_kwargs))
+
+        try:
+            # Inject 'defer' into the kwargs of the original function
+            return func(*args, defer=defer, **kwargs)
+        finally:
+            # After the original function finishes (or raises), run deferred calls
+            for fn, fn_args, fn_kwargs in reversed(deferred_calls):
+                fn(*fn_args, **fn_kwargs)
+
+    return wrapper
+
+
+def with_defer_async(func):
+    """
+    Decorator for running async functions in go-style defer blocks
+    """
+
+    async def wrapper(*args, **kwargs):
+        deferred_calls = []
+
+        # This 'defer' function is what you'll call inside your decorated function
+        def defer(fn, *fn_args, **fn_kwargs):
+            deferred_calls.append((fn, fn_args, fn_kwargs))
+
+        try:
+            # Inject 'defer' into the kwargs of the original function
+            return await func(*args, defer=defer, **kwargs)
+        finally:
+            # After the original function finishes (or raises), run deferred calls
+            for fn, fn_args, fn_kwargs in reversed(deferred_calls):
+                if inspect.iscoroutinefunction(fn):
+                    await fn(*fn_args, **fn_kwargs)
+                elif inspect.iscoroutine(fn):
+                    await fn
+                else:
+                    fn(*fn_args, **fn_kwargs)
+
+    return wrapper

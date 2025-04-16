@@ -165,7 +165,7 @@ class BaseSamplerRequest(BaseModel):
             "rep_pen_range",
         ),
         description=(
-            "Aliases: repetition_range, repetition_penalty_range, " "rep_pen_range"
+            "Aliases: repetition_range, repetition_penalty_range, rep_pen_range"
         ),
     )
 
