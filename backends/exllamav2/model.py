@@ -1083,7 +1083,7 @@ class ExllamaV2Container:
         gen_settings.min_p = params.min_p
         gen_settings.tfs = params.tfs
         gen_settings.typical = params.typical
-        gen_settings.mirostat = params.mirostat
+        gen_settings.mirostat = params.mirostat_mode == 2
         gen_settings.skew = params.skew
 
         # XTC
