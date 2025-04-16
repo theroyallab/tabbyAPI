@@ -1242,9 +1242,6 @@ class ExllamaV2Container:
         grammar_handler = ExLlamaV2Grammar()
         banned_strings = []
 
-        # TODO: Not used for some reason?
-        generate_window = max(params.generate_window, self.config.max_seq_len // 8)
-
         self.assign_gen_params(
             params,
             gen_settings,

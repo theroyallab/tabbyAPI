@@ -41,12 +41,6 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
-    generate_window: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("generate_window", 512),
-        examples=[512],
-        ge=0,
-    )
-
     stop: Optional[Union[str, List[Union[str, int]]]] = Field(
         default_factory=lambda: get_default_sampler_value("stop", []),
         validation_alias=AliasChoices("stop", "stop_sequence"),
