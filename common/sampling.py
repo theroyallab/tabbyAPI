@@ -42,7 +42,7 @@ class BaseSamplerRequest(BaseModel):
     )
 
     generate_window: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("generate_window"),
+        default_factory=lambda: get_default_sampler_value("generate_window", 512),
         examples=[512],
         ge=0,
     )
