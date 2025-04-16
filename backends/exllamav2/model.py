@@ -1091,7 +1091,7 @@ class ExllamaV2Container:
         gen_settings.min_p = unwrap(kwargs.get("min_p"), 0.0)
         gen_settings.tfs = unwrap(kwargs.get("tfs"), 1.0)
         gen_settings.typical = unwrap(kwargs.get("typical"), 1.0)
-        gen_settings.mirostat = unwrap(kwargs.get("mirostat"), False)
+        gen_settings.mirostat = unwrap(kwargs.get("mirostat_mode"), 0) == 2
         gen_settings.skew = unwrap(kwargs.get("skew"), 0)
 
         # XTC

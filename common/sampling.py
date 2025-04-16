@@ -195,10 +195,9 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("dry_sequence_breakers", [])
     )
 
-    mirostat: Optional[bool] = False
-
     mirostat_mode: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("mirostat_mode", 0)
+        default_factory=lambda: get_default_sampler_value("mirostat_mode", 0),
+        alias=AliasChoices("mirostat_mode", "mirostat"),
     )
 
     mirostat_tau: Optional[float] = Field(
@@ -324,15 +323,6 @@ class BaseSamplerRequest(BaseModel):
                 "Could not parse DRY sequence breakers. Using an empty array."
             )
             return []  # Return empty list if parsing fails
-
-    @field_validator("mirostat_mode", mode="before")
-    def convert_mirostat(cls, v, field_info):
-        """Mirostat is enabled if mirostat_mode == 2."""
-
-        if v == 2:
-            field_info.data["mirostat"] = True
-
-        return v
 
     @model_validator(mode="after")
     def after_validate(self):
