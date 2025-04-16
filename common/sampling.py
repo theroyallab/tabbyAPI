@@ -282,6 +282,11 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
+    logprobs: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("logprobs", 0),
+        ge=0,
+    )
+
     @field_validator("top_k", mode="before")
     def convert_top_k(cls, v):
         """Fixes instance if Top-K is -1."""

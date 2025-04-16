@@ -333,11 +333,11 @@ async def stream_generate_chat_completion(
                 _stream_collector(
                     n,
                     gen_queue,
-                    prompt,
                     request.state.id,
+                    prompt,
+                    task_gen_params,
                     abort_event,
-                    embeddings=embeddings,
-                    **task_gen_params.model_dump(exclude={"prompt"}),
+                    mm_embeddings=embeddings,
                 )
             )
 
@@ -422,10 +422,10 @@ async def generate_chat_completion(
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
-                        prompt,
                         request.state.id,
-                        embeddings=embeddings,
-                        **data.model_dump(exclude={"prompt"}),
+                        prompt,
+                        data,
+                        mm_embeddings=embeddings,
                     )
                 )
             )
@@ -465,7 +465,6 @@ async def generate_tool_calls(
     # FIXME: May not be necessary depending on how the codebase evolves
     tool_data = data.model_copy(deep=True)
     tool_data.json_schema = tool_data.tool_call_schema
-    gen_params = tool_data.model_dump()
 
     for idx, gen in enumerate(generations):
         if gen["stop_str"] in tool_data.tool_call_start:
@@ -488,10 +487,10 @@ async def generate_tool_calls(
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
-                        pre_tool_prompt,
                         request.state.id,
+                        pre_tool_prompt,
+                        tool_data,
                         embeddings=mm_embeddings,
-                        **gen_params,
                     )
                 )
             )
