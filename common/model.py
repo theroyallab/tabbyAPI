@@ -65,22 +65,27 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         logger.info("Unloading existing model.")
         await unload_model()
 
+    # Reset to prepare for a new container
+    container = None
+
     # Merge with config defaults
     kwargs = {**config.model_defaults, **kwargs}
 
     # Create a new container
-    container = await ExllamaV2Container.create(model_path.resolve(), False, **kwargs)
+    new_container = await ExllamaV2Container.create(
+        model_path.resolve(), False, **kwargs
+    )
 
     # Add possible types of models that can be loaded
     model_type = [ModelType.MODEL]
 
-    if container.use_vision:
+    if new_container.use_vision:
         model_type.insert(0, ModelType.VISION)
 
-    if container.draft_config:
+    if new_container.draft_config:
         model_type.insert(0, ModelType.DRAFT)
 
-    load_status = container.load_gen(load_progress, **kwargs)
+    load_status = new_container.load_gen(load_progress, **kwargs)
 
     progress = get_loading_progress_bar()
     progress.start()
@@ -104,6 +109,8 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                     progress.stop()
                 else:
                     index += 1
+
+        container = new_container
     finally:
         progress.stop()
 
@@ -150,8 +157,13 @@ async def load_embedding_model(model_path: pathlib.Path, **kwargs):
         logger.info("Unloading existing embeddings model.")
         await unload_embedding_model()
 
-    embeddings_container = InfinityContainer(model_path)
-    await embeddings_container.load(**kwargs)
+    # Reset to prepare for a new container
+    embeddings_container = None
+
+    new_embeddings_container = InfinityContainer(model_path)
+    await new_embeddings_container.load(**kwargs)
+
+    embeddings_container = new_embeddings_container
 
 
 async def unload_embedding_model():
@@ -164,7 +176,7 @@ async def unload_embedding_model():
 async def check_model_container():
     """FastAPI depends that checks if a model isn't loaded or currently loading."""
 
-    if container is None or not (container.model_is_loading or container.model_loaded):
+    if container is None:
         error_message = handle_request_error(
             "No models are currently loaded.",
             exc_info=False,
@@ -180,9 +192,7 @@ async def check_embeddings_container():
     This is the same as the model container check, but with embeddings instead.
     """
 
-    if embeddings_container is None or not (
-        embeddings_container.model_is_loading or embeddings_container.model_loaded
-    ):
+    if embeddings_container is None:
         error_message = handle_request_error(
             "No embedding models are currently loaded.",
             exc_info=False,
