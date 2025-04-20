@@ -10,17 +10,19 @@ from fastapi import HTTPException
 from loguru import logger
 from typing import Optional
 
+from backends.base_model_container import BaseModelContainer
 from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
 from common.tabby_config import config
 from common.optional_dependencies import dependencies
 
+# Global variables for model container
+container: Optional[BaseModelContainer] = None
+embeddings_container = None
+
+# FIXME: Possibly use this solely when creating the model
 if dependencies.exllamav2:
     from backends.exllamav2.model import ExllamaV2Container
-
-    # Global model container
-    container: Optional[ExllamaV2Container] = None
-    embeddings_container = None
 
 
 if dependencies.extras:

@@ -31,6 +31,7 @@ from typing import Dict, List, Optional
 
 from ruamel.yaml import YAML
 
+from backends.base_model_container import BaseModelContainer
 from common.health import HealthManager
 
 from backends.exllamav2.grammar import (
@@ -61,7 +62,7 @@ from common.transformers_utils import GenerationConfig
 from common.utils import coalesce, unwrap
 
 
-class ExllamaV2Container:
+class ExllamaV2Container(BaseModelContainer):
     """The model container class for ExLlamaV2 models."""
 
     # Model directories
@@ -99,9 +100,6 @@ class ExllamaV2Container:
     vision_model: Optional[ExLlamaV2VisionTower] = None
 
     # Load synchronization
-    # The bool is a master switch for accepting requests
-    # The lock keeps load tasks sequential
-    # The condition notifies any waiting tasks
     active_job_ids: Dict[str, Optional[ExLlamaV2DynamicJobAsync]] = {}
     loaded: bool = False
     load_lock: asyncio.Lock = asyncio.Lock()
