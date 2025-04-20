@@ -145,9 +145,6 @@ class ExllamaV2Container(BaseModelContainer):
                     "Skipping generation config load because of an unexpected error."
                 )
 
-        # Apply a model's config overrides while respecting user settings
-        kwargs = await self.set_model_overrides(**kwargs)
-
         # Set vision state and error if vision isn't supported on the current model
         self.use_vision = unwrap(kwargs.get("vision"), False)
         if self.use_vision and not self.config.vision_model_type:
@@ -384,35 +381,6 @@ class ExllamaV2Container(BaseModelContainer):
 
         # Return the created instance
         return self
-
-    async def set_model_overrides(self, **kwargs):
-        """Sets overrides from a model folder's config yaml."""
-
-        override_config_path = self.model_dir / "tabby_config.yml"
-
-        if not override_config_path.exists():
-            return kwargs
-
-        async with aiofiles.open(
-            override_config_path, "r", encoding="utf8"
-        ) as override_config_file:
-            contents = await override_config_file.read()
-
-            # Create a temporary YAML parser
-            yaml = YAML(typ="safe")
-            override_args = unwrap(yaml.load(contents), {})
-
-            # Merge draft overrides beforehand
-            draft_override_args = unwrap(override_args.get("draft_model"), {})
-            if draft_override_args:
-                kwargs["draft_model"] = {
-                    **draft_override_args,
-                    **unwrap(kwargs.get("draft_model"), {}),
-                }
-
-            # Merge the override and model kwargs
-            merged_kwargs = {**override_args, **kwargs}
-            return merged_kwargs
 
     async def find_prompt_template(self, prompt_template_name, model_directory):
         """Tries to find a prompt template using various methods."""
