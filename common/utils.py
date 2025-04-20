@@ -87,3 +87,23 @@ def unwrap_optional_type(type_hint) -> Type:
 
     return type_hint
 
+
+def calculate_rope_alpha(base_seq_len: int, target_seq_len: int):
+    """
+    Converts a given max sequence length to a rope alpha value.
+
+    Args:
+        base_seq_len: The model's configured sequence length.
+        target_seq_len: The user-specified max sequence length.
+    """
+
+    # Get the ratio of the model's max sequence length to the target
+    ratio = base_seq_len / target_seq_len
+
+    # Default to a 1 alpha if the sequence length is ever less
+    # than or equal to 1
+    if ratio <= 1.0:
+        alpha = 1
+    else:
+        alpha = -0.13436 + 0.80541 * ratio + 0.28833 * ratio**2
+    return alpha

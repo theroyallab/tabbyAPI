@@ -112,8 +112,6 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     kwargs = {**config.model_defaults, **kwargs}
     kwargs = await apply_inline_overrides(model_path, **kwargs)
 
-    print(kwargs)
-
     # Create a new container
     new_container = await ExllamaV2Container.create(
         model_path.resolve(), False, **kwargs
