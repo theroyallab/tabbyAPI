@@ -7,7 +7,6 @@ import math
 import pathlib
 import traceback
 import torch
-import uuid
 from exllamav2 import (
     ExLlamaV2,
     ExLlamaV2Config,
@@ -99,14 +98,12 @@ class ExllamaV2Container:
     use_vision: bool = False
     vision_model: Optional[ExLlamaV2VisionTower] = None
 
-    # Load state
-    model_is_loading: bool = False
-    model_loaded: bool = False
-
     # Load synchronization
+    # The bool is a master switch for accepting requests
     # The lock keeps load tasks sequential
     # The condition notifies any waiting tasks
     active_job_ids: Dict[str, Optional[ExLlamaV2DynamicJobAsync]] = {}
+    loaded: bool = False
     load_lock: asyncio.Lock = asyncio.Lock()
     load_condition: asyncio.Condition = asyncio.Condition()
 
@@ -560,7 +557,6 @@ class ExllamaV2Container:
         # Do this operation under the load lock's context
         try:
             await self.load_lock.acquire()
-            self.model_is_loading = True
 
             # Wait for existing generation jobs to finish
             await self.wait_for_jobs(kwargs.get("skip_wait"))
@@ -579,11 +575,10 @@ class ExllamaV2Container:
             torch.cuda.empty_cache()
 
             # Cleanup and update model load state
-            self.model_loaded = True
+            self.loaded = True
             logger.info("Model successfully loaded.")
         finally:
             self.load_lock.release()
-            self.model_is_loading = False
 
             async with self.load_condition:
                 self.load_condition.notify_all()
@@ -773,7 +768,7 @@ class ExllamaV2Container:
 
         try:
             # Don't acquire locks unless a model is loaded
-            if self.model_loaded:
+            if self.loaded:
                 await self.load_lock.acquire()
 
                 # Immediately cancel all jobs
@@ -796,7 +791,7 @@ class ExllamaV2Container:
         finally:
             # This means the generator is being recreated
             # The load lock is already released in the load function
-            if self.model_loaded:
+            if self.loaded:
                 self.load_lock.release()
 
                 async with self.load_condition:
@@ -905,8 +900,7 @@ class ExllamaV2Container:
                     self.generator = None
 
                 # Set all model state variables to False
-                self.model_is_loading = False
-                self.model_loaded = False
+                self.loaded = False
 
             gc.collect()
             torch.cuda.empty_cache()
@@ -1233,8 +1227,15 @@ class ExllamaV2Container:
         """
 
         # Wait for load lock to be freed before processing
+        # Mainly used for loras and other operations where the class is available
         async with self.load_condition:
             await self.load_condition.wait_for(lambda: not self.load_lock.locked())
+
+        # If the model is being unloaded, don't accept new requests
+        if not self.loaded:
+            raise RuntimeError(
+                "Model is being unloaded. Cannot process new generation requests."
+            )
 
         # Mark that the job is running
         self.active_job_ids[request_id] = None

@@ -14,7 +14,6 @@ if dependencies.extras:
 
 class InfinityContainer:
     model_dir: pathlib.Path
-    model_is_loading: bool = False
     model_loaded: bool = False
 
     # Use a runtime type hint here
@@ -24,8 +23,6 @@ class InfinityContainer:
         self.model_dir = model_directory
 
     async def load(self, **kwargs):
-        self.model_is_loading = True
-
         # Use cpu by default
         device = unwrap(kwargs.get("embeddings_device"), "cpu")
 
