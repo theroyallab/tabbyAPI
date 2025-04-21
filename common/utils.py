@@ -98,7 +98,7 @@ def calculate_rope_alpha(base_seq_len: int, target_seq_len: int):
     """
 
     # Get the ratio of the model's max sequence length to the target
-    ratio = base_seq_len / target_seq_len
+    ratio = target_seq_len / base_seq_len
 
     # Default to a 1 alpha if the sequence length is ever less
     # than or equal to 1
