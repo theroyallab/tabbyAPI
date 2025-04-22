@@ -14,6 +14,7 @@ from common.multimodal import MultimodalEmbeddingWrapper
 from common.sampling import BaseSamplerRequest
 from common.templating import PromptTemplate
 from common.transformers_utils import GenerationConfig
+from endpoints.core.types.model import ModelCard
 
 
 class BaseModelContainer(abc.ABC):
@@ -189,7 +190,7 @@ class BaseModelContainer(abc.ABC):
 
     # TODO: Replace by yielding a model card
     @abc.abstractmethod
-    def get_model_parameters(self) -> Dict[str, Any]:
+    def model_info(self) -> ModelCard:
         """
         Returns a dictionary of the current model's configuration parameters.
 

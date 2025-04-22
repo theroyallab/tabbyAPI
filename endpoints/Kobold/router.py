@@ -122,7 +122,7 @@ async def get_tokencount(data: TokenCountRequest) -> TokenCountResponse:
 async def get_max_length() -> MaxLengthResponse:
     """Fetches the max length of the model."""
 
-    max_length = model.container.get_model_parameters().get("max_seq_len")
+    max_length = model.container.model_info().parameters.max_seq_len
     return {"value": max_length}
 
 
