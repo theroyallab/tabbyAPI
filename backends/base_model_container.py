@@ -188,7 +188,6 @@ class BaseModelContainer(abc.ABC):
         if False:
             yield
 
-    # TODO: Replace by yielding a model card
     @abc.abstractmethod
     def model_info(self) -> ModelCard:
         """

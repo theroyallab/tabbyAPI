@@ -241,9 +241,7 @@ async def find_prompt_template(template_name, model_dir: pathlib.Path):
     # Add lookup from prompt template name if provided
     if template_name:
         find_template_functions[:0] = [
-            lambda: PromptTemplate.from_file(
-                pathlib.Path("templates") / template_name
-            ),
+            lambda: PromptTemplate.from_file(pathlib.Path("templates") / template_name),
             lambda: PromptTemplate.from_model_json(
                 model_dir / "tokenizer_config.json",
                 key="chat_template",
