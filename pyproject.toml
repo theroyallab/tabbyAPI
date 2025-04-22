@@ -40,8 +40,6 @@ dependencies = [
     "uvloop ; platform_system == 'Linux' and platform_machine == 'x86_64'",
     "winloop ; platform_system == 'Windows'",
 
-    "numpy < 2.0.0",
-
     # For python 3.12
     "setuptools ; python_version >= '3.12'"
 ]
