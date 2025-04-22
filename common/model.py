@@ -46,7 +46,6 @@ def load_progress(module, modules):
     yield module, modules
 
 
-# TODO: Change this to be inline with config.yml
 async def apply_inline_overrides(model_dir: pathlib.Path, **kwargs):
     """Sets overrides from a model folder's config yaml."""
 
@@ -105,10 +104,12 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     container = None
 
     # Model_dir is already provided
-    # TODO: Isolate the root cause
-    kwargs.pop("model_dir")
+    if "model_dir" in kwargs:
+        kwargs.pop("model_dir")
 
     # Merge with config and inline defaults
+    # TODO: Figure out a way to do this with Pydantic validation
+    # and ModelLoadRequest. Pydantic doesn't have async validators
     kwargs = {**config.model_defaults, **kwargs}
     kwargs = await apply_inline_overrides(model_path, **kwargs)
 
