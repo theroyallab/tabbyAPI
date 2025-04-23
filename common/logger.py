@@ -9,12 +9,12 @@ from loguru import logger
 from rich.console import Console
 from rich.markup import escape
 from rich.progress import (
-    Progress,
-    TextColumn,
     BarColumn,
-    TimeRemainingColumn,
-    TaskProgressColumn,
     MofNCompleteColumn,
+    Progress,
+    TaskProgressColumn,
+    TextColumn,
+    TimeRemainingColumn,
 )
 
 from common.utils import unwrap
@@ -116,8 +116,8 @@ def setup_logger():
         colorize=True,
     )
     # Add file logging
-    _ = logger.add(
-        "/var/log/tabbyapi/{time}.log",
+    logger.add(
+        "logs/{time}.log",
         level=LOG_LEVEL,
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {message}",
         rotation="20 MB",  # Rotate file when it reaches 20MB
