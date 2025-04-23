@@ -254,8 +254,9 @@ if __name__ == "__main__":
         print()
 
         if args.update_deps:
-            # If the update_deps command is run on the first_run (like building in a docker container)
-            # Then write the start_options to avoid re-running
+            # If the update_deps command is run on the first_run (like building
+            # in a docker container). Then write the start_options to
+            # avoid re-running
             write_start_options_if_first_run(first_run, start_options)
 
             print(
@@ -269,7 +270,8 @@ if __name__ == "__main__":
                 "inside the `update_scripts` folder."
             )
 
-    # Write the start_options to a file on the first run to save them for subsequent runs
+    # Write the start_options to a file on the first run to save them for
+    # subsequent runs
     write_start_options_if_first_run(first_run, start_options)
 
     # Expand the parser if it's not fully created
