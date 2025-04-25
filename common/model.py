@@ -224,7 +224,7 @@ async def check_model_container():
             exc_info=False,
         ).error.message
 
-        raise HTTPException(400, error_message)
+        raise HTTPException(503, error_message)
 
 
 async def check_embeddings_container():
@@ -240,4 +240,4 @@ async def check_embeddings_container():
             exc_info=False,
         ).error.message
 
-        raise HTTPException(400, error_message)
+        raise HTTPException(503, error_message)
