@@ -14,7 +14,7 @@ if dependencies.extras:
 
 class InfinityContainer:
     model_dir: pathlib.Path
-    model_loaded: bool = False
+    loaded: bool = False
 
     # Use a runtime type hint here
     engine: Optional["AsyncEmbeddingEngine"] = None
@@ -37,7 +37,7 @@ class InfinityContainer:
         self.engine = AsyncEmbeddingEngine.from_args(engine_args)
         await self.engine.astart()
 
-        self.model_loaded = True
+        self.loaded = True
         logger.info("Embedding model successfully loaded.")
 
     async def unload(self):

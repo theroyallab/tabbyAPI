@@ -879,7 +879,7 @@ class ExllamaV2Container(BaseModelContainer):
     ):
         """Generate a response to a prompt."""
         generations = []
-        async for generation in self.generate_gen(
+        async for generation in self.stream_generate(
             request_id,
             prompt,
             params,
@@ -930,6 +930,42 @@ class ExllamaV2Container(BaseModelContainer):
             )
 
         return joined_generation
+
+    async def stream_generate(
+        self,
+        request_id: str,
+        prompt: str,
+        params: BaseSamplerRequest,
+        abort_event: Optional[asyncio.Event] = None,
+        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+    ):
+        try:
+            # Wait for load lock to be freed before processing
+            # Mainly used for loras and other operations where the class is available
+            async with self.load_condition:
+                await self.load_condition.wait_for(lambda: not self.load_lock.locked())
+
+            # If the model is being unloaded, don't accept new requests
+            if not self.loaded:
+                raise RuntimeError(
+                    "Model is being unloaded. Cannot process new generation requests."
+                )
+
+            # Mark that the job is running
+            self.active_job_ids[request_id] = None
+
+            # Yield from the internal generator
+            async for generation_chunk in self.generate_gen(
+                request_id=request_id,
+                prompt=prompt,
+                params=params,
+                abort_event=abort_event,
+                mm_embeddings=mm_embeddings,
+            ):
+                yield generation_chunk
+        finally:
+            # Clean up and remove the job from active IDs
+            del self.active_job_ids[request_id]
 
     def check_unsupported_settings(self, params: BaseSamplerRequest):
         """
@@ -1164,20 +1200,6 @@ class ExllamaV2Container(BaseModelContainer):
 
         for kwargs, check common/sampling.py
         """
-
-        # Wait for load lock to be freed before processing
-        # Mainly used for loras and other operations where the class is available
-        async with self.load_condition:
-            await self.load_condition.wait_for(lambda: not self.load_lock.locked())
-
-        # If the model is being unloaded, don't accept new requests
-        if not self.loaded:
-            raise RuntimeError(
-                "Model is being unloaded. Cannot process new generation requests."
-            )
-
-        # Mark that the job is running
-        self.active_job_ids[request_id] = None
 
         prompts = [prompt]
         gen_settings = ExLlamaV2Sampler.Settings()
@@ -1421,6 +1443,3 @@ class ExllamaV2Container(BaseModelContainer):
                     context_len,
                     max_seq_len,
                 )
-
-            # Remove the job from active IDs
-            del self.active_job_ids[request_id]

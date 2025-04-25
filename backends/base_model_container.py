@@ -163,7 +163,7 @@ class BaseModelContainer(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def generate_gen(
+    async def stream_generate(
         self,
         request_id: str,
         prompt: str,

@@ -95,7 +95,7 @@ async def _stream_collector(
     """Collects a stream and places results in a common queue"""
 
     try:
-        new_generation = model.container.generate_gen(
+        new_generation = model.container.stream_generate(
             request_id,
             prompt,
             params,
@@ -120,7 +120,7 @@ async def load_inline_model(model_name: str, request: Request):
     if (
         model.container
         and model.container.model_dir.name == model_name
-        and model.container.model_loaded
+        and model.container.loaded
     ):
         return
 

@@ -92,7 +92,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     if container and container.model:
         loaded_model_name = container.model_dir.name
 
-        if loaded_model_name == model_path.name and container.model_loaded:
+        if loaded_model_name == model_path.name and container.loaded:
             raise ValueError(
                 f'Model "{loaded_model_name}" is already loaded! Aborting.'
             )
@@ -191,7 +191,7 @@ async def load_embedding_model(model_path: pathlib.Path, **kwargs):
     if embeddings_container and embeddings_container.engine:
         loaded_model_name = embeddings_container.model_dir.name
 
-        if loaded_model_name == model_path.name and embeddings_container.model_loaded:
+        if loaded_model_name == model_path.name and embeddings_container.loaded:
             raise ValueError(
                 f'Embeddings model "{loaded_model_name}" is already loaded! Aborting.'
             )
