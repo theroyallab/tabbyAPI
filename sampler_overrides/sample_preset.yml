@@ -14,9 +14,6 @@ max_tokens:
 min_tokens:
   override: 0
   force: false
-generate_window:
-  override: 512
-  force: false
 stop:
   override: []
   force: false

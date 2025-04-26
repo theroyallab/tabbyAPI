@@ -1,16 +1,11 @@
 """The model container class for ExLlamaV2 models."""
 
-import aiofiles
 import asyncio
 import gc
 import math
 import pathlib
 import traceback
-from backends.exllamav2.vision import clear_image_embedding_cache
-from common.multimodal import MultimodalEmbeddingWrapper
 import torch
-import uuid
-from copy import deepcopy
 from exllamav2 import (
     ExLlamaV2,
     ExLlamaV2Config,
@@ -31,12 +26,9 @@ from exllamav2.generator import (
 )
 from itertools import zip_longest
 from loguru import logger
-from typing import List, Optional, Union
+from typing import Dict, List, Optional
 
-from ruamel.yaml import YAML
-
-from common.health import HealthManager
-
+from backends.base_model_container import BaseModelContainer
 from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
     clear_grammar_func_cache,
@@ -46,6 +38,7 @@ from backends.exllamav2.utils import (
     hardware_supports_flash_attn,
     supports_paged_attn,
 )
+from backends.exllamav2.vision import clear_image_embedding_cache
 from common.concurrency import iterate_in_threadpool
 from common.gen_logging import (
     log_generation_params,
@@ -53,16 +46,16 @@ from common.gen_logging import (
     log_prompt,
     log_response,
 )
-from common.templating import (
-    PromptTemplate,
-    TemplateLoadError,
-    find_template_from_model,
-)
+from common.health import HealthManager
+from common.multimodal import MultimodalEmbeddingWrapper
+from common.sampling import BaseSamplerRequest
+from common.templating import PromptTemplate, find_prompt_template
 from common.transformers_utils import GenerationConfig
-from common.utils import coalesce, unwrap
+from common.utils import calculate_rope_alpha, coalesce, unwrap
+from endpoints.core.types.model import ModelCard, ModelCardParameters
 
 
-class ExllamaV2Container:
+class ExllamaV2Container(BaseModelContainer):
     """The model container class for ExLlamaV2 models."""
 
     # Model directories
@@ -99,13 +92,9 @@ class ExllamaV2Container:
     use_vision: bool = False
     vision_model: Optional[ExLlamaV2VisionTower] = None
 
-    # Load state
-    model_is_loading: bool = False
-    model_loaded: bool = False
-
     # Load synchronization
-    # The lock keeps load tasks sequential
-    # The condition notifies any waiting tasks
+    active_job_ids: Dict[str, Optional[ExLlamaV2DynamicJobAsync]] = {}
+    loaded: bool = False
     load_lock: asyncio.Lock = asyncio.Lock()
     load_condition: asyncio.Condition = asyncio.Condition()
 
@@ -148,9 +137,6 @@ class ExllamaV2Container:
                 logger.warning(
                     "Skipping generation config load because of an unexpected error."
                 )
-
-        # Apply a model's config overrides while respecting user settings
-        kwargs = await self.set_model_overrides(**kwargs)
 
         # Set vision state and error if vision isn't supported on the current model
         self.use_vision = unwrap(kwargs.get("vision"), False)
@@ -251,9 +237,7 @@ class ExllamaV2Container:
         base_seq_len = self.config.max_seq_len
 
         # Set the target seq len if present
-        target_max_seq_len = kwargs.get("max_seq_len")
-        if target_max_seq_len:
-            self.config.max_seq_len = target_max_seq_len
+        target_seq_len = kwargs.get("max_seq_len")
 
         # Set the rope scale
         self.config.scale_pos_emb = unwrap(
@@ -264,9 +248,15 @@ class ExllamaV2Container:
         # Automatically calculate if unset or defined as an "auto" literal.
         rope_alpha = unwrap(kwargs.get("rope_alpha"), "auto")
         if rope_alpha == "auto":
-            self.config.scale_alpha_value = self.calculate_rope_alpha(base_seq_len)
+            self.config.scale_alpha_value = calculate_rope_alpha(
+                base_seq_len, target_seq_len
+            )
         else:
             self.config.scale_alpha_value = rope_alpha
+
+        # Set the max seq len if specified
+        if target_seq_len:
+            self.config.max_seq_len = target_seq_len
 
         # Set max batch size to the config override
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"))
@@ -329,7 +319,7 @@ class ExllamaV2Container:
             self.cache_size = self.config.max_seq_len
 
         # Try to set prompt template
-        self.prompt_template = await self.find_prompt_template(
+        self.prompt_template = await find_prompt_template(
             kwargs.get("prompt_template"), model_directory
         )
 
@@ -370,10 +360,11 @@ class ExllamaV2Container:
             )
 
             # Set draft rope alpha. Follows same behavior as model rope alpha.
+            # Use the base sequence length of the model
             draft_rope_alpha = unwrap(draft_args.get("draft_rope_alpha"), "auto")
             if draft_rope_alpha == "auto":
-                self.draft_config.scale_alpha_value = self.calculate_rope_alpha(
-                    self.draft_config.max_seq_len
+                self.draft_config.scale_alpha_value = calculate_rope_alpha(
+                    base_seq_len, self.draft_config.max_seq_len
                 )
             else:
                 self.draft_config.scale_alpha_value = draft_rope_alpha
@@ -389,133 +380,43 @@ class ExllamaV2Container:
         # Return the created instance
         return self
 
-    async def set_model_overrides(self, **kwargs):
-        """Sets overrides from a model folder's config yaml."""
+    def model_info(self):
+        draft_model_card: ModelCard = None
+        if self.draft_config:
+            draft_model_params = ModelCardParameters(
+                max_seq_len=self.draft_config.max_seq_len,
+                rope_scale=self.draft_config.scale_pos_emb,
+                rope_alpha=self.draft_config.scale_alpha_value,
+                cache_mode=self.draft_cache_mode,
+            )
 
-        override_config_path = self.model_dir / "tabby_config.yml"
+            draft_model_card = ModelCard(
+                id=self.draft_model_dir.name,
+                parameters=draft_model_params,
+            )
 
-        if not override_config_path.exists():
-            return kwargs
-
-        async with aiofiles.open(
-            override_config_path, "r", encoding="utf8"
-        ) as override_config_file:
-            contents = await override_config_file.read()
-
-            # Create a temporary YAML parser
-            yaml = YAML(typ="safe")
-            override_args = unwrap(yaml.load(contents), {})
-
-            # Merge draft overrides beforehand
-            draft_override_args = unwrap(override_args.get("draft_model"), {})
-            if draft_override_args:
-                kwargs["draft_model"] = {
-                    **draft_override_args,
-                    **unwrap(kwargs.get("draft_model"), {}),
-                }
-
-            # Merge the override and model kwargs
-            merged_kwargs = {**override_args, **kwargs}
-            return merged_kwargs
-
-    async def find_prompt_template(self, prompt_template_name, model_directory):
-        """Tries to find a prompt template using various methods."""
-
-        logger.info("Attempting to load a prompt template if present.")
-
-        find_template_functions = [
-            lambda: PromptTemplate.from_model_json(
-                pathlib.Path(self.config.model_dir) / "chat_template.json",
-                key="chat_template",
-            ),
-            lambda: PromptTemplate.from_model_json(
-                pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
-                key="chat_template",
-            ),
-            lambda: PromptTemplate.from_file(find_template_from_model(model_directory)),
-        ]
-
-        # Find the template in the model directory if it exists
-        model_dir_template_path = (
-            pathlib.Path(self.config.model_dir) / "tabby_template.jinja"
+        model_params = ModelCardParameters(
+            max_seq_len=self.config.max_seq_len,
+            cache_size=self.cache_size,
+            rope_scale=self.config.scale_pos_emb,
+            rope_alpha=self.config.scale_alpha_value,
+            max_batch_size=self.max_batch_size,
+            cache_mode=self.cache_mode,
+            chunk_size=self.config.max_input_len,
+            use_vision=self.use_vision,
+            draft=draft_model_card,
         )
-        if model_dir_template_path.exists():
-            find_template_functions[:0] = [
-                lambda: PromptTemplate.from_file(model_dir_template_path)
-            ]
-
-        # Add lookup from prompt template name if provided
-        if prompt_template_name:
-            find_template_functions[:0] = [
-                lambda: PromptTemplate.from_file(
-                    pathlib.Path("templates") / prompt_template_name
-                ),
-                lambda: PromptTemplate.from_model_json(
-                    pathlib.Path(self.config.model_dir) / "tokenizer_config.json",
-                    key="chat_template",
-                    name=prompt_template_name,
-                ),
-            ]
-
-        # Continue on exception since functions are tried as they fail
-        for template_func in find_template_functions:
-            try:
-                prompt_template = await template_func()
-                if prompt_template is not None:
-                    return prompt_template
-            except TemplateLoadError as e:
-                logger.warning(f"TemplateLoadError: {str(e)}")
-                continue
-            except Exception:
-                logger.error(traceback.format_exc())
-                logger.warning(
-                    "An unexpected error happened when trying to load the template. "
-                    "Trying other methods."
-                )
-                continue
-
-    def calculate_rope_alpha(self, base_seq_len):
-        """Calculate the rope alpha value for a given sequence length."""
-
-        ratio = self.config.max_seq_len / base_seq_len
-
-        # Default to a 1 alpha if the sequence length is ever less
-        # than or equal to 1
-        if ratio <= 1.0:
-            alpha = 1
-        else:
-            alpha = -0.13436 + 0.80541 * ratio + 0.28833 * ratio**2
-        return alpha
-
-    def get_model_parameters(self):
-        model_params = {
-            "name": self.model_dir.name,
-            "rope_scale": self.config.scale_pos_emb,
-            "rope_alpha": self.config.scale_alpha_value,
-            "max_seq_len": self.config.max_seq_len,
-            "max_batch_size": self.max_batch_size,
-            "cache_size": self.cache_size,
-            "cache_mode": self.cache_mode,
-            "chunk_size": self.config.max_input_len,
-            "use_vision": self.use_vision,
-        }
 
         if self.prompt_template:
-            model_params["prompt_template"] = self.prompt_template.name
-            model_params["prompt_template_content"] = self.prompt_template.raw_template
+            model_params.prompt_template = self.prompt_template.name
+            model_params.prompt_template_content = self.prompt_template.raw_template
 
-        if self.draft_config:
-            draft_model_params = {
-                "name": self.draft_model_dir.name,
-                "rope_scale": self.draft_config.scale_pos_emb,
-                "rope_alpha": self.draft_config.scale_alpha_value,
-                "max_seq_len": self.draft_config.max_seq_len,
-                "cache_mode": self.draft_cache_mode,
-            }
+        model_card = ModelCard(
+            id=self.model_dir.name,
+            parameters=model_params,
+        )
 
-            model_params["draft"] = draft_model_params
-
-        return model_params
+        return model_card
 
     async def wait_for_jobs(self, skip_wait: bool = False):
         """Polling mechanism to wait for pending generation jobs."""
@@ -530,12 +431,11 @@ class ExllamaV2Container:
                 "Clients will have their requests cancelled.\n"
             )
 
-            # Requires a copy to avoid errors during iteration
-            jobs_copy = self.generator.jobs.copy()
-            for job in jobs_copy.values():
-                await job.cancel()
+            for job in self.active_job_ids.values():
+                if job:
+                    await job.cancel()
 
-        while self.generator.jobs:
+        while len(self.active_job_ids) > 0:
             await asyncio.sleep(0.01)
 
     async def load(self, progress_callback=None):
@@ -560,7 +460,6 @@ class ExllamaV2Container:
         # Do this operation under the load lock's context
         try:
             await self.load_lock.acquire()
-            self.model_is_loading = True
 
             # Wait for existing generation jobs to finish
             await self.wait_for_jobs(kwargs.get("skip_wait"))
@@ -579,11 +478,10 @@ class ExllamaV2Container:
             torch.cuda.empty_cache()
 
             # Cleanup and update model load state
-            self.model_loaded = True
+            self.loaded = True
             logger.info("Model successfully loaded.")
         finally:
             self.load_lock.release()
-            self.model_is_loading = False
 
             async with self.load_condition:
                 self.load_condition.notify_all()
@@ -773,7 +671,7 @@ class ExllamaV2Container:
 
         try:
             # Don't acquire locks unless a model is loaded
-            if self.model_loaded:
+            if self.loaded:
                 await self.load_lock.acquire()
 
                 # Immediately cancel all jobs
@@ -796,7 +694,7 @@ class ExllamaV2Container:
         finally:
             # This means the generator is being recreated
             # The load lock is already released in the load function
-            if self.model_loaded:
+            if self.loaded:
                 self.load_lock.release()
 
                 async with self.load_condition:
@@ -887,12 +785,7 @@ class ExllamaV2Container:
                 self.model = None
 
                 if self.vision_model:
-                    # TODO: Remove this with newer exl2 versions
-                    # Required otherwise unload function won't finish
-                    try:
-                        self.vision_model.unload()
-                    except AttributeError:
-                        pass
+                    self.vision_model.unload()
 
                 self.vision_model = None
 
@@ -910,8 +803,7 @@ class ExllamaV2Container:
                     self.generator = None
 
                 # Set all model state variables to False
-                self.model_is_loading = False
-                self.model_loaded = False
+                self.loaded = False
 
             gc.collect()
             torch.cuda.empty_cache()
@@ -950,7 +842,6 @@ class ExllamaV2Container:
             decode_special_tokens=unwrap(kwargs.get("decode_special_tokens"), True),
         )[0]
 
-    # TODO: Maybe support generation_config for eos_token
     def get_special_tokens(
         self, add_bos_token: bool = True, ban_eos_token: bool = False
     ):
@@ -980,15 +871,20 @@ class ExllamaV2Container:
 
     async def generate(
         self,
-        prompt: str,
         request_id: str,
-        abort_event: asyncio.Event = None,
-        **kwargs,
+        prompt: str,
+        params: BaseSamplerRequest,
+        abort_event: Optional[asyncio.Event] = None,
+        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
     ):
         """Generate a response to a prompt."""
         generations = []
-        async for generation in self.generate_gen(
-            prompt, request_id, abort_event, **kwargs
+        async for generation in self.stream_generate(
+            request_id,
+            prompt,
+            params,
+            abort_event,
+            mm_embeddings,
         ):
             generations.append(generation)
 
@@ -1035,81 +931,86 @@ class ExllamaV2Container:
 
         return joined_generation
 
-    def check_unsupported_settings(self, **kwargs):
+    async def stream_generate(
+        self,
+        request_id: str,
+        prompt: str,
+        params: BaseSamplerRequest,
+        abort_event: Optional[asyncio.Event] = None,
+        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+    ):
+        try:
+            # Wait for load lock to be freed before processing
+            # Mainly used for loras and other operations where the class is available
+            async with self.load_condition:
+                await self.load_condition.wait_for(lambda: not self.load_lock.locked())
+
+            # If the model is being unloaded, don't accept new requests
+            if not self.loaded:
+                raise RuntimeError(
+                    "Model is being unloaded. Cannot process new generation requests."
+                )
+
+            # Mark that the job is running
+            self.active_job_ids[request_id] = None
+
+            # Yield from the internal generator
+            async for generation_chunk in self.generate_gen(
+                request_id=request_id,
+                prompt=prompt,
+                params=params,
+                abort_event=abort_event,
+                mm_embeddings=mm_embeddings,
+            ):
+                yield generation_chunk
+        finally:
+            # Clean up and remove the job from active IDs
+            del self.active_job_ids[request_id]
+
+    def check_unsupported_settings(self, params: BaseSamplerRequest):
         """
         Check and warn the user if a sampler is unsupported.
 
         Meant for dev wheels!
         """
 
-        if unwrap(kwargs.get("xtc_probability"), 0.0) > 0.0 and not hasattr(
-            ExLlamaV2Sampler.Settings, "xtc_probability"
-        ):
-            logger.warning(
-                "XTC is not supported by the currently " "installed ExLlamaV2 version."
-            )
+        return params
 
-        return kwargs
-
-    async def generate_gen(
+    def assign_gen_params(
         self,
-        prompt: str,
-        request_id: str,
-        abort_event: Optional[asyncio.Event] = None,
-        **kwargs,
+        params: BaseSamplerRequest,
+        gen_settings: ExLlamaV2Sampler.Settings,
+        grammar_handler: ExLlamaV2Grammar,
+        banned_strings: List[str],
     ):
-        """
-        Create generator function for prompt completion.
-
-        for kwargs, check common/sampling.py
-        """
-
-        # Wait for load lock to be freed before processing
-        async with self.load_condition:
-            await self.load_condition.wait_for(lambda: not self.load_lock.locked())
-
-        prompts = [prompt]
-
-        token_healing = unwrap(kwargs.get("token_healing"), False)
-        generate_window = max(
-            unwrap(kwargs.get("generate_window"), 512), self.config.max_seq_len // 8
-        )
-
-        # Sampler settings
-        gen_settings = ExLlamaV2Sampler.Settings()
-
-        # Check unsupported settings for dev wheels
-        kwargs = self.check_unsupported_settings(**kwargs)
-
         # Apply settings
-        gen_settings.temperature = unwrap(kwargs.get("temperature"), 1.0)
-        gen_settings.temperature_last = unwrap(kwargs.get("temperature_last"), False)
-        gen_settings.smoothing_factor = unwrap(kwargs.get("smoothing_factor"), 0.0)
-        gen_settings.top_k = unwrap(kwargs.get("top_k"), 0)
-        gen_settings.top_p = unwrap(kwargs.get("top_p"), 1.0)
-        gen_settings.top_a = unwrap(kwargs.get("top_a"), 0.0)
-        gen_settings.min_p = unwrap(kwargs.get("min_p"), 0.0)
-        gen_settings.tfs = unwrap(kwargs.get("tfs"), 1.0)
-        gen_settings.typical = unwrap(kwargs.get("typical"), 1.0)
-        gen_settings.mirostat = unwrap(kwargs.get("mirostat_mode"), 0) == 2
-        gen_settings.skew = unwrap(kwargs.get("skew"), 0)
+        gen_settings.temperature = params.temperature
+        gen_settings.temperature_last = params.temperature_last
+        gen_settings.smoothing_factor = params.smoothing_factor
+        gen_settings.top_k = params.top_k
+        gen_settings.top_p = params.top_p
+        gen_settings.top_a = params.top_a
+        gen_settings.min_p = params.min_p
+        gen_settings.tfs = params.tfs
+        gen_settings.typical = params.typical
+        gen_settings.mirostat = params.mirostat_mode == 2
+        gen_settings.skew = params.skew
 
         # XTC
-        xtc_probability = unwrap(kwargs.get("xtc_probability"), 0.0)
-        if xtc_probability > 0.0:
-            gen_settings.xtc_probability = xtc_probability
+        if params.xtc_probability > 0.0:
+            gen_settings.xtc_probability = params.xtc_probability
 
             # 0.1 is the default for this value
-            gen_settings.xtc_threshold = unwrap(kwargs.get("xtc_threshold", 0.1))
+            gen_settings.xtc_threshold = params.xtc_threshold
 
         # DynaTemp settings
-        max_temp = unwrap(kwargs.get("max_temp"), 1.0)
-        min_temp = unwrap(kwargs.get("min_temp"), 1.0)
+        max_temp = params.max_temp
+        min_temp = params.min_temp
 
-        if max_temp > min_temp:
+        if params.max_temp > params.min_temp:
             gen_settings.max_temp = max_temp
             gen_settings.min_temp = min_temp
-            gen_settings.temp_exponent = unwrap(kwargs.get("temp_exponent"), 1.0)
+            gen_settings.temp_exponent = params.temp_exponent
         else:
             # Force to default values
             gen_settings.max_temp = 1.0
@@ -1126,51 +1027,18 @@ class ExllamaV2Container:
             )
 
         # Default tau and eta fallbacks don't matter if mirostat is off
-        gen_settings.mirostat_tau = unwrap(kwargs.get("mirostat_tau"), 1.5)
-        gen_settings.mirostat_eta = unwrap(kwargs.get("mirostat_eta"), 0.1)
-
-        # Set CFG scale and negative prompt
-        cfg_scale = unwrap(kwargs.get("cfg_scale"), 1.0)
-        negative_prompt = None
-        if cfg_scale not in [None, 1.0]:
-            if self.paged:
-                gen_settings.cfg_scale = cfg_scale
-
-                # If the negative prompt is empty, use the BOS token
-                negative_prompt = unwrap(
-                    kwargs.get("negative_prompt"), self.tokenizer.bos_token
-                )
-
-                prompts.append(negative_prompt)
-            else:
-                logger.warning(
-                    "CFG is currently disabled because paged mode is disabled. "
-                    "Please use an ampere (30 series) or higher GPU for CFG support."
-                )
+        gen_settings.mirostat_tau = params.mirostat_tau
+        gen_settings.mirostat_eta = params.mirostat_eta
 
         # Penalties
-        gen_settings.token_repetition_penalty = unwrap(
-            kwargs.get("repetition_penalty"), 1.0
-        )
-        gen_settings.token_frequency_penalty = unwrap(
-            kwargs.get("frequency_penalty"), 0.0
-        )
-        gen_settings.token_presence_penalty = unwrap(
-            kwargs.get("presence_penalty"), 0.0
-        )
+        gen_settings.token_repetition_penalty = params.repetition_penalty
+        gen_settings.token_frequency_penalty = params.frequency_penalty
+        gen_settings.token_presence_penalty = params.presence_penalty
 
         # Applies for all penalties despite being called token_repetition_range
         gen_settings.token_repetition_range = unwrap(
-            kwargs.get("penalty_range"), self.config.max_seq_len
+            params.penalty_range, self.config.max_seq_len
         )
-
-        # Dynamically scale penalty range to output tokens
-        # Only do this if freq/pres pen is enabled
-        # and the repetition range is -1
-        auto_scale_penalty_range = (
-            gen_settings.token_frequency_penalty != 0
-            or gen_settings.token_presence_penalty != 0
-        ) and gen_settings.token_repetition_range == -1
 
         # Always make sure the fallback is 0 if range < 0
         # It's technically fine to use -1, but this just validates the passed
@@ -1181,57 +1049,48 @@ class ExllamaV2Container:
         else:
             fallback_decay = gen_settings.token_repetition_range
         gen_settings.token_repetition_decay = coalesce(
-            kwargs.get("repetition_decay"), fallback_decay, 0
+            params.repetition_decay, fallback_decay, 0
         )
 
         # DRY options
-        dry_multiplier = unwrap(kwargs.get("dry_multiplier"), 0.0)
+        dry_multiplier = params.dry_multiplier
 
         # < 0 = disabled
         if dry_multiplier > 0:
             gen_settings.dry_multiplier = dry_multiplier
-
-            # TODO: Maybe set the "sane" defaults instead?
-            gen_settings.dry_allowed_length = unwrap(
-                kwargs.get("dry_allowed_length"), 0
-            )
-            gen_settings.dry_base = unwrap(kwargs.get("dry_base"), 0.0)
+            gen_settings.dry_allowed_length = params.dry_allowed_length
+            gen_settings.dry_base = params.dry_base
 
             # Exl2 has dry_range as 0 for unlimited unlike -1 for penalty_range
             # Use max_seq_len as the fallback to stay consistent
-            gen_settings.dry_range = unwrap(
-                kwargs.get("dry_range"), self.config.max_seq_len
-            )
+            gen_settings.dry_range = unwrap(params.dry_range, self.config.max_seq_len)
 
             # Tokenize sequence breakers
-            dry_sequence_breakers_json = kwargs.get("dry_sequence_breakers")
-            if dry_sequence_breakers_json:
+            if params.dry_sequence_breakers:
                 gen_settings.dry_sequence_breakers = {
-                    self.encode_tokens(s)[-1] for s in dry_sequence_breakers_json
+                    self.encode_tokens(s)[-1] for s in params.dry_sequence_breakers
                 }
 
-        # Initialize grammar handler
-        grammar_handler = ExLlamaV2Grammar()
-
         # Add JSON schema filter if it exists
-        json_schema = unwrap(kwargs.get("json_schema"))
-        if json_schema:
+        if params.json_schema:
             grammar_handler.add_json_schema_filter(
-                json_schema, self.model, self.tokenizer
+                params.json_schema, self.model, self.tokenizer
             )
 
         # Add regex filter if it exists
-        regex_pattern = unwrap(kwargs.get("regex_pattern"))
-        if regex_pattern:
-            grammar_handler.add_regex_filter(regex_pattern, self.model, self.tokenizer)
+        if params.regex_pattern:
+            grammar_handler.add_regex_filter(
+                params.regex_pattern, self.model, self.tokenizer
+            )
 
         # Add EBNF filter if it exists
-        grammar_string = unwrap(kwargs.get("grammar_string"))
-        if grammar_string:
-            grammar_handler.add_kbnf_filter(grammar_string, self.model, self.tokenizer)
+        if params.grammar_string:
+            grammar_handler.add_kbnf_filter(
+                params.grammar_string, self.model, self.tokenizer
+            )
 
         # Set banned strings
-        banned_strings: List[str] = unwrap(kwargs.get("banned_strings"), [])
+        banned_strings = params.banned_strings
         if banned_strings and len(grammar_handler.filters) > 0:
             logger.warning(
                 "Disabling banned_strings because "
@@ -1240,18 +1099,8 @@ class ExllamaV2Container:
 
             banned_strings = []
 
-        stop_conditions: List[Union[str, int]] = unwrap(kwargs.get("stop"), [])
-        add_bos_token = unwrap(kwargs.get("add_bos_token"), True)
-        ban_eos_token = unwrap(kwargs.get("ban_eos_token"), False)
-        logit_bias = kwargs.get("logit_bias")
-
-        # Logprobs
-        request_logprobs = unwrap(kwargs.get("logprobs"), 0)
-
         # Speculative Ngram
-        self.generator.speculative_ngram = unwrap(
-            kwargs.get("speculative_ngram"), False
-        )
+        self.generator.speculative_ngram = params.speculative_ngram
 
         # Override sampler settings for temp = 0
         if gen_settings.temperature == 0:
@@ -1261,30 +1110,20 @@ class ExllamaV2Container:
             gen_settings.typical = 0
 
             logger.warning(
-                "".join(
-                    [
-                        "Temperature is set to 0. Overriding temp, ",
-                        "top_k, top_p, and typical to 1.0, 1, 0, and 0.",
-                    ]
-                )
+                "Temperature is set to 0. Overriding temp, "
+                "top_k, top_p, and typical to 1.0, 1, 0, and 0."
             )
 
-        # Store the gen settings for logging purposes
-        # Deepcopy to save a snapshot of vars
-        gen_settings_log_dict = deepcopy(vars(gen_settings))
-
         # Set banned tokens
-        banned_tokens = unwrap(kwargs.get("banned_tokens"), [])
-        if banned_tokens:
-            gen_settings.disallow_tokens(self.tokenizer, banned_tokens)
+        if params.banned_tokens:
+            gen_settings.disallow_tokens(self.tokenizer, params.banned_tokens)
 
         # Set allowed tokens
-        allowed_tokens = unwrap(kwargs.get("allowed_tokens"), [])
-        if allowed_tokens:
-            gen_settings.allow_tokens(self.tokenizer, allowed_tokens)
+        if params.allowed_tokens:
+            gen_settings.allow_tokens(self.tokenizer, params.allowed_tokens)
 
         # Set logit bias
-        if logit_bias:
+        if params.logit_bias:
             # Create a vocab tensor if it doesn't exist for token biasing
             if gen_settings.token_bias is None:
                 padding = -self.tokenizer.config.vocab_size % 32
@@ -1294,7 +1133,7 @@ class ExllamaV2Container:
                 )
 
             # Map logits to the tensor with their biases
-            for token_id, bias in logit_bias.items():
+            for token_id, bias in params.logit_bias.items():
                 if 0 <= token_id < len(self.tokenizer.get_id_to_piece_list(True)):
                     gen_settings.token_bias[token_id] = bias
                 else:
@@ -1302,6 +1141,108 @@ class ExllamaV2Container:
                         f"Logit bias: Token {token_id} not present "
                         "in the model's vocab. Skipping."
                     )
+
+    # Adds logprobs to a generation chunk
+    def handle_logprobs(self, result: dict, generation: dict):
+        top_tokens = unwrap(
+            result.get("top_k_tokens"),
+            torch.empty((1, 0, 1), dtype=torch.long),
+        )
+
+        top_probs = unwrap(
+            result.get("top_k_probs"),
+            torch.empty((1, 0, 1), dtype=torch.float),
+        )
+
+        if top_tokens.numel() > 0 and top_probs.numel() > 0:
+            logprobs = self.get_logprobs(top_tokens, top_probs)
+            generation["logprobs"] = logprobs
+
+            # The first logprob is the selected token prob
+            generation["token_probs"] = {
+                token: logprobs[token] for token in list(logprobs.keys())[:1]
+            }
+
+    # Creates and returns a finish chunk
+    def handle_finish_chunk(self, result: dict, generation: dict):
+        eos_reason = result.get("eos_reason")
+
+        stop_str = None
+        if eos_reason == "max_new_tokens":
+            finish_reason = "length"
+        else:
+            finish_reason = "stop"
+            # Grab stop string if stop was the reason
+            if eos_reason == "stop_token":
+                stop_str = result.get("eos_triggering_token_str")
+            elif eos_reason == "stop_string":
+                stop_str = result.get("eos_triggering_string")
+
+        finish_chunk = {
+            "prompt_tokens": generation.get("prompt_tokens"),
+            "generated_tokens": generation.get("generated_tokens"),
+            "finish_reason": finish_reason,
+            "stop_str": stop_str,
+        }
+
+        return finish_chunk
+
+    async def generate_gen(
+        self,
+        request_id: str,
+        prompt: str,
+        params: BaseSamplerRequest,
+        abort_event: Optional[asyncio.Event] = None,
+        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+    ):
+        """
+        Create generator function for prompt completion.
+
+        for kwargs, check common/sampling.py
+        """
+
+        prompts = [prompt]
+        gen_settings = ExLlamaV2Sampler.Settings()
+        grammar_handler = ExLlamaV2Grammar()
+        banned_strings = []
+
+        self.assign_gen_params(
+            params,
+            gen_settings,
+            grammar_handler,
+            banned_strings,
+        )
+
+        # Set CFG scale and negative prompt
+        cfg_scale = params.cfg_scale
+        negative_prompt = None
+        if cfg_scale not in [None, 1.0]:
+            if self.paged:
+                gen_settings.cfg_scale = cfg_scale
+
+                # If the negative prompt is empty, use the BOS token
+                negative_prompt = unwrap(
+                    params.negative_prompt, self.tokenizer.bos_token
+                )
+
+                prompts.append(negative_prompt)
+            else:
+                logger.warning(
+                    "CFG is currently disabled because paged mode is disabled. "
+                    "Please use an ampere (30 series) or higher GPU for CFG support."
+                )
+
+        # Dynamically scale penalty range to output tokens
+        # Only do this if freq/pres pen is enabled
+        # and the repetition range is -1
+        auto_scale_penalty_range = (
+            gen_settings.token_frequency_penalty != 0
+            or gen_settings.token_presence_penalty != 0
+        ) and gen_settings.token_repetition_range == -1
+
+        stop_conditions = params.stop
+        add_bos_token = params.add_bos_token
+        ban_eos_token = params.ban_eos_token
 
         # Fetch EOS tokens from generation_config if they exist
         eos_tokens = (
@@ -1319,7 +1260,6 @@ class ExllamaV2Container:
             stop_conditions += eos_tokens
 
         # Get multimodal embeddings if present
-        mm_embeddings: MultimodalEmbeddingWrapper = kwargs.get("embeddings")
         mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
 
         # Encode both positive and negative prompts
@@ -1342,7 +1282,7 @@ class ExllamaV2Container:
         # Automatically set max_tokens to fill up the context
         # This should be an OK default, but may be changed in the future
         max_tokens = unwrap(
-            kwargs.get("max_tokens"),
+            params.max_tokens,
             self.config.max_seq_len - max(context_len, negative_context_len),
         )
         if max_tokens < 1:
@@ -1352,16 +1292,14 @@ class ExllamaV2Container:
         # Determine if the negative context or the context length is bigger
         context_to_check = max(negative_context_len, context_len)
 
-        # Check highest possible total length of request
-        if context_to_check + max_tokens > self.config.max_seq_len:
+        # Check total length of prompt against max context length
+        if context_to_check > self.config.max_seq_len:
             preamble = (
-                "Negative prompt request"
-                if negative_context_len > context_len
-                else "Request"
+                "Negative prompt" if negative_context_len > context_len else "Prompt"
             )
 
             raise ValueError(
-                f"{preamble} length {context_to_check} + {max_tokens} is greater than "
+                f"{preamble} length {context_to_check} is greater than "
                 f"max_seq_len {self.config.max_seq_len}"
             )
 
@@ -1379,12 +1317,6 @@ class ExllamaV2Container:
                 f"is greater than cache_size {self.cache_size}"
             )
 
-        # Set min_tokens to generate while keeping EOS banned
-        min_tokens = unwrap(kwargs.get("min_tokens"), 0)
-
-        # This is an inverse of skip_special_tokens
-        decode_special_tokens = unwrap(not kwargs.get("skip_special_tokens"), False)
-
         # Log prompt to console. Add the BOS token if specified
         log_prompt(
             f"{self.tokenizer.bos_token if add_bos_token else ''}{prompt}",
@@ -1394,25 +1326,27 @@ class ExllamaV2Container:
 
         # Create and add a new job
         # Don't use the request ID here as there can be multiple jobs per request
-        job_id = uuid.uuid4().hex
         job = ExLlamaV2DynamicJobAsync(
             self.generator,
             input_ids=input_ids,
             max_new_tokens=max_tokens,
-            min_new_tokens=min_tokens,
+            min_new_tokens=params.min_tokens,
             gen_settings=gen_settings,
             stop_conditions=stop_conditions,
-            decode_special_tokens=decode_special_tokens,
+            decode_special_tokens=not params.skip_special_tokens,
             filters=grammar_handler.filters,
             filter_prefer_eos=bool(grammar_handler.filters),
-            return_probs=request_logprobs > 0,
-            return_top_tokens=request_logprobs,
-            return_logits=request_logprobs > 0,
+            return_probs=params.logprobs > 0,
+            return_top_tokens=params.logprobs,
+            return_logits=params.logprobs > 0,
             banned_strings=banned_strings,
-            token_healing=token_healing,
-            identifier=job_id,
+            token_healing=params.token_healing,
+            identifier=request_id,
             embeddings=mm_embeddings_content,
         )
+
+        # Assign the active job to the request ID
+        self.active_job_ids[request_id] = job
 
         # Save generated tokens and full response
         # Copy over max seq len incase model is unloaded and stored jobs can complete
@@ -1433,7 +1367,7 @@ class ExllamaV2Container:
                 stage = result.get("stage")
                 result_id = result.get("identifier")
 
-                if stage == "streaming" and result_id == job_id:
+                if stage == "streaming" and result_id == request_id:
                     chunk = unwrap(result.get("text"), "")
                     full_response += chunk
 
@@ -1448,57 +1382,24 @@ class ExllamaV2Container:
                         "offset": len(full_response),
                     }
 
-                    if request_logprobs > 0:
-                        # Get top tokens and probs
-                        top_tokens = unwrap(
-                            result.get("top_k_tokens"),
-                            torch.empty((1, 0, 1), dtype=torch.long),
-                        )
+                    # Increase penalty range to generated token amount
+                    if auto_scale_penalty_range:
+                        gen_settings.token_repetition_range = generated_tokens
 
-                        top_probs = unwrap(
-                            result.get("top_k_probs"),
-                            torch.empty((1, 0, 1), dtype=torch.float),
-                        )
-
-                        if top_tokens.numel() > 0 and top_probs.numel() > 0:
-                            logprobs = self.get_logprobs(top_tokens, top_probs)
-                            generation["logprobs"] = logprobs
-
-                            # The first logprob is the selected token prob
-                            generation["token_probs"] = {
-                                token: logprobs[token]
-                                for token in list(logprobs.keys())[:1]
-                            }
+                    # Handle logprobs
+                    if params.logprobs > 0:
+                        self.handle_logprobs(result, generation)
 
                     yield generation
 
-                    # Second yield if eos is true
+                    # Yield a finish chunk when generation is finished
                     if result.get("eos"):
                         log_response(request_id, full_response)
 
-                        eos_reason = result.get("eos_reason")
-
-                        stop_str = None
-                        if eos_reason == "max_new_tokens":
-                            finish_reason = "length"
-                        else:
-                            finish_reason = "stop"
-                            # Grab stop string if stop was the reason
-                            if eos_reason == "stop_token":
-                                stop_str = result.get("eos_triggering_token_str")
-                            elif eos_reason == "stop_string":
-                                stop_str = result.get("eos_triggering_string")
+                        generation = self.handle_finish_chunk(result, generation)
 
                         # Save the final result for metrics logging
                         metrics_result = result
-
-                        # Remove the token text
-                        generation = {
-                            "prompt_tokens": generation.get("prompt_tokens"),
-                            "generated_tokens": generation.get("generated_tokens"),
-                            "finish_reason": finish_reason,
-                            "stop_str": stop_str,
-                        }
 
                         yield generation
                         break
@@ -1522,26 +1423,11 @@ class ExllamaV2Container:
             # Some options are too large, so log the args instead
             log_generation_params(
                 request_id=request_id,
-                max_tokens=max_tokens,
-                min_tokens=min_tokens,
-                stream=kwargs.get("stream"),
-                **gen_settings_log_dict,
-                token_healing=token_healing,
-                auto_scale_penalty_range=auto_scale_penalty_range,
-                generate_window=generate_window,
                 bos_token_id=self.tokenizer.bos_token_id,
                 eos_token_id=eos_tokens,
-                add_bos_token=add_bos_token,
-                ban_eos_token=ban_eos_token,
-                skip_special_tokens=not decode_special_tokens,
-                speculative_ngram=self.generator.speculative_ngram,
-                logprobs=request_logprobs,
-                stop_conditions=stop_conditions,
-                banned_tokens=banned_tokens,
-                allowed_tokens=allowed_tokens,
-                banned_strings=banned_strings,
-                logit_bias=logit_bias,
-                filters=grammar_handler.filters,
+                prompt=prompt,
+                **params.model_dump(exclude={"prompt"}),
+                auto_scale_penalty_range=auto_scale_penalty_range,
             )
 
             # Log the metrics if present

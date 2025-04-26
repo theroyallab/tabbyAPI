@@ -41,12 +41,6 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
-    generate_window: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("generate_window"),
-        examples=[512],
-        ge=0,
-    )
-
     stop: Optional[Union[str, List[Union[str, int]]]] = Field(
         default_factory=lambda: get_default_sampler_value("stop", []),
         validation_alias=AliasChoices("stop", "stop_sequence"),
@@ -165,7 +159,7 @@ class BaseSamplerRequest(BaseModel):
             "rep_pen_range",
         ),
         description=(
-            "Aliases: repetition_range, repetition_penalty_range, " "rep_pen_range"
+            "Aliases: repetition_range, repetition_penalty_range, rep_pen_range"
         ),
     )
 
@@ -278,6 +272,11 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("temp_exponent", 1.0),
         validation_alias=AliasChoices("temp_exponent", "dynatemp_exponent"),
         examples=[1.0],
+        ge=0,
+    )
+
+    logprobs: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("logprobs", 0),
         ge=0,
     )
 
