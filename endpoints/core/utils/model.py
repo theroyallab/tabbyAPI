@@ -5,10 +5,8 @@ from typing import Optional
 from common import model
 from common.networking import get_generator_error, handle_request_disconnect
 from common.tabby_config import config
-from common.utils import unwrap
 from endpoints.core.types.model import (
     ModelCard,
-    ModelCardParameters,
     ModelList,
     ModelLoadRequest,
     ModelLoadResponse,

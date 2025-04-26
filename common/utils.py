@@ -1,6 +1,5 @@
 """Common utility functions"""
 
-import inspect
 from types import NoneType
 from typing import Dict, Optional, Type, Union, get_args, get_origin, TypeVar
 
