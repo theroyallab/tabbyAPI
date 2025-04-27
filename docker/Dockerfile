@@ -8,10 +8,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     python3.12 \
     python3-pip \
+    python3.12-venv \
     && rm -rf /var/lib/apt/lists/*
 
+# Create a virtual environment
+RUN python3 -m venv /opt/venv
+
+# Activate the venv and set the PATH
+ENV PATH="/opt/venv/bin:$PATH"
+
 # Upgrade pip
-RUN pip3 install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
 
 # Set the working directory in the container
 WORKDIR /app
@@ -20,7 +27,7 @@ WORKDIR /app
 COPY pyproject.toml .
 
 # Install packages specified in pyproject.toml cu121, extras
-RUN pip3 install --no-cache-dir .[cu121,extras]
+RUN pip install --no-cache-dir .[cu121,extras]
 
 RUN rm pyproject.toml
 
