@@ -163,6 +163,13 @@ class ModelConfig(BaseConfigModel):
             "Example: ['max_seq_len', 'cache_mode']."
         ),
     )
+    backend: Optional[str] = Field(
+        "exllamav2",
+        description=(
+            "Backend to use for this model (default: exllamav2)\n"
+            "Options: exllamav2, exllamav3",
+        ),
+    )
     max_seq_len: Optional[int] = Field(
         None,
         description=(
