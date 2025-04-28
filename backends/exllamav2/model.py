@@ -237,7 +237,8 @@ class ExllamaV2Container(BaseModelContainer):
         base_seq_len = self.config.max_seq_len
 
         # Set the target seq len if present
-        target_seq_len = kwargs.get("max_seq_len")
+        # Fallback to base_seq_len if not provided
+        target_seq_len = unwrap(kwargs.get("max_seq_len"), base_seq_len)
 
         # Set the rope scale
         self.config.scale_pos_emb = unwrap(
