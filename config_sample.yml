@@ -74,6 +74,10 @@ model:
   # Example: ['max_seq_len', 'cache_mode'].
   use_as_default: []
 
+  # Backend to use for the model (default: exllamav2)
+  # Options: exllamav2, exllamav3
+  backend: exllamav2
+
   # Max sequence length (default: Empty).
   # Fetched from the model's base sequence length in config.json by default.
   max_seq_len:

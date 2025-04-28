@@ -23,9 +23,13 @@ from common.utils import unwrap
 container: Optional[BaseModelContainer] = None
 embeddings_container = None
 
-# FIXME: Possibly use this solely when creating the model
+
+_BACKEND_REGISTRY = {}
+
 if dependencies.exllamav2:
     from backends.exllamav2.model import ExllamaV2Container
+
+    _BACKEND_REGISTRY["exllamav2"] = ExllamaV2Container
 
 
 if dependencies.extras:
@@ -113,10 +117,24 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     kwargs = {**config.model_defaults, **kwargs}
     kwargs = await apply_inline_overrides(model_path, **kwargs)
 
-    # Create a new container
-    new_container = await ExllamaV2Container.create(
-        model_path.resolve(), False, **kwargs
-    )
+    # Create a new container and check if the right dependencies are installed
+    backend_name = unwrap(kwargs.get("backend"), "exllamav2").lower()
+    container_class = _BACKEND_REGISTRY.get(backend_name)
+
+    if not container_class:
+        available_backends = list(_BACKEND_REGISTRY.keys())
+        if backend_name in available_backends:
+            raise ValueError(
+                f"Backend '{backend_name}' selected, but required dependencies "
+                "are not installed."
+            )
+        else:
+            raise ValueError(
+                f"Invalid backend '{backend_name}'. "
+                "Available backends: {available_backends}"
+            )
+
+    new_container = await container_class.create(model_path.resolve(), False, **kwargs)
 
     # Add possible types of models that can be loaded
     model_type = [ModelType.MODEL]
