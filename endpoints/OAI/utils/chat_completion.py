@@ -328,9 +328,7 @@ async def stream_generate_chat_completion(
 
         for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
-            request_id = _parse_gen_request_id(
-                data.n, request.state.id, idx
-            )
+            request_id = _parse_gen_request_id(data.n, request.state.id, idx)
 
             gen_task = asyncio.create_task(
                 _stream_collector(
@@ -421,10 +419,10 @@ async def generate_chat_completion(
     gen_tasks: List[asyncio.Task] = []
 
     try:
+        logger.info(f"Received chat completion request {request.state.id}")
+
         for idx in range(0, data.n):
-            request_id = _parse_gen_request_id(
-                data.n, request.state.id, idx
-            )
+            request_id = _parse_gen_request_id(data.n, request.state.id, idx)
 
             gen_tasks.append(
                 asyncio.create_task(
@@ -491,9 +489,7 @@ async def generate_tool_calls(
                     data, current_generations
                 )
 
-            request_id = _parse_gen_request_id(
-                data.n, request.state.id, idx
-            )
+            request_id = _parse_gen_request_id(data.n, request.state.id, idx)
 
             gen_tasks.append(
                 asyncio.create_task(

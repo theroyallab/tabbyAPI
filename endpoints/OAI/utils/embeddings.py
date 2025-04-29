@@ -38,7 +38,7 @@ def float_list_to_base64(float_array: np.ndarray) -> str:
 async def get_embeddings(data: EmbeddingsRequest, request: Request) -> dict:
     model_path = model.embeddings_container.model_dir
 
-    logger.info(f"Recieved embeddings request {request.state.id}")
+    logger.info(f"Received embeddings request {request.state.id}")
 
     if not isinstance(data.input, list):
         data.input = [data.input]
