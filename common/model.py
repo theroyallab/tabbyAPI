@@ -10,7 +10,7 @@ from enum import Enum
 from fastapi import HTTPException
 from loguru import logger
 from ruamel.yaml import YAML
-from typing import Optional
+from typing import Dict, Optional
 
 from backends.base_model_container import BaseModelContainer
 from common.logger import get_loading_progress_bar
@@ -24,12 +24,18 @@ container: Optional[BaseModelContainer] = None
 embeddings_container = None
 
 
-_BACKEND_REGISTRY = {}
+_BACKEND_REGISTRY: Dict[str, BaseModelContainer] = {}
 
 if dependencies.exllamav2:
     from backends.exllamav2.model import ExllamaV2Container
 
     _BACKEND_REGISTRY["exllamav2"] = ExllamaV2Container
+
+
+if dependencies.exllamav3:
+    from backends.exllamav3.model import ExllamaV3Container
+
+    _BACKEND_REGISTRY["exllamav3"] = ExllamaV3Container
 
 
 if dependencies.extras:
@@ -134,7 +140,9 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 "Available backends: {available_backends}"
             )
 
-    new_container = await container_class.create(model_path.resolve(), False, **kwargs)
+    new_container: BaseModelContainer = await container_class.create(
+        model_path.resolve(), **kwargs
+    )
 
     # Add possible types of models that can be loaded
     model_type = [ModelType.MODEL]
@@ -142,7 +150,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     if new_container.use_vision:
         model_type.insert(0, ModelType.VISION)
 
-    if new_container.draft_config:
+    if new_container.use_draft_model:
         model_type.insert(0, ModelType.DRAFT)
 
     load_status = new_container.load_gen(load_progress, **kwargs)

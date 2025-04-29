@@ -64,15 +64,18 @@ class ExllamaV2Container(BaseModelContainer):
 
     # Exl2 vars
     config: Optional[ExLlamaV2Config] = None
-    draft_config: Optional[ExLlamaV2Config] = None
     model: Optional[ExLlamaV2] = None
-    draft_model: Optional[ExLlamaV2] = None
     cache: Optional[ExLlamaV2Cache] = None
-    draft_cache: Optional[ExLlamaV2Cache] = None
     tokenizer: Optional[ExLlamaV2Tokenizer] = None
     generator: Optional[ExLlamaV2DynamicGeneratorAsync] = None
     prompt_template: Optional[PromptTemplate] = None
     paged: bool = True
+
+    # Draft model vars
+    use_draft_model: bool = False
+    draft_config: Optional[ExLlamaV2Config] = None
+    draft_model: Optional[ExLlamaV2] = None
+    draft_cache: Optional[ExLlamaV2Cache] = None
 
     # Internal config vars
     cache_size: int = None
@@ -99,7 +102,7 @@ class ExllamaV2Container(BaseModelContainer):
     load_condition: asyncio.Condition = asyncio.Condition()
 
     @classmethod
-    async def create(cls, model_directory: pathlib.Path, quiet=False, **kwargs):
+    async def create(cls, model_directory: pathlib.Path, **kwargs):
         """
         Primary asynchronous initializer for model container.
 
@@ -108,8 +111,6 @@ class ExllamaV2Container(BaseModelContainer):
 
         # Create a new instance as a "fake self"
         self = cls()
-
-        self.quiet = quiet
 
         # Initialize config
         self.config = ExLlamaV2Config()
@@ -121,6 +122,7 @@ class ExllamaV2Container(BaseModelContainer):
         self.config.max_seq_len = 4096
 
         self.config.prepare()
+        print(self.config.max_seq_len)
 
         # Check if the model arch is compatible with various exl2 features
         self.config.arch_compat_overrides()
@@ -150,7 +152,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Prepare the draft model config if necessary
         draft_args = unwrap(kwargs.get("draft_model"), {})
         draft_model_name = draft_args.get("draft_model_name")
-        enable_draft = draft_args and draft_model_name
+        self.use_draft_model = draft_args and draft_model_name
 
         # Always disable draft if params are incorrectly configured
         if draft_args and draft_model_name is None:
@@ -158,9 +160,9 @@ class ExllamaV2Container(BaseModelContainer):
                 "Draft model is disabled because a model name "
                 "wasn't provided. Please check your config.yml!"
             )
-            enable_draft = False
+            self.use_draft_model = False
 
-        if enable_draft:
+        if self.use_draft_model:
             self.draft_config = ExLlamaV2Config()
             draft_model_path = pathlib.Path(
                 unwrap(draft_args.get("draft_model_dir"), "models")
@@ -353,7 +355,7 @@ class ExllamaV2Container(BaseModelContainer):
         self.config.max_attention_size = chunk_size**2
 
         # Set user-configured draft model values
-        if enable_draft:
+        if self.use_draft_model:
             self.draft_config.max_seq_len = self.config.max_seq_len
 
             self.draft_config.scale_pos_emb = unwrap(
