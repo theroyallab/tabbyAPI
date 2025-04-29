@@ -1,5 +1,5 @@
-import abc
 import asyncio
+import gc
 import pathlib
 from loguru import logger
 from typing import (
@@ -10,14 +10,20 @@ from typing import (
     Optional,
 )
 
+import torch
+
+from backends.base_model_container import BaseModelContainer
+from common.concurrency import iterate_in_threadpool
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.sampling import BaseSamplerRequest
 from common.templating import PromptTemplate
 from common.transformers_utils import GenerationConfig
 from endpoints.core.types.model import ModelCard
 
+from exllamav3 import Config, Model, Cache, Tokenizer
 
-class BaseModelContainer(abc.ABC):
+
+class ExllamaV3Container(BaseModelContainer):
     """Abstract base class for model containers."""
 
     # Exposed model information
@@ -25,22 +31,23 @@ class BaseModelContainer(abc.ABC):
     prompt_template: Optional[PromptTemplate] = None
     generation_config: Optional[GenerationConfig] = None
 
-    # Optional features
-    use_draft_model: bool = False
-    use_vision: bool = False
-
     # Load synchronization
     # The bool is a master switch for accepting requests
     # The lock keeps load tasks sequential
     # The condition notifies any waiting tasks
     active_job_ids: Dict[str, Any] = {}
     loaded: bool = False
-    load_lock: asyncio.Lock
-    load_condition: asyncio.Condition
+    load_lock: asyncio.Lock = asyncio.Lock()
+    load_condition: asyncio.Condition = asyncio.Condition()
+
+    # Exl3 vars
+    model: Model
+    cache: Cache
+    tokenizer: Tokenizer
+    config: Config
 
     # Required methods
     @classmethod
-    @abc.abstractmethod
     async def create(cls, model_directory: pathlib.Path, **kwargs):
         """
         Asynchronously creates and initializes a model container instance.
@@ -53,9 +60,22 @@ class BaseModelContainer(abc.ABC):
             An instance of the implementing class.
         """
 
-        pass
+        self = cls()
 
-    @abc.abstractmethod
+        logger.warning(
+            "ExllamaV3 is currently in an alpha state. "
+            "Please note that all config options may not work."
+        )
+
+        self.config = Config.from_directory(model_directory.resolve())
+        self.model = Model.from_config(self.config)
+        self.tokenizer = Tokenizer.from_config(self.config)
+
+        max_seq_len = kwargs.get("max_seq_len")
+        self.cache = Cache(self.model, max_num_tokens=max_seq_len)
+
+        return self
+
     async def load(self, progress_callback=None, **kwargs):
         """
         Loads the model into memory.
@@ -65,10 +85,9 @@ class BaseModelContainer(abc.ABC):
             **kwargs: Additional loading options.
         """
 
-        pass
+        async for _ in self.load_gen(progress_callback):
+            pass
 
-    # NOTE: Might be an optional method
-    @abc.abstractmethod
     async def load_gen(self, progress_callback=None, **kwargs):
         """
         Loads the model into memory, yielding progress updates.
@@ -81,10 +100,37 @@ class BaseModelContainer(abc.ABC):
             Progress updates
         """
 
-        if False:
-            yield
+        try:
+            await self.load_lock.acquire()
 
-    @abc.abstractmethod
+            # Wait for existing generation jobs to finish
+            await self.wait_for_jobs(kwargs.get("skip_wait"))
+
+            generator = self.load_model_sync(progress_callback)
+            async for module, modules in iterate_in_threadpool(generator):
+                yield module, modules
+
+            # Clean up any extra vram usage from torch and cuda
+            # (Helps reduce VRAM bottlenecking on Windows)
+            gc.collect()
+            torch.cuda.empty_cache()
+
+            # Cleanup and update model load state
+            self.loaded = True
+            logger.info("Model successfully loaded.")
+        finally:
+            self.load_lock.release()
+
+            async with self.load_condition:
+                self.load_condition.notify_all()
+
+    # TODO: Add draft loading
+    @torch.inference_mode()
+    def load_model_sync(self, progress_callback=None):
+        for value in self.model.load_gen(callback=progress_callback):
+            if value:
+                yield value
+
     async def unload(self, loras_only: bool = False, **kwargs):
         """
         Unloads the model and associated resources from memory.
@@ -94,9 +140,29 @@ class BaseModelContainer(abc.ABC):
             **kwargs: Additional unloading options (e.g., shutdown).
         """
 
-        pass
+        try:
+            await self.load_lock.acquire()
 
-    @abc.abstractmethod
+            # Wait for other jobs to finish
+            await self.wait_for_jobs(kwargs.get("skip_wait"))
+
+            self.model.unload()
+            self.model = None
+
+            self.config = None
+            self.cache = None
+            self.tokenizer = None
+
+            gc.collect()
+            torch.cuda.empty_cache()
+
+            logger.info("Model unloaded.")
+        finally:
+            self.load_lock.release()
+
+            async with self.load_condition:
+                self.load_condition.notify_all()
+
     def encode_tokens(self, text: str, **kwargs) -> List[int]:
         """
         Encodes a string of text into a list of token IDs.
@@ -111,7 +177,6 @@ class BaseModelContainer(abc.ABC):
 
         pass
 
-    @abc.abstractmethod
     def decode_tokens(self, ids: List[int], **kwargs) -> str:
         """
         Decodes a list of token IDs back into a string.
@@ -126,8 +191,7 @@ class BaseModelContainer(abc.ABC):
 
         pass
 
-    @abc.abstractmethod
-    def get_special_tokens(self) -> Dict[str, Any]:
+    def get_special_tokens(self, **kwargs) -> Dict[str, Any]:
         """
         Gets special tokens used by the model/tokenizer.
 
@@ -141,7 +205,6 @@ class BaseModelContainer(abc.ABC):
 
         pass
 
-    @abc.abstractmethod
     def model_info(self) -> ModelCard:
         """
         Returns a dictionary of the current model's configuration parameters.
@@ -152,7 +215,6 @@ class BaseModelContainer(abc.ABC):
 
         pass
 
-    @abc.abstractmethod
     async def wait_for_jobs(self, skip_wait: bool = False):
         """
         Waits for any active generation jobs to complete.
@@ -163,40 +225,6 @@ class BaseModelContainer(abc.ABC):
 
         pass
 
-    # Optional methods
-    async def load_loras(
-        self, lora_directory: pathlib.Path, **kwargs
-    ) -> Dict[str, List[str]]:
-        """
-        Loads LoRA adapters. Base implementation does nothing or raises error.
-
-        Args:
-            lora_directory: Path to the directory containing LoRA files.
-            **kwargs: LoRA configuration (e.g., list of loras, scaling).
-
-        Returns:
-            A dictionary indicating success/failure for each LoRA.
-        """
-
-        logger.warning("LoRA loading not implemented for this backend.")  # type: ignore
-        return {
-            "success": [],
-            "failure": [
-                lora.get("name", "unknown") for lora in kwargs.get("loras", [])
-            ],
-        }
-
-    def get_loras(self) -> List[Any]:
-        """
-        Gets the currently loaded LoRA adapters. Base implementation returns empty list.
-
-        Returns:
-            A list representing the loaded LoRAs (backend-specific format).
-        """
-
-        return []
-
-    @abc.abstractmethod
     async def generate(
         self,
         request_id: str,
@@ -221,7 +249,6 @@ class BaseModelContainer(abc.ABC):
 
         pass
 
-    @abc.abstractmethod
     async def stream_generate(
         self,
         request_id: str,
