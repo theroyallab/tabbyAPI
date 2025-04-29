@@ -127,12 +127,15 @@ class BaseModelContainer(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_special_tokens(self, **kwargs) -> Dict[str, Any]:
+    def get_special_tokens(
+        self, add_bos_token: bool = True, ban_eos_token: bool = False
+    ):
         """
         Gets special tokens used by the model/tokenizer.
 
         Args:
-            **kwargs: Options like add_bos_token, ban_eos_token.
+           add_bos_token: Adds the BOS token to the returned dict.
+           ban_eos_token: Removes the EOS token from the returned dict.
 
         Returns:
             A dictionary mapping special token names (e.g., 'bos_token', 'eos_token')
