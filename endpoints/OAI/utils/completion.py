@@ -31,6 +31,13 @@ from endpoints.OAI.types.completion import (
 from endpoints.OAI.types.common import UsageStats
 
 
+def _parse_gen_request_id(n: int, request_id: str, task_idx: int):
+    if n > 1:
+        return f"{request_id}-{task_idx}"
+    else:
+        return request_id
+
+
 def _create_response(
     request_id: str, generations: Union[dict, List[dict]], model_name: str = ""
 ):
@@ -193,14 +200,17 @@ async def stream_generate_completion(
     try:
         logger.info(f"Received streaming completion request {request.state.id}")
 
-        for n in range(0, data.n):
+        for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
+            request_id = _parse_gen_request_id(
+                data.n, request.state.id, idx
+            )
 
             gen_task = asyncio.create_task(
                 _stream_collector(
-                    n,
+                    idx,
                     gen_queue,
-                    request.state.id,
+                    request_id,
                     data.prompt,
                     task_gen_params,
                     abort_event,
@@ -255,13 +265,16 @@ async def generate_completion(
     try:
         logger.info(f"Recieved completion request {request.state.id}")
 
-        for _ in range(0, data.n):
+        for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
+            request_id = _parse_gen_request_id(
+                data.n, request.state.id, idx
+            )
 
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
-                        request.state.id,
+                        request_id,
                         data.prompt,
                         task_gen_params,
                     )
