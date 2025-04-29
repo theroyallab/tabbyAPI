@@ -533,8 +533,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Load draft model if a config is present
         if self.draft_config:
             self.draft_model = ExLlamaV2(self.draft_config)
-            if not self.quiet:
-                logger.info("Loading draft model: " + self.draft_config.model_dir)
+            logger.info("Loading draft model: " + self.draft_config.model_dir)
 
             # Draft uses the autosplit loader, so create a cache that reflects this
             draft_cache_class = self.get_cache_class(self.draft_cache_mode)
@@ -587,8 +586,7 @@ class ExllamaV2Container(BaseModelContainer):
                     yield value
 
         self.model = ExLlamaV2(self.config)
-        if not self.quiet:
-            logger.info("Loading model: " + self.config.model_dir)
+        logger.info("Loading model: " + self.config.model_dir)
 
         # Get class of the model cache
         cache_class = self.get_cache_class(self.cache_mode)
