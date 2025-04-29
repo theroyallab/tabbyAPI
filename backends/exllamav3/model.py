@@ -47,7 +47,7 @@ class ExllamaV3Container(BaseModelContainer):
     tokenizer: Tokenizer
     config: Config
     gpu_split: List[float] = []
-    max_seq_len: int = 2048
+    max_seq_len: int
 
     # Required methods
     @classmethod
@@ -74,8 +74,8 @@ class ExllamaV3Container(BaseModelContainer):
         self.model = Model.from_config(self.config)
         self.tokenizer = Tokenizer.from_config(self.config)
 
-        max_seq_len = kwargs.get("max_seq_len")
-        self.cache = Cache(self.model, max_num_tokens=max_seq_len)
+        self.max_seq_len = kwargs.get("max_seq_len")
+        self.cache = Cache(self.model, max_num_tokens=self.max_seq_len)
         gpu_split = unwrap(kwargs.get("gpu_split"), [])
 
         # Set GPU split options
