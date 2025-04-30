@@ -49,7 +49,7 @@ class ExllamaV3Container(BaseModelContainer):
     config: Config
     gpu_split: List[float] | None = None
     gpu_split_auto: bool = True
-    autosplit_reserve: List[float] = [96 * 1024**2]
+    autosplit_reserve: List[float] = [96 / 1024]
     max_seq_len: int
     use_tp: bool = False
 
@@ -112,7 +112,7 @@ class ExllamaV3Container(BaseModelContainer):
 
                 # Reserve VRAM for each GPU
                 self.autosplit_reserve = [
-                    int(math.ceil(value * 1024**2))
+                    int(math.ceil(value/1024))
                     for value in autosplit_reserve_megabytes
                 ]
         # TODO: speculative decoding
@@ -171,6 +171,7 @@ class ExllamaV3Container(BaseModelContainer):
     @torch.inference_mode()
     def load_model_sync(self, progress_callback=None):
         for value in self.model.load_gen(
+            reserve_per_device=self.autosplit_reserve,
             use_per_device=self.gpu_split,
             callback=progress_callback
         ):

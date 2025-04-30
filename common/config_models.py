@@ -193,7 +193,7 @@ class ModelConfig(BaseConfigModel):
             "Not parsed for single GPU users."
         ),
     )
-    autosplit_reserve: List[int] = Field(
+    autosplit_reserve: List[float] = Field(
         [96],
         description=(
             "Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0).\n"
