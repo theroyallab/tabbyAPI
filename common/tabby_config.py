@@ -20,6 +20,8 @@ class TabbyConfig(TabbyConfigModel):
     # Persistent defaults
     # TODO: make this pydantic?
     model_defaults: dict = {}
+    # New field, perhaps 'model_defaults' already has this value but this way i'm sure i'm accesing what i need.
+    model_sampler_preset: Optional[str] = None
 
     def load(self, arguments: Optional[dict] = None):
         """Synchronously loads the global application config"""
@@ -55,6 +57,8 @@ class TabbyConfig(TabbyConfigModel):
                 logger.error(
                     f"invalid item {field} in config option `model.use_as_default`"
                 )
+        # Assign new field from merged config
+        self.model_sampler_preset = merged_config.get('model_sampler_preset', None)
 
     def _from_file(self, config_path: pathlib.Path):
         """loads config from a given file path"""

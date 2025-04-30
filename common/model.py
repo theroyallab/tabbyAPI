@@ -17,6 +17,7 @@ from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
 from common.tabby_config import config
 from common.optional_dependencies import dependencies
+from common import sampling
 from common.utils import unwrap
 
 # Global variables for model container
@@ -87,6 +88,7 @@ async def unload_model(skip_wait: bool = False, shutdown: bool = False):
 async def load_model_gen(model_path: pathlib.Path, **kwargs):
     """Generator to load a model"""
     global container
+    from common.tabby_config import TabbyConfig  # import TabbyConfig for later use
 
     # Check if the model is already loaded
     if container and container.model:
@@ -99,6 +101,15 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
 
         logger.info("Unloading existing model.")
         await unload_model()
+
+    # Check for model-specific config and apply sampler override if it exists
+    config_path = model_path / "tabby_config.yml"
+    if config_path.exists():
+        config_parser = TabbyConfig()
+        config_data = config_parser._from_file(config_path)
+        preset_name = config_data.get('model_sampler_preset')
+        if preset_name:
+            await sampling.overrides_from_file(preset_name)
 
     # Reset to prepare for a new container
     container = None

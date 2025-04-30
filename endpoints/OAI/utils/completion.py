@@ -119,8 +119,8 @@ async def _stream_collector(
     except Exception as e:
         await gen_queue.put(e)
 
-
-async def load_inline_model(model_name: str, request: Request):
+# add 'completion_request' param to update values of generation for new model
+async def load_inline_model(model_name: str, request: Request, completion_request):
     """Load a model from the data.model parameter"""
 
     # Return if the model container already exists and the model is fully loaded
@@ -185,6 +185,12 @@ async def load_inline_model(model_name: str, request: Request):
         model_path,
         draft_model=config.draft_model.model_dump(include={"draft_model_dir"}),
     )
+    # update values of initial request with new defults for loaded model,
+    # don't change tohose that were explicitly specified in initial request to endpoint
+    reqjson = await request.json()
+    new_data = completion_request.__class__(**reqjson)
+    for key in new_data.model_fields.keys():
+        setattr(completion_request,key, getattr(new_data,key))
 
 
 async def stream_generate_completion(
