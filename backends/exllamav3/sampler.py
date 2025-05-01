@@ -14,7 +14,6 @@ from common.utils import coalesce, unwrap
 
 
 class ExllamaV3SamplerBuilder(CustomSampler):
-
     def __init__(self, params, max_seq_len):
         """
         Initialize the ExllamaV3SamplerBuilder with all relevant sampling parameters.
@@ -24,9 +23,7 @@ class ExllamaV3SamplerBuilder(CustomSampler):
 
         # handle greedy if temperature is 0
         if params.temperature == 0.0:
-            stack = [
-                SS_Argmax()
-            ]
+            stack = [SS_Argmax()]
 
         else:
             # Set penalty range
@@ -48,11 +45,13 @@ class ExllamaV3SamplerBuilder(CustomSampler):
             repetition_decay = coalesce(params.repetition_decay, fallback_decay, 0)
 
             if params.repetition_penalty != 1.0:
-                stack.append(SS_RepP(
-                    rep_p=params.repetition_penalty,
-                    sustain_range=penalty_range,
-                    decay_range=repetition_decay,
-                ))
+                stack.append(
+                    SS_RepP(
+                        rep_p=params.repetition_penalty,
+                        sustain_range=penalty_range,
+                        decay_range=repetition_decay,
+                    )
+                )
 
             if params.presence_penalty != 0 or params.frequency_penalty != 0:
                 stack.append(
