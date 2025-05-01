@@ -10,10 +10,12 @@ from exllamav3.generator.sampler.custom import (
     SS_TopP,
 )
 
+from common.utils import coalesce, unwrap
+
 
 class ExllamaV3SamplerBuilder(CustomSampler):
 
-    def __init__(self, params):
+    def __init__(self, params, max_seq_len):
         """
         Initialize the ExllamaV3SamplerBuilder with all relevant sampling parameters.
         """
@@ -27,9 +29,30 @@ class ExllamaV3SamplerBuilder(CustomSampler):
             ]
 
         else:
+            # Set penalty range
+
+            penalty_range = unwrap(params.penalty_range, max_seq_len)
+            # Exl3's version of including the entire context
+            if penalty_range < 0:
+                penalty_range = 10e7
+
             # Apply penalties
+            # Always make sure the fallback is 0 if range < 0
+            # It's technically fine to use -1, but this just validates the passed
+            # fallback
+            # Always default to 0 if something goes wrong
+            if params.penalty_range < 0:
+                fallback_decay = 0
+            else:
+                fallback_decay = params.penalty_range
+            repetition_decay = coalesce(params.repetition_decay, fallback_decay, 0)
+
             if params.repetition_penalty != 1.0:
-                stack.append(SS_RepP(params.repetition_penalty))
+                stack.append(SS_RepP(
+                    rep_p=params.repetition_penalty,
+                    sustain_range=penalty_range,
+                    decay_range=repetition_decay,
+                ))
 
             if params.presence_penalty != 0 or params.frequency_penalty != 0:
                 stack.append(

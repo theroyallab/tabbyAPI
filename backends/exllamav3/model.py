@@ -630,7 +630,7 @@ class ExllamaV3Container(BaseModelContainer):
         """
         chunk_tokens: torch.Tensor | tuple[torch.Tensor, torch.Tensor]
 
-        sampler = ExllamaV3SamplerBuilder(params)
+        sampler = ExllamaV3SamplerBuilder(params, self.max_seq_len)
 
         # Dynamically scale penalty range to output tokens
         # Only do this if freq/pres pen is enabled
