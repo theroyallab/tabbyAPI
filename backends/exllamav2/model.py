@@ -33,11 +33,7 @@ from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
     clear_grammar_func_cache,
 )
-from backends.exllamav2.utils import (
-    exllama_disabled_flash_attn,
-    hardware_supports_flash_attn,
-    supports_paged_attn,
-)
+from backends.exllamav2.utils import exllama_disabled_flash_attn
 from backends.exllamav2.vision import clear_image_embedding_cache
 from common.concurrency import iterate_in_threadpool
 from common.gen_logging import (
@@ -46,6 +42,7 @@ from common.gen_logging import (
     log_prompt,
     log_response,
 )
+from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.sampling import BaseSamplerRequest
@@ -266,11 +263,20 @@ class ExllamaV2Container(BaseModelContainer):
 
         # Check whether the user's configuration supports flash/paged attention
         # Also check if exl2 has disabled flash attention
-        if (
-            exllama_disabled_flash_attn(self.config.no_flash_attn)
-            or not hardware_supports_flash_attn(gpu_device_list)
-            or not supports_paged_attn()
-        ):
+        if exllama_disabled_flash_attn(
+            self.config.no_flash_attn
+        ) or not hardware_supports_flash_attn(gpu_device_list):
+            gpu_unsupported_message = (
+                "An unsupported GPU is found in this configuration. "
+                "Switching to compatibility mode. \n"
+                "This disables parallel batching "
+                "and features that rely on it (ex. CFG). \n"
+                "To disable compatability mode, all GPUs must be ampere "
+                "(30 series) or newer. AMD GPUs are not supported."
+            )
+
+            logger.warning(gpu_unsupported_message)
+
             self.config.no_flash_attn = True
             if self.draft_config:
                 self.draft_config.no_flash_attn = True
