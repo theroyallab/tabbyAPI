@@ -630,53 +630,7 @@ class ExllamaV3Container(BaseModelContainer):
         """
         chunk_tokens: torch.Tensor | tuple[torch.Tensor, torch.Tensor]
 
-        sampler_builder = ExllamaV3SamplerBuilder()
-
-        # Penalties
-
-        # Set penalty range
-        penalty_range = unwrap(params.penalty_range, self.max_seq_len)
-
-        # Exl3's version of including the entire context
-        if penalty_range < 0:
-            penalty_range = 10e7
-
-        # Always make sure the fallback is 0 if range < 0
-        # It's technically fine to use -1, but this just validates the passed
-        # fallback
-        # Always default to 0 if something goes wrong
-        if params.penalty_range < 0:
-            fallback_decay = 0
-        else:
-            fallback_decay = params.penalty_range
-
-        repetition_decay = coalesce(params.repetition_decay, fallback_decay, 0)
-
-        # Apply penalties to builder
-        sampler_builder.penalties(
-            params.repetition_penalty,
-            params.frequency_penalty,
-            params.presence_penalty,
-            penalty_range,
-            repetition_decay,
-        )
-
-        # Apply temperature first to builder
-        if not params.temperature_last:
-            sampler_builder.temperature(params.temperature)
-
-        # Apply alphabet samplers to builder
-        sampler_builder.top_k(params.top_k)
-        sampler_builder.top_p(params.top_p)
-        sampler_builder.min_p(params.min_p)
-
-        # Apply temperature last to builder
-        if params.temperature_last:
-            sampler_builder.temperature(params.temperature)
-
-        # Build the sampler
-        # Set greedy if temperature is 0
-        sampler = sampler_builder.build(params.temperature == 0)
+        sampler = ExllamaV3SamplerBuilder(params)
 
         # Dynamically scale penalty range to output tokens
         # Only do this if freq/pres pen is enabled
