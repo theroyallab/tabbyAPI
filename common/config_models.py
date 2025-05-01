@@ -163,8 +163,10 @@ class ModelConfig(BaseConfigModel):
             "Example: ['max_seq_len', 'cache_mode']."
         ),
     )
+
+    # Defaults to exllamav2 in common/model.py
     backend: Optional[str] = Field(
-        "exllamav2",
+        None,
         description=(
             "Backend to use for this model (default: exllamav2)\n"
             "Options: exllamav2, exllamav3",
@@ -193,7 +195,7 @@ class ModelConfig(BaseConfigModel):
             "Not parsed for single GPU users."
         ),
     )
-    autosplit_reserve: List[int] = Field(
+    autosplit_reserve: List[float] = Field(
         [96],
         description=(
             "Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0).\n"
