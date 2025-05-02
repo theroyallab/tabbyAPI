@@ -126,11 +126,6 @@ class ExllamaV3Container(BaseModelContainer):
         # Fallback to 4096 since exl3 can't fetch from HF's config.json
         self.max_seq_len = unwrap(kwargs.get("max_seq_len"), 4096)
 
-        # Try to set prompt template
-        self.prompt_template = await find_prompt_template(
-            kwargs.get("prompt_template"), model_directory
-        )
-
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
         gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
@@ -190,6 +185,22 @@ class ExllamaV3Container(BaseModelContainer):
         # Make sure chunk size is >= 256, keep near or below max seq len
         user_chunk_size = unwrap(kwargs.get("chunk_size"), 2048)
         self.chunk_size = self.adjust_chunk_size(user_chunk_size)
+
+        # Template setup
+        self.prompt_template = await find_prompt_template(
+            kwargs.get("prompt_template"), model_directory
+        )
+
+        # Catch all for template lookup errors
+        if self.prompt_template:
+            logger.info(
+                f'Using template "{self.prompt_template.name}" for chat completions.'
+            )
+        else:
+            logger.warning(
+                "Chat completions are disabled because a prompt "
+                "template wasn't provided or auto-detected."
+            )
 
         # TODO: speculative decoding
 
