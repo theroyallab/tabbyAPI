@@ -53,3 +53,23 @@ class HuggingFaceConfig(BaseModel):
             contents = await hf_config_json.read()
             hf_config_dict = json.loads(contents)
             return cls.model_validate(hf_config_dict)
+
+
+class TokenizerConfig(BaseModel):
+    """
+    An abridged version of HuggingFace's tokenizer config.
+    """
+
+    add_bos_token: Optional[bool] = None
+
+    @classmethod
+    async def from_file(cls, model_directory: pathlib.Path):
+        """Create an instance from a tokenizer config file."""
+
+        tokenizer_config_path = model_directory / "tokenizer_config.json"
+        async with aiofiles.open(
+            tokenizer_config_path, "r", encoding="utf8"
+        ) as tokenizer_config_json:
+            contents = await tokenizer_config_json.read()
+            tokenizer_config_dict = json.loads(contents)
+            return cls.model_validate(tokenizer_config_dict)

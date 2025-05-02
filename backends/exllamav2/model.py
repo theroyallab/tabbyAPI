@@ -50,7 +50,7 @@ from common.health import HealthManager
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.sampling import BaseSamplerRequest
 from common.templating import PromptTemplate, find_prompt_template
-from common.transformers_utils import GenerationConfig
+from common.transformers_utils import GenerationConfig, TokenizerConfig
 from common.utils import calculate_rope_alpha, coalesce, unwrap
 from endpoints.core.types.model import ModelCard, ModelCardParameters
 
@@ -80,6 +80,7 @@ class ExllamaV2Container(BaseModelContainer):
     draft_cache_mode: str = "FP16"
     max_batch_size: Optional[int] = None
     generation_config: Optional[GenerationConfig] = None
+    tokenizer_config: Optional[TokenizerConfig] = None
 
     # GPU split vars
     gpu_split: List[float] = []
@@ -130,12 +131,25 @@ class ExllamaV2Container(BaseModelContainer):
         if generation_config_path.exists():
             try:
                 self.generation_config = await GenerationConfig.from_file(
-                    generation_config_path.parent
+                    model_directory
                 )
             except Exception:
                 logger.error(traceback.format_exc())
                 logger.warning(
                     "Skipping generation config load because of an unexpected error."
+                )
+
+        # Load tokenizer config overrides
+        tokenizer_config_path = model_directory / "tokenizer_config.json"
+        if tokenizer_config_path.exists():
+            try:
+                self.tokenizer_config = await TokenizerConfig.from_file(
+                    model_directory
+                )
+            except Exception:
+                logger.error(traceback.format_exc())
+                logger.warning(
+                    "Skipping tokenizer config load because of an unexpected error."
                 )
 
         # Set vision state and error if vision isn't supported on the current model
@@ -1240,8 +1254,16 @@ class ExllamaV2Container(BaseModelContainer):
         ) and gen_settings.token_repetition_range == -1
 
         stop_conditions = params.stop
-        add_bos_token = unwrap(params.add_bos_token, True)
         ban_eos_token = params.ban_eos_token
+
+
+        print(self.tokenizer_config.add_bos_token)
+        # Set add_bos_token for generation
+        add_bos_token = coalesce(
+            params.add_bos_token, self.tokenizer_config.add_bos_token, True
+        )
+
+        print(add_bos_token)
 
         # Fetch EOS tokens from generation_config if they exist
         eos_tokens = (
