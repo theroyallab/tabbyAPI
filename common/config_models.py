@@ -1,6 +1,7 @@
 from pydantic import (
     BaseModel,
     ConfigDict,
+    constr,
     Field,
     PrivateAttr,
     field_validator,
@@ -9,6 +10,7 @@ from typing import List, Literal, Optional, Union
 
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
+CACHE_TYPE = Union[CACHE_SIZES, constr(pattern=r"^[2-8],[2-8]$")]
 
 
 class Metadata(BaseModel):
@@ -227,11 +229,14 @@ class ModelConfig(BaseConfigModel):
             "or auto-calculate."
         ),
     )
-    cache_mode: Optional[CACHE_SIZES] = Field(
+    # TODO: Separate validation for Exl2 and Exl3 q-cache options
+    cache_mode: Optional[CACHE_TYPE] = Field(
         "FP16",
         description=(
             "Enable different cache modes for VRAM savings (default: FP16).\n"
-            f"Possible values: {str(CACHE_SIZES)[15:-1]}."
+            f"Possible values for exllamav2: {str(CACHE_SIZES)[15:-1]}.\n"
+            "For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits "
+            "are integers from 2-8 (i.e. 8,8)."
         ),
     )
     cache_size: Optional[int] = Field(

@@ -185,6 +185,7 @@ class ExllamaV2Container(BaseModelContainer):
         # MARK: User configuration
 
         # Get cache mode
+        # TODO: Separate validation for Exl2 and Exl3 q-cache options
         self.cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
 
         # Turn off GPU split if the user is using 1 GPU
