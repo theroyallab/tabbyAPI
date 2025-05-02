@@ -95,6 +95,7 @@ class ExllamaV3Container(BaseModelContainer):
             "Please note that all config options may not work."
         )
 
+        self.model_dir = model_directory
         self.config = Config.from_directory(model_directory.resolve())
         self.model = Model.from_config(self.config)
         self.tokenizer = Tokenizer.from_config(self.config)
