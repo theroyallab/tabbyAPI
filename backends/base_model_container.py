@@ -123,7 +123,7 @@ class BaseModelContainer(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_special_tokens(self, **kwargs) -> Dict[str, Any]:
+    def get_special_tokens(self) -> Dict[str, Any]:
         """
         Gets special tokens used by the model/tokenizer.
 

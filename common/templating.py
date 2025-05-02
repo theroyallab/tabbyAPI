@@ -239,6 +239,7 @@ async def find_prompt_template(template_name, model_dir: pathlib.Path):
         ]
 
     # Add lookup from prompt template name if provided
+    # TODO: Possibly link to the TokenizerConfig class
     if template_name:
         find_template_functions[:0] = [
             lambda: PromptTemplate.from_file(pathlib.Path("templates") / template_name),
