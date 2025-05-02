@@ -143,9 +143,7 @@ class ExllamaV2Container(BaseModelContainer):
         tokenizer_config_path = model_directory / "tokenizer_config.json"
         if tokenizer_config_path.exists():
             try:
-                self.tokenizer_config = await TokenizerConfig.from_file(
-                    model_directory
-                )
+                self.tokenizer_config = await TokenizerConfig.from_file(model_directory)
             except Exception:
                 logger.error(traceback.format_exc())
                 logger.warning(
@@ -1255,7 +1253,6 @@ class ExllamaV2Container(BaseModelContainer):
 
         stop_conditions = params.stop
         ban_eos_token = params.ban_eos_token
-
 
         print(self.tokenizer_config.add_bos_token)
         # Set add_bos_token for generation
