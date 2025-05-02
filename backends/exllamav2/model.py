@@ -120,7 +120,6 @@ class ExllamaV2Container(BaseModelContainer):
         self.config.max_seq_len = 4096
 
         self.config.prepare()
-        print(self.config.max_seq_len)
 
         # Check if the model arch is compatible with various exl2 features
         self.config.arch_compat_overrides()
