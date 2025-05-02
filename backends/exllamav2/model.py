@@ -843,12 +843,10 @@ class ExllamaV2Container(BaseModelContainer):
             decode_special_tokens=unwrap(kwargs.get("decode_special_tokens"), True),
         )[0]
 
-    def get_special_tokens(
-        self, add_bos_token: bool = True, ban_eos_token: bool = False
-    ):
+    def get_special_tokens(self):
         return {
-            "bos_token": self.tokenizer.bos_token if add_bos_token else "",
-            "eos_token": self.tokenizer.eos_token if not ban_eos_token else "",
+            "bos_token": self.tokenizer.bos_token,
+            "eos_token": self.tokenizer.eos_token,
             "pad_token": self.tokenizer.pad_token,
             "unk_token": self.tokenizer.unk_token,
         }
@@ -1242,7 +1240,7 @@ class ExllamaV2Container(BaseModelContainer):
         ) and gen_settings.token_repetition_range == -1
 
         stop_conditions = params.stop
-        add_bos_token = params.add_bos_token
+        add_bos_token = unwrap(params.add_bos_token, True)
         ban_eos_token = params.ban_eos_token
 
         # Fetch EOS tokens from generation_config if they exist

@@ -238,9 +238,7 @@ async def format_messages_with_template(
             # store the list of dicts rather than the ToolCallProcessor object.
             message.tool_calls = ToolCallProcessor.dump(message.tool_calls)
 
-    special_tokens_dict = model.container.get_special_tokens(
-        add_bos_token, ban_eos_token
-    )
+    special_tokens_dict = model.container.get_special_tokens()
 
     template_vars.update({"messages": messages, **special_tokens_dict})
 
@@ -284,12 +282,6 @@ async def apply_chat_template(
                     "Could not add response prefix because "
                     "add_generation_prompt is False"
                 )
-
-        # Removes the starting BOS token if present
-        # This is to prevent add_bos_token from adding multiple bos tokens
-        bos_token = template_vars.get("bos_token")
-        if bos_token and prompt.startswith(bos_token):
-            prompt = prompt.removeprefix(bos_token)
 
         # Add template metadata
         await _append_template_metadata(data, template_vars)

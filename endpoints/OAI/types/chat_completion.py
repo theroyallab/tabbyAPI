@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic.json_schema import SkipJsonSchema
 from time import time
 from typing import Literal, Union, List, Optional, Dict
@@ -81,6 +81,12 @@ class ChatCompletionRequest(CommonCompletionRequest):
     tool_call_start: SkipJsonSchema[Optional[List[Union[str, int]]]] = None
     tool_call_end: SkipJsonSchema[Optional[str]] = None
     tool_call_schema: SkipJsonSchema[Optional[dict]] = tool_call_schema
+
+    @field_validator("add_bos_token", mode="after")
+    def force_bos_token(cls, v):
+        """Always disable add_bos_token with chat completions."""
+
+        return None
 
 
 class ChatCompletionResponse(BaseModel):
