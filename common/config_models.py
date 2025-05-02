@@ -10,7 +10,7 @@ from typing import List, Literal, Optional, Union
 
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
-CACHE_TYPE = Union[CACHE_SIZES, constr(pattern=r"^[2-8],[2-8]$")]
+CACHE_TYPE = Union[CACHE_SIZES, constr(pattern=r"^[2-8]\s*,\s*[2-8]$")]
 
 
 class Metadata(BaseModel):

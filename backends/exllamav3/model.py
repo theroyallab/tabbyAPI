@@ -233,7 +233,7 @@ class ExllamaV3Container(BaseModelContainer):
             case "Q8":
                 self.cache_mode = "8,8"
 
-        split_cache_mode = re.search(r"^([2-8]),([2-8])$", self.cache_mode)
+        split_cache_mode = re.search(r"^([2-8])\s*,\s*([2-8])$", self.cache_mode)
         if split_cache_mode:
             k_bits = int(split_cache_mode.group(1))
             v_bits = int(split_cache_mode.group(2))
