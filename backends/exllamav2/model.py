@@ -838,7 +838,9 @@ class ExllamaV2Container(BaseModelContainer):
         return (
             self.tokenizer.encode(
                 text,
-                add_bos=unwrap(kwargs.get("add_bos_token"), True),
+                add_bos=unwrap(
+                    kwargs.get("add_bos_token"), self.tokenizer_config.add_bos_token
+                ),
                 encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
                 embeddings=mm_embeddings_content,
             )
@@ -1254,13 +1256,10 @@ class ExllamaV2Container(BaseModelContainer):
         stop_conditions = params.stop
         ban_eos_token = params.ban_eos_token
 
-        print(self.tokenizer_config.add_bos_token)
         # Set add_bos_token for generation
-        add_bos_token = coalesce(
-            params.add_bos_token, self.tokenizer_config.add_bos_token, True
+        add_bos_token = unwrap(
+            params.add_bos_token, self.tokenizer_config.add_bos_token
         )
-
-        print(add_bos_token)
 
         # Fetch EOS tokens from generation_config if they exist
         eos_tokens = (

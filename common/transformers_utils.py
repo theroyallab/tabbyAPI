@@ -60,7 +60,7 @@ class TokenizerConfig(BaseModel):
     An abridged version of HuggingFace's tokenizer config.
     """
 
-    add_bos_token: Optional[bool] = None
+    add_bos_token: Optional[bool] = True
 
     @classmethod
     async def from_file(cls, model_directory: pathlib.Path):
