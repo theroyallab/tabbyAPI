@@ -345,6 +345,9 @@ class ExllamaV3Container(BaseModelContainer):
             async for value in iterate_in_threadpool(generator):
                 yield value
 
+            # Create async generator
+            await self.create_generator()
+
             # Clean up any extra vram usage from torch and cuda
             # (Helps reduce VRAM bottlenecking on Windows)
             gc.collect()
@@ -773,12 +776,6 @@ class ExllamaV3Container(BaseModelContainer):
                 f"{preamble} length {context_to_check} is greater than "
                 f"max_seq_len {self.max_seq_len}"
             )
-
-        self.generator = AsyncGenerator(
-            model=self.model,
-            cache=self.cache,
-            tokenizer=self.tokenizer,
-        )
 
         generation = {}
         job = AsyncJob(
