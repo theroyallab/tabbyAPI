@@ -127,9 +127,6 @@ class BaseModelContainer(abc.ABC):
         """
         Gets special tokens used by the model/tokenizer.
 
-        Args:
-            **kwargs: Options like add_bos_token, ban_eos_token.
-
         Returns:
             A dictionary mapping special token names (e.g., 'bos_token', 'eos_token')
             to their string or ID representation.
