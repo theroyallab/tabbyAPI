@@ -680,7 +680,7 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Exl3's version of including the entire context
         if penalty_range < 0:
-            penalty_range = 10e7
+            penalty_range = int(10e7)
 
         # Always make sure the fallback is 0 if range < 0
         # It's technically fine to use -1, but this just validates the passed
