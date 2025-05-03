@@ -180,7 +180,7 @@ class ExllamaV3Container(BaseModelContainer):
         self.cache = Cache(self.model, max_num_tokens=self.cache_size)
 
         # Max batch size
-        self.max_batch_size = kwargs.get("max_batch_size")
+        self.max_batch_size = unwrap(kwargs.get("max_batch_size"), 256)
 
         # Make sure chunk size is >= 256, keep near or below max seq len
         user_chunk_size = unwrap(kwargs.get("chunk_size"), 2048)
