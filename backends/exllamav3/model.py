@@ -728,8 +728,8 @@ class ExllamaV3Container(BaseModelContainer):
 
         prompts = [prompt]
         stop_conditions = params.stop
-        add_bos_token = coalesce(
-            params.add_bos_token, self.tokenizer_config.add_bos_token, True
+        add_bos_token = unwrap(
+            params.add_bos_token, self.tokenizer_config.add_bos_token
         )
 
         # Fetch EOS tokens from generation_config if they exist
