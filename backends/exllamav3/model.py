@@ -56,12 +56,11 @@ class ExllamaV3Container(BaseModelContainer):
     load_condition: asyncio.Condition = asyncio.Condition()
 
     # Exl3 vars
-    model: Model
-    cache: Cache
-    tokenizer: Tokenizer
-    config: Config
+    model: Optional[Model]
+    cache: Optional[Cache]
+    tokenizer: Optional[Tokenizer]
+    config: Optional[Config]
     generator: Optional[AsyncGenerator] = None
-    generation_config: Optional[GenerationConfig] = None
     tokenizer_config: Optional[TokenizerConfig] = None
 
     # Class-specific vars
@@ -96,7 +95,7 @@ class ExllamaV3Container(BaseModelContainer):
         )
 
         self.model_dir = model_directory
-        self.config = Config.from_directory(model_directory.resolve())
+        self.config = Config.from_directory(str(model_directory.resolve()))
         self.model = Model.from_config(self.config)
         self.tokenizer = Tokenizer.from_config(self.config)
 
