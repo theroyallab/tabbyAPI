@@ -54,7 +54,8 @@ async def completion_request(
     """
 
     if data.model:
-        inline_load_task = asyncio.create_task(load_inline_model(data.model, request))
+        #pass 'data' to 'load_inline_model' to later update generation params inside it
+        inline_load_task = asyncio.create_task(load_inline_model(data.model, request, data)) 
 
         await run_with_request_disconnect(
             request,
@@ -109,7 +110,8 @@ async def chat_completion_request(
     """
 
     if data.model:
-        await load_inline_model(data.model, request)
+        # passing 'data' for update
+        await load_inline_model(data.model, request, data)
     else:
         await check_model_container()
 

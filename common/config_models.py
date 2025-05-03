@@ -113,6 +113,22 @@ class ModelConfig(BaseConfigModel):
     between initial and API loads
     """
 
+    control_vectors_enabled: Optional[bool] = Field(
+        False,
+        description=(
+            "Enable control vectors for model behavior modification (default: False).\n"
+            "Requires .gguf vector files in model-directory-vectors/"
+        ),
+    )
+
+    control_vectors: Optional[str] = Field(
+        None,
+        description=(
+            "Control vector configuration string (default: None).\n"
+            "Format: vector:direction:weight,vector2:direction2:weight2"
+        ),
+    )
+
     # TODO: convert this to a pathlib.path?
     model_dir: str = Field(
         "models",
@@ -163,6 +179,15 @@ class ModelConfig(BaseConfigModel):
             "Example: ['max_seq_len', 'cache_mode']."
         ),
     )
+
+    # Defaults to exllamav2 in common/model.py
+    backend: Optional[str] = Field(
+        None,
+        description=(
+            "Backend to use for this model (default: exllamav2)\n"
+            "Options: exllamav2, exllamav3",
+        ),
+    )
     max_seq_len: Optional[int] = Field(
         None,
         description=(
@@ -186,7 +211,7 @@ class ModelConfig(BaseConfigModel):
             "Not parsed for single GPU users."
         ),
     )
-    autosplit_reserve: List[int] = Field(
+    autosplit_reserve: List[float] = Field(
         [96],
         description=(
             "Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0).\n"

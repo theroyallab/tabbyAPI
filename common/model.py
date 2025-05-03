@@ -10,22 +10,33 @@ from enum import Enum
 from fastapi import HTTPException
 from loguru import logger
 from ruamel.yaml import YAML
-from typing import Optional
+from typing import Dict, Optional
 
 from backends.base_model_container import BaseModelContainer
 from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
 from common.tabby_config import config
 from common.optional_dependencies import dependencies
+from common import sampling
 from common.utils import unwrap
 
 # Global variables for model container
 container: Optional[BaseModelContainer] = None
 embeddings_container = None
 
-# FIXME: Possibly use this solely when creating the model
+
+_BACKEND_REGISTRY: Dict[str, BaseModelContainer] = {}
+
 if dependencies.exllamav2:
     from backends.exllamav2.model import ExllamaV2Container
+
+    _BACKEND_REGISTRY["exllamav2"] = ExllamaV2Container
+
+
+if dependencies.exllamav3:
+    from backends.exllamav3.model import ExllamaV3Container
+
+    _BACKEND_REGISTRY["exllamav3"] = ExllamaV3Container
 
 
 if dependencies.extras:
@@ -87,6 +98,7 @@ async def unload_model(skip_wait: bool = False, shutdown: bool = False):
 async def load_model_gen(model_path: pathlib.Path, **kwargs):
     """Generator to load a model"""
     global container
+    from common.tabby_config import TabbyConfig  # import TabbyConfig for later use
 
     # Check if the model is already loaded
     if container and container.model:
@@ -99,6 +111,15 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
 
         logger.info("Unloading existing model.")
         await unload_model()
+
+    # Check for model-specific config and apply sampler override if it exists
+    config_path = model_path / "tabby_config.yml"
+    if config_path.exists():
+        config_parser = TabbyConfig()
+        config_data = config_parser._from_file(config_path)
+        preset_name = config_data.get('model_sampler_preset')
+        if preset_name:
+            await sampling.overrides_from_file(preset_name)
 
     # Reset to prepare for a new container
     container = None
@@ -113,9 +134,25 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     kwargs = {**config.model_defaults, **kwargs}
     kwargs = await apply_inline_overrides(model_path, **kwargs)
 
-    # Create a new container
-    new_container = await ExllamaV2Container.create(
-        model_path.resolve(), False, **kwargs
+    # Create a new container and check if the right dependencies are installed
+    backend_name = unwrap(kwargs.get("backend"), "exllamav2").lower()
+    container_class = _BACKEND_REGISTRY.get(backend_name)
+
+    if not container_class:
+        available_backends = list(_BACKEND_REGISTRY.keys())
+        if backend_name in available_backends:
+            raise ValueError(
+                f"Backend '{backend_name}' selected, but required dependencies "
+                "are not installed."
+            )
+        else:
+            raise ValueError(
+                f"Invalid backend '{backend_name}'. "
+                "Available backends: {available_backends}"
+            )
+
+    new_container: BaseModelContainer = await container_class.create(
+        model_path.resolve(), **kwargs
     )
 
     # Add possible types of models that can be loaded
@@ -124,7 +161,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     if new_container.use_vision:
         model_type.insert(0, ModelType.VISION)
 
-    if new_container.draft_config:
+    if new_container.use_draft_model:
         model_type.insert(0, ModelType.DRAFT)
 
     load_status = new_container.load_gen(load_progress, **kwargs)

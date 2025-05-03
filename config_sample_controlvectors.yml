@@ -20,7 +20,7 @@ network:
   # Turn on this option if you are ONLY connecting from localhost.
   disable_auth: false
 
-  # Disable fetching external content in response to requests,such as images from URLs.
+  # Disable fetching external content in response to requests, such as images from URLs.
   disable_fetch_requests: false
 
   # Send tracebacks over the API (default: False).
@@ -69,14 +69,21 @@ model:
   # REQUIRED: This must be filled out to load a model on startup.
   model_name:
 
+
+  # Options for control vectors
+  # Enable or disable control vector support (default: false)
+  # Set to true to use control vectors with compatible models
+  control_vectors_enabled: true
+
+  # Control vector configuration string
+  # Format: "vector_name:direction:scale,vector_name:direction:scale"
+  # Example: "honesty_vs_machiavellianism:machiavellianism:0.5,humility_vs_narcissism:narcissism:0.3"
+  control_vectors: "honesty_vs_machiavellianism:machiavellianism:0.5,humility_vs_narcissism:narcissism:0.3"
+
   # Names of args to use as a fallback for API load requests (default: []).
   # For example, if you always want cache_mode to be Q4 instead of on the inital model load, add "cache_mode" to this array.
   # Example: ['max_seq_len', 'cache_mode'].
   use_as_default: []
-
-  # Backend to use for the model (default: exllamav2)
-  # Options: exllamav2, exllamav3
-  backend: exllamav2
 
   # Max sequence length (default: Empty).
   # Fetched from the model's base sequence length in config.json by default.
@@ -98,9 +105,6 @@ model:
   # An integer array of GBs of VRAM to split between GPUs (default: []).
   # Used with tensor parallelism.
   gpu_split: []
-
-  # NOTE: If a model has YaRN rope scaling, it will automatically be enabled by ExLlama.
-  # rope_scale and rope_alpha settings won't apply in this case.
 
   # Rope scale (default: 1.0).
   # Same as compress_pos_emb.
@@ -143,6 +147,12 @@ model:
   # Enables vision support if the model supports it. (default: False)
   vision: false
 
+  # Number of experts to use per token.
+  # Fetched from the model's config.json if empty.
+  # NOTE: For MoE models only.
+  # WARNING: Don't set this unless you know what you're doing!
+  num_experts_per_token:
+
 # Options for draft models (speculative decoding)
 # This will use more VRAM!
 draft_model:
@@ -166,10 +176,6 @@ draft_model:
   # Cache mode for draft models to save VRAM (default: FP16).
   # Possible values: 'FP16', 'Q8', 'Q6', 'Q4'.
   draft_cache_mode: FP16
-
-  # An integer array of GBs of VRAM to split between GPUs (default: []).
-  # If this isn't filled in, the draft model is autosplit.
-  draft_gpu_split: []
 
 # Options for Loras
 lora:
@@ -216,6 +222,10 @@ developer:
 
   # Enable the torch CUDA malloc backend (default: False).
   cuda_malloc_backend: false
+
+  # Run asyncio using Uvloop or Winloop which can improve performance.
+  # NOTE: It's recommended to enable this, but if something breaks turn this off.
+  uvloop: false
 
   # Set process to use a higher priority.
   # For realtime process priority, run as administrator or sudo.
