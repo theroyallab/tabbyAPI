@@ -62,6 +62,8 @@ class ExllamaV3Container(BaseModelContainer):
     config: Optional[Config]
     generator: Optional[AsyncGenerator] = None
     tokenizer_config: Optional[TokenizerConfig] = None
+    generator: Optional[AsyncGenerator]
+    tokenizer_config: Optional[TokenizerConfig]
 
     # Class-specific vars
     gpu_split: List[float] | None = None
@@ -88,6 +90,13 @@ class ExllamaV3Container(BaseModelContainer):
         """
 
         self = cls()
+
+        self.model = None
+        self.cache = None
+        self.tokenizer = None
+        self.config = None
+        self.generator = None
+        self.tokenizer_config = None
 
         logger.warning(
             "ExllamaV3 is currently in an alpha state. "
