@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from loguru import logger
 from ruamel.yaml import YAML
 from typing import Optional
+import time
 
 from backends.base_model_container import BaseModelContainer
 from common.logger import get_loading_progress_bar
@@ -130,6 +131,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     load_status = new_container.load_gen(load_progress, **kwargs)
 
     progress = get_loading_progress_bar()
+    model_loading_started = time.time()
     progress.start()
 
     try:
@@ -155,6 +157,8 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         container = new_container
     finally:
         progress.stop()
+        model_loading_time = time.time() - model_loading_started
+        logger.info("Model loading took {:.2f} seconds.".format(model_loading_time))
 
 
 async def load_model(model_path: pathlib.Path, **kwargs):
