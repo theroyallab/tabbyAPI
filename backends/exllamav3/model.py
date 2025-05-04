@@ -165,9 +165,7 @@ class ExllamaV3Container(BaseModelContainer):
             self.draft_model_dir = draft_model_path
             self.draft_config = Config.from_directory(str(draft_model_path.resolve()))
             self.draft_model = Model.from_config(self.draft_config)
-            logger.info(
-                f'Using draft model: {str(draft_model_path.resolve())}'
-            )
+            logger.info(f"Using draft model: {str(draft_model_path.resolve())}")
         else:
             self.draft_model = None
             self.craft_cache = None
@@ -262,7 +260,9 @@ class ExllamaV3Container(BaseModelContainer):
                 case "Q8":
                     self.draft_cache_mode = "8,8"
 
-            split_draft_cache_mode = re.search(r"^([2-8])\s*,\s*([2-8])$", self.draft_cache_mode)
+            split_draft_cache_mode = re.search(
+                r"^([2-8])\s*,\s*([2-8])$", self.draft_cache_mode
+            )
             if split_draft_cache_mode:
                 draft_k_bits = int(split_draft_cache_mode.group(1))
                 draft_v_bits = int(split_draft_cache_mode.group(2))
@@ -274,7 +274,9 @@ class ExllamaV3Container(BaseModelContainer):
                     v_bits=draft_v_bits,
                 )
             else:
-                self.draft_cache = Cache(self.draft_model, max_num_tokens = self.cache_size)
+                self.draft_cache = Cache(
+                    self.draft_model, max_num_tokens=self.cache_size
+                )
 
         # Max batch size
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"), 256)
