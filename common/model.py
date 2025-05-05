@@ -137,7 +137,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         else:
             raise ValueError(
                 f"Invalid backend '{backend_name}'. "
-                "Available backends: {available_backends}"
+                f"Available backends: {available_backends}"
             )
 
     new_container: BaseModelContainer = await container_class.create(
