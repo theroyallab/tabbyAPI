@@ -163,13 +163,11 @@ class ModelConfig(BaseConfigModel):
             "Example: ['max_seq_len', 'cache_mode']."
         ),
     )
-
-    # Defaults to exllamav2 in common/model.py
     backend: Optional[str] = Field(
         None,
         description=(
             "Backend to use for this model (default: exllamav2)\n"
-            "Options: exllamav2, exllamav3",
+            "Options: exllamav2, exllamav3"
         ),
     )
     max_seq_len: Optional[int] = Field(
