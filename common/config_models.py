@@ -229,7 +229,6 @@ class ModelConfig(BaseConfigModel):
             "or auto-calculate."
         ),
     )
-    # TODO: Separate validation for Exl2 and Exl3 q-cache options
     cache_mode: Optional[CACHE_TYPE] = Field(
         "FP16",
         description=(
