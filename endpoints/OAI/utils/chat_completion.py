@@ -471,13 +471,13 @@ async def generate_tool_calls(
 
             if "text" in gen:
                 # non streaming, all generations will have the text they generated
-                pre_tool_prompt, mm_embeddings = await apply_chat_template(
+                pre_tool_prompt, embeddings = await apply_chat_template(
                     data, gen["text"]
                 )
             elif current_generations is not None:
                 # streaming, we wont have text in the generation,
                 # we'll have to use the current_generations
-                pre_tool_prompt, mm_embeddings = await apply_chat_template(
+                pre_tool_prompt, embeddings = await apply_chat_template(
                     data, current_generations
                 )
 
@@ -489,7 +489,7 @@ async def generate_tool_calls(
                         request_id,
                         pre_tool_prompt,
                         tool_data,
-                        embeddings=mm_embeddings,
+                        mm_embeddings=embeddings,
                     )
                 )
             )
