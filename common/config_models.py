@@ -166,7 +166,7 @@ class ModelConfig(BaseConfigModel):
     backend: Optional[str] = Field(
         None,
         description=(
-            "Backend to use for this model (default: exllamav2)\n"
+            "Backend to use for this model (auto-detect if not specified)\n"
             "Options: exllamav2, exllamav3"
         ),
     )

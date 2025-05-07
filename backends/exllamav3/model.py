@@ -161,9 +161,7 @@ class ExllamaV3Container(BaseModelContainer):
             self.draft_model_dir = draft_model_path
             self.draft_config = Config.from_directory(str(draft_model_path.resolve()))
             self.draft_model = Model.from_config(self.draft_config)
-            logger.info(
-                f'Using draft model: {str(draft_model_path.resolve())}'
-            )
+            logger.info(f"Using draft model: {str(draft_model_path.resolve())}")
         else:
             self.draft_model = None
             self.craft_cache = None
@@ -223,7 +221,7 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Draft cache
         if self.use_draft_model:
-            self.draft_cache = Cache(self.draft_model, max_num_tokens = self.cache_size)
+            self.draft_cache = Cache(self.draft_model, max_num_tokens=self.cache_size)
 
         # Max batch size
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"), 256)

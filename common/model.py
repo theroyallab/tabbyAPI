@@ -17,6 +17,7 @@ from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
 from common.tabby_config import config
 from common.optional_dependencies import dependencies
+from common.transformers_utils import HuggingFaceConfig
 from common.utils import unwrap
 
 # Global variables for model container
@@ -123,8 +124,24 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     kwargs = {**config.model_defaults, **kwargs}
     kwargs = await apply_inline_overrides(model_path, **kwargs)
 
+    # Read config.json and detect the quant method
+    hf_config_path = model_path / "config.json"
+    if hf_config_path.exists():
+        try:
+            hf_config = await HuggingFaceConfig.from_file(model_path)
+        except Exception as exc:
+            raise ValueError(
+                "Failed to read the model's config.json. "
+                f"Please check your model directory at {model_path}."
+            ) from exc
+    quant_method = hf_config.quant_method()
+    if quant_method == "exl3":
+        backend_name = "exllamav3"
+    else:
+        backend_name = "exllamav2"
+
     # Create a new container and check if the right dependencies are installed
-    backend_name = unwrap(kwargs.get("backend"), "exllamav2").lower()
+    backend_name = unwrap(kwargs.get("backend"), backend_name).lower()
     container_class = _BACKEND_REGISTRY.get(backend_name)
 
     if not container_class:
