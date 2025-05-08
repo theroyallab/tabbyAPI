@@ -266,6 +266,7 @@ async def apply_chat_template(
                 "functions": data.functions,
                 "functions_json": json.dumps(data.functions, indent=2),
                 "tool_precursor": tool_precursor,
+                "enable_thinking": data.enable_thinking,
             }
         )
 

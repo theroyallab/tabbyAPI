@@ -65,6 +65,7 @@ class ChatCompletionRequest(CommonCompletionRequest):
     messages: List[ChatCompletionMessage] = Field(default_factory=list)
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
+    enable_thinking: Optional[bool] = None
     template_vars: Optional[dict] = {}
     response_prefix: Optional[str] = None
     model: Optional[str] = None
