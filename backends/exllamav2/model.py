@@ -187,6 +187,15 @@ class ExllamaV2Container(BaseModelContainer):
         # Get cache mode
         self.cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
 
+        # Catch exllamav3 cache_mode
+        if not self.cache_mode.startswith("Q"):
+            logger.warning(
+                f"Provided cache mode '{self.cache_mode}' is not a "
+                "valid choice for exllamav2, please check your settings. "
+                "Defaulting to FP16."
+            )
+            self.cache_mode = "FP16"
+
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
         gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
@@ -391,6 +400,15 @@ class ExllamaV2Container(BaseModelContainer):
 
             # Set draft cache mode
             self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
+
+            # Catch exllamav3 draft_cache_mode
+            if not self.draft_cache_mode.startswith("Q"):
+                logger.warning(
+                    f"Provided draft cache mode '{self.draft_cache_mode}' is not a "
+                    "valid choice for exllamav2, please check your settings. "
+                    "Defaulting to FP16."
+                )
+                self.draft_cache_mode = "FP16"
 
             # Edit the draft config size
             if chunk_size:

@@ -1,6 +1,7 @@
 import asyncio
 import gc
 import pathlib
+import re
 import traceback
 from typing import (
     Any,
@@ -19,6 +20,7 @@ from exllamav3 import (
     Model,
     Tokenizer,
 )
+from exllamav3.cache import CacheLayer_quant
 from loguru import logger
 
 from backends.base_model_container import BaseModelContainer
@@ -73,6 +75,8 @@ class ExllamaV3Container(BaseModelContainer):
     use_tp: bool = False
     max_seq_len: int = 4096
     cache_size: int = 4096
+    cache_mode: str = "FP16"
+    draft_cache_mode: str = "FP16"
     chunk_size: int = 2048
     max_batch_size: Optional[int] = None
 
@@ -164,7 +168,7 @@ class ExllamaV3Container(BaseModelContainer):
             logger.info(f"Using draft model: {str(draft_model_path.resolve())}")
         else:
             self.draft_model = None
-            self.craft_cache = None
+            self.draft_cache = None
 
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
@@ -217,11 +221,16 @@ class ExllamaV3Container(BaseModelContainer):
         # Cache
         user_cache_size = unwrap(kwargs.get("cache_size"), self.max_seq_len)
         self.cache_size = self.adjust_cache_size(user_cache_size)
-        self.cache = Cache(self.model, max_num_tokens=self.cache_size)
+        self.cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
+        self.cache = self.create_cache(self.cache_mode, self.model)
 
         # Draft cache
         if self.use_draft_model:
-            self.draft_cache = Cache(self.draft_model, max_num_tokens=self.cache_size)
+            # Set draft cache mode
+            self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
+            self.draft_cache = self.create_cache(
+                self.draft_cache_mode, self.draft_model
+            )
 
         # Max batch size
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"), 256)
@@ -300,6 +309,33 @@ class ExllamaV3Container(BaseModelContainer):
 
         return chunk_size
 
+    def create_cache(self, raw_cache_mode: str, model: Model):
+        # Cast exl2 types to exl3
+        match raw_cache_mode:
+            case "Q4":
+                raw_cache_mode = "4,4"
+            case "Q6":
+                raw_cache_mode = "6,6"
+            case "Q8":
+                raw_cache_mode = "8,8"
+
+        split_cache_mode = re.search(r"^([2-8])\s*,\s*([2-8])$", raw_cache_mode)
+
+        if split_cache_mode:
+            draft_k_bits = int(split_cache_mode.group(1))
+            draft_v_bits = int(split_cache_mode.group(2))
+            cache = Cache(
+                model,
+                max_num_tokens=self.cache_size,
+                layer_type=CacheLayer_quant,
+                k_bits=draft_k_bits,
+                v_bits=draft_v_bits,
+            )
+        else:
+            cache = Cache(model, max_num_tokens=self.cache_size)
+
+        return cache
+
     def model_info(self) -> ModelCard:
         """
         Returns a dictionary of the current model's configuration parameters.
@@ -312,7 +348,7 @@ class ExllamaV3Container(BaseModelContainer):
             max_seq_len=self.max_seq_len,
             cache_size=self.cache_size,
             max_batch_size=self.max_batch_size,
-            # cache_mode=self.cache_mode,
+            cache_mode=self.cache_mode,
             chunk_size=self.chunk_size,
             use_vision=self.use_vision,
         )
