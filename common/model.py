@@ -17,6 +17,7 @@ from common.logger import get_loading_progress_bar
 from common.networking import handle_request_error
 from common.tabby_config import config
 from common.optional_dependencies import dependencies
+from common.transformers_utils import HuggingFaceConfig
 from common.utils import unwrap
 
 # Global variables for model container
@@ -54,6 +55,24 @@ class ModelType(Enum):
 def load_progress(module, modules):
     """Wrapper callback for load progress."""
     yield module, modules
+
+
+async def detect_backend(model_path: pathlib.Path) -> str:
+    """Determine the appropriate backend based on model files and configuration."""
+
+    try:
+        hf_config = await HuggingFaceConfig.from_directory(model_path)
+        quant_method = hf_config.quant_method()
+
+        if quant_method == "exl3":
+            return "exllamav3"
+        else:
+            return "exllamav2"
+    except Exception as exc:
+        raise ValueError(
+            "Failed to read the model's config.json. "
+            f"Please check your model directory at {model_path}."
+        ) from exc
 
 
 async def apply_inline_overrides(model_dir: pathlib.Path, **kwargs):
@@ -124,7 +143,9 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     kwargs = await apply_inline_overrides(model_path, **kwargs)
 
     # Create a new container and check if the right dependencies are installed
-    backend_name = unwrap(kwargs.get("backend"), "exllamav2").lower()
+    backend_name = unwrap(
+        kwargs.get("backend"), await detect_backend(model_path)
+    ).lower()
     container_class = _BACKEND_REGISTRY.get(backend_name)
 
     if not container_class:
@@ -140,6 +161,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 f"Available backends: {available_backends}"
             )
 
+    logger.info(f"Using backend {backend_name}")
     new_container: BaseModelContainer = await container_class.create(
         model_path.resolve(), **kwargs
     )
