@@ -146,7 +146,6 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     backend_name = unwrap(
         kwargs.get("backend"), await detect_backend(model_path)
     ).lower()
-    print(backend_name)
     container_class = _BACKEND_REGISTRY.get(backend_name)
 
     if not container_class:
@@ -162,6 +161,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 f"Available backends: {available_backends}"
             )
 
+    logger.info(f"Using backend {backend_name}")
     new_container: BaseModelContainer = await container_class.create(
         model_path.resolve(), **kwargs
     )
