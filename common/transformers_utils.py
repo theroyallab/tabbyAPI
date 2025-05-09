@@ -45,7 +45,7 @@ class HuggingFaceConfig(BaseModel):
     quantization_config: Optional[Dict] = None
 
     @classmethod
-    async def from_file(cls, model_directory: pathlib.Path):
+    async def from_directory(cls, model_directory: pathlib.Path):
         """Create an instance from a generation config file."""
 
         hf_config_path = model_directory / "config.json"
