@@ -1373,7 +1373,6 @@ class ExllamaV2Container(BaseModelContainer):
             min_new_tokens=params.min_tokens,
             gen_settings=gen_settings,
             stop_conditions=stop_conditions,
-            decode_special_tokens=not params.skip_special_tokens,
             filters=grammar_handler.filters,
             filter_prefer_eos=bool(grammar_handler.filters),
             return_probs=params.logprobs > 0,

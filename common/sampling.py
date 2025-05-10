@@ -215,11 +215,6 @@ class BaseSamplerRequest(BaseModel):
         examples=[False],
     )
 
-    skip_special_tokens: Optional[bool] = Field(
-        default_factory=lambda: get_default_sampler_value("skip_special_tokens", True),
-        examples=[True],
-    )
-
     logit_bias: Optional[Dict[int, float]] = Field(
         default_factory=lambda: get_default_sampler_value("logit_bias"),
         examples=[{"1": 10, "2": 50}],
