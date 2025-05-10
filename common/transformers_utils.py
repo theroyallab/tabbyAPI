@@ -1,7 +1,7 @@
 import aiofiles
 import json
 import pathlib
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 from pydantic import BaseModel
 
 
@@ -42,8 +42,10 @@ class HuggingFaceConfig(BaseModel):
     Will be expanded as needed.
     """
 
+    quantization_config: Optional[Dict] = None
+
     @classmethod
-    async def from_file(cls, model_directory: pathlib.Path):
+    async def from_directory(cls, model_directory: pathlib.Path):
         """Create an instance from a generation config file."""
 
         hf_config_path = model_directory / "config.json"
@@ -53,6 +55,14 @@ class HuggingFaceConfig(BaseModel):
             contents = await hf_config_json.read()
             hf_config_dict = json.loads(contents)
             return cls.model_validate(hf_config_dict)
+
+    def quant_method(self):
+        """Wrapper method to fetch quant type"""
+
+        if isinstance(self.quantization_config, Dict):
+            return self.quantization_config.get("quant_method")
+        else:
+            return None
 
 
 class TokenizerConfig(BaseModel):

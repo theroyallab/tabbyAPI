@@ -74,6 +74,10 @@ model:
   # Example: ['max_seq_len', 'cache_mode'].
   use_as_default: []
 
+  # Backend to use for this model (auto-detect if not specified)
+  # Options: exllamav2, exllamav3
+  backend:
+
   # Max sequence length (default: Empty).
   # Fetched from the model's base sequence length in config.json by default.
   max_seq_len:
@@ -110,7 +114,8 @@ model:
   rope_alpha:
 
   # Enable different cache modes for VRAM savings (default: FP16).
-  # Possible values: 'FP16', 'Q8', 'Q6', 'Q4'.
+  # Possible values for exllamav2: 'FP16', 'Q8', 'Q6', 'Q4'.
+  # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
   cache_mode: FP16
 
   # Size of the prompt cache to allocate (default: max_seq_len).
@@ -160,7 +165,8 @@ draft_model:
   draft_rope_alpha:
 
   # Cache mode for draft models to save VRAM (default: FP16).
-  # Possible values: 'FP16', 'Q8', 'Q6', 'Q4'.
+  # Possible values for exllamav2: 'FP16', 'Q8', 'Q6', 'Q4'.
+  # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
   draft_cache_mode: FP16
 
   # An integer array of GBs of VRAM to split between GPUs (default: []).

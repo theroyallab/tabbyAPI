@@ -1,6 +1,7 @@
 from pydantic import (
     BaseModel,
     ConfigDict,
+    constr,
     Field,
     PrivateAttr,
     field_validator,
@@ -9,6 +10,7 @@ from typing import List, Literal, Optional, Union
 
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
+CACHE_TYPE = Union[CACHE_SIZES, constr(pattern=r"^[2-8]\s*,\s*[2-8]$")]
 
 
 class Metadata(BaseModel):
@@ -163,6 +165,13 @@ class ModelConfig(BaseConfigModel):
             "Example: ['max_seq_len', 'cache_mode']."
         ),
     )
+    backend: Optional[str] = Field(
+        None,
+        description=(
+            "Backend to use for this model (auto-detect if not specified)\n"
+            "Options: exllamav2, exllamav3"
+        ),
+    )
     max_seq_len: Optional[int] = Field(
         None,
         description=(
@@ -186,7 +195,7 @@ class ModelConfig(BaseConfigModel):
             "Not parsed for single GPU users."
         ),
     )
-    autosplit_reserve: List[int] = Field(
+    autosplit_reserve: List[float] = Field(
         [96],
         description=(
             "Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0).\n"
@@ -218,11 +227,13 @@ class ModelConfig(BaseConfigModel):
             "or auto-calculate."
         ),
     )
-    cache_mode: Optional[CACHE_SIZES] = Field(
+    cache_mode: Optional[CACHE_TYPE] = Field(
         "FP16",
         description=(
             "Enable different cache modes for VRAM savings (default: FP16).\n"
-            f"Possible values: {str(CACHE_SIZES)[15:-1]}."
+            f"Possible values for exllamav2: {str(CACHE_SIZES)[15:-1]}.\n"
+            "For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits "
+            "are integers from 2-8 (i.e. 8,8)."
         ),
     )
     cache_size: Optional[int] = Field(

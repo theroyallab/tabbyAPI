@@ -33,11 +33,7 @@ from backends.exllamav2.grammar import (
     ExLlamaV2Grammar,
     clear_grammar_func_cache,
 )
-from backends.exllamav2.utils import (
-    exllama_disabled_flash_attn,
-    hardware_supports_flash_attn,
-    supports_paged_attn,
-)
+from backends.exllamav2.utils import exllama_disabled_flash_attn
 from backends.exllamav2.vision import clear_image_embedding_cache
 from common.concurrency import iterate_in_threadpool
 from common.gen_logging import (
@@ -46,6 +42,7 @@ from common.gen_logging import (
     log_prompt,
     log_response,
 )
+from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.sampling import BaseSamplerRequest
@@ -64,15 +61,18 @@ class ExllamaV2Container(BaseModelContainer):
 
     # Exl2 vars
     config: Optional[ExLlamaV2Config] = None
-    draft_config: Optional[ExLlamaV2Config] = None
     model: Optional[ExLlamaV2] = None
-    draft_model: Optional[ExLlamaV2] = None
     cache: Optional[ExLlamaV2Cache] = None
-    draft_cache: Optional[ExLlamaV2Cache] = None
     tokenizer: Optional[ExLlamaV2Tokenizer] = None
     generator: Optional[ExLlamaV2DynamicGeneratorAsync] = None
     prompt_template: Optional[PromptTemplate] = None
     paged: bool = True
+
+    # Draft model vars
+    use_draft_model: bool = False
+    draft_config: Optional[ExLlamaV2Config] = None
+    draft_model: Optional[ExLlamaV2] = None
+    draft_cache: Optional[ExLlamaV2Cache] = None
 
     # Internal config vars
     cache_size: int = None
@@ -100,7 +100,7 @@ class ExllamaV2Container(BaseModelContainer):
     load_condition: asyncio.Condition = asyncio.Condition()
 
     @classmethod
-    async def create(cls, model_directory: pathlib.Path, quiet=False, **kwargs):
+    async def create(cls, model_directory: pathlib.Path, **kwargs):
         """
         Primary asynchronous initializer for model container.
 
@@ -109,8 +109,6 @@ class ExllamaV2Container(BaseModelContainer):
 
         # Create a new instance as a "fake self"
         self = cls()
-
-        self.quiet = quiet
 
         # Initialize config
         self.config = ExLlamaV2Config()
@@ -162,7 +160,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Prepare the draft model config if necessary
         draft_args = unwrap(kwargs.get("draft_model"), {})
         draft_model_name = draft_args.get("draft_model_name")
-        enable_draft = draft_args and draft_model_name
+        self.use_draft_model = draft_args and draft_model_name
 
         # Always disable draft if params are incorrectly configured
         if draft_args and draft_model_name is None:
@@ -170,9 +168,9 @@ class ExllamaV2Container(BaseModelContainer):
                 "Draft model is disabled because a model name "
                 "wasn't provided. Please check your config.yml!"
             )
-            enable_draft = False
+            self.use_draft_model = False
 
-        if enable_draft:
+        if self.use_draft_model:
             self.draft_config = ExLlamaV2Config()
             draft_model_path = pathlib.Path(
                 unwrap(draft_args.get("draft_model_dir"), "models")
@@ -188,6 +186,15 @@ class ExllamaV2Container(BaseModelContainer):
 
         # Get cache mode
         self.cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
+
+        # Catch exllamav3 cache_mode
+        if not self.cache_mode.startswith("Q"):
+            logger.warning(
+                f"Provided cache mode '{self.cache_mode}' is not a "
+                "valid choice for exllamav2, please check your settings. "
+                "Defaulting to FP16."
+            )
+            self.cache_mode = "FP16"
 
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
@@ -276,11 +283,20 @@ class ExllamaV2Container(BaseModelContainer):
 
         # Check whether the user's configuration supports flash/paged attention
         # Also check if exl2 has disabled flash attention
-        if (
-            exllama_disabled_flash_attn(self.config.no_flash_attn)
-            or not hardware_supports_flash_attn(gpu_device_list)
-            or not supports_paged_attn()
-        ):
+        if exllama_disabled_flash_attn(
+            self.config.no_flash_attn
+        ) or not hardware_supports_flash_attn(gpu_device_list):
+            gpu_unsupported_message = (
+                "An unsupported GPU is found in this configuration. "
+                "Switching to compatibility mode. \n"
+                "This disables parallel batching "
+                "and features that rely on it (ex. CFG). \n"
+                "To disable compatability mode, all GPUs must be ampere "
+                "(30 series) or newer. AMD GPUs are not supported."
+            )
+
+            logger.warning(gpu_unsupported_message)
+
             self.config.no_flash_attn = True
             if self.draft_config:
                 self.draft_config.no_flash_attn = True
@@ -365,7 +381,7 @@ class ExllamaV2Container(BaseModelContainer):
         self.config.max_attention_size = chunk_size**2
 
         # Set user-configured draft model values
-        if enable_draft:
+        if self.use_draft_model:
             self.draft_config.max_seq_len = self.config.max_seq_len
 
             self.draft_config.scale_pos_emb = unwrap(
@@ -384,6 +400,15 @@ class ExllamaV2Container(BaseModelContainer):
 
             # Set draft cache mode
             self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
+
+            # Catch exllamav3 draft_cache_mode
+            if not self.draft_cache_mode.startswith("Q"):
+                logger.warning(
+                    f"Provided draft cache mode '{self.draft_cache_mode}' is not a "
+                    "valid choice for exllamav2, please check your settings. "
+                    "Defaulting to FP16."
+                )
+                self.draft_cache_mode = "FP16"
 
             # Edit the draft config size
             if chunk_size:
@@ -531,8 +556,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Load draft model if a config is present
         if self.draft_config:
             self.draft_model = ExLlamaV2(self.draft_config)
-            if not self.quiet:
-                logger.info("Loading draft model: " + self.draft_config.model_dir)
+            logger.info("Loading draft model: " + self.draft_config.model_dir)
 
             # Draft uses the autosplit loader, so create a cache that reflects this
             draft_cache_class = self.get_cache_class(self.draft_cache_mode)
@@ -585,8 +609,7 @@ class ExllamaV2Container(BaseModelContainer):
                     yield value
 
         self.model = ExLlamaV2(self.config)
-        if not self.quiet:
-            logger.info("Loading model: " + self.config.model_dir)
+        logger.info("Loading model: " + self.config.model_dir)
 
         # Get class of the model cache
         cache_class = self.get_cache_class(self.cache_mode)
@@ -1350,7 +1373,7 @@ class ExllamaV2Container(BaseModelContainer):
             min_new_tokens=params.min_tokens,
             gen_settings=gen_settings,
             stop_conditions=stop_conditions,
-            decode_special_tokens=not params.skip_special_tokens,
+            decode_special_tokens=True,
             filters=grammar_handler.filters,
             filter_prefer_eos=bool(grammar_handler.filters),
             return_probs=params.logprobs > 0,

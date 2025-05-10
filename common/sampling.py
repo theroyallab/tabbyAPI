@@ -205,7 +205,7 @@ class BaseSamplerRequest(BaseModel):
     )
 
     add_bos_token: Optional[bool] = Field(
-        default_factory=lambda: get_default_sampler_value("add_bos_token", True)
+        default_factory=lambda: get_default_sampler_value("add_bos_token")
     )
 
     ban_eos_token: Optional[bool] = Field(
@@ -213,11 +213,6 @@ class BaseSamplerRequest(BaseModel):
         validation_alias=AliasChoices("ban_eos_token", "ignore_eos"),
         description="Aliases: ignore_eos",
         examples=[False],
-    )
-
-    skip_special_tokens: Optional[bool] = Field(
-        default_factory=lambda: get_default_sampler_value("skip_special_tokens", True),
-        examples=[True],
     )
 
     logit_bias: Optional[Dict[int, float]] = Field(
