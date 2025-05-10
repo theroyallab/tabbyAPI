@@ -26,7 +26,7 @@ class DependenciesModel(BaseModel):
     @computed_field
     @property
     def inference(self) -> bool:
-        return self.torch and (self.exllamav2 or self.exllamav3) and self.flash_attn
+        return self.torch and (self.exllamav2 or (self.exllamav3 and self.flash_attn))
 
 
 def is_installed(package_name: str) -> bool:
