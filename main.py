@@ -20,8 +20,6 @@ from common.signals import signal_handler
 from common.tabby_config import config
 from endpoints.server import start_api
 
-from backends.exllamav2.version import check_exllama_version
-
 
 async def entrypoint_async():
     """Async entry function for program startup"""
