@@ -131,7 +131,7 @@ mirostat_eta:
 
 # MARK: Token options
 add_bos_token:
-  override: true
+  override:
   force: false
 ban_eos_token:
   override: false

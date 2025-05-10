@@ -205,7 +205,7 @@ class BaseSamplerRequest(BaseModel):
     )
 
     add_bos_token: Optional[bool] = Field(
-        default_factory=lambda: get_default_sampler_value("add_bos_token", True)
+        default_factory=lambda: get_default_sampler_value("add_bos_token")
     )
 
     ban_eos_token: Optional[bool] = Field(
