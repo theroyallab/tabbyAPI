@@ -25,6 +25,10 @@ class BaseModelContainer(abc.ABC):
     prompt_template: Optional[PromptTemplate] = None
     generation_config: Optional[GenerationConfig] = None
 
+    # Optional features
+    use_draft_model: bool = False
+    use_vision: bool = False
+
     # Load synchronization
     # The bool is a master switch for accepting requests
     # The lock keeps load tasks sequential
@@ -65,7 +69,7 @@ class BaseModelContainer(abc.ABC):
 
     # NOTE: Might be an optional method
     @abc.abstractmethod
-    async def load_gen(self, progress_callback=None, **kwargs) -> AsyncIterator[Any]:
+    async def load_gen(self, progress_callback=None, **kwargs):
         """
         Loads the model into memory, yielding progress updates.
 
@@ -135,57 +139,6 @@ class BaseModelContainer(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def generate(
-        self,
-        request_id: str,
-        prompt: str,
-        params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
-    ) -> Dict[str, Any]:
-        """
-        Generates a complete response for a given prompt and parameters.
-
-        Args:
-            request_id: Unique identifier for the generation request.
-            prompt: The input prompt string.
-            params: Sampling and generation parameters.
-            abort_event: An asyncio Event to signal cancellation.
-            mm_embeddings: Optional multimodal embeddings.
-
-        Returns:
-            A dictionary containing the generation info
-        """
-
-        pass
-
-    @abc.abstractmethod
-    async def stream_generate(
-        self,
-        request_id: str,
-        prompt: str,
-        params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
-    ) -> AsyncIterator[Dict[str, Any]]:
-        """
-        Generates a response iteratively (streaming) for a given prompt.
-
-        Args:
-            request_id: Unique identifier for the generation request.
-            prompt: The input prompt string.
-            params: Sampling and generation parameters.
-            abort_event: An asyncio Event to signal cancellation.
-            mm_embeddings: Optional multimodal embeddings.
-
-        Yields:
-            Generation chunks
-        """
-
-        if False:
-            yield
-
-    @abc.abstractmethod
     def model_info(self) -> ModelCard:
         """
         Returns a dictionary of the current model's configuration parameters.
@@ -239,3 +192,54 @@ class BaseModelContainer(abc.ABC):
         """
 
         return []
+
+    @abc.abstractmethod
+    async def generate(
+        self,
+        request_id: str,
+        prompt: str,
+        params: BaseSamplerRequest,
+        abort_event: Optional[asyncio.Event] = None,
+        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+    ) -> Dict[str, Any]:
+        """
+        Generates a complete response for a given prompt and parameters.
+
+        Args:
+            request_id: Unique identifier for the generation request.
+            prompt: The input prompt string.
+            params: Sampling and generation parameters.
+            abort_event: An asyncio Event to signal cancellation.
+            mm_embeddings: Optional multimodal embeddings.
+
+        Returns:
+            A dictionary containing the generation info
+        """
+
+        pass
+
+    @abc.abstractmethod
+    async def stream_generate(
+        self,
+        request_id: str,
+        prompt: str,
+        params: BaseSamplerRequest,
+        abort_event: Optional[asyncio.Event] = None,
+        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """
+        Generates a response iteratively (streaming) for a given prompt.
+
+        Args:
+            request_id: Unique identifier for the generation request.
+            prompt: The input prompt string.
+            params: Sampling and generation parameters.
+            abort_event: An asyncio Event to signal cancellation.
+            mm_embeddings: Optional multimodal embeddings.
+
+        Yields:
+            Generation chunks
+        """
+
+        if False:
+            yield

@@ -82,10 +82,13 @@ class ChatCompletionRequest(CommonCompletionRequest):
     tool_call_end: SkipJsonSchema[Optional[str]] = None
     tool_call_schema: SkipJsonSchema[Optional[dict]] = tool_call_schema
 
+    # Chat completions requests do not have a BOS token preference. Backend
+    # respects the tokenization config for the individual model.
+    add_bos_token: Optional[bool] = None
+
     @field_validator("add_bos_token", mode="after")
     def force_bos_token(cls, v):
         """Always disable add_bos_token with chat completions."""
-
         return None
 
 
