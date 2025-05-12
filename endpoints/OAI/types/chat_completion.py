@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 from pydantic.json_schema import SkipJsonSchema
 from time import time
 from typing import Literal, Union, List, Optional, Dict
@@ -65,7 +65,11 @@ class ChatCompletionRequest(CommonCompletionRequest):
     messages: List[ChatCompletionMessage] = Field(default_factory=list)
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
-    template_vars: Optional[dict] = {}
+    template_vars: Optional[dict] = Field(
+        default={},
+        validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
+        description="Aliases: chat_template_kwargs",
+    )
     response_prefix: Optional[str] = None
     model: Optional[str] = None
 
