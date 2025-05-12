@@ -402,9 +402,8 @@ class ExllamaV2Container(BaseModelContainer):
             self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
 
             # Catch exllamav3 draft_cache_mode
-            if (
-                self.draft_cache_mode != "FP16"
-                and not self.draft_cache_mode.startswith("Q")
+            if self.draft_cache_mode != "FP16" and not self.draft_cache_mode.startswith(
+                "Q"
             ):
                 logger.warning(
                     f"Provided draft cache mode '{self.draft_cache_mode}' is not a "
