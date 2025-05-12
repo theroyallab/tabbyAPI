@@ -188,7 +188,7 @@ class ExllamaV2Container(BaseModelContainer):
         self.cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
 
         # Catch exllamav3 cache_mode
-        if not self.cache.mode == "FP16" or not self.cache_mode.startswith("Q"):
+        if not self.cache_mode == "FP16" or not self.cache_mode.startswith("Q"):
             logger.warning(
                 f"Provided cache mode '{self.cache_mode}' is not a "
                 "valid choice for exllamav2, please check your settings. "
