@@ -83,6 +83,7 @@ class ModelLoadRequest(BaseModel):
     # Config arguments
     backend: Optional[str] = Field(
         description="Backend to use",
+        default=None,
     )
     max_seq_len: Optional[int] = Field(
         description="Leave this blank to use the model's base sequence length",
