@@ -9,11 +9,10 @@ from typing import (
     List,
     Optional,
 )
-
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.sampling import BaseSamplerRequest
 from common.templating import PromptTemplate
-from common.transformers_utils import GenerationConfig
+from common.transformers_utils import HFModel
 from endpoints.core.types.model import ModelCard
 
 
@@ -23,7 +22,9 @@ class BaseModelContainer(abc.ABC):
     # Exposed model information
     model_dir: pathlib.Path = pathlib.Path("models")
     prompt_template: Optional[PromptTemplate] = None
-    generation_config: Optional[GenerationConfig] = None
+
+    # HF Model instance
+    hf_model: HFModel
 
     # Optional features
     use_draft_model: bool = False
@@ -41,7 +42,7 @@ class BaseModelContainer(abc.ABC):
     # Required methods
     @classmethod
     @abc.abstractmethod
-    async def create(cls, model_directory: pathlib.Path, **kwargs):
+    async def create(cls, model_directory: pathlib.Path, hf_model: HFModel, **kwargs):
         """
         Asynchronously creates and initializes a model container instance.
 
