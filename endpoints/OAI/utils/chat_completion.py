@@ -210,14 +210,14 @@ async def _append_template_metadata(data: ChatCompletionRequest, template_vars: 
 async def format_messages_with_template(
     messages: List[ChatCompletionMessage],
     existing_template_vars: Optional[dict] = None,
-    add_bos_token: bool = True,
-    ban_eos_token: bool = False,
 ):
     """Barebones function to format chat completion messages into a prompt."""
 
     template_vars = unwrap(existing_template_vars, {})
     mm_embeddings = MultimodalEmbeddingWrapper() if model.container.use_vision else None
 
+    # Convert all messages to a dictionary representation
+    message_dicts: List[dict] = []
     for message in messages:
         if isinstance(message.content, list):
             concatenated_content = ""
@@ -238,9 +238,12 @@ async def format_messages_with_template(
             # store the list of dicts rather than the ToolCallProcessor object.
             message.tool_calls = ToolCallProcessor.dump(message.tool_calls)
 
+        message_dicts.append(message.model_dump())
+
+    # Get all special tokens
     special_tokens_dict = model.container.get_special_tokens()
 
-    template_vars.update({"messages": messages, **special_tokens_dict})
+    template_vars.update({"messages": message_dicts, **special_tokens_dict})
 
     prompt = await model.container.prompt_template.render(template_vars)
     return prompt, mm_embeddings, template_vars
@@ -270,7 +273,7 @@ async def apply_chat_template(
         )
 
         prompt, mm_embeddings, template_vars = await format_messages_with_template(
-            data.messages, data.template_vars, data.add_bos_token, data.ban_eos_token
+            data.messages, data.template_vars
         )
 
         # Append response prefix if present

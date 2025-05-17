@@ -11,7 +11,7 @@ from endpoints.OAI.types.tools import ToolSpec, ToolCall, tool_call_schema
 class ChatCompletionLogprob(BaseModel):
     token: str
     logprob: float
-    top_logprobs: Optional[List["ChatCompletionLogprob"]] = None
+    top_logprobs: Optional[List["ChatCompletionLogprob"]] = Field(default_factory=list)
 
 
 class ChatCompletionLogprobs(BaseModel):
@@ -30,8 +30,10 @@ class ChatCompletionMessagePart(BaseModel):
 
 class ChatCompletionMessage(BaseModel):
     role: str = "user"
-    content: Optional[Union[str, List[ChatCompletionMessagePart]]] = None
-    tool_calls: Optional[List[ToolCall]] = None
+    content: Optional[Union[str, List[ChatCompletionMessagePart]]] = Field(
+        default_factory=list
+    )
+    tool_calls: Optional[List[ToolCall]] = Field(default_factory=list)
     tool_calls_json: SkipJsonSchema[Optional[str]] = None
 
 
@@ -76,13 +78,15 @@ class ChatCompletionRequest(CommonCompletionRequest):
     # tools is follows the format OAI schema, functions is more flexible
     # both are available in the chat template.
 
-    tools: Optional[List[ToolSpec]] = None
-    functions: Optional[List[Dict]] = None
+    tools: Optional[List[ToolSpec]] = Field(default_factory=list)
+    functions: Optional[List[Dict]] = Field(default_factory=list)
 
     # Typically collected from Chat Template.
     # Don't include this in the OpenAPI docs
     # TODO: Use these custom parameters
-    tool_call_start: SkipJsonSchema[Optional[List[Union[str, int]]]] = None
+    tool_call_start: SkipJsonSchema[Optional[List[Union[str, int]]]] = Field(
+        default_factory=list
+    )
     tool_call_end: SkipJsonSchema[Optional[str]] = None
     tool_call_schema: SkipJsonSchema[Optional[dict]] = tool_call_schema
 
