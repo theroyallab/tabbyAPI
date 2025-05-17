@@ -69,9 +69,9 @@ class ExllamaV3Container(BaseModelContainer):
     generator: Optional[AsyncGenerator] = None
 
     # Class-specific vars
-    gpu_split: List[float] | None = None
+    gpu_split: Optional[List[float]] = None
     gpu_split_auto: bool = True
-    autosplit_reserve: List[float] = [96 / 1024]
+    autosplit_reserve: Optional[List[float]] = [96 / 1024]
     use_tp: bool = False
     max_seq_len: int = 4096
     cache_size: int = 4096
@@ -154,6 +154,10 @@ class ExllamaV3Container(BaseModelContainer):
             # Enable manual GPU split if provided
             if gpu_split:
                 self.gpu_split = gpu_split
+
+                # Causes crash if set with GPU split
+                # TODO: Remove when fixed in exllama upstream
+                self.autosplit_reserve = None
 
                 gpu_device_list = [
                     device_idx
