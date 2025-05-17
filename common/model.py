@@ -151,8 +151,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
             )
         else:
             raise ValueError(
-                f"Invalid backend '{backend}'. "
-                f"Available backends: {available_backends}"
+                f"Invalid backend '{backend}'. Available backends: {available_backends}"
             )
 
     logger.info(f"Using backend {backend}")

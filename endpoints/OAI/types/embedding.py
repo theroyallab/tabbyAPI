@@ -15,8 +15,7 @@ class EmbeddingsRequest(BaseModel):
     )
     encoding_format: str = Field(
         "float",
-        description="Encoding format for the embeddings. "
-        "Can be 'float' or 'base64'.",
+        description="Encoding format for the embeddings. Can be 'float' or 'base64'.",
     )
     model: Optional[str] = Field(
         None,
@@ -31,7 +30,7 @@ class EmbeddingObject(BaseModel):
         ..., description="Embedding values as a list of floats."
     )
     index: int = Field(
-        ..., description="Index of the input text corresponding to " "the embedding."
+        ..., description="Index of the input text corresponding to the embedding."
     )
 
 

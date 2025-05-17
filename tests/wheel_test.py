@@ -7,16 +7,14 @@ successful_packages = []
 errored_packages = []
 
 if find_spec("flash_attn") is not None:
-    print(
-        f"Flash attention on version {version('flash_attn')} " "successfully imported"
-    )
+    print(f"Flash attention on version {version('flash_attn')} successfully imported")
     successful_packages.append("flash_attn")
 else:
     print("Flash attention 2 is not found in your environment.")
     errored_packages.append("flash_attn")
 
 if find_spec("exllamav2") is not None:
-    print(f"Exllamav2 on version {version('exllamav2')} " "successfully imported")
+    print(f"Exllamav2 on version {version('exllamav2')} successfully imported")
     successful_packages.append("exllamav2")
 else:
     print("Exllamav2 is not found in your environment.")

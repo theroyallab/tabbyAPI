@@ -103,8 +103,7 @@ async def stream_generation(data: GenerateRequest, request: Request):
             )
     except Exception:
         yield get_generator_error(
-            f"Kobold generation {data.genkey} aborted. "
-            "Please check the server console."
+            f"Kobold generation {data.genkey} aborted. Please check the server console."
         )
 
 
