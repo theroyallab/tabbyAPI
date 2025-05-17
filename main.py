@@ -46,19 +46,6 @@ async def entrypoint_async():
 
             port = fallback_port
 
-    # Initialize auth keys
-    await load_auth_keys(config.network.disable_auth)
-
-    gen_logging.broadcast_status()
-
-    # Set sampler parameter overrides if provided
-    sampling_override_preset = config.sampling.override_preset
-    if sampling_override_preset:
-        try:
-            await sampling.overrides_from_file(sampling_override_preset)
-        except FileNotFoundError as e:
-            logger.warning(str(e))
-
     # If an initial model name is specified, create a container
     # and load the model
     model_name = config.model.model_name
@@ -95,6 +82,19 @@ async def entrypoint_async():
             )
         except ImportError as ex:
             logger.error(ex.msg)
+
+    # Initialize auth keys
+    await load_auth_keys(config.network.disable_auth)
+
+    gen_logging.broadcast_status()
+
+    # Set sampler parameter overrides if provided
+    sampling_override_preset = config.sampling.override_preset
+    if sampling_override_preset:
+        try:
+            await sampling.overrides_from_file(sampling_override_preset)
+        except FileNotFoundError as e:
+            logger.warning(str(e))
 
     await start_api(host, port)
 
