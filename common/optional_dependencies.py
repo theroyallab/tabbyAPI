@@ -1,6 +1,9 @@
 """Construct a model of all optional dependencies"""
 
 import importlib.util
+from importlib.metadata import version as package_version
+from loguru import logger
+from packaging import version
 from pydantic import BaseModel, computed_field
 
 
@@ -47,6 +50,28 @@ def get_installed_deps() -> DependenciesModel:
         installed_deps[field_name] = is_installed(field_name)
 
     return DependenciesModel(**installed_deps)
+
+
+def check_package_version(package_name: str, required_version_str: str):
+    """
+    Fetches and verifies a given package version.
+
+    This assumes that the required package is installed.
+    """
+
+    required_version = version.parse(required_version_str)
+    current_version = version.parse(package_version(package_name).split("+")[0])
+
+    unsupported_message = (
+        f"ERROR: TabbyAPI requires ExLlamaV2 {required_version} "
+        f"or greater. Your current version is {current_version}. "
+        "Please update your dependencies."
+    )
+
+    if current_version < required_version:
+        raise RuntimeError(unsupported_message)
+    else:
+        logger.info(f"{package_name} version: {current_version}")
 
 
 dependencies = get_installed_deps()

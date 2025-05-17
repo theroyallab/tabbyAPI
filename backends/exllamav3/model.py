@@ -32,6 +32,7 @@ from common.gen_logging import (
 from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
 from common.multimodal import MultimodalEmbeddingWrapper
+from common.optional_dependencies import check_package_version
 from common.sampling import BaseSamplerRequest
 from common.templating import PromptTemplate, find_prompt_template
 from common.transformers_utils import HFModel
@@ -95,6 +96,9 @@ class ExllamaV3Container(BaseModelContainer):
         """
 
         self = cls()
+
+        # Make sure ExllamaV3 is up to date
+        check_package_version("exllamav3", "0.0.2")
 
         logger.warning(
             "ExllamaV3 is currently in an alpha state. "
