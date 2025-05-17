@@ -54,7 +54,7 @@ extras = [
     "sentence-transformers",
 ]
 dev = [
-    "ruff == 0.6.5"
+    "ruff == 0.11.10"
 ]
 cu121 = [
     # Torch (Extra index URLs not support in pyproject.toml)
