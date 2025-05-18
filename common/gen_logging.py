@@ -29,7 +29,7 @@ def log_generation_params(**kwargs):
         logger.info(f"Generation options: {kwargs}\n")
 
 
-def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str]):
+def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str] = None):
     """Logs the prompt to console."""
     if config.logging.log_prompt:
         formatted_prompt = "\n" + prompt

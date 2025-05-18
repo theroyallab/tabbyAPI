@@ -28,6 +28,7 @@ from common.concurrency import iterate_in_threadpool
 from common.gen_logging import (
     log_generation_params,
     log_metrics,
+    log_prompt,
 )
 from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
@@ -839,6 +840,12 @@ class ExllamaV3Container(BaseModelContainer):
                 f"{preamble} length {context_to_check} is greater than "
                 f"max_seq_len {self.max_seq_len}"
             )
+
+        # Log prompt to console. Add the BOS token if specified
+        log_prompt(
+            f"{self.tokenizer.bos_token if add_bos_token else ''}{prompt}",
+            request_id,
+        )
 
         generation = {}
         job = AsyncJob(
