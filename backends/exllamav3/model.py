@@ -844,7 +844,7 @@ class ExllamaV3Container(BaseModelContainer):
         job = AsyncJob(
             self.generator,
             sampler=sampler,
-            input_ids=self.tokenizer.encode(prompt, add_bos=False),
+            input_ids=input_ids,
             max_new_tokens=max_tokens,
             stop_conditions=stop_conditions,
             banned_strings=params.banned_strings,
