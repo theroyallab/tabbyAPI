@@ -308,15 +308,22 @@ async def stream_generate_completion(
                 raise generation
 
             response = _create_response(request.state.id, generation, model_path.name)
-            response_json = response.model_dump_json()
-
+            
+            # Convert to dict for potential modification
+            response_dict = response.model_dump()
+            
+            # Exclude logprobs field when not requested to maintain compatibility
+            if not (data.logprobs and data.logprobs > 0):
+                for choice in response_dict.get("choices", []):
+                    if choice.get("logprobs") is None:
+                        choice.pop("logprobs", None)
+            
             # Include object as "text_completion.chunk" in streaming responses
             # to match OpenAI behavior
             if isinstance(generation, dict) and not generation.get("finish_reason"):
-                response_dict = response.model_dump()
                 response_dict["object"] = "text_completion.chunk"
-                response_json = json.dumps(response_dict)
-
+            
+            response_json = json.dumps(response_dict)
             yield f"data: {response_json}\n\n"
 
             # Check if all tasks are completed

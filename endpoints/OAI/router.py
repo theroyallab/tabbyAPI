@@ -196,11 +196,21 @@ async def completion_request(
         generate_task = asyncio.create_task(
             generate_completion(data, request, model_path)
         )
-    return await run_with_request_disconnect(
+    response = await run_with_request_disconnect(
         request,
         generate_task,
         disconnect_message=f"Completion {request.state.id} cancelled by user.",
     )
+    
+    # Exclude logprobs field when not requested to maintain compatibility
+    if not _logprobs_requested(data):
+        response_dict = response.model_dump()
+        for choice in response_dict.get("choices", []):
+            if choice.get("logprobs") is None:
+                choice.pop("logprobs", None)
+        return JSONResponse(content=response_dict)
+    
+    return response
 
 
 # --------------------------------------------------------------------------- #

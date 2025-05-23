@@ -404,7 +404,16 @@ async def stream_generate_chat_completion(
             response = _create_stream_chunk(
                 request.state.id, generation, model_path.name
             )
-            yield response.model_dump_json()
+            
+            # Exclude logprobs field when not requested to maintain compatibility
+            if not (data.logprobs or data.top_logprobs):
+                response_dict = response.model_dump()
+                for choice in response_dict.get("choices", []):
+                    if choice.get("logprobs") is None:
+                        choice.pop("logprobs", None)
+                yield json.dumps(response_dict)
+            else:
+                yield response.model_dump_json()
 
             # Check if all tasks are completed
             if all(task.done() for task in gen_tasks) and gen_queue.empty():
@@ -416,7 +425,16 @@ async def stream_generate_chat_completion(
                         model_path.name,
                         is_usage_chunk=True,
                     )
-                    yield usage_chunk.model_dump_json()
+                    
+                    # Exclude logprobs field when not requested
+                    if not (data.logprobs or data.top_logprobs):
+                        usage_dict = usage_chunk.model_dump()
+                        for choice in usage_dict.get("choices", []):
+                            if choice.get("logprobs") is None:
+                                choice.pop("logprobs", None)
+                        yield json.dumps(usage_dict)
+                    else:
+                        yield usage_chunk.model_dump_json()
 
                 logger.info(
                     f"Finished chat completion streaming request {request.state.id}"
