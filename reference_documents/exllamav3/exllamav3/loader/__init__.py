@@ -1,1 +1,0 @@
-from .safetensors import SafetensorsCollection, VariantSafetensorsCollection
