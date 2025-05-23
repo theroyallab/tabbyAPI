@@ -189,24 +189,9 @@ async def completion_request(
                 detail="The current model does not support logprob extraction.",
             )
 
-        async def wrapped_generate_prompt_logprobs():
-            try:
-                return await generate_prompt_logprobs(data, request, model_path)
-            except Exception as exc:
-                # -------- NEW: print full traceback to stdout/stderr ----------
-                print(f"\n{'='*60}")
-                print(f"EXCEPTION in generate_prompt_logprobs for request {request.state.id}")
-                print(f"Exception type: {type(exc).__name__}")
-                print(f"Exception message: {exc}")
-                print(f"{'='*60}")
-                traceback.print_exc()
-                print(f"{'='*60}\n")
-                # -------- NEW: also write it to the app log --------------------
-                logger.exception(f"Unhandled exception in generate_prompt_logprobs for request {request.state.id}")
-                # Re-raise the original exception
-                raise
-        
-        generate_task = asyncio.create_task(wrapped_generate_prompt_logprobs())
+        generate_task = asyncio.create_task(
+            generate_prompt_logprobs(data, request, model_path)
+        )
     else:
         generate_task = asyncio.create_task(
             generate_completion(data, request, model_path)

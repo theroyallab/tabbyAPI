@@ -39,11 +39,6 @@ class CommonCompletionRequest(BaseSamplerRequest):
         default_factory=lambda: get_default_sampler_value("n", 1),
         ge=1,
     )
-    max_tokens: Optional[int] = Field(
-        default=16,
-        ge=0,
-        description="The maximum number of tokens to generate. Defaults to 16.",
-    )
     logprobs: Optional[Union[bool, int]] = Field(
         default=None,
         description="Whether to include log probabilities. Can be boolean or integer (1-5 for compatibility)"
