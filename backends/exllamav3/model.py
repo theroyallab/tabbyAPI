@@ -1583,11 +1583,17 @@ class ExllamaV3Container(BaseModelContainer):
 
                 generation_chunk = {
                     "text": text_chunk,
-                    "index": job.job.identifier,  # AsyncJob wraps Job, so access via job.job
-                    "token_ids_list": token_ids.tolist()
-                    if token_ids is not None
-                    else [],  # Add token IDs for the chunk
+                    "prompt_tokens": context_len,
+                    "generated_tokens": event_dict.get("generated_tokens", 0),
+                    "offset": len(output_text),
                 }
+                
+                # Update output_text for offset calculation
+                output_text += text_chunk
+
+                # Add optional fields for logprobs support
+                if token_ids is not None:
+                    generation_chunk["token_ids_list"] = token_ids.tolist()
 
                 # Extract logprobs from the ExllamaV3 event if available
                 logprobs_enabled = params.logprobs is not None and (
@@ -1658,15 +1664,6 @@ class ExllamaV3Container(BaseModelContainer):
                             generation_chunk["alternative_logprobs"] = (
                                 alternative_logprobs_dict
                             )
-
-                # Append prompt/output tokens if not done already
-                if "prompt_tokens" not in generation_chunk:
-                    generation_chunk["prompt_tokens"] = event_dict.get(
-                        "prompt_tokens", 0
-                    )
-                    generation_chunk["generated_tokens"] = event_dict.get(
-                        "generated_tokens", 0
-                    )
 
                 yield generation_chunk
         except asyncio.CancelledError:

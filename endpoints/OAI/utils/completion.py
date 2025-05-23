@@ -323,12 +323,11 @@ async def stream_generate_completion(
             if isinstance(generation, dict) and not generation.get("finish_reason"):
                 response_dict["object"] = "text_completion.chunk"
             
-            response_json = json.dumps(response_dict)
-            yield f"data: {response_json}\n\n"
+            yield json.dumps(response_dict)
 
             # Check if all tasks are completed
             if all(task.done() for task in gen_tasks) and gen_queue.empty():
-                yield "data: [DONE]\n\n"
+                yield "[DONE]"
                 logger.info(f"Finished streaming completion request {request.state.id}")
                 break
     except CancelledError:

@@ -119,8 +119,6 @@ def test_logprob_basic(mock_model_container, enable_logprob_endpoint):
         json={"prompt": "Hello world"},
         headers={"X-API-Key": "test_api_key"},
     )
-    # Print error for debugging
-    print(f"Status: {resp.status_code}, Response: {resp.text}")
     assert resp.status_code == 200
     data = resp.json()
 
