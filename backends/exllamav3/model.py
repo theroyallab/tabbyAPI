@@ -1507,11 +1507,24 @@ class ExllamaV3Container(BaseModelContainer):
         final_input_ids_for_job = torch.tensor(
             [actual_prompt_token_ids], dtype=torch.long
         ).to("cpu")
+        
+        # Calculate context length
+        context_len = len(actual_prompt_token_ids)
+        
+        # Automatically set max_tokens to fill up the context
+        # This should be an OK default, but may be changed in the future
+        max_tokens = unwrap(
+            params.max_tokens,
+            self.generator_max_seq_len - context_len,
+        )
+        if max_tokens < 1:
+            logger.warning("max_tokens must be a positive integer, setting to 1.")
+            max_tokens = 1
 
         job = AsyncJob(
             self.generator,
             input_ids=final_input_ids_for_job,  # pass the tensor on CPU
-            max_new_tokens=params.max_tokens,
+            max_new_tokens=max_tokens,
             min_new_tokens=params.min_tokens,
             sampler=sampler_settings,
             stop_conditions=params.stop,
