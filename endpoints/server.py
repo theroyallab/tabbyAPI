@@ -8,6 +8,7 @@ from typing import Optional
 from common.logger import UVICORN_LOG_CONFIG
 from common.networking import get_global_depends
 from common.tabby_config import config
+from common.openai_error import register_exception_handlers
 from endpoints.Kobold import router as KoboldRouter
 from endpoints.OAI import router as OAIRouter
 from endpoints.core.router import router as CoreRouter
@@ -62,6 +63,9 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
     # Include core API request paths
     app.include_router(CoreRouter)
 
+    # Register OpenAI-compatible error handlers
+    register_exception_handlers(app)
+
     return app
 
 
@@ -81,15 +85,12 @@ async def start_api(host: str, port: int):
     # Setup app
     app = setup_app(host, port)
 
-    # Get the current event loop
-    loop = asyncio.get_running_loop()
-
     config = uvicorn.Config(
         app,
         host=host,
         port=port,
         log_config=UVICORN_LOG_CONFIG,
-        loop=loop,
+        timeout_keep_alive=60,
     )
     server = uvicorn.Server(config)
 

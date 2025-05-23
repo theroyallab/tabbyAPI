@@ -28,9 +28,9 @@ class BaseSamplerRequest(BaseModel):
         validation_alias=AliasChoices(
             "max_tokens", "max_completion_tokens", "max_length"
         ),
-        description="Aliases: max_length",
+        description="Maximum number of new tokens to generate (exclusive of prompt). For logprob-only mode (when extract_prompt_logprobs=True), this will be effectively treated as 0 by the logprob logic.",
         examples=[150],
-        ge=0,
+        ge=0, # Allow 0. Logprob logic will ensure it means "no new tokens".
     )
 
     min_tokens: Optional[int] = Field(
@@ -218,6 +218,7 @@ class BaseSamplerRequest(BaseModel):
     logit_bias: Optional[Dict[int, float]] = Field(
         default_factory=lambda: get_default_sampler_value("logit_bias"),
         examples=[{"1": 10, "2": 50}],
+        description="Mapping from token ID to bias (-100 to 100). Unsupported on some backends.",
     )
 
     negative_prompt: Optional[str] = Field(
@@ -273,6 +274,12 @@ class BaseSamplerRequest(BaseModel):
     logprobs: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("logprobs", 0),
         ge=0,
+        description="For generation: number of logprobs to return per generated token. Not used for /v1/logprob endpoint.",
+    )
+    
+    extract_prompt_logprobs: Optional[bool] = Field(
+        default=False,
+        description="Enables extraction of prompt token logprobs for the actual tokens in the prompt. Overrides typical generation.",
     )
 
     @field_validator("top_k", mode="before")

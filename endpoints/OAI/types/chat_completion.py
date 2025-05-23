@@ -105,7 +105,7 @@ class ChatCompletionResponse(BaseModel):
     choices: List[ChatCompletionRespChoice]
     created: int = Field(default_factory=lambda: int(time()))
     model: str
-    object: str = "chat.completion"
+    object: Literal["chat.completion"] = Field(default="chat.completion")
     usage: Optional[UsageStats] = None
 
 
@@ -114,5 +114,7 @@ class ChatCompletionStreamChunk(BaseModel):
     choices: List[ChatCompletionStreamChoice]
     created: int = Field(default_factory=lambda: int(time()))
     model: str
-    object: str = "chat.completion.chunk"
+    object: Literal["chat.completion.chunk"] = Field(
+        default="chat.completion.chunk"
+    )
     usage: Optional[UsageStats] = None

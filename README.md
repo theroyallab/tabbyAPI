@@ -62,6 +62,7 @@ For a step-by-step guide, choose the format that works best for you:
 - Loading/unloading models
 - HuggingFace model downloading
 - Embedding model support
+- Log probability scoring endpoint
 - JSON schema + Regex + EBNF support
 - AI Horde support
 - Speculative decoding via draft models
@@ -73,6 +74,7 @@ For a step-by-step guide, choose the format that works best for you:
 - Continuous batching engine using paged attention
 - Fast classifier-free guidance
 - OAI style tool/function calling
+- Log probability scoring via the completions endpoint (`developer.enable_logprob: true` in config.yml)
 
 And much more. If something is missing here, PR it in!
 

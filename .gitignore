@@ -216,3 +216,6 @@ openapi.json
 
 # Backup files
 *.bak
+
+# Claude Code settings
+.claude/

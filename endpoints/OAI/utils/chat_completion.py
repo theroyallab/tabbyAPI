@@ -29,6 +29,7 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionStreamChoice,
 )
 from endpoints.OAI.types.common import UsageStats
+import time
 from endpoints.OAI.utils.completion import _parse_gen_request_id, _stream_collector
 from endpoints.OAI.utils.tools import ToolCallProcessor
 
@@ -47,32 +48,55 @@ def _create_response(
             role="assistant", content=unwrap(generation.get("text"), "")
         )
 
-        tool_calls = generation["tool_calls"]
+        tool_calls = generation.get("tool_calls")
         if tool_calls:
             message.tool_calls = ToolCallProcessor.from_json(tool_calls)
 
         logprob_response = None
+        # Check if logprobs were requested (e.g., via a field on the initial request or params)
+        # and if the necessary data is present in the generation result.
+        # We expect 'token_logprobs_list' and 'alternative_logprobs_list' from the backend.
+        if "token_logprobs_list" in generation:
+            token_logprobs_list = generation["token_logprobs_list"]
+            alternative_logprobs_list = generation.get("alternative_logprobs_list", [])
+            full_generated_text = message.content # Still useful for other things, or as a fallback
 
-        token_probs = unwrap(generation.get("token_probs"), {})
-        if token_probs:
-            logprobs = unwrap(generation.get("logprobs"), [])
+            # Use the pre-tokenized strings from the backend if available
+            generated_token_strings = generation.get("generated_token_strings_list")
 
-            collected_token_probs = []
-            for index, token in enumerate(token_probs.keys()):
-                top_logprobs = [
-                    ChatCompletionLogprob(token=token, logprob=logprob)
-                    for token, logprob in logprobs[index].items()
-                ]
+            collected_oai_logprobs = []
 
-                collected_token_probs.append(
-                    ChatCompletionLogprob(
-                        token=token,
-                        logprob=token_probs[token],
-                        top_logprobs=top_logprobs,
+            if generated_token_strings and len(generated_token_strings) == len(token_logprobs_list):
+                for i, token_str in enumerate(generated_token_strings):
+                    sampled_token_logprob = token_logprobs_list[i]
+                    
+                    current_alt_logprobs_dict = None
+                    if i < len(alternative_logprobs_list) and alternative_logprobs_list[i] is not None:
+                        current_alt_logprobs_dict = alternative_logprobs_list[i]
+                    else: # Ensure it's a dict for the loop below, even if empty
+                        current_alt_logprobs_dict = {}
+
+                    top_logprobs_for_oai = []
+                    # Ensure current_alt_logprobs_dict is treated as a dict
+                    for alt_token_str, alt_logprob_val in (current_alt_logprobs_dict or {}).items():
+                        top_logprobs_for_oai.append(ChatCompletionLogprob(token=alt_token_str, logprob=alt_logprob_val))
+                    
+                    oai_logprob_entry = ChatCompletionLogprob(
+                        token=token_str, # The actual token string from the backend
+                        logprob=sampled_token_logprob,
+                        top_logprobs=top_logprobs_for_oai if top_logprobs_for_oai else []
                     )
+                    collected_oai_logprobs.append(oai_logprob_entry)
+            else:
+                logger.warning(
+                    f"Logprobs were present but generated_token_strings_list was missing or mismatched length "
+                    f"for request {request_id}. Logprobs will be omitted. "
+                    f"Text tokens: {len(generated_token_strings if generated_token_strings else [])}, "
+                    f"Logprobs: {len(token_logprobs_list)}"
                 )
 
-            logprob_response = ChatCompletionLogprobs(content=collected_token_probs)
+            if collected_oai_logprobs:
+                logprob_response = ChatCompletionLogprobs(content=collected_oai_logprobs)
 
         # Initialize finish_reason with a default value or from generation data
         finish_reason = generation.get("finish_reason", "stop")
@@ -94,7 +118,9 @@ def _create_response(
     response = ChatCompletionResponse(
         id=f"chatcmpl-{request_id}",
         choices=choices,
+        created=int(time.time()),
         model=unwrap(model_name, ""),
+        object="chat.completion",
         usage=UsageStats(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
@@ -144,28 +170,32 @@ def _create_stream_chunk(
         choices.append(choice)
 
     else:
+        # This is a content chunk
+        current_token_string = unwrap(generation.get("text"), "")
         message = ChatCompletionMessage(
-            role="assistant", content=unwrap(generation.get("text"), "")
+            role="assistant", content=current_token_string
         )
 
         logprob_response = None
-
-        token_probs = unwrap(generation.get("token_probs"), {})
-        if token_probs:
-            logprobs = unwrap(generation.get("logprobs"), {})
-            top_logprobs = [
-                ChatCompletionLogprob(token=token, logprob=logprob)
-                for token, logprob in logprobs.items()
-            ]
-
-            generated_token = next(iter(token_probs))
-            token_prob_response = ChatCompletionLogprob(
-                token=generated_token,
-                logprob=token_probs[generated_token],
-                top_logprobs=top_logprobs,
+        # Check if logprobs were requested and are available in the generation data
+        # We rely on params.logprobs being available here, or the main request data.
+        # For simplicity, let's assume we can check if 'token_logprob' is present,
+        # which implies logprobs were requested and successfully generated.
+        if "token_logprob" in generation:
+            sampled_token_logprob = generation["token_logprob"]
+            
+            top_logprobs_list_for_oai = []
+            alternative_logprobs_dict = generation.get("alternative_logprobs") # This is our dict {str: logprob_val}
+            if alternative_logprobs_dict:
+                for token_str, logprob_val in alternative_logprobs_dict.items():
+                    top_logprobs_list_for_oai.append(ChatCompletionLogprob(token=token_str, logprob=logprob_val))
+            
+            main_logprob_entry = ChatCompletionLogprob(
+                token=current_token_string, # The token string for this chunk
+                logprob=sampled_token_logprob,
+                top_logprobs=top_logprobs_list_for_oai if top_logprobs_list_for_oai else [] # OAI spec prefers empty list over None for top_logprobs
             )
-
-            logprob_response = ChatCompletionLogprobs(content=[token_prob_response])
+            logprob_response = ChatCompletionLogprobs(content=[main_logprob_entry])
 
         choice = ChatCompletionStreamChoice(
             index=index,
@@ -178,7 +208,9 @@ def _create_stream_chunk(
     chunk = ChatCompletionStreamChunk(
         id=f"chatcmpl-{request_id}",
         choices=choices,
+        created=int(time.time()),
         model=unwrap(model_name, ""),
+        object="chat.completion.chunk",
         usage=usage_stats,
     )
 
