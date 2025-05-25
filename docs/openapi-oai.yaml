@@ -1,0 +1,118 @@
+openapi: 3.1.0
+info:
+  title: TabbyAPI
+  version: "1.0"
+paths:
+  /v1/completions:
+    post:
+      summary: Create completion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompletionRequest'
+      responses:
+        '200':
+          description: Successful completion
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompletionResponse'
+components:
+  schemas:
+    CompletionRequest:
+      type: object
+      properties:
+        prompt:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        max_tokens:
+          type: integer
+          minimum: 0
+          description: Maximum tokens to generate
+        logprobs:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: Number of top tokens to return (0-5)
+        echo:
+          type: boolean
+          description: Echo the prompt in the response
+        best_of:
+          type: integer
+          nullable: true
+          description: Not supported, accepted for compatibility only
+        suffix:
+          type: string
+          nullable: true
+          description: Not supported, accepted for compatibility only
+        user:
+          type: string
+          nullable: true
+          description: Not supported, accepted for compatibility only
+    CompletionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        created:
+          type: integer
+        model:
+          type: string
+        choices:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompletionChoice'
+        usage:
+          $ref: '#/components/schemas/Usage'
+    CompletionChoice:
+      type: object
+      properties:
+        index:
+          type: integer
+        text:
+          type: string
+        finish_reason:
+          type: string
+        logprobs:
+          $ref: '#/components/schemas/LogProbs'
+    LogProbs:
+      type: object
+      properties:
+        tokens:
+          type: array
+          items:
+            type: string
+        token_logprobs:
+          type: array
+          items:
+            type: number
+            nullable: true
+        text_offset:
+          type: array
+          items:
+            type: integer
+        top_logprobs:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: number
+            nullable: true
+        sum:
+          type: number
+    Usage:
+      type: object
+      properties:
+        prompt_tokens:
+          type: integer
+        completion_tokens:
+          type: integer
+        total_tokens:
+          type: integer

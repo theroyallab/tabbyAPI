@@ -161,6 +161,44 @@ class BaseModelContainer(abc.ABC):
 
         pass
 
+    @abc.abstractmethod
+    def supports_logprob_extraction(self) -> bool:
+        """
+        Checks if this model container supports logprob extraction.
+
+        Returns:
+            bool: True if logprob extraction is supported, False otherwise.
+        """
+        pass
+
+    def supports_logit_bias(self) -> bool:
+        """Return whether the backend supports applying logit bias."""
+
+        return False
+        
+    async def compute_sequence_logprobs(
+        self,
+        prompt: str,
+        params: BaseSamplerRequest
+    ) -> Dict[str, Any]:
+        """
+        Computes log probabilities for all tokens in a sequence.
+        
+        Args:
+            prompt: The input prompt string.
+            params: Sampling parameters including logprobs (number of top alternatives to return).
+            
+        Returns:
+            A dictionary containing token log probabilities and other info.
+            
+        Note:
+            This method must be implemented by any model container that returns True
+            from supports_logprob_extraction().
+        """
+        raise NotImplementedError(
+            "This model container doesn't support computing sequence logprobs"
+        )
+
     # Optional methods
     async def load_loras(
         self, lora_directory: pathlib.Path, **kwargs

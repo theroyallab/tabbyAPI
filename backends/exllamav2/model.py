@@ -69,7 +69,6 @@ class ExllamaV2Container(BaseModelContainer):
     cache: Optional[ExLlamaV2Cache] = None
     tokenizer: Optional[ExLlamaV2Tokenizer] = None
     generator: Optional[ExLlamaV2DynamicGeneratorAsync] = None
-    prompt_template: Optional[PromptTemplate] = None
     paged: bool = True
 
     # Draft model vars
@@ -897,7 +896,51 @@ class ExllamaV2Container(BaseModelContainer):
         abort_event: Optional[asyncio.Event] = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
     ):
-        """Generate a response to a prompt."""
+        """Generates a complete response to a prompt."""
+
+        # Check if we're only calculating logprobs
+        logprob_only = params.extract_prompt_logprobs and params.max_tokens == 0
+
+        if logprob_only:
+            # Special case for logprob extraction without generation
+            generation_result = None
+
+            # Configure the prompt to get token-wise logprobs without generation
+            async for gen_chunk in self.stream_generate(
+                request_id,
+                prompt,
+                params,
+                abort_event,
+                mm_embeddings,
+                one_shot=True,  # Special flag for one-shot evaluation
+            ):
+                if (
+                    "prompt_token_strings" in gen_chunk
+                    and "prompt_token_logprobs" in gen_chunk
+                ):
+                    generation_result = gen_chunk
+                    break
+                elif gen_chunk.get("finish_reason"):
+                    break  # Stop if only finish_reason is yielded
+
+            if generation_result:
+                return generation_result
+
+            logger.warning(
+                f"Logprob extraction for request {request_id} "
+                "did not yield expected data from Exllamav2."
+            )
+            # Fallback empty response
+            return {
+                "text": prompt,  # Prompt text might be useful here too
+                "prompt_tokens": 0,
+                "generated_tokens": 0,
+                "prompt_token_strings": [],
+                "prompt_token_logprobs": [],
+                "finish_reason": "error",
+            }
+
+        # For normal generation, use the existing implementation
         generations = []
         async for generation in self.stream_generate(
             request_id,
@@ -914,7 +957,8 @@ class ExllamaV2Container(BaseModelContainer):
             "generation_tokens": 0,
             "tool_calls": None,
             "offset": [],
-            "token_probs": {},
+            "tokens": [],
+            "token_logprobs": [],
             "logprobs": [],
         }
 
@@ -933,14 +977,18 @@ class ExllamaV2Container(BaseModelContainer):
             for generation in generations:
                 joined_generation["text"] += unwrap(generation.get("text"), "")
                 joined_generation["offset"].append(unwrap(generation.get("offset"), -1))
-                joined_generation["token_probs"].update(
-                    unwrap(generation.get("token_probs"), {})
-                )
 
-                # Include empty logprob dicts for index preservation
-                joined_generation["logprobs"].append(
-                    unwrap(generation.get("logprobs"), {})
-                )
+                # Use list-based accumulation for proper ordering
+                gen_tokens = unwrap(generation.get("tokens"), [])
+                gen_token_logprobs = unwrap(generation.get("token_logprobs"), [])
+                gen_logprobs = unwrap(generation.get("logprobs"), {})
+
+                # Extend lists to maintain order
+                joined_generation["tokens"].extend(gen_tokens)
+                joined_generation["token_logprobs"].extend(gen_token_logprobs)
+
+                # Include logprob dicts for index preservation
+                joined_generation["logprobs"].append(gen_logprobs)
 
             joined_generation["prompt_tokens"] = unwrap(
                 generations[-1].get("prompt_tokens"), 0
@@ -958,6 +1006,7 @@ class ExllamaV2Container(BaseModelContainer):
         params: BaseSamplerRequest,
         abort_event: Optional[asyncio.Event] = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        one_shot: bool = False,  # Special flag for logprob-only mode
     ):
         try:
             # Wait for load lock to be freed before processing
@@ -986,6 +1035,15 @@ class ExllamaV2Container(BaseModelContainer):
         finally:
             # Clean up and remove the job from active IDs
             del self.active_job_ids[request_id]
+
+    def supports_logprob_extraction(self) -> bool:
+        """Check if this model container supports logprob extraction."""
+        return True  # ExllamaV2 supports logprob extraction
+
+    def supports_logit_bias(self) -> bool:  # noqa: D401
+        """Return True as ExllamaV2 can apply logit bias."""
+
+        return True
 
     def check_unsupported_settings(self, params: BaseSamplerRequest):
         """
@@ -1176,12 +1234,39 @@ class ExllamaV2Container(BaseModelContainer):
 
         if top_tokens.numel() > 0 and top_probs.numel() > 0:
             logprobs = self.get_logprobs(top_tokens, top_probs)
-            generation["logprobs"] = logprobs
 
-            # The first logprob is the selected token prob
-            generation["token_probs"] = {
-                token: logprobs[token] for token in list(logprobs.keys())[:1]
-            }
+            chosen_token_ids = result.get("token_ids")
+            if chosen_token_ids is not None and chosen_token_ids.numel() > 0:
+                chosen_token_id = chosen_token_ids.flatten()[0].item()
+                chosen_token_str = self.tokenizer.extended_id_to_piece.get(
+                    chosen_token_id,
+                    self.tokenizer.get_id_to_piece_list(True)[chosen_token_id],
+                )
+
+                if chosen_token_str not in logprobs:
+                    flat_tokens = top_tokens.flatten().cpu()
+                    flat_probs = torch.log(top_probs).flatten().cpu()
+                    mask = flat_tokens == chosen_token_id
+                    if mask.any():
+                        chosen_logprob = flat_probs[mask.nonzero(as_tuple=True)[0]].item()
+                        if chosen_logprob == float("-inf"):
+                            chosen_logprob = -1000
+                        logprobs[chosen_token_str] = chosen_logprob
+
+                selected_tokens = [chosen_token_str]
+                selected_logprobs = [logprobs[chosen_token_str]]
+            else:
+                selected_tokens = list(logprobs.keys())[:1]
+                selected_logprobs = [logprobs[token] for token in selected_tokens]
+
+            generation["logprobs"] = logprobs
+            generation["tokens"] = selected_tokens
+            generation["token_logprobs"] = selected_logprobs
+        else:
+            # Ensure empty lists when no logprobs are available
+            generation["tokens"] = []
+            generation["token_logprobs"] = []
+            generation["logprobs"] = {}
 
     # Creates and returns a finish chunk
     def handle_finish_chunk(self, result: dict, generation: dict):
@@ -1214,6 +1299,7 @@ class ExllamaV2Container(BaseModelContainer):
         params: BaseSamplerRequest,
         abort_event: Optional[asyncio.Event] = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        one_shot: bool = False,  # Special flag for logprob-only mode
     ):
         """
         Create generator function for prompt completion.
@@ -1342,21 +1428,30 @@ class ExllamaV2Container(BaseModelContainer):
             negative_prompt,
         )
 
+        # When creating the job, set special parameters for logprob extraction
+        return_probs = (
+            params.extract_prompt_logprobs or params.logprobs > 0
+        )  # Use the new flag
+        # return_top_tokens should be 0 for this mode, as we don't want
+        # alternatives for prompt tokens. The backend needs to be configured
+        # to return logprobs for actual sequence tokens.
+        return_top_tokens = 0 if params.extract_prompt_logprobs else params.logprobs
+
         # Create and add a new job
         # Don't use the request ID here as there can be multiple jobs per request
         job = ExLlamaV2DynamicJobAsync(
             self.generator,
             input_ids=input_ids,
-            max_new_tokens=max_tokens,
-            min_new_tokens=params.min_tokens,
+            max_new_tokens=0 if one_shot else max_tokens,  # No generation for one-shot
+            min_new_tokens=0 if one_shot else params.min_tokens,
             gen_settings=gen_settings,
             stop_conditions=stop_conditions,
             decode_special_tokens=True,
             filters=grammar_handler.filters,
             filter_prefer_eos=bool(grammar_handler.filters),
-            return_probs=params.logprobs > 0,
-            return_top_tokens=params.logprobs,
-            return_logits=params.logprobs > 0,
+            return_probs=return_probs,
+            return_top_tokens=return_top_tokens,
+            return_logits=return_probs,
             banned_strings=banned_strings,
             token_healing=params.token_healing,
             identifier=request_id,
@@ -1385,7 +1480,50 @@ class ExllamaV2Container(BaseModelContainer):
                 stage = result.get("stage")
                 result_id = result.get("identifier")
 
-                if stage == "streaming" and result_id == request_id:
+                if stage == "prefill" and params.extract_prompt_logprobs:
+                    # Extract prompt token probabilities during prefill stage
+                    prompt_token_ids = result.get(
+                        "prompt_tokens", []
+                    )  # List of token IDs
+                    prompt_logprobs_list = result.get(
+                        "prompt_logprobs", []
+                    )  # List of logprobs for these IDs
+
+                    prompt_token_strings_list = []
+                    # Ensure token_logprobs list aligns with token_strings list
+                    valid_prompt_logprobs_list = []
+
+                    if (
+                        prompt_token_ids
+                        and prompt_logprobs_list
+                        and len(prompt_token_ids) == len(prompt_logprobs_list)
+                    ):
+                        id_list = prompt_token_ids.cpu().tolist()
+                        lp_list = prompt_logprobs_list.cpu().tolist()
+
+                        prompt_token_strings_list.extend(
+                            self.decode_tokens([tid]) for tid in id_list
+                        )
+
+                        valid_prompt_logprobs_list = [None] + lp_list[1:]
+
+                    generation = {
+                        "text": prompt,  # The original prompt text
+                        "prompt_tokens": len(prompt_token_strings_list),
+                        "generated_tokens": 0,
+                        "prompt_token_strings": prompt_token_strings_list,  # Ordered list of token strings
+                        "prompt_token_logprobs": valid_prompt_logprobs_list,  # Ordered list of logprobs
+                        # "token_probs" dictionary is no longer the primary source for ordered data
+                    }
+
+                    yield generation
+
+                    # For one-shot (logprob-only), we're done
+                    if one_shot:
+                        yield {"finish_reason": "stop"}
+                        break
+
+                elif stage == "streaming" and result_id == request_id:
                     chunk = unwrap(result.get("text"), "")
                     full_response += chunk
 
@@ -1393,11 +1531,14 @@ class ExllamaV2Container(BaseModelContainer):
                     if chunk_tokens is not None:
                         generated_tokens += chunk_tokens.size(dim=0)
 
+                    # Calculate offset as start index of this chunk
+                    chunk_start_offset = len(full_response) - len(chunk)
+
                     generation = {
                         "text": chunk,
                         "prompt_tokens": context_len,
                         "generated_tokens": generated_tokens,
-                        "offset": len(full_response),
+                        "offset": chunk_start_offset,
                     }
 
                     # Increase penalty range to generated token amount

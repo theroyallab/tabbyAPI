@@ -223,3 +223,6 @@ developer:
   # For realtime process priority, run as administrator or sudo.
   # Otherwise, the priority will be set to high.
   realtime_process_priority: false
+
+  # Timeout in seconds for logprob computation (default: 60).
+  logprob_timeout_seconds: 60.0

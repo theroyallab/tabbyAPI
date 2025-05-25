@@ -430,6 +430,13 @@ class DeveloperConfig(BaseConfigModel):
             "Otherwise, the priority will be set to high."
         ),
     )
+    enable_logprob: Optional[bool] = Field(
+        False, description="Enable the experimental logprob endpoint (default: False)."
+    )
+    logprob_timeout_seconds: Optional[float] = Field(
+        60.0,
+        description="Timeout in seconds for logprob computation (default: 60).",
+    )
 
 
 class TabbyConfigModel(BaseModel):

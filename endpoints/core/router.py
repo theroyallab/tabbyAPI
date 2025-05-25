@@ -5,6 +5,7 @@ from typing import Optional
 from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from common.openai_error import ModelNotFoundError
 from sse_starlette import EventSourceResponse
 
 from common import model, sampling
@@ -13,6 +14,7 @@ from common.downloader import hf_repo_download
 from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.tabby_config import config
+from common.metrics import metrics_endpoint
 from common.templating import PromptTemplate, get_all_templates
 from common.utils import unwrap
 from common.health import HealthManager
@@ -66,6 +68,13 @@ async def healthcheck(response: Response) -> HealthCheckResponse:
     return HealthCheckResponse(
         status="healthy" if healthy else "unhealthy", issues=issues
     )
+
+
+@router.get("/metrics", include_in_schema=False)
+async def prometheus_metrics() -> Response:
+    """Expose Prometheus metrics if enabled."""
+    body, content_type = metrics_endpoint()
+    return Response(content=body, media_type=content_type)
 
 
 @router.get("/.well-known/serviceinfo")
@@ -206,12 +215,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
         draft_model_path = config.draft_model.draft_model_dir
 
     if not model_path.exists():
-        error_message = handle_request_error(
-            "Could not find the model path for load. Check model name or config.yml?",
-            exc_info=False,
-        ).error.message
-
-        raise HTTPException(400, error_message)
+        raise ModelNotFoundError(data.model_name)
 
     return EventSourceResponse(
         stream_model_load(data, model_path, draft_model_path), ping=maxsize
@@ -372,13 +376,7 @@ async def load_embedding_model(
     embedding_model_path = embedding_model_dir / data.embedding_model_name
 
     if not embedding_model_path.exists():
-        error_message = handle_request_error(
-            "Could not find the embedding model path for load. "
-            + "Check model name or config.yml?",
-            exc_info=False,
-        ).error.message
-
-        raise HTTPException(400, error_message)
+        raise ModelNotFoundError(data.embedding_model_name)
 
     try:
         load_task = asyncio.create_task(

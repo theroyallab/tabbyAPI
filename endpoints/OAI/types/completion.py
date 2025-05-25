@@ -1,8 +1,8 @@
 """Completion API protocols"""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from typing import Dict, List, Optional, Union, Literal
 from time import time
-from typing import Dict, List, Optional, Union
 from uuid import uuid4
 
 from endpoints.OAI.types.common import CommonCompletionRequest, UsageStats
@@ -15,6 +15,21 @@ class CompletionLogProbs(BaseModel):
     token_logprobs: List[Optional[float]] = Field(default_factory=list)
     tokens: List[str] = Field(default_factory=list)
     top_logprobs: List[Optional[Dict[str, float]]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_lengths(cls, values):
+        """Ensure all arrays are the same length."""
+        tokens_len = len(values.tokens)
+        if not (
+            tokens_len
+            == len(values.token_logprobs)
+            == len(values.top_logprobs)
+            == len(values.text_offset)
+        ):
+            raise ValueError(
+                "tokens, token_logprobs, top_logprobs and text_offset must have the same length"
+            )
+        return values
 
 
 class CompletionRespChoice(BaseModel):
@@ -31,9 +46,10 @@ class CompletionRespChoice(BaseModel):
 class CompletionRequest(CommonCompletionRequest):
     """Represents a completion request."""
 
-    # Prompt can also contain token ids, but that's out of scope
-    # for this project.
-    prompt: Union[str, List[str]]
+    # Prompt may contain token IDs as well as raw strings. Accept a nested
+    # list of token IDs for compatibility with clients that wrap the token
+    # array in an additional list (e.g. ``[[1, 2, 3]]``).
+    prompt: Union[str, List[str], List[int], List[List[int]]]
 
 
 class CompletionResponse(BaseModel):
@@ -43,5 +59,5 @@ class CompletionResponse(BaseModel):
     choices: List[CompletionRespChoice]
     created: int = Field(default_factory=lambda: int(time()))
     model: str
-    object: str = "text_completion"
+    object: Literal["text_completion"] = Field(default="text_completion")
     usage: Optional[UsageStats] = None
