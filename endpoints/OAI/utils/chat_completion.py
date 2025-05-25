@@ -286,6 +286,16 @@ async def apply_chat_template(
                     "add_generation_prompt is False"
                 )
 
+        # Removes the starting BOS token if the model adds one
+        # This is to prevent add_bos_token from adding multiple bos tokens
+        bos_token = template_vars.get("bos_token")
+        if (
+            bos_token
+            and model.container.hf_model.add_bos_token()
+            and prompt.startswith(bos_token)
+        ):
+            prompt = prompt.removeprefix(bos_token)
+
         # Add template metadata
         await _append_template_metadata(data, template_vars)
 
