@@ -30,10 +30,8 @@ class ChatCompletionMessagePart(BaseModel):
 
 class ChatCompletionMessage(BaseModel):
     role: str = "user"
-    content: Optional[Union[str, List[ChatCompletionMessagePart]]] = Field(
-        default_factory=list
-    )
-    tool_calls: Optional[List[ToolCall]] = Field(default_factory=list)
+    content: Optional[Union[str, List[ChatCompletionMessagePart]]] = None
+    tool_calls: Optional[List[ToolCall]] = None
     tool_calls_json: SkipJsonSchema[Optional[str]] = None
 
 
@@ -58,12 +56,6 @@ class ChatCompletionStreamChoice(BaseModel):
 
 # Inherited from common request
 class ChatCompletionRequest(CommonCompletionRequest):
-    # Messages
-    # Take in a string as well even though it's not part of the OAI spec
-    # support messages.content as a list of dict
-
-    # WIP this can probably be tightened, or maybe match the OAI lib type
-    # in openai\types\chat\chat_completion_message_param.py
     messages: List[ChatCompletionMessage] = Field(default_factory=list)
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
@@ -78,8 +70,8 @@ class ChatCompletionRequest(CommonCompletionRequest):
     # tools is follows the format OAI schema, functions is more flexible
     # both are available in the chat template.
 
-    tools: Optional[List[ToolSpec]] = Field(default_factory=list)
-    functions: Optional[List[Dict]] = Field(default_factory=list)
+    tools: Optional[List[ToolSpec]] = None
+    functions: Optional[List[Dict]] = None
 
     # Typically collected from Chat Template.
     # Don't include this in the OpenAPI docs

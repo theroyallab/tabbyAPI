@@ -238,7 +238,7 @@ async def format_messages_with_template(
             # store the list of dicts rather than the ToolCallProcessor object.
             message.tool_calls = ToolCallProcessor.dump(message.tool_calls)
 
-        message_dicts.append(message.model_dump())
+        message_dicts.append(message.model_dump(exclude_none=True))
 
     # Get all special tokens
     special_tokens_dict = model.container.get_special_tokens()
