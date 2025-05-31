@@ -113,7 +113,7 @@ class ExllamaV2Container(BaseModelContainer):
         self = cls()
 
         # Make sure ExllamaV2 is up to date
-        check_package_version("exllamav2", "0.3.0")
+        check_package_version("exllamav2", "0.3.1")
 
         # Initialize config
         self.config = ExLlamaV2Config()
