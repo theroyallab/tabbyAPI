@@ -216,3 +216,6 @@ openapi.json
 
 # Backup files
 *.bak
+
+# Commit hash
+endpoints/OAI/_commit.py
