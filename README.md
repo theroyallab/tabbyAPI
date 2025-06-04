@@ -36,7 +36,7 @@
 
 A FastAPI based application that allows for generating text using an LLM (large language model) using the [Exllamav2 backend](https://github.com/turboderp/exllamav2)
 
-TabbyAPI is also the official API backend server for ExllamaV2.
+TabbyAPI is also the official API backend server for ExllamaV2 and ExllamaV3.
 
 ## Disclaimer
 
@@ -80,8 +80,8 @@ And much more. If something is missing here, PR it in!
 
 TabbyAPI uses Exllamav2 as a powerful and fast backend for model inference, loading, etc. Therefore, the following types of models are supported:
 
-- Exl2 (Highly recommended)
-
+- Exl2/Exl3 (Highly recommended)
+  
 - GPTQ
 
 - FP16 (using Exllamav2's loader)
@@ -107,6 +107,7 @@ If you have a Pull Request
 TabbyAPI would not exist without the work of other contributors and FOSS projects:
 
 - [ExllamaV2](https://github.com/turboderp/exllamav2)
+- [ExllamaV3](https://github.com/turboderp/exllamav3)
 - [Aphrodite Engine](https://github.com/PygmalionAI/Aphrodite-engine)
 - [infinity-emb](https://github.com/michaelfeil/infinity)
 - [FastAPI](https://github.com/fastapi/fastapi)
