@@ -235,11 +235,10 @@ class ExllamaV2Container(BaseModelContainer):
 
         # Grab the base model's sequence length before overrides for
         # rope calculations
-        base_seq_len = self.config.max_seq_len
+        base_seq_len = hf_model.hf_config.max_position_embeddings
 
         # Set the target seq len if present
-        # Fallback to base_seq_len if not provided
-        target_seq_len = unwrap(kwargs.get("max_seq_len"), base_seq_len)
+        target_seq_len = unwrap(kwargs.get("max_seq_len"), 4096)
 
         # Set the rope scale
         self.config.scale_pos_emb = unwrap(
@@ -247,6 +246,7 @@ class ExllamaV2Container(BaseModelContainer):
         )
 
         # Sets rope alpha value.
+        # Utilize the model's max_position_embeddings as a base value
         # Automatically calculate if unset or defined as an "auto" literal.
         rope_alpha = unwrap(kwargs.get("rope_alpha"), "auto")
         if rope_alpha == "auto":
@@ -371,7 +371,7 @@ class ExllamaV2Container(BaseModelContainer):
             )
 
             # Set draft rope alpha. Follows same behavior as model rope alpha.
-            # Use the base sequence length of the model
+            # Use the max_position_embeddings of the model
             draft_rope_alpha = unwrap(draft_args.get("draft_rope_alpha"), "auto")
             if draft_rope_alpha == "auto":
                 self.draft_config.scale_alpha_value = calculate_rope_alpha(
@@ -398,6 +398,8 @@ class ExllamaV2Container(BaseModelContainer):
             if chunk_size:
                 self.draft_config.max_input_len = chunk_size
                 self.draft_config.max_attention_size = chunk_size**2
+
+        print(self.config.max_seq_len)
 
         # Return the created instance
         return self
