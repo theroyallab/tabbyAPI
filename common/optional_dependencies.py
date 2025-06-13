@@ -63,7 +63,7 @@ def check_package_version(package_name: str, required_version_str: str):
     current_version = version.parse(package_version(package_name).split("+")[0])
 
     unsupported_message = (
-        f"ERROR: TabbyAPI requires ExLlamaV2 {required_version} "
+        f"ERROR: TabbyAPI requires {package_name} {required_version} "
         f"or greater. Your current version is {current_version}. "
         "Please update your dependencies."
     )
