@@ -69,6 +69,7 @@ class ExllamaV3Container(BaseModelContainer):
     config: Optional[Config] = None
     draft_config: Optional[Config] = None
     generator: Optional[AsyncGenerator] = None
+    vision_model: Optional[Model] = None
 
     # Class-specific vars
     gpu_split: Optional[List[float]] = None
@@ -111,6 +112,19 @@ class ExllamaV3Container(BaseModelContainer):
         self.config = Config.from_directory(str(model_directory.resolve()))
         self.model = Model.from_config(self.config)
         self.tokenizer = Tokenizer.from_config(self.config)
+
+        # Prepare vision model if requested in config
+        self.use_vision = kwargs.get("vision")
+        if self.use_vision and "vision" in self.config.model_classes:
+            self.vision_model = Model.from_config(self.config, component="vision")
+        else:
+            logger.warning(
+                "The provided model does not have vision capabilities that are "
+                "supported by ExllamaV3. "
+                "Vision input is disabled."
+            )
+            self.vision_model = None
+            self.use_vision = False
 
         # Fallback to 4096 since exl3 can't fetch from HF's config.json
         self.max_seq_len = unwrap(kwargs.get("max_seq_len"), 4096)
@@ -418,6 +432,14 @@ class ExllamaV3Container(BaseModelContainer):
 
     @torch.inference_mode()
     def load_model_sync(self, progress_callback=None):
+        if self.use_vision:
+            for value in self.vision_model.load_gen(
+                reserve_per_device=self.autosplit_reserve,
+                callback=progress_callback
+            ):
+                if value:
+                    yield value
+
         if self.use_draft_model:
             for value in self.draft_model.load_gen(
                 reserve_per_device=self.autosplit_reserve,
@@ -527,6 +549,9 @@ class ExllamaV3Container(BaseModelContainer):
             A list of integer token IDs.
         """
 
+        mm_embeddings: MultimodalEmbeddingWrapper = kwargs.get("embeddings")
+        mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
+
         return (
             self.tokenizer.encode(
                 text,
@@ -534,6 +559,7 @@ class ExllamaV3Container(BaseModelContainer):
                     kwargs.get("add_bos_token"), self.hf_model.add_bos_token()
                 ),
                 encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
+                embeddings=mm_embeddings_content
             )
             .flatten()
             .tolist()
@@ -802,6 +828,9 @@ class ExllamaV3Container(BaseModelContainer):
         stop_conditions = params.stop
         add_bos_token = unwrap(params.add_bos_token, self.hf_model.add_bos_token())
 
+        # Get multimodal embeddings if present
+        mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
+
         # Fetch EOS tokens from generation_config if they exist
         eos_tokens = self.hf_model.eos_tokens() or [self.tokenizer.eos_token_id]
 
@@ -812,6 +841,7 @@ class ExllamaV3Container(BaseModelContainer):
                 prompt,
                 add_bos=add_bos_token,
                 encode_special_tokens=True,
+                embeddings=mm_embeddings_content,
             )
             for prompt in prompts
         ]
@@ -855,6 +885,7 @@ class ExllamaV3Container(BaseModelContainer):
             max_new_tokens=max_tokens,
             stop_conditions=stop_conditions,
             banned_strings=params.banned_strings,
+            embeddings=mm_embeddings_content,
         )
 
         generated_tokens = 0
