@@ -22,14 +22,12 @@ class MultimodalEmbeddingWrapper(BaseModel):
     async def add(self, url: str):
         # Determine the type of vision embedding to use
         if not self.type:
-            if (
-                dependencies.exllamav2 and
-                isinstance(model.container.vision_model, ExLlamaV2VisionTower)
+            if dependencies.exllamav2 and isinstance(
+                model.container.vision_model, ExLlamaV2VisionTower
             ):
                 self.type = "ExLlamaV2MMEmbedding"
-            elif (
-                dependencies.exllamav3 and
-                isinstance(model.container.vision_model, Model)
+            elif dependencies.exllamav3 and isinstance(
+                model.container.vision_model, Model
             ):
                 self.type = "MMEmbedding"
 

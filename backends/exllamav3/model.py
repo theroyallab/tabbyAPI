@@ -435,7 +435,7 @@ class ExllamaV3Container(BaseModelContainer):
         if self.use_vision:
             for value in self.vision_model.load_gen(
                 reserve_per_device=self.autosplit_reserve,
-                callback=progress_callback
+                callback=progress_callback,
             ):
                 if value:
                     yield value
@@ -559,7 +559,7 @@ class ExllamaV3Container(BaseModelContainer):
                     kwargs.get("add_bos_token"), self.hf_model.add_bos_token()
                 ),
                 encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
-                embeddings=mm_embeddings_content
+                embeddings=mm_embeddings_content,
             )
             .flatten()
             .tolist()
