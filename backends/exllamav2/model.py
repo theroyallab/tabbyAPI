@@ -1001,7 +1001,6 @@ class ExllamaV2Container(BaseModelContainer):
         params: BaseSamplerRequest,
         gen_settings: ExLlamaV2Sampler.Settings,
         grammar_handler: ExLlamaV2Grammar,
-        banned_strings: List[str],
     ):
         # Apply settings
         gen_settings.temperature = params.temperature
@@ -1109,16 +1108,6 @@ class ExllamaV2Container(BaseModelContainer):
                 params.grammar_string, self.model, self.tokenizer
             )
 
-        # Set banned strings
-        banned_strings = params.banned_strings
-        if banned_strings and len(grammar_handler.filters) > 0:
-            logger.warning(
-                "Disabling banned_strings because "
-                "they cannot be used with grammar filters."
-            )
-
-            banned_strings = []
-
         # Speculative Ngram
         self.generator.speculative_ngram = params.speculative_ngram
 
@@ -1224,14 +1213,22 @@ class ExllamaV2Container(BaseModelContainer):
         prompts = [prompt]
         gen_settings = ExLlamaV2Sampler.Settings()
         grammar_handler = ExLlamaV2Grammar()
-        banned_strings = []
 
         self.assign_gen_params(
             params,
             gen_settings,
             grammar_handler,
-            banned_strings,
         )
+
+        # Set banned strings
+        banned_strings = params.banned_strings
+        if banned_strings and len(grammar_handler.filters) > 0:
+            logger.warning(
+                "Disabling banned_strings because "
+                "they cannot be used with grammar filters."
+            )
+
+            banned_strings = []
 
         # Set CFG scale and negative prompt
         cfg_scale = params.cfg_scale
