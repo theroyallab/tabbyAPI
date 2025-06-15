@@ -99,7 +99,7 @@ class ExllamaV3Container(BaseModelContainer):
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "0.0.3")
+        check_package_version("exllamav3", "0.0.4")
 
         logger.warning(
             "ExllamaV3 is currently in an alpha state. "
