@@ -12,6 +12,7 @@ if dependencies.exllamav2:
 if dependencies.exllamav3:
     from exllamav3 import Model
 
+
 class MultimodalEmbeddingWrapper(BaseModel):
     """Common multimodal embedding wrapper"""
 
