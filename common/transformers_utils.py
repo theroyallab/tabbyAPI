@@ -39,12 +39,11 @@ class GenerationConfig(BaseModel):
 
 class HuggingFaceConfig(BaseModel):
     """
-    DEPRECATED: Currently a stub and doesn't do anything.
-
     An abridged version of HuggingFace's model config.
     Will be expanded as needed.
     """
 
+    max_position_embeddings: int = 4096
     eos_token_id: Optional[Union[int, List[int]]] = None
     quantization_config: Optional[Dict] = None
 

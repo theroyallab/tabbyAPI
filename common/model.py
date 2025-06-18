@@ -76,6 +76,9 @@ async def apply_inline_overrides(model_dir: pathlib.Path, **kwargs):
     if not override_config_path.exists():
         return kwargs
 
+    # Initialize overrides dict
+    overrides = {}
+
     async with aiofiles.open(
         override_config_path, "r", encoding="utf8"
     ) as override_config_file:
@@ -83,18 +86,25 @@ async def apply_inline_overrides(model_dir: pathlib.Path, **kwargs):
 
         # Create a temporary YAML parser
         yaml = YAML(typ="safe")
-        override_args = unwrap(yaml.load(contents), {})
+        inline_config = unwrap(yaml.load(contents), {})
+
+        # Check for inline model overrides
+        model_inline_config = unwrap(inline_config.get("model"), {})
+        if model_inline_config:
+            overrides = {**model_inline_config}
+        else:
+            logger.warning(
+                "Cannot find inline model overrides. "
+                'Make sure they are nested under a "model:" key'
+            )
 
         # Merge draft overrides beforehand
-        draft_override_args = unwrap(override_args.get("draft_model"), {})
-        if draft_override_args:
-            kwargs["draft_model"] = {
-                **draft_override_args,
-                **unwrap(kwargs.get("draft_model"), {}),
-            }
+        draft_inline_config = unwrap(inline_config.get("draft_model"), {})
+        if draft_inline_config:
+            overrides["draft_model"] = {**draft_inline_config}
 
         # Merge the override and model kwargs
-        merged_kwargs = {**override_args, **kwargs}
+        merged_kwargs = {**overrides, **kwargs}
         return merged_kwargs
 
 
@@ -137,6 +147,13 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
 
     # Fetch the extra HF configuration options
     hf_model = await HFModel.from_directory(model_path)
+
+    # Override the max sequence length based on user
+    max_seq_len = kwargs.get("max_seq_len")
+    if max_seq_len == -1:
+        kwargs["max_seq_len"] = hf_model.hf_config.max_position_embeddings
+    elif max_seq_len is None:
+        kwargs["max_seq_len"] = 4096
 
     # Create a new container and check if the right dependencies are installed
     backend = unwrap(kwargs.get("backend"), detect_backend(hf_model))

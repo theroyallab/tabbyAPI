@@ -175,10 +175,10 @@ class ModelConfig(BaseConfigModel):
     max_seq_len: Optional[int] = Field(
         None,
         description=(
-            "Max sequence length (default: Empty).\n"
-            "Fetched from the model's base sequence length in config.json by default."
+            "Max sequence length (default: 4096).\n"
+            "Set to -1 to fetch from the model's config.json"
         ),
-        ge=0,
+        ge=-1,
     )
     tensor_parallel: Optional[bool] = Field(
         False,

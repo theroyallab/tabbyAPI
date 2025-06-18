@@ -78,8 +78,8 @@ model:
   # Options: exllamav2, exllamav3
   backend:
 
-  # Max sequence length (default: Empty).
-  # Fetched from the model's base sequence length in config.json by default.
+  # Max sequence length (default: 4096).
+  # Set to -1 to fetch from the model's config.json
   max_seq_len:
 
   # Load model with tensor parallelism.

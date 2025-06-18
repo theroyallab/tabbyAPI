@@ -1,6 +1,6 @@
 """Contains model card types."""
 
-from pydantic import AliasChoices, BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Literal, Optional, Union
 
@@ -50,10 +50,7 @@ class DraftModelLoadRequest(BaseModel):
     """Represents a draft model load request."""
 
     # Required
-    draft_model_name: str = Field(
-        alias=AliasChoices("draft_model_name", "name"),
-        description="Aliases: name",
-    )
+    draft_model_name: str
 
     # Config arguments
     draft_rope_scale: Optional[float] = None
@@ -75,10 +72,7 @@ class ModelLoadRequest(BaseModel):
     model_config = ConfigDict(protected_namespaces=[])
 
     # Required
-    model_name: str = Field(
-        alias=AliasChoices("model_name", "name"),
-        description="Aliases: name",
-    )
+    model_name: str
 
     # Config arguments
     backend: Optional[str] = Field(
@@ -118,18 +112,12 @@ class ModelLoadRequest(BaseModel):
     vision: Optional[bool] = None
 
     # Non-config arguments
-    draft_model: Optional[DraftModelLoadRequest] = Field(
-        default=None,
-        alias=AliasChoices("draft_model", "draft"),
-    )
+    draft_model: Optional[DraftModelLoadRequest] = None
     skip_queue: Optional[bool] = False
 
 
 class EmbeddingModelLoadRequest(BaseModel):
-    embedding_model_name: str = Field(
-        alias=AliasChoices("embedding_model_name", "name"),
-        description="Aliases: name",
-    )
+    embedding_model_name: str
 
     # Set default from the config
     embeddings_device: Optional[str] = Field(config.embeddings.embeddings_device)
