@@ -649,11 +649,8 @@ class ExllamaV3Container(BaseModelContainer):
         if generations:
             # Get finish_reason first and then shift where -1 points to
             if "finish_reason" in generations[-1]:
-                finish_reason_gen = generations.pop()
-                joined_generation["finish_reason"] = finish_reason_gen.get(
-                    "finish_reason"
-                )
-                joined_generation["stop_str"] = finish_reason_gen.get("stop_str")
+                finish_chunk = generations.pop()
+                joined_generation = {**joined_generation, **finish_chunk}
             else:
                 joined_generation["finish_reason"] = "stop"
 
@@ -743,9 +740,35 @@ class ExllamaV3Container(BaseModelContainer):
             elif eos_reason == "stop_string":
                 stop_str = result.get("eos_triggering_string")
 
+        # Prompt
+        prompt_tokens = result.get("prompt_tokens")
+        cached_tokens = round(result.get("cached_tokens"), 2)
+        prompt_time = round(result.get("time_prefill"), 2)
+        prompt_ts = (
+            "Indeterminate"
+            if prompt_time == 0
+            else round((prompt_tokens - cached_tokens) / prompt_time, 2)
+        )
+
+        # Generated
+        gen_tokens = result.get("new_tokens")
+        gen_time = result.get("time_generate")
+        gen_ts = "Indeterminate" if gen_time == 0 else round(gen_tokens / gen_time, 2)
+
+        # Queue + Total
+        queue_time = result.get("time_enqueued")
+        total_time = round(queue_time + prompt_time + gen_time, 2)
+
         finish_chunk = {
-            "prompt_tokens": generation.get("prompt_tokens"),
-            "generated_tokens": generation.get("generated_tokens"),
+            "prompt_tokens": prompt_tokens,
+            "prompt_time": round(prompt_time, 2),
+            "prompt_tokens_per_sec": prompt_ts,
+            "gen_tokens": gen_tokens,
+            "gen_time": round(gen_time, 2),
+            "gen_tokens_per_sec": gen_ts,
+            "total_time": total_time,
+            "queue_time": round(queue_time, 2),
+            "cached_tokens": cached_tokens,
             "finish_reason": finish_reason,
             "stop_str": stop_str,
         }
@@ -921,12 +944,12 @@ class ExllamaV3Container(BaseModelContainer):
                     yield generation
 
                 if result.get("eos"):
-                    generation = self.handle_finish_chunk(result, generation)
+                    finish_chunk = self.handle_finish_chunk(result, generation)
 
                     # Save the final result for metrics logging
-                    metrics_result = result
+                    metrics_result = finish_chunk
 
-                    yield generation
+                    yield finish_chunk
                     break
             # Assign the active job to the request ID
             self.active_job_ids[request_id] = job
@@ -962,12 +985,7 @@ class ExllamaV3Container(BaseModelContainer):
             if metrics_result:
                 log_metrics(
                     request_id,
-                    metrics_result.get("time_enqueued"),
-                    metrics_result.get("prompt_tokens"),
-                    metrics_result.get("cached_tokens"),
-                    metrics_result.get("time_prefill"),
-                    metrics_result.get("new_tokens"),
-                    metrics_result.get("time_generate"),
+                    metrics_result,
                     context_len,
                     self.max_seq_len,
                 )

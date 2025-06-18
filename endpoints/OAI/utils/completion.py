@@ -73,8 +73,9 @@ def _create_response(
 
         choices.append(choice)
 
-    prompt_tokens = unwrap(generations[-1].get("prompt_tokens"), 0)
-    completion_tokens = unwrap(generations[-1].get("generated_tokens"), 0)
+    final_generation = generations[-1]
+    prompt_tokens = unwrap(final_generation.get("prompt_tokens"), 0)
+    completion_tokens = unwrap(final_generation.get("gen_tokens"), 0)
 
     response = CompletionResponse(
         id=f"cmpl-{request_id}",
@@ -82,8 +83,13 @@ def _create_response(
         model=model_name,
         usage=UsageStats(
             prompt_tokens=prompt_tokens,
+            prompt_time=final_generation.get("prompt_time"),
+            prompt_tokens_per_sec=final_generation.get("prompt_tokens_per_sec"),
             completion_tokens=completion_tokens,
+            completion_time=final_generation.get("gen_time"),
+            completion_tokens_per_sec=final_generation.get("gen_tokens_per_sec"),
             total_tokens=prompt_tokens + completion_tokens,
+            total_time=final_generation.get("total_time"),
         ),
     )
 

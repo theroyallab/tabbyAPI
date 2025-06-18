@@ -54,40 +54,29 @@ def log_response(request_id: str, response: str):
 
 def log_metrics(
     request_id: str,
-    queue_time: float,
-    prompt_tokens: int,
-    cached_tokens: int,
-    prompt_time: float,
-    generated_tokens: int,
-    generate_time: float,
+    metrics: dict,
     context_len: Optional[int],
     max_seq_len: int,
 ):
     initial_response = (
-        f"Metrics (ID: {request_id}): {generated_tokens} tokens generated in "
-        f"{round(queue_time + prompt_time + generate_time, 2)} seconds"
+        f"Metrics (ID: {request_id}): {metrics.get('gen_tokens')} "
+        f"tokens generated in {metrics.get('total_time')} seconds"
     )
     itemization = []
     extra_parts = []
 
-    itemization.append(f"Queue: {round(queue_time, 2)} s")
+    itemization.append(f"Queue: {metrics.get('queue_time')} s")
 
-    prompt_ts = (
-        "Indeterminate"
-        if prompt_time == 0
-        else round((prompt_tokens - cached_tokens) / prompt_time, 2)
-    )
+    cached_tokens = metrics.get("cached_tokens")
+    prompt_tokens = metrics.get("prompt_tokens")
+
     itemization.append(
         f"Process: {cached_tokens} cached tokens and "
-        f"{prompt_tokens - cached_tokens} new tokens at {prompt_ts} T/s"
+        f"{prompt_tokens - cached_tokens} new tokens at "
+        f"{metrics.get('prompt_tokens_per_sec')} T/s"
     )
 
-    generate_ts = (
-        "Indeterminate"
-        if generate_time == 0
-        else round(generated_tokens / generate_time, 2)
-    )
-    itemization.append(f"Generate: {generate_ts} T/s")
+    itemization.append(f"Generate: {metrics.get('gen_tokens_per_sec')} T/s")
 
     # Add context (original token count)
     if context_len:
