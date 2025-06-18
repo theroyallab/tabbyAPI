@@ -399,8 +399,6 @@ class ExllamaV2Container(BaseModelContainer):
                 self.draft_config.max_input_len = chunk_size
                 self.draft_config.max_attention_size = chunk_size**2
 
-        print(self.config.max_seq_len)
-
         # Return the created instance
         return self
 
