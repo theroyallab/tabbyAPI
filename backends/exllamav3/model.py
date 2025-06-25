@@ -24,6 +24,7 @@ from loguru import logger
 
 from backends.base_model_container import BaseModelContainer
 from backends.exllamav3.sampler import ExllamaV3SamplerBuilder
+from backends.exllamav3.vision import clear_image_embedding_cache
 from common.concurrency import iterate_in_threadpool
 from common.gen_logging import (
     log_generation_params,
@@ -508,6 +509,9 @@ class ExllamaV3Container(BaseModelContainer):
 
                 # Wait for other jobs to finish
                 await self.wait_for_jobs(kwargs.get("skip_wait"))
+
+            # Clear the image embedding cache
+            clear_image_embedding_cache()
 
             self.model.unload()
             self.model = None
