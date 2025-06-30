@@ -46,17 +46,30 @@ async def _download_file(
                 message=f"HTTP {response.status}: {error_text}",
             )
 
-        file_size = int(response.headers["Content-Length"])
+        # Sometimes, Content-Length can be undefined
+        content_length = response.headers.get("Content-Length")
+        file_size = int(content_length) if content_length else None
 
+        # Create progress task with appropriate total (None for indeterminate)
         download_task = progress.add_task(
             f"[cyan]Downloading {filename}", total=file_size
         )
 
         # Chunk limit is 2 MB
+        downloaded_size = 0
         async with aiofiles.open(str(filepath), "wb") as f:
             async for chunk in response.content.iter_chunked(chunk_limit_bytes):
                 await f.write(chunk)
-                progress.update(download_task, advance=len(chunk))
+
+                # Store and update progress bar
+                downloaded_size += len(chunk)
+                progress.update(download_task, completed=downloaded_size)
+
+        # For indeterminate files, set final total and mark as complete
+        if file_size is None:
+            progress.update(
+                download_task, total=downloaded_size, completed=downloaded_size
+            )
 
 
 # Huggingface does not know how async works
