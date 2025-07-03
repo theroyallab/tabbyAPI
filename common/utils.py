@@ -50,6 +50,19 @@ def merge_dicts(*dicts: Dict) -> Dict:
 
     return result
 
+def deep_merge_config(base_dict: dict, override_dict: dict) -> dict:
+    """
+    Merge Dict but filter not none.
+    """
+    merged = base_dict.copy()
+    for key, value in override_dict.items():
+        if value is not None: # Only merge not None
+            if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+                merged[key] = deep_merge_config(merged[key], value)
+            else:
+                merged[key] = value
+    return merged
+
 
 def flat_map(input_list):
     """Flattens a list of lists into a single list."""
