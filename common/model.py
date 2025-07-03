@@ -18,7 +18,7 @@ from common.networking import handle_request_error
 from common.tabby_config import config
 from common.optional_dependencies import dependencies
 from common.transformers_utils import HFModel
-from common.utils import unwrap
+from common.utils import deep_merge_dict, unwrap
 
 # Global variables for model container
 container: Optional[BaseModelContainer] = None
@@ -104,7 +104,8 @@ async def apply_inline_overrides(model_dir: pathlib.Path, **kwargs):
             overrides["draft_model"] = {**draft_inline_config}
 
         # Merge the override and model kwargs
-        merged_kwargs = {**overrides, **kwargs}
+        # No need to preserve the original overrides dict
+        merged_kwargs = deep_merge_dict(overrides, kwargs)
         return merged_kwargs
 
 

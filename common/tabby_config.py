@@ -11,7 +11,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import PreservedScalarString
 
 from common.config_models import BaseConfigModel, TabbyConfigModel
-from common.utils import merge_dicts, filter_none_values, unwrap
+from common.utils import deep_merge_dicts, filter_none_values, unwrap
 
 yaml = YAML(typ=["rt", "safe"])
 
@@ -36,7 +36,7 @@ class TabbyConfig(TabbyConfigModel):
         # Remove None (aka unset) values from the configs and merge them together
         # This should be less expensive than pruning the entire merged dictionary
         configs = filter_none_values(configs)
-        merged_config = merge_dicts(*configs)
+        merged_config = deep_merge_dicts(*configs)
 
         # validate and update config
         merged_config_model = TabbyConfigModel.model_validate(merged_config)

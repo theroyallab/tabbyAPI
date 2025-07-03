@@ -32,21 +32,32 @@ def filter_none_values(collection: Union[dict, list]) -> Union[dict, list]:
         return collection
 
 
-def merge_dict(dict1: Dict, dict2: Dict) -> Dict:
-    """Merge 2 dictionaries"""
+def deep_merge_dict(dict1: Dict, dict2: Dict, copy: bool = False) -> Dict:
+    """
+    Merge 2 dictionaries. If copy is true, the original dictionary isn't modified.
+    """
+
+    if copy:
+        dict1 = dict1.copy()
+
     for key, value in dict2.items():
         if isinstance(value, dict) and key in dict1 and isinstance(dict1[key], dict):
-            merge_dict(dict1[key], value)
+            deep_merge_dict(dict1[key], value, copy=False)
         else:
             dict1[key] = value
+
     return dict1
 
 
-def merge_dicts(*dicts: Dict) -> Dict:
-    """Merge an arbitrary amount of dictionaries"""
+def deep_merge_dicts(*dicts: Dict) -> Dict:
+    """
+    Merge an arbitrary amount of dictionaries.
+    We wanna do in-place modification for each level, so do not copy.
+    """
+
     result = {}
     for dictionary in dicts:
-        result = merge_dict(result, dictionary)
+        result = deep_merge_dict(result, dictionary)
 
     return result
 
