@@ -259,6 +259,17 @@ async def format_messages_with_template(
     prompt = await model.container.prompt_template.render(template_vars)
     return prompt, mm_embeddings, template_vars
 
+def should_add_generation_prompt(
+    data: ChatCompletionRequest
+) -> bool:
+    if data.add_generation_prompt != None:
+        r = data.add_generation_prompt
+    else:
+        if data.messages[-1].role == "assistant":
+            r = False
+        else:
+            r = True
+    return r
 
 async def apply_chat_template(
     data: ChatCompletionRequest, tool_precursor: Optional[str] = None
@@ -274,7 +285,7 @@ async def apply_chat_template(
     try:
         data.template_vars.update(
             {
-                "add_generation_prompt": data.add_generation_prompt,
+                "add_generation_prompt": should_add_generation_prompt(data),
                 "tools": tools,
                 "tools_json": json.dumps(tools, indent=2),
                 "functions": data.functions,
@@ -359,8 +370,8 @@ async def stream_generate_chat_completion(
     try:
         logger.info(f"Received chat completion streaming request {request.state.id}")
 
-        # Check for "Thinking" in the last 13 characters of the prompt
-        inject_thinking = "think" in prompt[-13:]
+        # Check for "Thinking" in the last 11 characters of the prompt
+        inject_thinking = "<think>" in prompt[-11:] and should_add_generation_prompt(data)
 
         for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
@@ -493,9 +504,9 @@ async def generate_chat_completion(
 
         generations = await asyncio.gather(*gen_tasks)
 
-        # Check for "Thinking:" in the last 13 characters of the prompt
-        if "think" in prompt[-13:]:
-            # Prepend "Thinking:" to each generation's text
+        # Check for "Thinking" in the last 11 characters of the prompt
+        if "<think>" in prompt[-11:] and should_add_generation_prompt(data):
+            # Prepend "Thinking" to each generation's text
             for gen in generations:
                 if "text" in gen:
                     gen["text"] = "<think>" + gen["text"]

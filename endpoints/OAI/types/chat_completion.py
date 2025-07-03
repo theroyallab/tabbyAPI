@@ -58,7 +58,7 @@ class ChatCompletionStreamChoice(BaseModel):
 class ChatCompletionRequest(CommonCompletionRequest):
     messages: List[ChatCompletionMessage] = Field(default_factory=list)
     prompt_template: Optional[str] = None
-    add_generation_prompt: Optional[bool] = True
+    add_generation_prompt: Optional[bool] = None
     template_vars: Optional[dict] = Field(
         default={},
         validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
