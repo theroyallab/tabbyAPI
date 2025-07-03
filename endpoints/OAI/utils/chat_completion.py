@@ -325,6 +325,23 @@ async def apply_chat_template(
 
         raise HTTPException(400, error_message) from exc
 
+def preprocess_stream_chunk(data: dict, inject_thinking: bool, is_first_chunk: bool):
+    """
+    Preprocesses a generation chunk for streaming. If inject_thinking is True,
+    it prepends "\<think\>" to the first chunk and adjusts offsets and token counts
+    for all subsequent chunks to remain consistent.
+    """
+    updated = data.copy()
+    if inject_thinking:
+        # Always adjust the accounting if "thinking" is enabled.
+        updated['generated_tokens'] = updated.get('generated_tokens', 0) + 1
+        updated['offset'] = updated.get('offset', 0) + 7
+
+        # Only prepend the "<think>" text to the very first chunk.
+        if is_first_chunk:
+            updated['text'] = "<think>" + updated.get('text', '')
+            
+    return updated
 
 async def stream_generate_chat_completion(
     prompt: str,
@@ -341,6 +358,9 @@ async def stream_generate_chat_completion(
 
     try:
         logger.info(f"Received chat completion streaming request {request.state.id}")
+
+        # Check for "Thinking" in the last 13 characters of the prompt
+        inject_thinking = "think" in prompt[-13:]
 
         for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
@@ -364,6 +384,7 @@ async def stream_generate_chat_completion(
         current_generation_text = ""
 
         # Consumer loop
+        first_chunk = True
         while True:
             if disconnect_task.done():
                 abort_event.set()
@@ -390,21 +411,33 @@ async def stream_generate_chat_completion(
             if isinstance(generation, Exception):
                 raise generation
 
+            # Preprocess the chunk to inject "<think>" and adjust offsets if needed.
+            processed_generation = preprocess_stream_chunk(
+                generation, inject_thinking, first_chunk
+            )
+            # print(f"Type: {type(processed_generation)}, Content: {processed_generation}")
+            # prints: "Type: <class 'dict'>, Content: {'text': '<think>\n', 'prompt_tokens': 17, 'generated_tokens': 2, 'offset': 8, 'index': 0}"
             response = _create_stream_chunk(
-                request.state.id, generation, model_path.name
+                request.state.id, processed_generation, model_path.name
             )
             yield response.model_dump_json()
+
+            if first_chunk:
+                first_chunk = False
 
             # Check if all tasks are completed
             if all(task.done() for task in gen_tasks) and gen_queue.empty():
                 # Send a usage chunk
                 if data.stream_options and data.stream_options.include_usage:
+                    # Use the simple counter-adjusting function for the final usage
                     usage_chunk = _create_stream_chunk(
                         request.state.id,
                         generation,
                         model_path.name,
                         is_usage_chunk=True,
                     )
+                    # print(f"Type: {type(generation)}, Content: {generation}")
+                    # prints: "Type: <class 'dict'>, Content: {'prompt_tokens': 17, 'prompt_time': 0.1, 'prompt_tokens_per_sec': 170.0, 'gen_tokens': 50, 'gen_time': 2.62, 'gen_tokens_per_sec': 19.07, 'total_time': 2.72, 'queue_time': 0.0, 'cached_tokens': 0, 'finish_reason': 'length', 'stop_str': None, 'index': 0}"
                     yield usage_chunk.model_dump_json()
 
                 logger.info(
@@ -415,7 +448,7 @@ async def stream_generate_chat_completion(
                 break
     except CancelledError:
         # Get out if the request gets disconnected
-
+        
         if not disconnect_task.done():
             abort_event.set()
             handle_request_disconnect("Chat completion generation cancelled by user.")
@@ -452,6 +485,13 @@ async def generate_chat_completion(
             )
 
         generations = await asyncio.gather(*gen_tasks)
+
+        # Check for "Thinking:" in the last 13 characters of the prompt
+        if "think" in prompt[-13:]:
+            # Prepend "Thinking:" to each generation's text
+            for gen in generations:
+                if "text" in gen:
+                    gen["text"] = "<think>" + gen["text"]
 
         # Let's not waste our time if we arn't running a tool model
         if data.tool_call_start:
