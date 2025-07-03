@@ -382,9 +382,12 @@ async def stream_generate_chat_completion(
 
         # We need to keep track of the text generated so we can resume the tool calls
         current_generation_text = ""
+        
+        # Use a set to track if we have sent the first chunk for each index.
+        # This correctly handles n > 1 scenarios.
+        seen_first_chunk_indices = set()
 
         # Consumer loop
-        first_chunk = True
         while True:
             if disconnect_task.done():
                 abort_event.set()
@@ -410,10 +413,14 @@ async def stream_generate_chat_completion(
             # Stream collector will push an exception to the queue if it fails
             if isinstance(generation, Exception):
                 raise generation
+            
+            # Determine if this is the first chunk for its specific index.
+            index = generation.get("index", 0)
+            is_first_for_this_index = index not in seen_first_chunk_indices
 
             # Preprocess the chunk to inject "<think>" and adjust offsets if needed.
             processed_generation = preprocess_stream_chunk(
-                generation, inject_thinking, first_chunk
+                generation, inject_thinking, is_first_for_this_index
             )
             # print(f"Type: {type(processed_generation)}, Content: {processed_generation}")
             # prints: "Type: <class 'dict'>, Content: {'text': '<think>\n', 'prompt_tokens': 17, 'generated_tokens': 2, 'offset': 8, 'index': 0}"
@@ -422,14 +429,14 @@ async def stream_generate_chat_completion(
             )
             yield response.model_dump_json()
 
-            if first_chunk:
-                first_chunk = False
+            # If it was the first chunk for this index, add the index to our set.
+            if is_first_for_this_index:
+                seen_first_chunk_indices.add(index)
 
             # Check if all tasks are completed
             if all(task.done() for task in gen_tasks) and gen_queue.empty():
                 # Send a usage chunk
                 if data.stream_options and data.stream_options.include_usage:
-                    # Use the simple counter-adjusting function for the final usage
                     usage_chunk = _create_stream_chunk(
                         request.state.id,
                         generation,
