@@ -77,16 +77,16 @@ def get_dummy_models():
 async def stream_model_load(
     data: ModelLoadRequest,
     model_path: pathlib.Path,
-    draft_model_path: str,
 ):
     """Request generation wrapper for the loading process."""
 
     # Get trimmed load data
     load_data = data.model_dump(exclude_none=True)
 
-    # Set the draft model path if it exists
-    if draft_model_path:
-        load_data["draft_model"]["draft_model_dir"] = draft_model_path
+    # Set the draft model directory
+    load_data.setdefault("draft_model", {})["draft_model_dir"] = (
+        config.draft_model.draft_model_dir
+    )
 
     load_status = model.load_model_gen(
         model_path, skip_wait=data.skip_queue, **load_data

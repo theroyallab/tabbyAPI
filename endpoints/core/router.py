@@ -193,18 +193,6 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
     model_path = pathlib.Path(config.model.model_dir)
     model_path = model_path / data.model_name
 
-    draft_model_path = None
-    if data.draft_model:
-        if not data.draft_model.draft_model_name:
-            error_message = handle_request_error(
-                "Could not find the draft model name for model load.",
-                exc_info=False,
-            ).error.message
-
-            raise HTTPException(400, error_message)
-
-        draft_model_path = config.draft_model.draft_model_dir
-
     if not model_path.exists():
         error_message = handle_request_error(
             "Could not find the model path for load. Check model name or config.yml?",
@@ -213,9 +201,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
 
         raise HTTPException(400, error_message)
 
-    return EventSourceResponse(
-        stream_model_load(data, model_path, draft_model_path), ping=maxsize
-    )
+    return EventSourceResponse(stream_model_load(data, model_path), ping=maxsize)
 
 
 # Unload model endpoint

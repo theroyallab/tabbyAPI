@@ -68,10 +68,14 @@ def detect_backend(hf_model: HFModel) -> str:
         return "exllamav2"
 
 
-async def apply_inline_overrides(model_dir: pathlib.Path, **kwargs):
-    """Sets overrides from a model folder's config yaml."""
+async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
+    """
+    Applies model load overrides.
+    Sources are from inline config and use_as_default.
+    Currently agnostic due to different schemas for API and config.
+    """
 
-    override_config_path = model_dir / "tabby_config.yml"
+    override_config_path = model_path / "tabby_config.yml"
 
     if not override_config_path.exists():
         return kwargs
@@ -88,20 +92,23 @@ async def apply_inline_overrides(model_dir: pathlib.Path, **kwargs):
         yaml = YAML(typ="safe")
         inline_config = unwrap(yaml.load(contents), {})
 
-        # Check for inline model overrides
+        # Check for inline model overrides and merge config defaults
         model_inline_config = unwrap(inline_config.get("model"), {})
         if model_inline_config:
-            overrides = {**model_inline_config}
+            overrides = {**model_inline_config, **config.model_defaults}
         else:
             logger.warning(
                 "Cannot find inline model overrides. "
                 'Make sure they are nested under a "model:" key'
             )
 
-        # Merge draft overrides beforehand
+        # Merge draft overrides beforehand and merge config defaults
         draft_inline_config = unwrap(inline_config.get("draft_model"), {})
         if draft_inline_config:
-            overrides["draft_model"] = {**draft_inline_config}
+            overrides["draft_model"] = {
+                **draft_inline_config,
+                **config.draft_model_defaults,
+            }
 
         # Merge the override and model kwargs
         # No need to preserve the original overrides dict
@@ -143,8 +150,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     # Merge with config and inline defaults
     # TODO: Figure out a way to do this with Pydantic validation
     # and ModelLoadRequest. Pydantic doesn't have async validators
-    kwargs = {**config.model_defaults, **kwargs}
-    kwargs = await apply_inline_overrides(model_path, **kwargs)
+    kwargs = await apply_load_defaults(model_path, **kwargs)
 
     # Fetch the extra HF configuration options
     hf_model = await HFModel.from_directory(model_path)

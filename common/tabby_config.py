@@ -20,6 +20,7 @@ class TabbyConfig(TabbyConfigModel):
     # Persistent defaults
     # TODO: make this pydantic?
     model_defaults: dict = {}
+    draft_model_defaults: dict = {}
 
     def load(self, arguments: Optional[dict] = None):
         """Synchronously loads the global application config"""
@@ -50,7 +51,7 @@ class TabbyConfig(TabbyConfigModel):
             if hasattr(self.model, field):
                 self.model_defaults[field] = getattr(config.model, field)
             elif hasattr(self.draft_model, field):
-                self.model_defaults[field] = getattr(config.draft_model, field)
+                self.draft_model_defaults[field] = getattr(config.draft_model, field)
             else:
                 logger.error(
                     f"invalid item {field} in config option `model.use_as_default`"
