@@ -259,6 +259,17 @@ async def format_messages_with_template(
     prompt = await model.container.prompt_template.render(template_vars)
     return prompt, mm_embeddings, template_vars
 
+def should_add_generation_prompt(
+    data: ChatCompletionRequest
+) -> bool:
+    if data.add_generation_prompt != None:
+        r = data.add_generation_prompt
+    else:
+        if data.messages[-1].role == "assistant":
+            r = False
+        else:
+            r = True
+    return r
 
 async def apply_chat_template(
     data: ChatCompletionRequest, tool_precursor: Optional[str] = None
@@ -274,7 +285,7 @@ async def apply_chat_template(
     try:
         data.template_vars.update(
             {
-                "add_generation_prompt": data.add_generation_prompt,
+                "add_generation_prompt": should_add_generation_prompt(data),
                 "tools": tools,
                 "tools_json": json.dumps(tools, indent=2),
                 "functions": data.functions,
@@ -325,6 +336,23 @@ async def apply_chat_template(
 
         raise HTTPException(400, error_message) from exc
 
+def preprocess_stream_chunk(data: dict, inject_thinking: bool, is_first_chunk: bool):
+    """
+    Preprocesses a generation chunk for streaming. If inject_thinking is True,
+    it prepends "\<think\>" to the first chunk and adjusts offsets and token counts
+    for all subsequent chunks to remain consistent.
+    """
+    updated = data.copy()
+    if inject_thinking:
+        # Always adjust the accounting if "thinking" is enabled.
+        updated['generated_tokens'] = updated.get('generated_tokens', 0) + 1
+        updated['offset'] = updated.get('offset', 0) + 7
+
+        # Only prepend the "<think>" text to the very first chunk.
+        if is_first_chunk:
+            updated['text'] = "<think>" + updated.get('text', '')
+            
+    return updated
 
 async def stream_generate_chat_completion(
     prompt: str,
@@ -341,6 +369,9 @@ async def stream_generate_chat_completion(
 
     try:
         logger.info(f"Received chat completion streaming request {request.state.id}")
+
+        # Check for "Thinking" in the last 11 characters of the prompt
+        inject_thinking = "<think>" in prompt[-11:] and should_add_generation_prompt(data)
 
         for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
@@ -362,6 +393,10 @@ async def stream_generate_chat_completion(
 
         # We need to keep track of the text generated so we can resume the tool calls
         current_generation_text = ""
+        
+        # Use a set to track if we have sent the first chunk for each index.
+        # This correctly handles n > 1 scenarios.
+        seen_first_chunk_indices = set()
 
         # Consumer loop
         while True:
@@ -389,11 +424,25 @@ async def stream_generate_chat_completion(
             # Stream collector will push an exception to the queue if it fails
             if isinstance(generation, Exception):
                 raise generation
+            
+            # Determine if this is the first chunk for its specific index.
+            index = generation.get("index", 0)
+            is_first_for_this_index = index not in seen_first_chunk_indices
 
+            # Preprocess the chunk to inject "<think>" and adjust offsets if needed.
+            processed_generation = preprocess_stream_chunk(
+                generation, inject_thinking, is_first_for_this_index
+            )
+            # print(f"Type: {type(processed_generation)}, Content: {processed_generation}")
+            # prints: "Type: <class 'dict'>, Content: {'text': '<think>\n', 'prompt_tokens': 17, 'generated_tokens': 2, 'offset': 8, 'index': 0}"
             response = _create_stream_chunk(
-                request.state.id, generation, model_path.name
+                request.state.id, processed_generation, model_path.name
             )
             yield response.model_dump_json()
+
+            # If it was the first chunk for this index, add the index to our set.
+            if is_first_for_this_index:
+                seen_first_chunk_indices.add(index)
 
             # Check if all tasks are completed
             if all(task.done() for task in gen_tasks) and gen_queue.empty():
@@ -405,6 +454,8 @@ async def stream_generate_chat_completion(
                         model_path.name,
                         is_usage_chunk=True,
                     )
+                    # print(f"Type: {type(generation)}, Content: {generation}")
+                    # prints: "Type: <class 'dict'>, Content: {'prompt_tokens': 17, 'prompt_time': 0.1, 'prompt_tokens_per_sec': 170.0, 'gen_tokens': 50, 'gen_time': 2.62, 'gen_tokens_per_sec': 19.07, 'total_time': 2.72, 'queue_time': 0.0, 'cached_tokens': 0, 'finish_reason': 'length', 'stop_str': None, 'index': 0}"
                     yield usage_chunk.model_dump_json()
 
                 logger.info(
@@ -415,7 +466,7 @@ async def stream_generate_chat_completion(
                 break
     except CancelledError:
         # Get out if the request gets disconnected
-
+        
         if not disconnect_task.done():
             abort_event.set()
             handle_request_disconnect("Chat completion generation cancelled by user.")
@@ -452,6 +503,13 @@ async def generate_chat_completion(
             )
 
         generations = await asyncio.gather(*gen_tasks)
+
+        # Check for "Thinking" in the last 11 characters of the prompt
+        if "<think>" in prompt[-11:] and should_add_generation_prompt(data):
+            # Prepend "Thinking" to each generation's text
+            for gen in generations:
+                if "text" in gen:
+                    gen["text"] = "<think>" + gen["text"]
 
         # Let's not waste our time if we arn't running a tool model
         if data.tool_call_start:
