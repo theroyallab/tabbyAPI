@@ -56,7 +56,7 @@ class ChatCompletionStreamChoice(BaseModel):
 
 # Inherited from common request
 class ChatCompletionRequest(CommonCompletionRequest):
-    messages: List[ChatCompletionMessage] = Field(default_factory=list)
+    messages: List[ChatCompletionMessage]
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
     template_vars: Optional[dict] = Field(

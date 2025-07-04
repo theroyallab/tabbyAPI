@@ -207,12 +207,11 @@ async def _append_template_metadata(data: ChatCompletionRequest, template_vars: 
     if isinstance(data.stop, str):
         data.stop = [data.stop] + template_metadata.stop_strings
     else:
-        data.stop += template_metadata.stop_strings
+        data.stop.extend(template_metadata.stop_strings)
 
     # Tool call start strings
     if template_metadata.tool_starts:
-        if data.tool_call_start is None:
-            data.tool_call_start = template_metadata.tool_starts
+        data.tool_call_start.extend(template_metadata.tool_starts)
 
         # Append to stop strings to halt for a tool call generation
         data.stop.extend(template_metadata.tool_starts)
@@ -244,10 +243,6 @@ async def format_messages_with_template(
 
         if message.tool_calls:
             message.tool_calls_json = ToolCallProcessor.to_json(message.tool_calls)
-
-            # The tools variable is inspectable in the template, so
-            # store the list of dicts rather than the ToolCallProcessor object.
-            message.tool_calls = ToolCallProcessor.dump(message.tool_calls)
 
         message_dicts.append(message.model_dump(exclude_none=True))
 
