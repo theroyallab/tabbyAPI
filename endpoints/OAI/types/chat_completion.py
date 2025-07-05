@@ -5,7 +5,7 @@ from typing import Literal, Union, List, Optional, Dict
 from uuid import uuid4
 
 from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
-from endpoints.OAI.types.tools import ToolSpec, ToolCall, tool_call_schema
+from endpoints.OAI.types.tools import ToolSpec, ToolCall
 
 
 class ChatCompletionLogprob(BaseModel):
@@ -72,15 +72,6 @@ class ChatCompletionRequest(CommonCompletionRequest):
 
     tools: Optional[List[ToolSpec]] = None
     functions: Optional[List[Dict]] = None
-
-    # Typically collected from Chat Template.
-    # Don't include this in the OpenAPI docs
-    # TODO: Use these custom parameters
-    tool_call_start: SkipJsonSchema[Optional[List[Union[str, int]]]] = Field(
-        default_factory=list
-    )
-    tool_call_end: SkipJsonSchema[Optional[str]] = None
-    tool_call_schema: SkipJsonSchema[Optional[dict]] = tool_call_schema
 
     # Chat completions requests do not have a BOS token preference. Backend
     # respects the tokenization config for the individual model.
