@@ -1,11 +1,10 @@
 from pydantic import AliasChoices, BaseModel, Field, field_validator
-from pydantic.json_schema import SkipJsonSchema
 from time import time
 from typing import Literal, Union, List, Optional, Dict
 from uuid import uuid4
 
 from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
-from endpoints.OAI.types.tools import ToolSpec, ToolCall, tool_call_schema
+from endpoints.OAI.types.tools import ToolSpec, ToolCall
 
 
 class ChatCompletionLogprob(BaseModel):
@@ -32,7 +31,7 @@ class ChatCompletionMessage(BaseModel):
     role: str = "user"
     content: Optional[Union[str, List[ChatCompletionMessagePart]]] = None
     tool_calls: Optional[List[ToolCall]] = None
-    tool_calls_json: SkipJsonSchema[Optional[str]] = None
+    tool_call_id: Optional[str] = None
 
 
 class ChatCompletionRespChoice(BaseModel):
@@ -56,7 +55,7 @@ class ChatCompletionStreamChoice(BaseModel):
 
 # Inherited from common request
 class ChatCompletionRequest(CommonCompletionRequest):
-    messages: List[ChatCompletionMessage] = Field(default_factory=list)
+    messages: List[ChatCompletionMessage]
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
     template_vars: Optional[dict] = Field(
@@ -72,15 +71,6 @@ class ChatCompletionRequest(CommonCompletionRequest):
 
     tools: Optional[List[ToolSpec]] = None
     functions: Optional[List[Dict]] = None
-
-    # Typically collected from Chat Template.
-    # Don't include this in the OpenAPI docs
-    # TODO: Use these custom parameters
-    tool_call_start: SkipJsonSchema[Optional[List[Union[str, int]]]] = Field(
-        default_factory=list
-    )
-    tool_call_end: SkipJsonSchema[Optional[str]] = None
-    tool_call_schema: SkipJsonSchema[Optional[dict]] = tool_call_schema
 
     # Chat completions requests do not have a BOS token preference. Backend
     # respects the tokenization config for the individual model.
