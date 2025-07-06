@@ -237,9 +237,6 @@ async def format_messages_with_template(
             # Convert the message content into a concatenated string
             message.content = concatenated_content
 
-        if message.tool_calls:
-            message.tool_calls_json = ToolCallProcessor.to_json(message.tool_calls)
-
         message_dicts.append(message.model_dump(exclude_none=True))
 
     # Get all special tokens

@@ -1,5 +1,4 @@
 from pydantic import AliasChoices, BaseModel, Field, field_validator
-from pydantic.json_schema import SkipJsonSchema
 from time import time
 from typing import Literal, Union, List, Optional, Dict
 from uuid import uuid4
@@ -32,7 +31,7 @@ class ChatCompletionMessage(BaseModel):
     role: str = "user"
     content: Optional[Union[str, List[ChatCompletionMessagePart]]] = None
     tool_calls: Optional[List[ToolCall]] = None
-    tool_calls_json: SkipJsonSchema[Optional[str]] = None
+    tool_call_id: Optional[str] = None
 
 
 class ChatCompletionRespChoice(BaseModel):
