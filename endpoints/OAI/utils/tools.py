@@ -3,6 +3,8 @@ from loguru import logger
 from typing import List
 
 from endpoints.OAI.types.tools import ToolCall
+import secrets
+import string
 
 
 TOOL_CALL_SCHEMA = {
@@ -35,11 +37,34 @@ class ToolCallProcessor:
     def from_json(tool_calls_str: str) -> List[ToolCall]:
         """Postprocess tool call JSON to a parseable class"""
 
-        tool_calls = json.loads(tool_calls_str)
+        def generate_random_id(prefix="call_", length=22):
+                alphabet = string.ascii_letters + string.digits
+                random_part = ''.join(secrets.choice(alphabet) for _ in range(length))
+                return f"{prefix}{random_part}"
+        
+        loaded = json.loads(tool_calls_str)
+        tool_calls = loaded if isinstance(loaded, list) else [loaded]
+        updated_tool_calls = []
         for tool_call in tool_calls:
-            tool_call["function"]["arguments"] = json.dumps(
-                tool_call["function"]["arguments"]
-            )
+            # Generate id and static type
+            call = {
+                "id": generate_random_id(),
+                "type": "function",
+                "function": {}
+            }
+            # Handle both cases: function attribute or direct name/arguments
+            if "function" in tool_call:
+                call["function"] = {
+                    "name": tool_call["function"].pop("name"),
+                    "arguments": json.dumps(tool_call["function"].pop("arguments"))
+                }
+            else:
+                call["function"] = {
+                    "name": tool_call.pop("name"),
+                    "arguments": json.dumps(tool_call.pop("arguments"))
+                }
+            updated_tool_calls.append(call)
+        tool_calls = updated_tool_calls
 
         return [ToolCall(**tool_call) for tool_call in tool_calls]
 
