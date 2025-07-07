@@ -97,13 +97,13 @@ def _create_response(
         model=model_name,
         usage=UsageStats(
             prompt_tokens=prompt_tokens,
-            prompt_time=final_generation.get("prompt_time"),
-            prompt_tokens_per_sec=final_generation.get("prompt_tokens_per_sec"),
+            prompt_time=round(final_generation.get("prompt_time"), 2),
+            prompt_tokens_per_sec=round(final_generation.get("prompt_tokens_per_sec"), 2),
             completion_tokens=completion_tokens,
-            completion_time=final_generation.get("gen_time"),
-            completion_tokens_per_sec=final_generation.get("gen_tokens_per_sec"),
+            completion_time=round(final_generation.get("gen_time"), 2),
+            completion_tokens_per_sec=round(final_generation.get("gen_tokens_per_sec"), 2),
             total_tokens=prompt_tokens + completion_tokens,
-            total_time=final_generation.get("total_time"),
+            total_time=round(final_generation.get("total_time"), 2),
         ),
     )
 
@@ -128,13 +128,13 @@ def _create_stream_chunk(
 
         usage_stats = UsageStats(
             prompt_tokens=prompt_tokens,
-            prompt_time=generation.get("prompt_time"),
-            prompt_tokens_per_sec=generation.get("prompt_tokens_per_sec"),
+            prompt_time=round(generation.get("prompt_time"), 2),
+            prompt_tokens_per_sec=round(generation.get("prompt_tokens_per_sec"), 2),
             completion_tokens=completion_tokens,
-            completion_time=generation.get("gen_time"),
-            completion_tokens_per_sec=generation.get("gen_tokens_per_sec"),
+            completion_time=round(generation.get("gen_time"), 2),
+            completion_tokens_per_sec=round(generation.get("gen_tokens_per_sec"), 2),
             total_tokens=prompt_tokens + completion_tokens,
-            total_time=generation.get("total_time"),
+            total_time=round(generation.get("total_time"), 2),
         )
     elif "finish_reason" in generation:
         # Get the finish reason from the generation
@@ -474,46 +474,94 @@ async def generate_tool_calls(
 ):
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
-
-    # Tracks which generations asked for a tool call
-    tool_idx: List[int] = []
+    tool_end = model.container.prompt_template.metadata.tool_end
+    if not tool_end:
+        tool_end = tool_start
 
     # Copy to make sure the parent JSON schema doesn't get modified
     tool_data = data.model_copy(deep=True)
     tool_data.json_schema = TOOL_CALL_SCHEMA
 
     for idx, gen in enumerate(generations):
-        if gen["stop_str"] != tool_start:
-            continue
+        # Initialize tool_calls for each generation
+        gen["tool_calls"] = []
 
-        logger.info(f"Detected tool call in chat completion request {request.state.id}")
+    processToolCalls = True
+    while processToolCalls:
+        tool_idx: List[int] = []  # <-- Move inside the loop to reset each iteration
+        for idx, gen in enumerate(generations):
+            processToolCalls = False
+            if gen["stop_str"] != tool_start:
+                continue
 
-        # Append the existing generation text if present
-        precursor_text = current_generation_text or gen.get("text")
-        if precursor_text:
-            prompt = prompt + precursor_text
+            logger.info(f"Detected tool call in chat completion request {request.state.id}")
 
-        gen_request_id = _parse_gen_request_id(data.n, request.state.id, idx)
-        tool_request_id = f"{gen_request_id}-tool"
+            # Append the existing generation text if present
+            precursor_text = current_generation_text or gen.get("text")
+            if precursor_text:
+                prompt = prompt + precursor_text
 
-        gen_tasks.append(
-            asyncio.create_task(
-                model.container.generate(
-                    tool_request_id,
-                    prompt,
-                    tool_data,
-                    mm_embeddings=embeddings,
+            # Append all previous tool_calls, each encapsulated within tool_start and tool_end
+            if gen["tool_calls"]:
+                for tool_call in gen["tool_calls"]:
+                    prompt += f"{tool_start}{tool_call}{tool_end}"
+            prompt = f"{prompt}{tool_start}"
+
+            gen_request_id = _parse_gen_request_id(data.n, request.state.id, idx)
+            tool_request_id = f"{gen_request_id}-tool"
+
+            gen_tasks.append(
+                asyncio.create_task(
+                    model.container.generate(
+                        tool_request_id,
+                        prompt,
+                        tool_data,
+                        mm_embeddings=embeddings,
+                    )
                 )
             )
-        )
 
-        tool_idx.append(idx)
+            tool_idx.append(idx)
 
-    if len(tool_idx) > 0:
-        tool_calls = await asyncio.gather(*gen_tasks)
+        if len(tool_idx) > 0:
+            tool_calls = await asyncio.gather(*gen_tasks)
+            gen_tasks.clear()
+            logger.info(f"Generated tool calls for chat completion request {tool_calls}")
 
-        # Map tool calls to their appropriate generation
-        for gen_idx, tool_call in zip(tool_idx, tool_calls, strict=True):
-            generations[gen_idx]["tool_calls"] = tool_call["text"]
+            # Map tool calls to their appropriate generation
+            for gen_idx, tool_call in zip(tool_idx, tool_calls, strict=True):
+                # Remove tool_end at the end of tool_call["text"]
+                tool_call_text = tool_call["text"].strip()
+                if tool_end and tool_call_text.endswith(tool_end):
+                    tool_call_text = tool_call_text[: -len(tool_end)]
 
+                generations[gen_idx]["tool_calls"].append(tool_call_text)
+                generations[gen_idx]["stop_str"] = tool_call["stop_str"]
+                generations[gen_idx]["prompt_tokens"] += tool_call.get("prompt_tokens", 0)
+                generations[gen_idx]["prompt_time"] += tool_call.get("prompt_time", 0)
+                generations[gen_idx]["prompt_tokens_per_sec"] = round(
+                    generations[gen_idx].get("prompt_tokens", 0) / generations[gen_idx].get("prompt_time", 1), 2
+                )
+
+                generations[gen_idx]["gen_tokens"] += tool_call.get("gen_tokens", 0)
+                generations[gen_idx]["gen_time"] += tool_call.get("gen_time", 0)
+                generations[gen_idx]["gen_tokens_per_sec"] = round(
+                    generations[gen_idx].get("gen_tokens", 0) / generations[gen_idx].get("gen_time", 1), 2
+                )
+
+                generations[gen_idx]["total_time"] += tool_call.get("total_time", 0)
+                generations[gen_idx]["queue_time"] += tool_call.get("queue_time", 0)
+                generations[gen_idx]["cached_tokens"] = tool_call.get("cached_tokens", 0)
+                generations[gen_idx]["generated_tokens"] = tool_call.get("generated_tokens", 0)
+
+                if tool_call["stop_str"] == tool_start:
+                    # If the tool call ends with the tool_start, it means another tool call is required
+                    processToolCalls = True
+        
+
+    for idx, gen in enumerate(generations):
+        # Stringify tool calls
+        if gen["tool_calls"]:
+            gen["tool_calls"] = "[" + ", ".join(str(tool_call) for tool_call in gen["tool_calls"]) + "]"
+    
     return generations
