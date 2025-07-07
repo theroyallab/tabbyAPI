@@ -30,6 +30,7 @@ class TemplateMetadata:
 
     stop_strings: List[str] = field(default_factory=list)
     tool_start: Optional[str] = None
+    tool_end: Optional[str] = None
 
 
 class PromptTemplate:
@@ -75,6 +76,9 @@ class PromptTemplate:
         if hasattr(template_module, "tool_start"):
             if isinstance(template_module.tool_start, str):
                 template_metadata.tool_start = template_module.tool_start
+        if hasattr(template_module, "tool_end"):
+            if isinstance(template_module.tool_end, str):
+                template_metadata.tool_end = template_module.tool_end
 
         self.metadata = template_metadata
         return template_metadata
