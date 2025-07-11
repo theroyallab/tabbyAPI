@@ -70,12 +70,11 @@ def _create_response(
 
             logprob_response = ChatCompletionLogprobs(content=collected_token_probs)
 
-        # Initialize finish_reason with a default value or from generation data
-        finish_reason = generation.get("finish_reason", "stop")
-
-        # If a tool call is present, mark the finish reason as such
+        # Set finish reason
         if message.tool_calls:
             finish_reason = "tool_calls"
+        else:
+            finish_reason = generation.get("finish_reason", "stop")
 
         choice = ChatCompletionRespChoice(
             index=index,
@@ -152,7 +151,6 @@ def _create_stream_chunk(
             choice.finish_reason = "tool_calls"
 
         choices.append(choice)
-
     else:
         message = ChatCompletionMessage(
             role="assistant", content=unwrap(generation.get("text"), "")

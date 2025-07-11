@@ -11,7 +11,6 @@ TOOL_CALL_SCHEMA = {
     "items": {
         "type": "object",
         "properties": {
-            "id": {"type": "string"},
             "function": {
                 "type": "object",
                 "properties": {
@@ -23,9 +22,8 @@ TOOL_CALL_SCHEMA = {
                 },
                 "required": ["name", "arguments"],
             },
-            "type": {"type": "string", "enum": ["function"]},
         },
-        "required": ["id", "function", "type"],
+        "required": ["function"],
     },
 }
 

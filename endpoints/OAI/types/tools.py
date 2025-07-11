@@ -1,5 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, Literal
+from uuid import uuid4
 
 
 class Function(BaseModel):
@@ -29,6 +30,6 @@ class Tool(BaseModel):
 class ToolCall(BaseModel):
     """Represents an OAI tool description."""
 
-    id: str
+    id: str = Field(default_factory=lambda: str(uuid4()).replace("-", "")[:9])
     function: Tool
-    type: Literal["function"]
+    type: Literal["function"] = "function"
