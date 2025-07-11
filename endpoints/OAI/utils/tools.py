@@ -5,6 +5,29 @@ from typing import List
 from endpoints.OAI.types.tools import ToolCall
 
 
+TOOL_CALL_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "function": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "arguments": {
+                        # Converted to OAI's string in post process
+                        "type": "object"
+                    },
+                },
+                "required": ["name", "arguments"],
+            },
+        },
+        "required": ["function"],
+    },
+}
+
+
 class ToolCallProcessor:
     @staticmethod
     def from_json(tool_calls_str: str) -> List[ToolCall]:

@@ -1,12 +1,14 @@
 {# Metadata #} 
 {%- set stop_strings = ["<|im_start|>", "<|im_end|>"] -%}
-{%- set message_roles = ['system', 'user', 'assistant', 'tool'] -%}
 {%- set tool_start = "<|tool_start|>" -%}
+
+{# Variables #}
+{%- set message_roles = ['system', 'user', 'assistant', 'tool'] -%}
 {%- set tool_end = "<|tool_end|>" -%}
 {%- set start_header = "<|start_header_id|>" -%}
 {%- set end_header = "<|end_header_id|>\n" -%}
 
-{%- set example_tool_call = '[
+{%- set example_tool_call -%}[
     {
         "id": "tool_id_1342",
         "function": {
@@ -23,28 +25,19 @@
         },
         "type": "function"
     }
-]' -%}
+]
+{%- endset -%}
 
-{%- set inital_system_prompt = 'You are an assistant that has access to the following set of tools, to call a tool:
-1. Prefix calls with ' + tool_start + ' and end calls with ' + tool_end + '
+{%- set inital_system_prompt -%}You are an assistant that has access to the following set of tools, to call a tool:
+1. Prefix calls with '{{ tool_start }}' and end calls with '{{ tool_end }}'
 2. Ensure you use the correct type for arguments. For example, if the argument is a string, ensure it is enclosed in quotes, otherwise, it should not be.
 3. Generate all calls using the following json tool call format. Here is a multi tool call example:
 
-' + tool_start + example_tool_call + tool_end + '
+{{ tool_start }}{{ example_tool_call }}{{ tool_end }}
 
 Here are the tools available for you to call:
-' + tools_json -%}
-
-{%- set tool_reminder = 'Available Tools:
-' + tools_json + '
-
-Tool Call Format Example:
-' + tool_start + example_tool_call + '
-
-Prefix & Suffix: Begin tool calls with ' + tool_start + ' and end with ' + tool_end + '.
-Argument Types: Use correct data types for arguments (e.g., strings in quotes, numbers without).' -%}
-
-{# Template #}
+{{ tools | tojson(indent=2) }}
+{%- endset -%}
 
 {%- for message in messages -%}
     {%- set role = message['role'] | lower -%}
@@ -54,28 +47,23 @@ Argument Types: Use correct data types for arguments (e.g., strings in quotes, n
 
     {%- set content = message['content'] if message['content'] is defined else '' | trim -%}
     {%- if loop.first -%}
-{{ bos_token }}{{ start_header }}{{ role }}{{ end_header }}
-{{ inital_system_prompt }}
+    {{- bos_token }}{{ start_header }}{{ role }}{{ end_header }}
+    {{- inital_system_prompt + "\n\n" }}
 
-{{ content }}{{ eos_token }}
+    {{- content }}{{ eos_token }}
     {%- endif -%}
 
     {%- if not loop.first -%}
-{{ start_header }}{{ role }}{{ end_header }}
-{{ content }}
-        {%- if 'tool_calls_json' in message and message['tool_calls_json'] -%}
-{{ tool_start }}{{ message['tool_calls_json']}}{{ tool_end }}
+        {{- start_header }}{{ role }}{{ end_header }}
+        {{- content }}
+        {%- if 'tool_calls' in message and message['tool_calls'] -%}
+            {{- tool_start }}{{ message['tool_calls'] | tojson(indent=2) }}{{ tool_end }}
         {%- endif -%}
-{{ eos_token }}
+    {{- eos_token }}
 
     {%- endif -%}
 {%- endfor -%}
 
-{%- if tool_precursor -%}
-{{ start_header }}system{{ end_header }}
-{{ tool_reminder }}{{ eos_token }}
-{{ start_header }}assistant{{ end_header }}
-{{ tool_precursor }}{{ tool_start }}
-{%- else -%}
-{{ start_header }}assistant{{ end_header }}
-{%- endif -%}
+{%- if add_generation_prompt %}
+    {{- start_header }}assistant{{ end_header }}
+{%- endif %}
