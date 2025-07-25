@@ -909,7 +909,9 @@ class ExllamaV2Container(BaseModelContainer):
             generations.append(generation)
 
         joined_generation = {
+            "request_id": "",
             "text": "",
+            "full_text": "",
             "prompt_tokens": 0,
             "gen_tokens": 0,
             "tool_calls": None,
@@ -923,12 +925,12 @@ class ExllamaV2Container(BaseModelContainer):
             if "finish_reason" in generations[-1]:
                 finish_chunk = generations.pop()
                 joined_generation = {**joined_generation, **finish_chunk}
+                joined_generation["text"] = joined_generation.get("full_text", "")
             else:
                 joined_generation["finish_reason"] = "stop"
 
         if len(generations) > 0:
             for generation in generations:
-                joined_generation["text"] += unwrap(generation.get("text"), "")
                 joined_generation["offset"].append(unwrap(generation.get("offset"), -1))
                 joined_generation["token_probs"].update(
                     unwrap(generation.get("token_probs"), {})
@@ -1170,7 +1172,7 @@ class ExllamaV2Container(BaseModelContainer):
             }
 
     # Creates and returns a finish chunk
-    def handle_finish_chunk(self, result: dict, generation: dict):
+    def handle_finish_chunk(self, result: dict, request_id: str, full_text: str):
         eos_reason = result.get("eos_reason")
 
         stop_str = None
@@ -1204,6 +1206,7 @@ class ExllamaV2Container(BaseModelContainer):
         total_time = round(queue_time + prompt_time + gen_time, 2)
 
         finish_chunk = {
+            "request_id": request_id,
             "prompt_tokens": prompt_tokens,
             "prompt_time": round(prompt_time, 2),
             "prompt_tokens_per_sec": prompt_ts,
@@ -1215,6 +1218,7 @@ class ExllamaV2Container(BaseModelContainer):
             "cached_tokens": cached_tokens,
             "finish_reason": finish_reason,
             "stop_str": stop_str,
+            "full_text": full_text,
         }
 
         return finish_chunk
@@ -1414,6 +1418,7 @@ class ExllamaV2Container(BaseModelContainer):
                         generated_tokens += chunk_tokens.size(dim=0)
 
                     generation = {
+                        "request_id": request_id,
                         "text": chunk,
                         "prompt_tokens": context_len,
                         "generated_tokens": generated_tokens,
@@ -1434,7 +1439,9 @@ class ExllamaV2Container(BaseModelContainer):
                     if result.get("eos"):
                         log_response(request_id, full_response)
 
-                        finish_chunk = self.handle_finish_chunk(result, generation)
+                        finish_chunk = self.handle_finish_chunk(
+                            result, request_id, full_response
+                        )
 
                         # Save the final result for metrics logging
                         metrics_result = finish_chunk

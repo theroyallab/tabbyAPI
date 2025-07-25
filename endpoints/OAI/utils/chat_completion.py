@@ -364,7 +364,6 @@ async def stream_generate_chat_completion(
                         data,
                         [generation],
                         request,
-                        current_generation_text=current_generation_text,
                     )
 
                     # Only one generation present in this case
@@ -468,7 +467,6 @@ async def generate_tool_calls(
     data: ChatCompletionRequest,
     generations: List[str],
     request: Request,
-    current_generation_text: str = None,
 ):
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
@@ -487,11 +485,11 @@ async def generate_tool_calls(
         logger.info(f"Detected tool call in chat completion request {request.state.id}")
 
         # Append the existing generation text if present
-        precursor_text = current_generation_text or gen.get("text")
+        precursor_text = gen.get("full_text")
         if precursor_text:
             prompt = prompt + precursor_text
 
-        gen_request_id = _parse_gen_request_id(data.n, request.state.id, idx)
+        gen_request_id = gen.get("request_id")
         tool_request_id = f"{gen_request_id}-tool"
 
         gen_tasks.append(
