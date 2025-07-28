@@ -1,8 +1,12 @@
 """The main tabbyAPI module. Contains the FastAPI server and endpoints."""
 
+# Set this env var for cuda malloc async before torch is initalized
+import os
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
+
 import argparse
 import asyncio
-import os
 import pathlib
 import platform
 import signal
@@ -153,11 +157,6 @@ def entrypoint(
         )
 
         raise SystemExit(install_message)
-
-    # Enable CUDA malloc backend
-    if config.developer.cuda_malloc_backend:
-        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
-        logger.warning("EXPERIMENTAL: Enabled the pytorch CUDA malloc backend.")
 
     # Set the process priority
     if config.developer.realtime_process_priority:
