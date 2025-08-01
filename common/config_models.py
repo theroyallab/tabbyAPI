@@ -419,9 +419,6 @@ class DeveloperConfig(BaseConfigModel):
     disable_request_streaming: Optional[bool] = Field(
         False, description=("Disable API request streaming (default: False).")
     )
-    cuda_malloc_backend: Optional[bool] = Field(
-        False, description=("Enable the torch CUDA malloc backend (default: False).")
-    )
     realtime_process_priority: Optional[bool] = Field(
         False,
         description=(
