@@ -160,6 +160,7 @@ class ExllamaV3Container(BaseModelContainer):
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
         gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
+        use_tp = unwrap(kwargs.get("tensor_parallel"), False)
         gpu_split = unwrap(kwargs.get("gpu_split"), None)
         gpu_device_list = list(range(0, gpu_count))
 
@@ -168,9 +169,13 @@ class ExllamaV3Container(BaseModelContainer):
             self.gpu_split_auto = False
             logger.info("Disabling GPU split because one GPU is in use.")
         else:
-            # TODO: Set tensor parallel
+            # Set tensor parallel
+            if use_tp:
+                self.use_tp = True
 
-            # Set GPU split options
+                # TP has its own autosplit loader
+                self.gpu_split_auto = False
+
             # Enable manual GPU split if provided
             if gpu_split:
                 self.gpu_split = gpu_split
@@ -450,9 +455,11 @@ class ExllamaV3Container(BaseModelContainer):
                     yield value
 
         for value in self.model.load_gen(
+            tensor_p=self.use_tp,
             reserve_per_device=self.autosplit_reserve,
             use_per_device=self.gpu_split,
             callback=progress_callback,
+            progressbar=True,
         ):
             if value:
                 yield value

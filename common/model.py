@@ -127,6 +127,7 @@ async def unload_model(skip_wait: bool = False, shutdown: bool = False):
 async def load_model_gen(model_path: pathlib.Path, **kwargs):
     """Generator to load a model"""
     global container
+    loading_task = None
 
     # Check if the model is already loaded
     if container and container.model:
@@ -205,14 +206,14 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 loading_task = progress.add_task(
                     f"[cyan]Loading {current_model_type} modules", total=modules
                 )
-            else:
+            elif loading_task:
                 progress.advance(loading_task)
 
             yield module, modules, current_model_type
 
             if module == modules:
                 # Switch to model progress if the draft model is loaded
-                if index == len(model_type):
+                if index + 1 == len(model_type):
                     progress.stop()
                 else:
                     index += 1
