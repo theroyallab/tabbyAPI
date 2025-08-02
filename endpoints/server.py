@@ -1,8 +1,11 @@
 import asyncio
+from contextlib import asynccontextmanager
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+import torch
+import torch.distributed as dist
 from typing import Optional
 
 from common.logger import UVICORN_LOG_CONFIG
@@ -11,6 +14,13 @@ from common.tabby_config import config
 from endpoints.Kobold import router as KoboldRouter
 from endpoints.OAI import router as OAIRouter
 from endpoints.core.router import router as CoreRouter
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+    torch.cuda.synchronize()
+    dist.destroy_process_group()
 
 
 def setup_app(host: Optional[str] = None, port: Optional[int] = None):
@@ -24,6 +34,7 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
             "like Postman or a frontend UI."
         ),
         dependencies=get_global_depends(),
+        lifespan=lifespan,
     )
 
     # ALlow CORS requests
