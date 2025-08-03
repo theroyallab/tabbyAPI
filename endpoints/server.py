@@ -19,8 +19,11 @@ from endpoints.core.router import router as CoreRouter
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     yield
-    torch.cuda.synchronize()
-    dist.destroy_process_group()
+    try:
+        torch.cuda.synchronize()
+        dist.destroy_process_group()
+    except AssertionError:
+        pass
 
 
 def setup_app(host: Optional[str] = None, port: Optional[int] = None):
