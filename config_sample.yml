@@ -216,9 +216,6 @@ developer:
   # Disable API request streaming (default: False).
   disable_request_streaming: false
 
-  # Enable the torch CUDA malloc backend (default: False).
-  cuda_malloc_backend: false
-
   # Set process to use a higher priority.
   # For realtime process priority, run as administrator or sudo.
   # Otherwise, the priority will be set to high.

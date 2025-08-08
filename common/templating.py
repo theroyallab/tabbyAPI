@@ -218,6 +218,7 @@ async def find_prompt_template(template_name, model_dir: pathlib.Path):
     logger.info("Attempting to load a prompt template if present.")
 
     find_template_functions = [
+        lambda: PromptTemplate.from_file(model_dir / "chat_template.jinja"),
         lambda: PromptTemplate.from_model_json(
             model_dir / "chat_template.json",
             key="chat_template",
