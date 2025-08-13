@@ -150,8 +150,8 @@ def entrypoint(
             f"update_deps.{'bat' if platform.system() == 'Windows' else 'sh'})\n\n"
             "Or you can manually run a requirements update "
             "using the following command:\n\n"
-            "For CUDA 12.1:\n"
-            "pip install --upgrade .[cu121]\n\n"
+            "For CUDA 12.8:\n"
+            "pip install --upgrade .[cu128]\n\n"
             "For ROCm:\n"
             "pip install --upgrade .[amd]\n\n"
         )
