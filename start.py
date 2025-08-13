@@ -41,12 +41,12 @@ def get_user_choice(question: str, options_dict: dict):
 def get_install_features(lib_name: str = None):
     """Fetches the appropriate requirements file depending on the GPU"""
     install_features = None
-    possible_features = ["cu121", "cu118", "amd"]
+    possible_features = ["cu128", "cu118", "amd"]
 
     if not lib_name:
         # Ask the user for the GPU lib
         gpu_lib_choices = {
-            "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu121"},
+            "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu128"},
             "B": {"pretty": "NVIDIA Cuda 11.8 (Unsupported)", "internal": "cu118"},
             "C": {"pretty": "AMD", "internal": "amd"},
         }
@@ -135,7 +135,7 @@ def add_start_args(parser: argparse.ArgumentParser):
     start_group.add_argument(
         "--gpu-lib",
         type=str,
-        help="Select GPU library. Options: cu121, cu118, amd",
+        help="Select GPU library. Options: cu128, cu118, amd",
     )
 
 
