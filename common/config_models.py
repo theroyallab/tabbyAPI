@@ -406,10 +406,13 @@ class SamplingConfig(BaseConfigModel):
     override_preset: Optional[str] = Field(
         None,
         description=(
-            "Select a sampler override preset (default: None).\n"
+            "Select a sampler override preset (default: safe_defaults).\n"
             "Find this in the sampler-overrides folder.\n"
             "This overrides default fallbacks for sampler values "
-            "that are passed to the API."
+            "that are passed to the API.\n"
+            "NOTE: safe_defaults preset provides a fallback for frontends "
+            "that do not pass sampling params.\n"
+            "Remove it if not necessary."
         ),
     )
 

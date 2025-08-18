@@ -208,10 +208,12 @@ embeddings:
 
 # Options for Sampling
 sampling:
-  # Select a sampler override preset (default: None).
+  # Select a sampler override preset (default: safe_defaults).
   # Find this in the sampler-overrides folder.
   # This overrides default fallbacks for sampler values that are passed to the API.
-  override_preset:
+  # NOTE: safe_defaults preset provides a fallback for frontends that do not pass sampling params.
+  # Remove it if not necessary.
+  override_preset: safe_defaults
 
 # Options for development and experimentation
 developer:
