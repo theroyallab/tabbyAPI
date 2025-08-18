@@ -87,6 +87,12 @@ model:
   # This ignores the gpu_split_auto value.
   tensor_parallel: false
 
+  # Sets a backend type for tensor parallelism. (default: native).
+  # Options: native, nccl
+  # Native is recommended for PCIe GPUs
+  # NCCL is recommended for NVLink.
+  tensor_parallel_backend: native
+
   # Automatically allocate resources to GPUs (default: True).
   # Not parsed for single GPU users.
   gpu_split_auto: true

@@ -183,9 +183,18 @@ class ModelConfig(BaseConfigModel):
     tensor_parallel: Optional[bool] = Field(
         False,
         description=(
-            "Load model with tensor parallelism.\n"
+            "Load model with tensor parallelism (default: False).\n"
             "Falls back to autosplit if GPU split isn't provided.\n"
             "This ignores the gpu_split_auto value."
+        ),
+    )
+    tensor_parallel_backend: Optional[str] = Field(
+        "native",
+        description=(
+            "Sets a backend type for tensor parallelism. (default: native).\n"
+            "Options: native, nccl\n"
+            "Native is recommended for PCIe GPUs\n"
+            "NCCL is recommended for NVLink."
         ),
     )
     gpu_split_auto: Optional[bool] = Field(
