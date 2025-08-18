@@ -90,6 +90,7 @@ class ModelLoadRequest(BaseModel):
         examples=[4096],
     )
     tensor_parallel: Optional[bool] = None
+    tensor_parallel_backend: Optional[str] = "native"
     gpu_split_auto: Optional[bool] = None
     autosplit_reserve: Optional[List[float]] = None
     gpu_split: Optional[List[float]] = Field(
