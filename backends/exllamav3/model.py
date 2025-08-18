@@ -188,6 +188,7 @@ class ExllamaV3Container(BaseModelContainer):
             # Set GPU split options
             # Enable manual GPU split if provided
             if gpu_split:
+                self.gpu_split_auto = False
                 self.gpu_split = gpu_split
 
                 # Causes crash if set with GPU split
@@ -463,6 +464,15 @@ class ExllamaV3Container(BaseModelContainer):
             ):
                 if value:
                     yield value
+
+        logger.info("Loading model: " + str(self.model_dir))
+
+        if self.use_tp:
+            logger.info("Loading with tensor parallel")
+        elif self.gpu_split_auto:
+            logger.info("Loading with autosplit")
+        else:
+            logger.info("Loading with a manual GPU split (or a one GPU setup)")
 
         for value in self.model.load_gen(
             tensor_p=self.use_tp,
