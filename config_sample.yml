@@ -179,6 +179,15 @@ draft_model:
   # If this isn't filled in, the draft model is autosplit.
   draft_gpu_split: []
 
+# Options for Sampling
+sampling:
+  # Select a sampler override preset (default: None).
+  # Find this in the sampler-overrides folder.
+  # This overrides default fallbacks for sampler values that are passed to the API.
+  # NOTE: safe_defaults is noob friendly and provides fallbacks for frontends that don't send sampling parameters.
+  # Remove this for any advanced usage.
+  override_preset: safe_defaults
+
 # Options for Loras
 lora:
   # Directory to look for LoRAs (default: loras).
@@ -205,15 +214,6 @@ embeddings:
 
   # An initial embedding model to load on the infinity backend.
   embedding_model_name:
-
-# Options for Sampling
-sampling:
-  # Select a sampler override preset (default: None).
-  # Find this in the sampler-overrides folder.
-  # This overrides default fallbacks for sampler values that are passed to the API.
-  # NOTE: safe_defaults preset provides a fallback for frontends that do not pass sampling params.
-  # Remove it if not necessary.
-  override_preset: safe_defaults
 
 # Options for development and experimentation
 developer:
