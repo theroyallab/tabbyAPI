@@ -9,7 +9,13 @@ import subprocess
 import sys
 import traceback
 from shutil import copyfile
+from typing import List
 
+has_uv = subprocess.run(
+    ["uv", "--version"],
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.DEVNULL
+).returncode == 0
 
 start_options = {}
 
@@ -151,8 +157,14 @@ def migrate_start_options(start_options: dict):
     return migrated
 
 
+def run_pip(command: List[str]):
+    if has_uv:
+        command.insert(0, "uv")
+
+    subprocess.run(command)
+
+
 if __name__ == "__main__":
-    subprocess.run(["pip", "-V"])
 
     # Create an argparser and add extra startup script args
     # Try creating a full argparser if pydantic is installed
@@ -174,6 +186,10 @@ if __name__ == "__main__":
 
     add_start_args(parser)
     args, _ = parser.parse_known_args()
+
+    # Log pip version
+    run_pip(["pip", "-V"])
+
     script_ext = "bat" if platform.system() == "Windows" else "sh"
     do_start_options_write = False
 
@@ -224,7 +240,7 @@ if __name__ == "__main__":
 
         # pip install .[features]
         print(f"Running install command: {' '.join(install_command)}")
-        subprocess.run(install_command)
+        run_pip(install_command)
         print()
 
         if first_run:
