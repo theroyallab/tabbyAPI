@@ -11,11 +11,12 @@ import traceback
 from shutil import copyfile
 from typing import List
 
-has_uv = subprocess.run(
-    ["uv", "--version"],
-    stdout=subprocess.DEVNULL,
-    stderr=subprocess.DEVNULL
-).returncode == 0
+has_uv = (
+    subprocess.run(
+        ["uv", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    ).returncode
+    == 0
+)
 
 start_options = {}
 
@@ -149,7 +150,7 @@ def migrate_start_options(start_options: dict):
 
     # Migrate gpu_lib key
     gpu_lib = start_options.get("gpu_lib")
-    if (gpu_lib == "cu121" or gpu_lib == "cu118"):
+    if gpu_lib == "cu121" or gpu_lib == "cu118":
         print("GPU lib key is legacy, migrating to cu12")
         start_options["gpu_lib"] = "cu12"
         migrated = True
@@ -165,7 +166,6 @@ def run_pip(command: List[str]):
 
 
 if __name__ == "__main__":
-
     # Create an argparser and add extra startup script args
     # Try creating a full argparser if pydantic is installed
     # Otherwise, create an abridged one solely for startup
