@@ -25,6 +25,7 @@ from loguru import logger
 
 from backends.base_model_container import BaseModelContainer
 from backends.exllamav3.sampler import ExllamaV3SamplerBuilder
+from backends.exllamav3.utils import exllama_supports_nccl
 from backends.exllamav3.vision import clear_image_embedding_cache
 from common.concurrency import iterate_in_threadpool
 from common.gen_logging import (
@@ -78,6 +79,7 @@ class ExllamaV3Container(BaseModelContainer):
     gpu_split_auto: bool = True
     autosplit_reserve: Optional[List[float]] = [96 / 1024]
     use_tp: bool = False
+    tp_backend: str = "native"
     max_seq_len: int = 4096
     cache_size: int = 4096
     cache_mode: str = "FP16"
@@ -163,17 +165,30 @@ class ExllamaV3Container(BaseModelContainer):
         gpu_split_auto = unwrap(kwargs.get("gpu_split_auto"), True)
         gpu_split = unwrap(kwargs.get("gpu_split"), None)
         gpu_device_list = list(range(0, gpu_count))
+        use_tp = unwrap(kwargs.get("tensor_parallel"), False)
 
         # Set GPU split options
         if gpu_count == 1:
             self.gpu_split_auto = False
             logger.info("Disabling GPU split because one GPU is in use.")
         else:
-            # TODO: Set tensor parallel
+            # Set tensor parallel
+            if use_tp:
+                self.use_tp = True
+                tp_backend = unwrap(kwargs.get("tensor_parallel_backend"), "native")
+
+                if not exllama_supports_nccl():
+                    tp_backend = "native"
+
+                self.tp_backend = tp_backend
+
+                # TP has its own autosplit loader
+                self.gpu_split_auto = False
 
             # Set GPU split options
             # Enable manual GPU split if provided
             if gpu_split:
+                self.gpu_split_auto = False
                 self.gpu_split = gpu_split
 
                 # Causes crash if set with GPU split
@@ -450,7 +465,18 @@ class ExllamaV3Container(BaseModelContainer):
                 if value:
                     yield value
 
+        logger.info("Loading model: " + str(self.model_dir))
+
+        if self.use_tp:
+            logger.info("Loading with tensor parallel")
+        elif self.gpu_split_auto:
+            logger.info("Loading with autosplit")
+        else:
+            logger.info("Loading with a manual GPU split (or a one GPU setup)")
+
         for value in self.model.load_gen(
+            tensor_p=self.use_tp,
+            tp_backend=self.tp_backend,
             reserve_per_device=self.autosplit_reserve,
             use_per_device=self.gpu_split,
             callback=progress_callback,

@@ -183,9 +183,18 @@ class ModelConfig(BaseConfigModel):
     tensor_parallel: Optional[bool] = Field(
         False,
         description=(
-            "Load model with tensor parallelism.\n"
+            "Load model with tensor parallelism (default: False).\n"
             "Falls back to autosplit if GPU split isn't provided.\n"
             "This ignores the gpu_split_auto value."
+        ),
+    )
+    tensor_parallel_backend: Optional[str] = Field(
+        "native",
+        description=(
+            "Sets a backend type for tensor parallelism. (default: native).\n"
+            "Options: native, nccl\n"
+            "Native is recommended for PCIe GPUs\n"
+            "NCCL is recommended for NVLink."
         ),
     )
     gpu_split_auto: Optional[bool] = Field(
@@ -338,6 +347,23 @@ class DraftModelConfig(BaseConfigModel):
     )
 
 
+class SamplingConfig(BaseConfigModel):
+    """Options for Sampling"""
+
+    override_preset: Optional[str] = Field(
+        None,
+        description=(
+            "Select a sampler override preset (default: None).\n"
+            "Find this in the sampler-overrides folder.\n"
+            "This overrides default fallbacks for sampler values "
+            "that are passed to the API.\n"
+            "NOTE: safe_defaults preset provides a fallback for frontends "
+            "that do not pass sampling params.\n"
+            "Remove it if not necessary."
+        ),
+    )
+
+
 class LoraInstanceModel(BaseConfigModel):
     """Model representing an instance of a Lora."""
 
@@ -388,20 +414,6 @@ class EmbeddingsConfig(BaseConfigModel):
     embedding_model_name: Optional[str] = Field(
         None,
         description=("An initial embedding model to load on the infinity backend."),
-    )
-
-
-class SamplingConfig(BaseConfigModel):
-    """Options for Sampling"""
-
-    override_preset: Optional[str] = Field(
-        None,
-        description=(
-            "Select a sampler override preset (default: None).\n"
-            "Find this in the sampler-overrides folder.\n"
-            "This overrides default fallbacks for sampler values "
-            "that are passed to the API."
-        ),
     )
 
 
