@@ -56,7 +56,7 @@ extras = [
 dev = [
     "ruff == 0.11.10"
 ]
-cu121 = [
+cu12 = [
     # Torch (Extra index URLs not support in pyproject.toml)
     "torch @ https://download.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
     "torch @ https://download.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
