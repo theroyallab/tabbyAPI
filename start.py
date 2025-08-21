@@ -8,15 +8,11 @@ import platform
 import subprocess
 import sys
 import traceback
-from shutil import copyfile
+from shutil import copyfile, which
 from typing import List
 
-has_uv = (
-    subprocess.run(
-        ["uv", "--version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-    ).returncode
-    == 0
-)
+# Checks for uv installation
+has_uv = which("uv") is not None
 
 start_options = {}
 
