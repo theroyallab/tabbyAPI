@@ -150,6 +150,16 @@ model:
   # Enables vision support if the model supports it. (default: False)
   vision: false
 
+  # Enable reasoning parser (default: False).
+  # Do NOT enable this if the model is not a reasoning model (e.g. deepseek-r1 series)
+  reasoning: false
+
+  # The start token for reasoning conetnt (default: "<think>")
+  reasoning_start_token: "<think>"
+
+  # The end token for reasoning conetnt (default: "</think>")
+  reasoning_end_token: "</think>"
+
 # Options for draft models (speculative decoding)
 # This will use more VRAM!
 draft_model:
