@@ -4,8 +4,7 @@ import pytest
 import json
 from endpoints.OAI.utils.xml_tool_processors import (
     GLM45ToolCallProcessor,
-    XMLToolCallProcessorFactory,
-    BaseXMLToolCallProcessor
+    XMLToolCallProcessorFactory
 )
 from endpoints.OAI.types.tools import ToolCall, ToolSpec, Function
 

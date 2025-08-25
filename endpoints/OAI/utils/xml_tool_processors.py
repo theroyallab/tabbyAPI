@@ -5,7 +5,7 @@ import json
 import re
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Tuple
 
 from endpoints.OAI.types.tools import ToolCall, Tool, ToolSpec
 
@@ -29,15 +29,15 @@ class BaseXMLToolCallProcessor(ABC):
         """Parse XML tool calls from text and convert to OpenAI JSON format."""
         pass
     
-    def _parse_arguments(self, json_value: str) -> tuple[Any, bool]:
+    def _parse_arguments(self, json_value: str) -> Tuple[Any, bool]:
         """Parse argument value, trying JSON first, then literal_eval."""
         try:
             try:
                 parsed_value = json.loads(json_value)
-            except:
+            except (json.JSONDecodeError, ValueError):
                 parsed_value = ast.literal_eval(json_value)
             return parsed_value, True
-        except:
+        except (json.JSONDecodeError, ValueError, SyntaxError):
             return json_value, False
     
     def _get_argument_type(self, func_name: str, arg_key: str, tools: List[ToolSpec]) -> Optional[str]:
