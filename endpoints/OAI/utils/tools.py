@@ -44,9 +44,7 @@ class ToolCallProcessor:
 
     @staticmethod
     def from_xml(
-        tool_calls_text: str,
-        tools: List[Tool],
-        xml_processor_type: str = "glm45"
+        tool_calls_text: str, tools: List[Tool], xml_processor_type: str = "glm45"
     ) -> List[ToolCall]:
         """Process XML tool calls and convert to ToolCall objects"""
         try:
@@ -61,25 +59,30 @@ class ToolCallProcessor:
         tool_calls_text: str,
         tools: List[Tool],
         tool_call_format: str = "json",
-        xml_processor_type: Optional[str] = None
+        xml_processor_type: Optional[str] = None,
     ) -> List[ToolCall]:
         """
         Process tool calls from text, detecting format and routing appropriately.
-        
+
         Args:
             tool_calls_text: Raw text containing tool calls
             tools: Available tools for validation
             tool_call_format: Format type ("json" or "xml")
             xml_processor_type: Type of XML processor to use if format is XML
-            
+
         Returns:
             List of parsed ToolCall objects
         """
         if tool_call_format.lower() == "xml":
             if not xml_processor_type:
-                logger.warning("XML format specified but no xml_processor_type provided, using glm45")
+                logger.warning(
+                    "XML format specified but no xml_processor_type provided, "
+                    "using glm45"
+                )
                 xml_processor_type = "glm45"
-            return ToolCallProcessor.from_xml(tool_calls_text, tools, xml_processor_type)
+            return ToolCallProcessor.from_xml(
+                tool_calls_text, tools, xml_processor_type
+            )
         else:
             return ToolCallProcessor.from_json(tool_calls_text)
 

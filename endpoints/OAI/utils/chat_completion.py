@@ -152,12 +152,12 @@ def _create_stream_chunk(
                     tool_calls,
                     [],  # We don't have tools context in streaming
                     tool_call_format="xml",
-                    xml_processor_type=template_metadata.xml_processor_type
+                    xml_processor_type=template_metadata.xml_processor_type,
                 )
             else:
                 # Default to JSON processor
                 processed_tool_calls = ToolCallProcessor.from_json(tool_calls)
-            
+
             message = ChatCompletionMessage(tool_calls=processed_tool_calls)
             choice.delta = message
             choice.finish_reason = "tool_calls"
@@ -457,7 +457,9 @@ async def generate_chat_completion(
                 prompt, embeddings, data, generations, request
             )
 
-        response = _create_response(request.state.id, generations, model_path.name, data.tools)
+        response = _create_response(
+            request.state.id, generations, model_path.name, data.tools
+        )
 
         logger.info(f"Finished chat completion request {request.state.id}")
 

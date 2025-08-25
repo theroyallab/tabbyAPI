@@ -89,7 +89,9 @@ class PromptTemplate:
 
         if hasattr(template_module, "xml_processor_type"):
             if isinstance(template_module.xml_processor_type, str):
-                template_metadata.xml_processor_type = template_module.xml_processor_type
+                template_metadata.xml_processor_type = (
+                    template_module.xml_processor_type
+                )
 
         self.metadata = template_metadata
         return template_metadata
