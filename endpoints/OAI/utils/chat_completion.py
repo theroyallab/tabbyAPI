@@ -27,13 +27,14 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionResponse,
     ChatCompletionStreamChoice,
 )
+from endpoints.OAI.types.tools import ToolSpec
 from endpoints.OAI.types.common import UsageStats
 from endpoints.OAI.utils.completion import _parse_gen_request_id, _stream_collector
 from endpoints.OAI.utils.tools import ToolCallProcessor, TOOL_CALL_SCHEMA
 
 
 def _create_response(
-    request_id: str, generations: List[dict], model_name: Optional[str]
+    request_id: str, generations: List[dict], model_name: Optional[str], tools: Optional[List[ToolSpec]] = None
 ):
     """Create a chat completion response from the provided text."""
 
