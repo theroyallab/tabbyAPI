@@ -34,7 +34,10 @@ from endpoints.OAI.utils.tools import ToolCallProcessor, TOOL_CALL_SCHEMA
 
 
 def _create_response(
-    request_id: str, generations: List[dict], model_name: Optional[str], tools: Optional[List[ToolSpec]] = None
+    request_id: str,
+    generations: List[dict],
+    model_name: Optional[str],
+    tools: Optional[List[ToolSpec]] = None,
 ):
     """Create a chat completion response from the provided text."""
 
