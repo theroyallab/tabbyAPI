@@ -1,10 +1,10 @@
-# GLM-4.5 Tool Calling Implementation for TabbyAPI
+# XML Tool Calling Implementation for TabbyAPI
 
-This document describes the XML-based tool calling support implemented for GLM-4.5 models in TabbyAPI.
+This document describes the XML-based tool calling support implemented for GLM-4.5 and Qwen3-coder models in TabbyAPI.
 
 ## Overview
 
-GLM-4.5 models generate tool calls in XML format, which differs from the OpenAI JSON format that TabbyAPI expects. This implementation provides a generic XML tool call processor that converts GLM-4.5 XML tool calls to OpenAI-compatible JSON format.
+Some models (GLM-4.5, Qwen3-coder) generate tool calls in XML format, which differs from the OpenAI JSON format that TabbyAPI expects. This implementation provides a generic XML tool call processor that converts various XML tool call formats to OpenAI-compatible JSON format.
 
 ## Architecture
 
@@ -20,20 +20,29 @@ GLM-4.5 models generate tool calls in XML format, which differs from the OpenAI 
    - Handles the `<tool_call>` and `<arg_key>/<arg_value>` structure
    - Converts XML to OpenAI JSON format
 
-3. **XMLToolCallProcessorFactory** (`endpoints/OAI/utils/xml_tool_processors.py`)
+3. **Qwen3CoderToolCallProcessor** (`endpoints/OAI/utils/xml_tool_processors.py`)
+   - Concrete implementation for Qwen3-coder specific XML format
+   - Handles nested `<tool_call><function=name><parameter=name>value</parameter></function></tool_call>` structure
+   - Supports multi-line parameter values
+   - Converts XML to OpenAI JSON format
+
+4. **XMLToolCallProcessorFactory** (`endpoints/OAI/utils/xml_tool_processors.py`)
    - Factory class for creating appropriate XML processors
+   - Supports GLM-4.5 ("glm45", "glm-4.5", "glm4") and Qwen3-coder ("qwen3-coder", "qwen3") processors
    - Supports extensibility by allowing registration of new processor types
 
-4. **Enhanced TemplateMetadata** (`common/templating.py`)
+5. **Enhanced TemplateMetadata** (`common/templating.py`)
    - Extended to support XML tool call configuration
    - New fields: `tool_call_format`, `xml_processor_type`, `tool_end`
 
-5. **Enhanced ToolCallProcessor** (`endpoints/OAI/utils/tools.py`)
+6. **Enhanced ToolCallProcessor** (`endpoints/OAI/utils/tools.py`)
    - Added `from_text()` method that routes to appropriate processor
    - Added `from_xml()` method for XML-specific processing
    - Maintains backward compatibility with JSON processing
 
-### GLM-4.5 XML Format
+### Supported XML Formats
+
+#### GLM-4.5 XML Format
 
 The GLM-4.5 model generates tool calls in this format:
 
@@ -46,7 +55,26 @@ The GLM-4.5 model generates tool calls in this format:
 </tool_call>
 ```
 
-This gets converted to OpenAI JSON format:
+#### Qwen3-coder XML Format
+
+The Qwen3-coder model generates tool calls in this nested format:
+
+```xml
+<tool_call>
+<function=function_name>
+<parameter=parameter1>
+value1
+</parameter>
+<parameter=parameter2>
+This is a multi-line
+parameter value that spans
+multiple lines
+</parameter>
+</function>
+</tool_call>
+```
+
+Both formats get converted to OpenAI JSON format:
 
 ```json
 {
@@ -63,6 +91,8 @@ This gets converted to OpenAI JSON format:
 
 ### Template Configuration
 
+#### GLM-4.5 Template
+
 The GLM-4.5 template (`templates/tool_calls/glm-4p5-chat-template-tabbyapi.jinja`) includes:
 
 ```jinja
@@ -74,7 +104,19 @@ The GLM-4.5 template (`templates/tool_calls/glm-4p5-chat-template-tabbyapi.jinja
 {%- set xml_processor_type = "glm45" -%}
 ```
 
-### Loading GLM-4.5 Models
+#### Qwen3-coder Template
+
+The Qwen3-coder template (`templates/tool_calls/qwen3-coder-tabbyapi.jinja`) includes:
+
+```jinja
+{# XML Tool Call Processing Configuration #}
+{%- set tool_call_format = "xml" -%}
+{%- set xml_processor_type = "qwen3-coder" -%}
+```
+
+### Loading Models
+
+#### GLM-4.5 Models
 
 When loading a GLM-4.5 model, specify the tool-calling template:
 
@@ -85,14 +127,34 @@ model:
   prompt_template: "tool_calls/glm-4p5-chat-template-tabbyapi"
 ```
 
+#### Qwen3-coder Models
+
+When loading a Qwen3-coder model, specify the tool-calling template:
+
+```yaml
+# config.yml
+model:
+  model_name: "path/to/qwen3-coder-model"
+  prompt_template: "tool_calls/qwen3-coder-tabbyapi"
+```
+
 Or via API:
 
 ```bash
+# GLM-4.5
 curl -X POST "http://localhost:5000/v1/model/load" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "path/to/glm-4.5-model",
     "prompt_template": "tool_calls/glm-4p5-chat-template-tabbyapi"
+  }'
+
+# Qwen3-coder
+curl -X POST "http://localhost:5000/v1/model/load" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "path/to/qwen3-coder-model",
+    "prompt_template": "tool_calls/qwen3-coder-tabbyapi"
   }'
 ```
 

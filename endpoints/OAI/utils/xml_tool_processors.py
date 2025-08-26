@@ -139,13 +139,91 @@ class GLM45ToolCallProcessor(BaseXMLToolCallProcessor):
             return []
 
 
+class Qwen3CoderToolCallProcessor(BaseXMLToolCallProcessor):
+    """
+    Tool call processor for Qwen3-coder models.
+
+    Handles XML format like:
+    <tool_call>
+    <function=example_function_name>
+    <parameter=example_parameter_1>
+    value_1
+    </parameter>
+    <parameter=example_parameter_2>
+    This is the value for the second parameter
+    that can span
+    multiple lines
+    </parameter>
+    </function>
+    </tool_call>
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.tool_start_pattern = "<tool_call>"
+        self.tool_end_pattern = "</tool_call>"
+        self.func_call_regex = r"<tool_call>.*?</tool_call>"
+        self.func_detail_regex = r"<function=([^>]+)>(.*?)</function>"
+        self.param_regex = r"<parameter=([^>]+)>(.*?)</parameter>"
+
+    def has_tool_call(self, text: str) -> bool:
+        """Check if the text contains Qwen3-coder format tool calls."""
+        return self.tool_start_pattern in text
+
+    def parse_xml_to_json(self, text: str, tools: List[ToolSpec]) -> List[ToolCall]:
+        """Parse Qwen3-coder XML tool calls and convert to OpenAI JSON format."""
+        if not self.has_tool_call(text):
+            return []
+
+        # Find all tool call matches
+        match_results = re.findall(self.func_call_regex, text, re.DOTALL)
+        tool_calls = []
+
+        try:
+            for match_result in match_results:
+                # Extract function name and parameters section
+                func_detail = re.search(self.func_detail_regex, match_result, re.DOTALL)
+                if not func_detail:
+                    logger.warning(f"Could not parse tool call: {match_result}")
+                    continue
+
+                func_name = func_detail.group(1).strip()
+                func_content = func_detail.group(2).strip()
+
+                # Extract parameter name-value pairs
+                param_pairs = re.findall(self.param_regex, func_content, re.DOTALL)
+                arguments = {}
+
+                for param_name, param_value in param_pairs:
+                    param_name = param_name.strip()
+                    param_value = param_value.strip()
+
+                    # Get expected argument type from tool definition
+                    arg_type = self._get_argument_type(func_name, param_name, tools)
+
+                    # Parse non-string arguments
+                    if arg_type != "string":
+                        param_value, _ = self._parse_arguments(param_value)
+
+                    arguments[param_name] = param_value
+
+                # Create ToolCall object
+                tool_call = self._create_tool_call(func_name, arguments)
+                tool_calls.append(tool_call)
+
+            return tool_calls
+
+        except Exception as e:
+            logger.error(f"Error parsing Qwen3-coder XML tool calls: {e}")
+            return []
+
+
 class XMLToolCallProcessorFactory:
     """Factory for creating appropriate XML tool call processors."""
 
     _processors = {
         "glm45": GLM45ToolCallProcessor,
-        "glm-4.5": GLM45ToolCallProcessor,
-        "glm4": GLM45ToolCallProcessor,
+        "qwen3-coder": Qwen3CoderToolCallProcessor,
     }
 
     @classmethod

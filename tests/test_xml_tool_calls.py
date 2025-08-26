@@ -4,6 +4,7 @@ import pytest
 import json
 from endpoints.OAI.utils.xml_tool_processors import (
     GLM45ToolCallProcessor,
+    Qwen3CoderToolCallProcessor,
     XMLToolCallProcessorFactory,
 )
 from endpoints.OAI.types.tools import ToolCall, ToolSpec, Function
@@ -213,7 +214,7 @@ class TestXMLToolCallProcessorFactory:
 
     def test_create_glm45_processor_variations(self):
         """Test creating GLM-4.5 processor with different name variations."""
-        for name in ["glm45", "glm-4.5", "GLM45", "GLM-4.5"]:
+        for name in ["glm45", "GLM45"]:
             processor = XMLToolCallProcessorFactory.create_processor(name)
             assert isinstance(processor, GLM45ToolCallProcessor)
 
@@ -222,12 +223,271 @@ class TestXMLToolCallProcessorFactory:
         with pytest.raises(ValueError, match="Unknown XML tool call processor type"):
             XMLToolCallProcessorFactory.create_processor("unknown_processor")
 
+    def test_create_qwen3_coder_processor(self):
+        """Test creating Qwen3-coder processor."""
+        processor = XMLToolCallProcessorFactory.create_processor("qwen3-coder")
+        assert isinstance(processor, Qwen3CoderToolCallProcessor)
+
+    def test_create_qwen3_coder_processor_variations(self):
+        """Test creating Qwen3-coder processor with different name variations."""
+        for name in ["qwen3-coder", "QWEN3-CODER"]:
+            processor = XMLToolCallProcessorFactory.create_processor(name)
+            assert isinstance(processor, Qwen3CoderToolCallProcessor)
+
     def test_get_available_processors(self):
         """Test getting list of available processors."""
         processors = XMLToolCallProcessorFactory.get_available_processors()
         assert "glm45" in processors
-        assert "glm-4.5" in processors
-        assert "glm4" in processors
+        assert "qwen3-coder" in processors
+
+
+class TestQwen3CoderToolCallProcessor:
+    """Test Qwen3-coder XML tool call processor."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.processor = Qwen3CoderToolCallProcessor()
+        self.sample_tools = [
+            ToolSpec(
+                type="function",
+                function=Function(
+                    name="get_weather",
+                    description="Get weather information for a city",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "city": {"type": "string", "description": "City name"},
+                            "date": {
+                                "type": "string",
+                                "description": "Date in YYYY-MM-DD format",
+                            },
+                            "units": {
+                                "type": "string",
+                                "description": "Temperature units",
+                            },
+                        },
+                    },
+                ),
+            ),
+            ToolSpec(
+                type="function",
+                function=Function(
+                    name="calculate_sum",
+                    description="Calculate the sum of numbers",
+                    parameters={
+                        "type": "object",
+                        "properties": {
+                            "numbers": {
+                                "type": "array",
+                                "description": "List of numbers",
+                            },
+                            "precision": {
+                                "type": "integer",
+                                "description": "Decimal precision",
+                            },
+                        },
+                    },
+                ),
+            ),
+        ]
+
+    def test_has_tool_call_positive(self):
+        """Test detection of Qwen3-coder XML tool calls."""
+        text_with_tool = """Some text before
+<tool_call>
+<function=get_weather>
+<parameter=city>
+Beijing
+</parameter>
+</function>
+</tool_call>
+Some text after"""
+
+        assert self.processor.has_tool_call(text_with_tool) is True
+
+    def test_has_tool_call_negative(self):
+        """Test when no tool calls are present."""
+        text_without_tool = "This is just regular text with no tool calls."
+
+        assert self.processor.has_tool_call(text_without_tool) is False
+
+    def test_parse_single_tool_call(self):
+        """Test parsing a single Qwen3-coder XML tool call."""
+        xml_text = """<tool_call>
+<function=get_weather>
+<parameter=city>
+Beijing
+</parameter>
+<parameter=date>
+2024-06-27
+</parameter>
+</function>
+</tool_call>"""
+
+        result = self.processor.parse_xml_to_json(xml_text, self.sample_tools)
+
+        assert len(result) == 1
+        assert isinstance(result[0], ToolCall)
+        assert result[0].function.name == "get_weather"
+
+        arguments = json.loads(result[0].function.arguments)
+        assert arguments["city"] == "Beijing"
+        assert arguments["date"] == "2024-06-27"
+
+    def test_parse_multiple_tool_calls(self):
+        """Test parsing multiple Qwen3-coder XML tool calls."""
+        xml_text = """<tool_call>
+<function=get_weather>
+<parameter=city>
+Beijing
+</parameter>
+<parameter=date>
+2024-06-27
+</parameter>
+</function>
+</tool_call>
+
+<tool_call>
+<function=calculate_sum>
+<parameter=numbers>
+[1, 2, 3, 4, 5]
+</parameter>
+<parameter=precision>
+2
+</parameter>
+</function>
+</tool_call>"""
+
+        result = self.processor.parse_xml_to_json(xml_text, self.sample_tools)
+
+        assert len(result) == 2
+
+        # First tool call
+        assert result[0].function.name == "get_weather"
+        args1 = json.loads(result[0].function.arguments)
+        assert args1["city"] == "Beijing"
+        assert args1["date"] == "2024-06-27"
+
+        # Second tool call
+        assert result[1].function.name == "calculate_sum"
+        args2 = json.loads(result[1].function.arguments)
+        assert args2["numbers"] == [1, 2, 3, 4, 5]
+        assert args2["precision"] == 2
+
+    def test_parse_with_multiline_parameters(self):
+        """Test parsing Qwen3-coder XML tool calls with multi-line parameter values."""
+        xml_text = """<tool_call>
+<function=get_weather>
+<parameter=city>
+Beijing
+</parameter>
+<parameter=description>
+This is a multi-line
+parameter value that spans
+multiple lines
+</parameter>
+</function>
+</tool_call>"""
+
+        result = self.processor.parse_xml_to_json(xml_text, self.sample_tools)
+
+        assert len(result) == 1
+        arguments = json.loads(result[0].function.arguments)
+        assert arguments["city"] == "Beijing"
+        assert "multi-line" in arguments["description"]
+        assert "multiple lines" in arguments["description"]
+
+    def test_parse_with_json_values(self):
+        """Test parsing Qwen3-coder XML tool calls with JSON-formatted parameter values."""
+        xml_text = """<tool_call>
+<function=calculate_sum>
+<parameter=numbers>
+[10, 20, 30]
+</parameter>
+<parameter=precision>
+3
+</parameter>
+</function>
+</tool_call>"""
+
+        result = self.processor.parse_xml_to_json(xml_text, self.sample_tools)
+
+        assert len(result) == 1
+        arguments = json.loads(result[0].function.arguments)
+        assert arguments["numbers"] == [10, 20, 30]
+        assert arguments["precision"] == 3
+
+    def test_parse_with_surrounding_text(self):
+        """Test parsing Qwen3-coder XML tool calls with surrounding text."""
+        xml_text = """I need to check the weather and do some calculations.
+
+<tool_call>
+<function=get_weather>
+<parameter=city>
+Shanghai
+</parameter>
+<parameter=units>
+metric
+</parameter>
+</function>
+</tool_call>
+
+Let me also calculate something:
+
+<tool_call>
+<function=calculate_sum>
+<parameter=numbers>
+[5, 10, 15]
+</parameter>
+</function>
+</tool_call>
+
+That should do it."""
+
+        result = self.processor.parse_xml_to_json(xml_text, self.sample_tools)
+
+        assert len(result) == 2
+        assert result[0].function.name == "get_weather"
+        assert result[1].function.name == "calculate_sum"
+
+    def test_parse_malformed_xml(self):
+        """Test handling of malformed Qwen3-coder XML."""
+        malformed_xml = """<tool_call>
+<function=get_weather>
+<parameter=city>
+Beijing
+</parameter>
+<parameter=date>
+2024-06-27
+</function>
+</tool_call>"""  # Missing closing tag for parameter
+
+        result = self.processor.parse_xml_to_json(malformed_xml, self.sample_tools)
+
+        # Should still parse the function but may miss malformed parameters
+        assert len(result) == 1
+        assert result[0].function.name == "get_weather"
+
+    def test_empty_input(self):
+        """Test parsing empty input."""
+        result = self.processor.parse_xml_to_json("", self.sample_tools)
+        assert len(result) == 0
+
+    def test_no_matching_tools(self):
+        """Test parsing with no matching tools in the tool list."""
+        xml_text = """<tool_call>
+<function=unknown_function>
+<parameter=param>
+value
+</parameter>
+</function>
+</tool_call>"""
+
+        result = self.processor.parse_xml_to_json(xml_text, self.sample_tools)
+
+        # Should still parse but with no type validation
+        assert len(result) == 1
+        assert result[0].function.name == "unknown_function"
 
 
 class TestBaseXMLToolCallProcessor:
