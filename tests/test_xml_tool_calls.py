@@ -398,7 +398,7 @@ multiple lines
         assert "multiple lines" in arguments["description"]
 
     def test_parse_with_json_values(self):
-        """Test parsing Qwen3-coder XML tool calls with JSON-formatted parameter values."""
+        """Test parsing Qwen3-coder XML tool calls with JSON-formatted parameters."""
         xml_text = """<tool_call>
 <function=calculate_sum>
 <parameter=numbers>
