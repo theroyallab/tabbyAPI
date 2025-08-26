@@ -52,7 +52,7 @@ TabbyAPI is a hobby project made for a small amount of users. It is not meant to
 
 For a step-by-step guide, choose the format that works best for you:
 
-📖 Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started) – Covers installation, configuration, API usage, and more.
+📖 Read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/01.-Getting-Started) – Covers installation, configuration, API usage, and more.
 
 🎥 Watch the [Video Guide](https://www.youtube.com/watch?v=03jYz0ijbUU) – A hands-on walkthrough to get you up and running quickly.
 
