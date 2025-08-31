@@ -1321,28 +1321,36 @@ class ExllamaV2Container(BaseModelContainer):
         # The second index will be the negative prompt if CFG is enabled
         negative_context_len = input_ids[1].size(dim=-1) if negative_prompt else 0
 
-        # Automatically set max_tokens to fill up the context
-        # This should be an OK default, but may be changed in the future
-        max_tokens = unwrap(
-            params.max_tokens,
-            self.config.max_seq_len - max(context_len, negative_context_len),
-        )
-        if max_tokens < 1:
-            logger.warning("max_tokens must be a positive integer, setting to 1.")
-            max_tokens = 1
-
         # Determine if the negative context or the context length is bigger
         context_to_check = max(negative_context_len, context_len)
 
         # Check total length of prompt against max context length
-        if context_to_check > self.config.max_seq_len:
+        if context_to_check >= self.config.max_seq_len:
             preamble = (
                 "Negative prompt" if negative_context_len > context_len else "Prompt"
             )
 
             raise ValueError(
                 f"{preamble} length {context_to_check} is greater than "
-                f"max_seq_len {self.config.max_seq_len}"
+                f"or equal to max_seq_len {self.config.max_seq_len}"
+            )
+        
+        # Automatically set max_tokens to fill up the context
+        # This should be an OK default, but may be changed in the future
+        max_tokens = unwrap(
+            params.max_tokens,
+            self.config.max_seq_len - context_to_check,
+        )
+        if max_tokens < 1:
+            logger.warning("max_tokens must be a positive integer, setting to 1.")
+            max_tokens = 1
+
+        # Check total required pages for non-CFG request to avoid overallocation
+        if not negative_prompt and (256 * math.ceil((context_len + max_tokens) / 256) > self.cache_size):
+            raise ValueError(
+                f"Total required page size for request "
+                f"{context_len} + {max_tokens} "
+                f"is greater than cache_size {self.cache_size}"
             )
 
         # Check total required pages for CFG request to avoid overallocation
