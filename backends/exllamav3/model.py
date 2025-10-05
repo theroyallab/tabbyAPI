@@ -85,6 +85,7 @@ class ExllamaV3Container(BaseModelContainer):
     cache_mode: str = "FP16"
     draft_cache_mode: str = "FP16"
     chunk_size: int = 2048
+    max_rq_tokens: Optional[int] = 2048
     max_batch_size: Optional[int] = None
 
     # Required methods
@@ -249,6 +250,10 @@ class ExllamaV3Container(BaseModelContainer):
         # Make sure chunk size is >= 256, keep near or below max seq len
         user_chunk_size = unwrap(kwargs.get("chunk_size"), 2048)
         self.chunk_size = self.adjust_chunk_size(user_chunk_size)
+
+        # Output chunking
+        disable_output_chunking = unwrap(kwargs.get("disable_output_chunking"), False)
+        self.max_rq_tokens = None if disable_output_chunking else self.chunk_size
 
         # Template setup
         self.prompt_template = await find_prompt_template(
@@ -982,6 +987,7 @@ class ExllamaV3Container(BaseModelContainer):
             banned_strings=params.banned_strings,
             embeddings=mm_embeddings_content,
             return_top_tokens=params.logprobs,
+            max_rq_tokens=self.max_rq_tokens
         )
 
         generated_tokens = 0

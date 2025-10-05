@@ -135,6 +135,11 @@ model:
   # An ideal value is between 512 and 4096.
   chunk_size: 2048
 
+  # Disable output chunking (default: false)
+  # Used by EXL3 models only.
+  # If True, allocate space in the cache for the entire response with each request.
+  disable_output_chunking: false
+
   # Set the maximum number of prompts to process at one time (default: None/Automatic).
   # Automatically calculated if left blank.
   # NOTE: Only available for Nvidia ampere (30 series) and above GPUs.
