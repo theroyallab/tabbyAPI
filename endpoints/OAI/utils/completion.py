@@ -226,10 +226,7 @@ async def stream_generate_completion(
         # Consumer loop
         while True:
             if disconnect_task.done():
-                abort_event.set()
-                handle_request_disconnect(
-                    f"Completion generation {request.state.id} cancelled by user."
-                )
+                raise CancelledError()
 
             generation = await gen_queue.get()
 
@@ -248,7 +245,7 @@ async def stream_generate_completion(
     except CancelledError:
         # Get out if the request gets disconnected
 
-        if not disconnect_task.done():
+        if not abort_event.is_set():
             abort_event.set()
             handle_request_disconnect(
                 f"Completion generation {request.state.id} cancelled by user."
