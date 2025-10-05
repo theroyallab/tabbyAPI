@@ -78,8 +78,7 @@ model:
   # Options: exllamav2, exllamav3
   backend:
 
-  # Max sequence length (default: 4096).
-  # Set to -1 to fetch from the model's config.json
+  # Max sequence length (default: fetch from the model's config.json).
   max_seq_len:
 
   # Load model with tensor parallelism.
@@ -124,9 +123,8 @@ model:
   # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
   cache_mode: FP16
 
-  # Size of the prompt cache to allocate (default: max_seq_len).
-  # Must be a multiple of 256 and can't be less than max_seq_len.
-  # For CFG, set this to 2 * max_seq_len.
+  # Size of the key/value cache to allocate, in tokens (default: 4096).
+  # Must be a multiple of 256.
   cache_size:
 
   # Chunk size for prompt ingestion (default: 2048).
