@@ -177,7 +177,11 @@ class ExllamaV3Container(BaseModelContainer):
                 self.use_tp = True
                 tp_backend = unwrap(kwargs.get("tensor_parallel_backend"), "native")
 
-                if not exllama_supports_nccl():
+                if tp_backend == "nccl" and not exllama_supports_nccl():
+                    unsupported_message = (
+                        "NCCL is not available. Falling back to native backend."
+                    )
+                    logger.warning(unsupported_message)
                     tp_backend = "native"
 
                 self.tp_backend = tp_backend
