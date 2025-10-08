@@ -17,7 +17,7 @@ description = "An OAI compatible exllamav2 API that's both lightweight and fast"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi-slim >= 0.115",
-    "pydantic >= 2.0.0",
+    "pydantic == 2.11.0",
     "ruamel.yaml",
     "rich",
     "uvicorn >= 0.28.1",
