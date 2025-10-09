@@ -16,6 +16,7 @@ from common.networking import (
     handle_request_error,
     request_disconnect_loop,
 )
+from common.tabby_config import config
 from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionLogprobs,
@@ -32,6 +33,25 @@ from endpoints.OAI.utils.completion import _parse_gen_request_id, _stream_collec
 from endpoints.OAI.utils.tools import ToolCallProcessor, TOOL_CALL_SCHEMA
 
 
+def _extract_think_content(text: str) -> tuple[Optional[str], Optional[str]]:
+    """Extract content between <think> tags and the remaining content.
+    Only available in none-streaming mode."""
+    if (
+        config.model.reasoning_start_token not in text
+        and config.model.reasoning_end_token not in text
+    ):
+        return None, text
+    elif config.model.reasoning_start_token in text:
+        start_reasoning = text.split(config.model.reasoning_start_token)[1]
+        reasoning_content = start_reasoning.split(config.model.reasoning_end_token)[0]
+        content = start_reasoning.split(config.model.reasoning_end_token)[1]
+        return reasoning_content.strip(), content.strip()
+    else:
+        reasoning_content = text.split(config.model.reasoning_end_token)[0]
+        content = text.split(config.model.reasoning_end_token)[1]
+        return reasoning_content.strip(), content.strip()
+
+
 def _create_response(
     request_id: str, generations: List[dict], model_name: Optional[str]
 ):
@@ -39,9 +59,16 @@ def _create_response(
 
     choices = []
     for index, generation in enumerate(generations):
-        message = ChatCompletionMessage(
-            role="assistant", content=unwrap(generation.get("text"), "")
-        )
+        if config.model.reasoning:
+            raw_content = unwrap(generation.get("text"), "")
+            reasoning_content, content = _extract_think_content(raw_content)
+            message = ChatCompletionMessage(
+                role="assistant", reasoning_content=reasoning_content, content=content
+            )
+        else:
+            message = ChatCompletionMessage(
+                role="assistant", content=unwrap(generation.get("text"), "")
+            )
 
         tool_calls = generation["tool_calls"]
         if tool_calls:
@@ -114,6 +141,7 @@ def _create_stream_chunk(
     generation: Optional[dict] = None,
     model_name: Optional[str] = None,
     is_usage_chunk: bool = False,
+    is_reasoning_chunk: bool = False,
 ):
     """Create a chat completion stream chunk from the provided text."""
 
@@ -152,8 +180,14 @@ def _create_stream_chunk(
 
         choices.append(choice)
     else:
-        message = ChatCompletionMessage(
-            role="assistant", content=unwrap(generation.get("text"), "")
+        message = (
+            ChatCompletionMessage(
+                role="assistant", reasoning_content=unwrap(generation.get("text"), "")
+            )
+            if is_reasoning_chunk
+            else ChatCompletionMessage(
+                role="assistant", content=unwrap(generation.get("text"), "")
+            )
         )
 
         logprob_response = None
@@ -345,6 +379,8 @@ async def stream_generate_chat_completion(
         # Text accumulation for tool calls
         current_generation_text = ""
 
+        is_reasoning_chunk = config.model.reasoning
+
         # Consumer loop
         while True:
             if disconnect_task.done():
@@ -375,8 +411,28 @@ async def stream_generate_chat_completion(
             if isinstance(generation, Exception):
                 raise generation
 
+            if (
+                unwrap(generation.get("text"), "") == config.model.reasoning_start_token
+                and config.model.reasoning
+            ):
+                # Update reasoning chunk flag
+                is_reasoning_chunk = True
+                # And skip this token
+                continue
+            if (
+                unwrap(generation.get("text"), "") == config.model.reasoning_end_token
+                and config.model.reasoning
+            ):
+                # Update reasoning chunk flag
+                is_reasoning_chunk = False
+                # And skip this token
+                continue
+
             response = _create_stream_chunk(
-                request.state.id, generation, model_path.name
+                request.state.id,
+                generation,
+                model_path.name,
+                is_reasoning_chunk=is_reasoning_chunk,
             )
             yield response.model_dump_json()
 

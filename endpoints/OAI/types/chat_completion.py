@@ -30,6 +30,7 @@ class ChatCompletionMessagePart(BaseModel):
 class ChatCompletionMessage(BaseModel):
     role: str = "user"
     content: Optional[Union[str, List[ChatCompletionMessagePart]]] = None
+    reasoning_content: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
 
