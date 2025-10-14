@@ -310,8 +310,8 @@ class ExllamaV2Container(BaseModelContainer):
 
             if self.config.max_seq_len > cache_size:
                 logger.warning(
-                    f"The given max_seq_len ({self.config.max_seq_len}) is larger than the "
-                    f"cache size and will be limited to {cache_size} tokens."
+                    f"The given max_seq_len ({self.config.max_seq_len}) is larger than "
+                    f"the cache size and will be limited to {cache_size} tokens."
                 )
                 self.config.max_seq_len = cache_size
 
