@@ -2,6 +2,7 @@ import asyncio
 import gc
 import pathlib
 import re
+import torch
 from itertools import zip_longest
 from typing import (
     Any,
@@ -11,7 +12,6 @@ from typing import (
     Optional,
 )
 
-import torch
 from exllamav3 import (
     AsyncGenerator,
     AsyncJob,
@@ -85,6 +85,7 @@ class ExllamaV3Container(BaseModelContainer):
     cache_mode: str = "FP16"
     draft_cache_mode: str = "FP16"
     chunk_size: int = 2048
+    max_rq_tokens: Optional[int] = 2048
     max_batch_size: Optional[int] = None
 
     # Required methods
@@ -104,12 +105,7 @@ class ExllamaV3Container(BaseModelContainer):
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "0.0.4")
-
-        logger.warning(
-            "ExllamaV3 is currently in an alpha state. "
-            "Please note that all config options may not work."
-        )
+        check_package_version("exllamav3", "0.0.7")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
@@ -129,9 +125,6 @@ class ExllamaV3Container(BaseModelContainer):
             )
             self.vision_model = None
             self.use_vision = False
-
-        # Fallback to 4096 since exl3 can't fetch from HF's config.json
-        self.max_seq_len = unwrap(kwargs.get("max_seq_len"), 4096)
 
         # Prepare the draft model config if necessary
         draft_args = unwrap(kwargs.get("draft_model"), {})
@@ -177,7 +170,11 @@ class ExllamaV3Container(BaseModelContainer):
                 self.use_tp = True
                 tp_backend = unwrap(kwargs.get("tensor_parallel_backend"), "native")
 
-                if not exllama_supports_nccl():
+                if tp_backend == "nccl" and not exllama_supports_nccl():
+                    unsupported_message = (
+                        "NCCL is not available. Falling back to native backend."
+                    )
+                    logger.warning(unsupported_message)
                     tp_backend = "native"
 
                 self.tp_backend = tp_backend
@@ -226,10 +223,16 @@ class ExllamaV3Container(BaseModelContainer):
             raise RuntimeError(gpu_unsupported_message)
 
         # Cache
-        user_cache_size = unwrap(kwargs.get("cache_size"), self.max_seq_len)
+        user_cache_size = unwrap(kwargs.get("cache_size"), 4096)
         self.cache_size = self.adjust_cache_size(user_cache_size)
         self.cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
         self.cache = self.create_cache(self.cache_mode, self.model)
+
+        # Limit max_seq_len to prevent sequences larger than the cache
+        max_seq_len = unwrap(
+            kwargs.get("max_seq_len"), hf_model.hf_config.max_position_embeddings
+        )
+        self.max_seq_len = self.adjust_max_seq_len(max_seq_len)
 
         # Draft cache
         if self.use_draft_model:
@@ -245,6 +248,10 @@ class ExllamaV3Container(BaseModelContainer):
         # Make sure chunk size is >= 256, keep near or below max seq len
         user_chunk_size = unwrap(kwargs.get("chunk_size"), 2048)
         self.chunk_size = self.adjust_chunk_size(user_chunk_size)
+
+        # Output chunking
+        output_chunking = unwrap(kwargs.get("output_chunking"), True)
+        self.max_rq_tokens = self.chunk_size if output_chunking else None
 
         # Template setup
         self.prompt_template = await find_prompt_template(
@@ -265,21 +272,11 @@ class ExllamaV3Container(BaseModelContainer):
         return self
 
     def adjust_cache_size(self, cache_size):
-        if cache_size < self.max_seq_len:
-            logger.warning(
-                f"The given cache_size ({cache_size}) is smaller than the "
-                "desired context length.\n"
-                "Overriding cache_size to max_seq_len. "
-            )
-
-            cache_size = self.max_seq_len
-
         # Enforce a multiple of 256 for cache size
         # Overestimate to ensure that the cache isn't below max_seq_len
         cache_remainder = cache_size % 256
         if cache_remainder != 0:
             rounded_cache_size = int(256 * ((cache_size - cache_remainder) / 256 + 1))
-
             logger.warning(
                 f"The given cache size ({cache_size}) is "
                 "not a multiple of 256.\n"
@@ -289,22 +286,22 @@ class ExllamaV3Container(BaseModelContainer):
 
             cache_size = rounded_cache_size
 
-        # Warn user if cache size may be inadequate for CFG
-        if cache_size < 2 * self.max_seq_len:
-            logger.warning(
-                f"The given cache_size ({cache_size}) is less than 2 * max_seq_len "
-                "and may be too small for requests using CFG. \n"
-                "Ignore this warning if you do not plan on using CFG."
-            )
-
         return cache_size
 
-    def adjust_chunk_size(self, user_chunk_size: int):
-        chunk_size = sorted((256, user_chunk_size, self.max_seq_len))[1]
-        chunk_remainder = chunk_size % 256
-        if chunk_remainder != 0:
-            rounded_chunk_size = int(256 * ((chunk_size - chunk_remainder) / 256 + 1))
+    def adjust_max_seq_len(self, max_seq_len):
+        if max_seq_len > self.cache_size:
+            logger.warning(
+                f"The given max_seq_len ({max_seq_len}) is larger than the cache size "
+                f"and will be limited to {self.cache_size} tokens."
+            )
+            max_seq_len = self.cache_size
 
+        return max_seq_len
+
+    def adjust_chunk_size(self, user_chunk_size: int):
+        chunk_size = max(256, user_chunk_size)
+        rounded_chunk_size = (chunk_size + 255) // 256 * 256
+        if chunk_size != rounded_chunk_size:
             logger.warning(
                 f"The given chunk size ({chunk_size}) is "
                 "not a multiple of 256.\n"
@@ -941,24 +938,18 @@ class ExllamaV3Container(BaseModelContainer):
         context_len = input_ids[0].size(dim=-1)
 
         # Automatically set max_tokens to fill up the context
-        # This should be an OK default, but may be changed in the future
         max_tokens = unwrap(
-            params.max_tokens,
-            self.max_seq_len - context_len,
+            params.max_tokens if params.max_tokens > 0 else None,
+            self.max_seq_len - context_len - 1,
         )
         if max_tokens < 1:
             logger.warning("max_tokens must be a positive integer, setting to 1.")
             max_tokens = 1
 
-        # Determine if the negative context or the context length is bigger
-        context_to_check = context_len
-
         # Check total length of prompt against max context length
-        if context_to_check > self.max_seq_len:
-            preamble = "Prompt"
-
+        if context_len > self.max_seq_len:
             raise ValueError(
-                f"{preamble} length {context_to_check} is greater than "
+                f"Prompt length {context_len} is greater than "
                 f"max_seq_len {self.max_seq_len}"
             )
 
@@ -978,6 +969,7 @@ class ExllamaV3Container(BaseModelContainer):
             banned_strings=params.banned_strings,
             embeddings=mm_embeddings_content,
             return_top_tokens=params.logprobs,
+            max_rq_tokens=self.max_rq_tokens,
         )
 
         generated_tokens = 0

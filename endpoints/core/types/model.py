@@ -85,7 +85,7 @@ class ModelLoadRequest(BaseModel):
         examples=[4096],
     )
     cache_size: Optional[int] = Field(
-        description=("Number in tokens, must be greater than or equal to max_seq_len"),
+        description="Number in tokens, must be multiple of 256",
         default=None,
         examples=[4096],
     )
@@ -109,6 +109,7 @@ class ModelLoadRequest(BaseModel):
     )
     cache_mode: Optional[str] = None
     chunk_size: Optional[int] = None
+    output_chunking: Optional[bool] = True
     prompt_template: Optional[str] = None
     vision: Optional[bool] = None
 

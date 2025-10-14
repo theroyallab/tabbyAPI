@@ -238,7 +238,7 @@ class ExllamaV2Container(BaseModelContainer):
         base_seq_len = hf_model.hf_config.max_position_embeddings
 
         # Set the target seq len if present
-        target_seq_len = unwrap(kwargs.get("max_seq_len"), 4096)
+        target_seq_len = unwrap(kwargs.get("max_seq_len"), base_seq_len)
 
         # Set the rope scale
         self.config.scale_pos_emb = unwrap(
@@ -289,16 +289,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Set k/v cache size
         # cache_size is only relevant when paged mode is enabled
         if self.paged:
-            cache_size = unwrap(kwargs.get("cache_size"), self.config.max_seq_len)
-
-            if cache_size < self.config.max_seq_len:
-                logger.warning(
-                    f"The given cache_size ({cache_size}) is smaller than the "
-                    "desired context length.\n"
-                    "Overriding cache_size to max_seq_len. "
-                )
-
-                cache_size = self.config.max_seq_len
+            cache_size = unwrap(kwargs.get("cache_size"), 4096)
 
             # Enforce a multiple of 256 for cache size
             # Overestimate to ensure that the cache isn't below max_seq_len
@@ -316,6 +307,13 @@ class ExllamaV2Container(BaseModelContainer):
                 )
 
                 cache_size = rounded_cache_size
+
+            if self.config.max_seq_len > cache_size:
+                logger.warning(
+                    f"The given max_seq_len ({self.config.max_seq_len}) is larger than the "
+                    f"cache size and will be limited to {cache_size} tokens."
+                )
+                self.config.max_seq_len = cache_size
 
             # Warn user if cache size may be inadequate for CFG
             if cache_size < 2 * self.config.max_seq_len:

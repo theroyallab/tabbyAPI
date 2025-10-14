@@ -61,10 +61,7 @@ async def _stream_collector(data: GenerateRequest, request: Request):
 
         async for generation in generator:
             if disconnect_task.done():
-                abort_event.set()
-                handle_request_disconnect(
-                    f"Kobold generation {data.genkey} cancelled by user."
-                )
+                raise CancelledError()
 
             text = generation.get("text")
 
@@ -78,7 +75,7 @@ async def _stream_collector(data: GenerateRequest, request: Request):
                 break
     except CancelledError:
         # If the request disconnects, break out
-        if not disconnect_task.done():
+        if not abort_event.is_set():
             abort_event.set()
             handle_request_disconnect(
                 f"Kobold generation {data.genkey} cancelled by user."

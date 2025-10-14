@@ -265,6 +265,15 @@ class ModelConfig(BaseConfigModel):
         ),
         gt=0,
     )
+    output_chunking: Optional[bool] = Field(
+        True,
+        description=(
+            "Use output chunking (default: True)\n"
+            "Instead of allocating cache space for the entire completion at once, "
+            "allocate in chunks as needed.\n"
+            "Used by EXL3 models only.\n"
+        ),
+    )
     max_batch_size: Optional[int] = Field(
         None,
         description=(
