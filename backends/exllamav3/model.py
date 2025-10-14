@@ -250,8 +250,8 @@ class ExllamaV3Container(BaseModelContainer):
         self.chunk_size = self.adjust_chunk_size(user_chunk_size)
 
         # Output chunking
-        disable_output_chunking = unwrap(kwargs.get("disable_output_chunking"), False)
-        self.max_rq_tokens = None if disable_output_chunking else self.chunk_size
+        output_chunking = unwrap(kwargs.get("output_chunking"), True)
+        self.max_rq_tokens = self.chunk_size if output_chunking else None
 
         # Template setup
         self.prompt_template = await find_prompt_template(

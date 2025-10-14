@@ -133,10 +133,10 @@ model:
   # An ideal value is between 512 and 4096.
   chunk_size: 2048
 
-  # Disable output chunking (default: false)
+  # Use output chunking (default: True)
+  # Instead of allocating cache space for the entire completion at once, allocate in chunks as needed.
   # Used by EXL3 models only.
-  # If True, allocate space in the cache for the entire response with each request.
-  disable_output_chunking: false
+  output_chunking: true
 
   # Set the maximum number of prompts to process at one time (default: None/Automatic).
   # Automatically calculated if left blank.

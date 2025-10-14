@@ -109,7 +109,7 @@ class ModelLoadRequest(BaseModel):
     )
     cache_mode: Optional[str] = None
     chunk_size: Optional[int] = None
-    disable_output_chunking: Optional[bool] = False
+    output_chunking: Optional[bool] = True
     prompt_template: Optional[str] = None
     vision: Optional[bool] = None
 

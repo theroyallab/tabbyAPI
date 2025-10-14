@@ -265,12 +265,13 @@ class ModelConfig(BaseConfigModel):
         ),
         gt=0,
     )
-    disable_output_chunking: Optional[bool] = Field(
-        False,
+    output_chunking: Optional[bool] = Field(
+        True,
         description=(
-            "Disable output chunking (default: false).\n"
+            "Use output chunking (default: True)\n"
+            "Instead of allocating cache space for the entire completion at once, "
+            "allocate in chunks as needed.\n"
             "Used by EXL3 models only.\n"
-            "True, allocate space in the cache for the entire response with each request..\n"
         ),
     )
     max_batch_size: Optional[int] = Field(
