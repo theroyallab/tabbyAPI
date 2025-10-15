@@ -1338,7 +1338,9 @@ class ExllamaV2Container(BaseModelContainer):
         # Automatically set max_tokens to fill up the context
         max_tokens = unwrap(params.max_tokens, 0)
         if max_tokens <= 0:
-            max_tokens = self.config.max_seq_len - max(context_len, negative_context_len)
+            max_tokens = self.config.max_seq_len - max(
+                context_len, negative_context_len
+            )
 
         # Determine if the negative context or the context length is bigger
         context_to_check = max(negative_context_len, context_len)
