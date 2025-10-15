@@ -77,43 +77,46 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
 
     override_config_path = model_path / "tabby_config.yml"
 
-    if not override_config_path.exists():
-        return kwargs
-
     # Initialize overrides dict
-    overrides = {}
+    overrides = {"draft_model": {}}
 
-    async with aiofiles.open(
-        override_config_path, "r", encoding="utf8"
-    ) as override_config_file:
-        contents = await override_config_file.read()
+    if override_config_path.exists():
+        async with aiofiles.open(
+            override_config_path, "r", encoding="utf8"
+        ) as override_config_file:
+            contents = await override_config_file.read()
 
-        # Create a temporary YAML parser
-        yaml = YAML(typ="safe")
-        inline_config = unwrap(yaml.load(contents), {})
+            # Create a temporary YAML parser
+            yaml = YAML(typ="safe")
+            inline_config = unwrap(yaml.load(contents), {})
 
-        # Check for inline model overrides and merge config defaults
-        model_inline_config = unwrap(inline_config.get("model"), {})
-        if model_inline_config:
-            overrides = {**model_inline_config, **config.model_defaults}
-        else:
-            logger.warning(
-                "Cannot find inline model overrides. "
-                'Make sure they are nested under a "model:" key'
-            )
+            # Check for inline model overrides and merge config defaults
+            model_inline_config = unwrap(inline_config.get("model"), {})
+            if model_inline_config:
+                overrides = {**overrides, **model_inline_config}
+            else:
+                logger.warning(
+                    "Cannot find inline model overrides. "
+                    'Make sure they are nested under a "model:" key'
+                )
 
-        # Merge draft overrides beforehand and merge config defaults
-        draft_inline_config = unwrap(inline_config.get("draft_model"), {})
-        if draft_inline_config:
-            overrides["draft_model"] = {
-                **draft_inline_config,
-                **config.draft_model_defaults,
-            }
+            # Merge draft overrides beforehand and merge config defaults
+            draft_inline_config = unwrap(inline_config.get("draft_model"), {})
+            if draft_inline_config:
+                overrides["draft_model"] = {
+                    **overrides.get("draft_model"), **draft_inline_config
+                }
 
-        # Merge the override and model kwargs
-        # No need to preserve the original overrides dict
-        merged_kwargs = deep_merge_dict(overrides, kwargs)
-        return merged_kwargs
+    # Add use_as_default
+    overrides = {**overrides, **config.model_defaults}
+    overrides["draft_model"] = {
+        **overrides.get("draft_model"), **config.draft_model_defaults,
+    }
+
+    # Merge the override and model kwargs
+    # No need to preserve the original overrides dict
+    merged_kwargs = deep_merge_dict(overrides, kwargs)
+    return merged_kwargs
 
 
 async def unload_model(skip_wait: bool = False, shutdown: bool = False):
