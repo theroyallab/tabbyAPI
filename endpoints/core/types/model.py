@@ -14,11 +14,11 @@ class ModelCardParameters(BaseModel):
     # Safe to do this since it's guaranteed to fetch a max seq len
     # from model_container
     max_seq_len: Optional[int] = None
+    cache_size: Optional[int] = None
+    cache_mode: Optional[str] = "FP16"
     rope_scale: Optional[float] = 1.0
     rope_alpha: Optional[float] = 1.0
     max_batch_size: Optional[int] = 1
-    cache_size: Optional[int] = None
-    cache_mode: Optional[str] = "FP16"
     chunk_size: Optional[int] = 2048
     prompt_template: Optional[str] = None
     prompt_template_content: Optional[str] = None
@@ -89,6 +89,7 @@ class ModelLoadRequest(BaseModel):
         default=None,
         examples=[4096],
     )
+    cache_mode: Optional[str] = None
     tensor_parallel: Optional[bool] = None
     tensor_parallel_backend: Optional[str] = "native"
     gpu_split_auto: Optional[bool] = None
@@ -107,7 +108,6 @@ class ModelLoadRequest(BaseModel):
         default=None,
         examples=[1.0],
     )
-    cache_mode: Optional[str] = None
     chunk_size: Optional[int] = None
     output_chunking: Optional[bool] = True
     prompt_template: Optional[str] = None

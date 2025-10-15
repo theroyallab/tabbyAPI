@@ -180,6 +180,25 @@ class ModelConfig(BaseConfigModel):
         ),
         ge=-1,
     )
+    cache_size: Optional[int] = Field(
+        None,
+        description=(
+            "Size of the prompt cache to allocate (default: max_seq_len).\n"
+            "Must be a multiple of 256 and can't be less than max_seq_len.\n"
+            "For CFG, set this to 2 * max_seq_len."
+        ),
+        multiple_of=256,
+        gt=0,
+    )
+    cache_mode: Optional[CACHE_TYPE] = Field(
+        "FP16",
+        description=(
+            "Enable different cache modes for VRAM savings (default: FP16).\n"
+            f"Possible values for exllamav2: {str(CACHE_SIZES)[15:-1]}.\n"
+            "For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits "
+            "are integers from 2-8 (i.e. 8,8)."
+        ),
+    )
     tensor_parallel: Optional[bool] = Field(
         False,
         description=(
@@ -235,25 +254,6 @@ class ModelConfig(BaseConfigModel):
             "Leaving this value blank will either pull from the model "
             "or auto-calculate."
         ),
-    )
-    cache_mode: Optional[CACHE_TYPE] = Field(
-        "FP16",
-        description=(
-            "Enable different cache modes for VRAM savings (default: FP16).\n"
-            f"Possible values for exllamav2: {str(CACHE_SIZES)[15:-1]}.\n"
-            "For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits "
-            "are integers from 2-8 (i.e. 8,8)."
-        ),
-    )
-    cache_size: Optional[int] = Field(
-        None,
-        description=(
-            "Size of the prompt cache to allocate (default: max_seq_len).\n"
-            "Must be a multiple of 256 and can't be less than max_seq_len.\n"
-            "For CFG, set this to 2 * max_seq_len."
-        ),
-        multiple_of=256,
-        gt=0,
     )
     chunk_size: Optional[int] = Field(
         2048,

@@ -81,6 +81,15 @@ model:
   # Max sequence length (default: fetch from the model's config.json).
   max_seq_len:
 
+  # Size of the key/value cache to allocate, in tokens (default: 4096).
+  # Must be a multiple of 256.
+  cache_size:
+
+  # Enable different cache modes for VRAM savings (default: FP16).
+  # Possible values for exllamav2: 'FP16', 'Q8', 'Q6', 'Q4'.
+  # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
+  cache_mode: FP16
+
   # Load model with tensor parallelism.
   # Falls back to autosplit if GPU split isn't provided.
   # This ignores the gpu_split_auto value.
@@ -117,15 +126,6 @@ model:
   # Same as alpha_value. Set to "auto" to auto-calculate.
   # Leaving this value blank will either pull from the model or auto-calculate.
   rope_alpha:
-
-  # Enable different cache modes for VRAM savings (default: FP16).
-  # Possible values for exllamav2: 'FP16', 'Q8', 'Q6', 'Q4'.
-  # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
-  cache_mode: FP16
-
-  # Size of the key/value cache to allocate, in tokens (default: 4096).
-  # Must be a multiple of 256.
-  cache_size:
 
   # Chunk size for prompt ingestion (default: 2048).
   # A lower value reduces VRAM usage but decreases ingestion speed.
