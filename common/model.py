@@ -104,13 +104,15 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
             draft_inline_config = unwrap(inline_config.get("draft_model"), {})
             if draft_inline_config:
                 overrides["draft_model"] = {
-                    **overrides.get("draft_model"), **draft_inline_config
+                    **overrides.get("draft_model"),
+                    **draft_inline_config,
                 }
 
     # Add use_as_default
     overrides = {**overrides, **config.model_defaults}
     overrides["draft_model"] = {
-        **overrides.get("draft_model"), **config.draft_model_defaults,
+        **overrides.get("draft_model"),
+        **config.draft_model_defaults,
     }
 
     # Merge the override and model kwargs
