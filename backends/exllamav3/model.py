@@ -951,14 +951,11 @@ class ExllamaV3Container(BaseModelContainer):
         # The first index will always be the positive prompt
         context_len = input_ids[0].size(dim=-1)
 
-        # Automatically set max_tokens to fill up the context
-        max_tokens = unwrap(
-            params.max_tokens if params.max_tokens > 0 else None,
-            self.max_seq_len - context_len - 1,
-        )
-        if max_tokens < 1:
-            logger.warning("max_tokens must be a positive integer, setting to 1.")
-            max_tokens = 1
+        # Unless specified in the request, automatically set max_tokens to fill up
+        # the context
+        max_tokens = unwrap(params.max_tokens, 0)
+        if max_tokens <= 0:
+            max_tokens = self.max_seq_len - context_len - 1
 
         # Check total length of prompt against max context length
         if context_len > self.max_seq_len:

@@ -1336,14 +1336,9 @@ class ExllamaV2Container(BaseModelContainer):
         negative_context_len = input_ids[1].size(dim=-1) if negative_prompt else 0
 
         # Automatically set max_tokens to fill up the context
-        # This should be an OK default, but may be changed in the future
-        max_tokens = unwrap(
-            params.max_tokens,
-            self.config.max_seq_len - max(context_len, negative_context_len),
-        )
-        if max_tokens < 1:
-            logger.warning("max_tokens must be a positive integer, setting to 1.")
-            max_tokens = 1
+        max_tokens = unwrap(params.max_tokens, 0)
+        if max_tokens <= 0:
+            max_tokens = self.config.max_seq_len - max(context_len, negative_context_len)
 
         # Determine if the negative context or the context length is bigger
         context_to_check = max(negative_context_len, context_len)
