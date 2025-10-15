@@ -78,11 +78,14 @@ model:
   # Options: exllamav2, exllamav3
   backend:
 
-  # Max sequence length (default: fetch from the model's config.json).
+  # Max sequence length (default: min(max_position_embeddings, cache_size)).
+  # Set to -1 to fetch from the model's config.json
   max_seq_len:
 
   # Size of the key/value cache to allocate, in tokens (default: 4096).
   # Must be a multiple of 256.
+  # ExllamaV2 note: On AMD GPUs and NVIDIA GPUs older than Ampere, this value
+  # is ignored. Please use max_seq_len
   cache_size:
 
   # Enable different cache modes for VRAM savings (default: FP16).
