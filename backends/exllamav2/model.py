@@ -271,6 +271,7 @@ class ExllamaV2Container(BaseModelContainer):
             self.config.max_seq_len = unwrap(
                 user_max_seq_len, min(hf_model.hf_config.max_position_embeddings, 4096)
             )
+            self.cache_size = self.config.max_seq_len
 
         # set the rope scale
         self.config.scale_pos_emb = unwrap(
