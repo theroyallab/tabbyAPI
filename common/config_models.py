@@ -250,7 +250,7 @@ class ModelConfig(BaseConfigModel):
         None,
         description=(
             "Rope alpha (default: None).\n"
-            'Same as alpha_value. set to "auto" to auto-calculate.\n'
+            'Same as alpha_value. Set to "auto" to auto-calculate.\n'
             "Leaving this value blank will either pull from the model "
             "or auto-calculate."
         ),
@@ -277,7 +277,7 @@ class ModelConfig(BaseConfigModel):
     max_batch_size: int | None = Field(
         None,
         description=(
-            "set the maximum number of prompts to process at one time "
+            "Set the maximum number of prompts to process at one time "
             "(default: None/Automatic).\n"
             "Automatically calculated if left blank.\n"
             "NOTE: Only available for Nvidia ampere (30 series) and above GPUs."
@@ -287,7 +287,7 @@ class ModelConfig(BaseConfigModel):
     prompt_template: str | None = Field(
         None,
         description=(
-            "set the prompt template for this model. (default: None)\n"
+            "Set the prompt template for this model. (default: None)\n"
             "If empty, attempts to look for the model's chat template.\n"
             "If a model contains multiple templates in its tokenizer_config.json,\n"
             "set prompt_template to the name of the template you want to use.\n"
@@ -335,7 +335,7 @@ class DraftModelConfig(BaseConfigModel):
         None,
         description=(
             "Rope alpha for draft models (default: None).\n"
-            'Same as alpha_value. set to "auto" to auto-calculate.\n'
+            'Same as alpha_value. Set to "auto" to auto-calculate.\n'
             "Leaving this value blank will either pull from the model "
             "or auto-calculate."
         ),
@@ -390,7 +390,7 @@ class LoraConfig(BaseConfigModel):
     loras: list[LoraInstanceModel] | None = Field(
         None,
         description=(
-            "list of LoRAs to load and associated scaling factors "
+            "List of LoRAs to load and associated scaling factors "
             "(default scale: 1.0).\n"
             "For the YAML file, add each entry as a YAML list:\n"
             "- name: lora1\n"
@@ -443,7 +443,7 @@ class DeveloperConfig(BaseConfigModel):
     realtime_process_priority: bool | None = Field(
         False,
         description=(
-            "set process to use a higher priority.\n"
+            "Set process to use a higher priority.\n"
             "For realtime process priority, run as administrator or sudo.\n"
             "Otherwise, the priority will be set to high."
         ),

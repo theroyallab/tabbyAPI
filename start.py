@@ -203,10 +203,10 @@ if __name__ == "__main__":
             "Getting things ready..."
         )
 
-    # set variables that rely on start options
+    # Set variables that rely on start options
     first_run = not start_options.get("first_run_done")
 
-    # set gpu_lib for dependency install
+    # Set gpu_lib for dependency install
     if args.gpu_lib:
         print("Overriding GPU lib name from args.")
         gpu_lib = args.gpu_lib

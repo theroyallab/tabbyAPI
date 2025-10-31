@@ -69,7 +69,7 @@ def _create_response(
 
             logprob_response = ChatCompletionLogprobs(content=collected_token_probs)
 
-        # set finish reason
+        # Set finish reason
         if message.tool_calls:
             finish_reason = "tool_calls"
         else:

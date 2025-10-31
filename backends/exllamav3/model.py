@@ -157,12 +157,12 @@ class ExllamaV3Container(BaseModelContainer):
         gpu_device_list = list(range(0, gpu_count))
         use_tp = unwrap(kwargs.get("tensor_parallel"), False)
 
-        # set GPU split options
+        # Set GPU split options
         if gpu_count == 1:
             self.gpu_split_auto = False
             logger.info("Disabling GPU split because one GPU is in use.")
         else:
-            # set tensor parallel
+            # Set tensor parallel
             if use_tp:
                 self.use_tp = True
                 tp_backend = unwrap(kwargs.get("tensor_parallel_backend"), "native")
@@ -179,7 +179,7 @@ class ExllamaV3Container(BaseModelContainer):
                 # TP has its own autosplit loader
                 self.gpu_split_auto = False
 
-            # set GPU split options
+            # Set GPU split options
             # Enable manual GPU split if provided
             if gpu_split:
                 self.gpu_split_auto = False
@@ -235,7 +235,7 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Draft cache
         if self.use_draft_model:
-            # set draft cache mode
+            # Set draft cache mode
             self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
             self.draft_cache = self.create_cache(
                 self.draft_cache_mode, self.draft_model
@@ -870,7 +870,7 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Penalties
 
-        # set penalty range
+        # Set penalty range
         penalty_range = unwrap(params.penalty_range, self.max_seq_len)
 
         # Exl3's version of including the entire context
@@ -911,7 +911,7 @@ class ExllamaV3Container(BaseModelContainer):
             sampler_builder.temperature(params.temperature)
 
         # Build the sampler
-        # set greedy if temperature is 0
+        # Set greedy if temperature is 0
         sampler = sampler_builder.build(params.temperature == 0)
 
         # Dynamically scale penalty range to output tokens

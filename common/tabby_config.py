@@ -44,7 +44,7 @@ class TabbyConfig(TabbyConfigModel):
             value = getattr(merged_config_model, field)
             setattr(self, field, value)
 
-        # set model defaults dict once to prevent on-demand reconstruction
+        # Set model defaults dict once to prevent on-demand reconstruction
         # TODO: clean this up a bit
         for field in self.model.use_as_default:
             if hasattr(self.model, field):

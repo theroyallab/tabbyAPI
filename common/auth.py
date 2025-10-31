@@ -51,7 +51,7 @@ async def load_auth_keys(disable_from_config: bool):
     if disable_from_config:
         logger.warning(
             "Disabling authentication makes your instance vulnerable. "
-            "set the `disable_auth` flag to False in config.yml if you "
+            "Set the `disable_auth` flag to False in config.yml if you "
             "want to share this instance with others."
         )
 

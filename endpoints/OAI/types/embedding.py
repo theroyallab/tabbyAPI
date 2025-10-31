@@ -9,7 +9,7 @@ class UsageInfo(BaseModel):
 
 class EmbeddingsRequest(BaseModel):
     input: str | list[str] = Field(
-        ..., description="list of input texts to generate embeddings for."
+        ..., description="List of input texts to generate embeddings for."
     )
     encoding_format: str = Field(
         "float",
@@ -25,7 +25,7 @@ class EmbeddingsRequest(BaseModel):
 class EmbeddingObject(BaseModel):
     object: str = Field("embedding", description="Type of the object.")
     embedding: list[float] | str = Field(
-        ..., description="Embedding values as a List of floats."
+        ..., description="Embedding values as a list of floats."
     )
     index: int = Field(
         ..., description="Index of the input text corresponding to the embedding."

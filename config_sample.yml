@@ -79,7 +79,7 @@ model:
   backend:
 
   # Max sequence length (default: min(max_position_embeddings, cache_size)).
-  # set to -1 to fetch from the model's config.json
+  # Set to -1 to fetch from the model's config.json
   max_seq_len:
 
   # Size of the key/value cache to allocate, in tokens (default: 4096).
@@ -126,7 +126,7 @@ model:
   rope_scale: 1.0
 
   # Rope alpha (default: None).
-  # Same as alpha_value. set to "auto" to auto-calculate.
+  # Same as alpha_value. Set to "auto" to auto-calculate.
   # Leaving this value blank will either pull from the model or auto-calculate.
   rope_alpha:
 
@@ -141,12 +141,12 @@ model:
   # Used by EXL3 models only.
   output_chunking: true
 
-  # set the maximum number of prompts to process at one time (default: None/Automatic).
+  # Set the maximum number of prompts to process at one time (default: None/Automatic).
   # Automatically calculated if left blank.
   # NOTE: Only available for Nvidia ampere (30 series) and above GPUs.
   max_batch_size:
 
-  # set the prompt template for this model. (default: None)
+  # Set the prompt template for this model. (default: None)
   # If empty, attempts to look for the model's chat template.
   # If a model contains multiple templates in its tokenizer_config.json,
   # set prompt_template to the name of the template you want to use.
@@ -172,7 +172,7 @@ draft_model:
   draft_rope_scale: 1.0
 
   # Rope alpha for draft models (default: None).
-  # Same as alpha_value. set to "auto" to auto-calculate.
+  # Same as alpha_value. Set to "auto" to auto-calculate.
   # Leaving this value blank will either pull from the model or auto-calculate.
   draft_rope_alpha:
 
@@ -199,7 +199,7 @@ lora:
   # Directory to look for LoRAs (default: loras).
   lora_dir: loras
 
-  # list of LoRAs to load and associated scaling factors (default scale: 1.0).
+  # List of LoRAs to load and associated scaling factors (default scale: 1.0).
   # For the YAML file, add each entry as a YAML list:
   # - name: lora1
   #   scaling: 1.0
@@ -230,7 +230,7 @@ developer:
   # Disable API request streaming (default: False).
   disable_request_streaming: false
 
-  # set process to use a higher priority.
+  # Set process to use a higher priority.
   # For realtime process priority, run as administrator or sudo.
   # Otherwise, the priority will be set to high.
   realtime_process_priority: false

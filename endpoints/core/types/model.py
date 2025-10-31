@@ -123,7 +123,7 @@ class ModelLoadRequest(BaseModel):
 class EmbeddingModelLoadRequest(BaseModel):
     embedding_model_name: str
 
-    # set default from the config
+    # Set default from the config
     embeddings_device: str | None = Field(config.embeddings.embeddings_device)
 
 

@@ -20,7 +20,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Upgrade pip
 RUN pip install --no-cache-dir --upgrade pip
 
-# set the working directory in the container
+# Set the working directory in the container
 WORKDIR /app
 
 # Get requirements
@@ -37,7 +37,7 @@ COPY . .
 # Make port 5000 available to the world outside this container
 EXPOSE 5000
 
-# set the entry point
+# Set the entry point
 ENTRYPOINT ["python3"]
 
 # Run main.py when the container launches

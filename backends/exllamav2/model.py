@@ -129,7 +129,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Check if the model arch is compatible with various exl2 features
         self.config.arch_compat_overrides()
 
-        # set vision state and error if vision isn't supported on the current model
+        # Set vision state and error if vision isn't supported on the current model
         self.use_vision = unwrap(kwargs.get("vision"), False)
         if self.use_vision and not self.config.vision_model_type:
             raise ValueError(
@@ -184,12 +184,12 @@ class ExllamaV2Container(BaseModelContainer):
         gpu_split = unwrap(kwargs.get("gpu_split"), [])
         gpu_device_list = list(range(0, gpu_count))
 
-        # set GPU split options
+        # Set GPU split options
         if gpu_count == 1:
             self.gpu_split_auto = False
             logger.info("Disabling GPU split because one GPU is in use.")
         else:
-            # set tensor parallel
+            # Set tensor parallel
             if use_tp:
                 self.use_tp = True
 
@@ -232,7 +232,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Hardcode max output length to 16
         self.config.max_output_len = 16
 
-        # set max batch size to the config override
+        # Set max batch size to the config override
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"))
 
         # Check whether the user's configuration supports flash/paged attention
@@ -261,7 +261,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Grab user-set max seq len
         user_max_seq_len = kwargs.get("max_seq_len")
 
-        # set k/v cache size
+        # Set k/v cache size
         # cache_size is only relevant when paged mode is enabled
         if self.paged:
             user_cache_size = coalesce(kwargs.get("cache_size"), user_max_seq_len, 4096)
@@ -273,7 +273,7 @@ class ExllamaV2Container(BaseModelContainer):
             )
             self.cache_size = self.config.max_seq_len
 
-        # set the rope scale
+        # Set the rope scale
         self.config.scale_pos_emb = unwrap(
             kwargs.get("rope_scale"), self.config.scale_pos_emb
         )
@@ -322,7 +322,7 @@ class ExllamaV2Container(BaseModelContainer):
         self.config.max_input_len = chunk_size
         self.config.max_attention_size = chunk_size**2
 
-        # set user-configured draft model values
+        # Set user-configured draft model values
         if self.use_draft_model:
             self.draft_config.max_seq_len = self.config.max_seq_len
 
@@ -330,7 +330,7 @@ class ExllamaV2Container(BaseModelContainer):
                 draft_args.get("draft_rope_scale"), 1.0
             )
 
-            # set draft rope alpha. Follows same behavior as model rope alpha.
+            # Set draft rope alpha. Follows same behavior as model rope alpha.
             # Use the max_position_embeddings of the model
             draft_rope_alpha = unwrap(draft_args.get("draft_rope_alpha"), "auto")
             if draft_rope_alpha == "auto":
@@ -341,7 +341,7 @@ class ExllamaV2Container(BaseModelContainer):
             else:
                 self.draft_config.scale_alpha_value = draft_rope_alpha
 
-            # set draft cache mode
+            # Set draft cache mode
             self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
 
             # Catch exllamav3 draft_cache_mode
@@ -836,7 +836,7 @@ class ExllamaV2Container(BaseModelContainer):
                     await self.generator.close()
                     self.generator = None
 
-                # set all model state variables to False
+                # Set all model state variables to False
                 self.loaded = False
 
             gc.collect()
@@ -1136,15 +1136,15 @@ class ExllamaV2Container(BaseModelContainer):
                 "top_k, top_p, and typical to 1.0, 1, 0, and 0."
             )
 
-        # set banned tokens
+        # Set banned tokens
         if params.banned_tokens:
             gen_settings.disallow_tokens(self.tokenizer, params.banned_tokens)
 
-        # set allowed tokens
+        # Set allowed tokens
         if params.allowed_tokens:
             gen_settings.allow_tokens(self.tokenizer, params.allowed_tokens)
 
-        # set logit bias
+        # Set logit bias
         if params.logit_bias:
             # Create a vocab tensor if it doesn't exist for token biasing
             if gen_settings.token_bias is None:
@@ -1261,7 +1261,7 @@ class ExllamaV2Container(BaseModelContainer):
             grammar_handler,
         )
 
-        # set banned strings
+        # Set banned strings
         banned_strings = params.banned_strings
         if banned_strings and len(grammar_handler.filters) > 0:
             logger.warning(
@@ -1271,7 +1271,7 @@ class ExllamaV2Container(BaseModelContainer):
 
             banned_strings = []
 
-        # set CFG scale and negative prompt
+        # Set CFG scale and negative prompt
         cfg_scale = params.cfg_scale
         negative_prompt = None
         if cfg_scale not in [None, 1.0]:
@@ -1301,7 +1301,7 @@ class ExllamaV2Container(BaseModelContainer):
         stop_conditions = params.stop
         ban_eos_token = params.ban_eos_token
 
-        # set add_bos_token for generation
+        # Set add_bos_token for generation
         add_bos_token = unwrap(params.add_bos_token, self.hf_model.add_bos_token())
 
         # Fetch EOS tokens from the HF model if they exist
@@ -1309,7 +1309,7 @@ class ExllamaV2Container(BaseModelContainer):
 
         # Ban the EOS token if specified. If not, append to stop conditions
         # as well.
-        # set this below logging to avoid polluting the stop strings array
+        # Set this below logging to avoid polluting the stop strings array
         if ban_eos_token:
             gen_settings.disallow_tokens(self.tokenizer, eos_tokens)
         else:

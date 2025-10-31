@@ -1,6 +1,6 @@
 """The main tabbyAPI module. Contains the FastAPI server and endpoints."""
 
-# set this env var for cuda malloc async before torch is initalized
+# Set this env var for cuda malloc async before torch is initalized
 import os
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
@@ -91,7 +91,7 @@ async def entrypoint_async():
 
     gen_logging.broadcast_status()
 
-    # set sampler parameter overrides if provided
+    # Set sampler parameter overrides if provided
     sampling_override_preset = config.sampling.override_preset
     if sampling_override_preset:
         try:
@@ -108,7 +108,7 @@ def entrypoint(
 ):
     setup_logger()
 
-    # set up signal aborting
+    # Set up signal aborting
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
@@ -117,7 +117,7 @@ def entrypoint(
     else:
         from uvloop import install
 
-    # set loop event policy
+    # Set loop event policy
     install()
 
     # Parse and override config from args
@@ -157,7 +157,7 @@ def entrypoint(
 
         raise SystemExit(install_message)
 
-    # set the process priority
+    # Set the process priority
     if config.developer.realtime_process_priority:
         import psutil
 

@@ -72,7 +72,7 @@ async def completion_request(
 
     disable_request_streaming = config.developer.disable_request_streaming
 
-    # set an empty JSON schema if the request wants a JSON response
+    # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":
         data.json_schema = {"type": "object"}
 
@@ -125,7 +125,7 @@ async def chat_completion_request(
 
     prompt, embeddings = await apply_chat_template(data)
 
-    # set an empty JSON schema if the request wants a JSON response
+    # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":
         data.json_schema = {"type": "object"}
 

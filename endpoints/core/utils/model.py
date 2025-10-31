@@ -82,7 +82,7 @@ async def stream_model_load(
     # Get trimmed load data
     load_data = data.model_dump(exclude_none=True)
 
-    # set the draft model directory
+    # Set the draft model directory
     load_data.setdefault("draft_model", {})["draft_model_dir"] = (
         config.draft_model.draft_model_dir
     )
