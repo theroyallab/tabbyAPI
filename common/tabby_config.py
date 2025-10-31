@@ -2,7 +2,6 @@ import pathlib
 from inspect import getdoc
 from os import getenv
 from textwrap import dedent
-from typing import Optional
 
 from loguru import logger
 from pydantic import BaseModel
@@ -22,7 +21,7 @@ class TabbyConfig(TabbyConfigModel):
     model_defaults: dict = {}
     draft_model_defaults: dict = {}
 
-    def load(self, arguments: Optional[dict] = None):
+    def load(self, arguments: dict | None = None):
         """Synchronously loads the global application config"""
 
         # config is applied in order of items in the list
@@ -45,7 +44,7 @@ class TabbyConfig(TabbyConfigModel):
             value = getattr(merged_config_model, field)
             setattr(self, field, value)
 
-        # Set model defaults dict once to prevent on-demand reconstruction
+        # set model defaults dict once to prevent on-demand reconstruction
         # TODO: clean this up a bit
         for field in self.model.use_as_default:
             if hasattr(self.model, field):

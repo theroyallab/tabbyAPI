@@ -1,6 +1,5 @@
 from functools import partial
 from pydantic import BaseModel, Field, field_validator
-from typing import List, Optional
 
 from common.sampling import BaseSamplerRequest, get_default_sampler_value
 from common.utils import unwrap
@@ -8,9 +7,9 @@ from common.utils import unwrap
 
 class GenerateRequest(BaseSamplerRequest):
     prompt: str
-    genkey: Optional[str] = None
-    use_default_badwordsids: Optional[bool] = False
-    dynatemp_range: Optional[float] = Field(
+    genkey: str | None = None
+    use_default_badwordsids: bool | None = False
+    dynatemp_range: float | None = Field(
         default_factory=partial(get_default_sampler_value, "dynatemp_range")
     )
 
@@ -43,7 +42,7 @@ class GenerateResponseResult(BaseModel):
 
 
 class GenerateResponse(BaseModel):
-    results: List[GenerateResponseResult] = Field(default_factory=list)
+    results: list[GenerateResponseResult] = Field(default_factory=list)
 
 
 class StreamGenerateChunk(BaseModel):

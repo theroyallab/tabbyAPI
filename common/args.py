@@ -1,7 +1,6 @@
 """Argparser for overriding config values"""
 
 import argparse
-from typing import Optional
 from pydantic import BaseModel
 
 from common.config_models import TabbyConfigModel
@@ -25,7 +24,7 @@ def add_field_to_group(group, field_name, field_type, field) -> None:
 
 
 def init_argparser(
-    existing_parser: Optional[argparse.ArgumentParser] = None,
+    existing_parser: argparse.ArgumentParser | None = None,
 ) -> argparse.ArgumentParser:
     """
     Initializes an argparse parser based on a Pydantic config schema.

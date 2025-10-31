@@ -3,7 +3,6 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
-from typing import Optional
 
 from common.logger import UVICORN_LOG_CONFIG
 from common.networking import get_global_depends
@@ -13,7 +12,7 @@ from endpoints.OAI import router as OAIRouter
 from endpoints.core.router import router as CoreRouter
 
 
-def setup_app(host: Optional[str] = None, port: Optional[int] = None):
+def setup_app(host: str | None = None, port: int | None = None):
     """Includes the correct routers for startup"""
 
     app = FastAPI(

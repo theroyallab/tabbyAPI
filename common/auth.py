@@ -10,7 +10,6 @@ from ruamel.yaml import YAML
 from fastapi import Header, HTTPException, Request
 from pydantic import BaseModel
 from loguru import logger
-from typing import Optional
 
 from common.utils import coalesce
 
@@ -38,7 +37,7 @@ class AuthKeys(BaseModel):
 
 
 # Global auth constants
-AUTH_KEYS: Optional[AuthKeys] = None
+AUTH_KEYS: AuthKeys | None = None
 DISABLE_AUTH: bool = False
 
 
@@ -52,7 +51,7 @@ async def load_auth_keys(disable_from_config: bool):
     if disable_from_config:
         logger.warning(
             "Disabling authentication makes your instance vulnerable. "
-            "Set the `disable_auth` flag to False in config.yml if you "
+            "set the `disable_auth` flag to False in config.yml if you "
             "want to share this instance with others."
         )
 

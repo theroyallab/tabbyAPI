@@ -6,17 +6,17 @@ from pydantic import (
     PrivateAttr,
     field_validator,
 )
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
-CACHE_TYPE = Union[CACHE_SIZES, constr(pattern=r"^[2-8]\s*,\s*[2-8]$")]
+CACHE_TYPE = CACHE_SIZES | constr(pattern=r"^[2-8]\s*,\s*[2-8]$")
 
 
 class Metadata(BaseModel):
     """metadata model for config options"""
 
-    include_in_config: Optional[bool] = Field(True)
+    include_in_config: bool | None = Field(True)
 
 
 class BaseConfigModel(BaseModel):
@@ -29,7 +29,7 @@ class ConfigOverrideConfig(BaseConfigModel):
     """Model for overriding a provided config file."""
 
     # TODO: convert this to a pathlib.path?
-    config: Optional[str] = Field(
+    config: str | None = Field(
         None, description=("Path to an overriding config.yml file")
     )
 
@@ -39,17 +39,17 @@ class ConfigOverrideConfig(BaseConfigModel):
 class NetworkConfig(BaseConfigModel):
     """Options for networking"""
 
-    host: Optional[str] = Field(
+    host: str | None = Field(
         "127.0.0.1",
         description=(
             "The IP to host on (default: 127.0.0.1).\n"
             "Use 0.0.0.0 to expose on all network adapters."
         ),
     )
-    port: Optional[int] = Field(
+    port: int | None = Field(
         5000, description=("The port to host on (default: 5000).")
     )
-    disable_auth: Optional[bool] = Field(
+    disable_auth: bool | None = Field(
         False,
         description=(
             "Disable HTTP token authentication with requests.\n"
@@ -57,21 +57,21 @@ class NetworkConfig(BaseConfigModel):
             "Turn on this option if you are ONLY connecting from localhost."
         ),
     )
-    disable_fetch_requests: Optional[bool] = Field(
+    disable_fetch_requests: bool | None = Field(
         False,
         description=(
             "Disable fetching external content in response to requests,"
             "such as images from URLs."
         ),
     )
-    send_tracebacks: Optional[bool] = Field(
+    send_tracebacks: bool | None = Field(
         False,
         description=(
             "Send tracebacks over the API (default: False).\n"
             "NOTE: Only enable this for debug purposes."
         ),
     )
-    api_servers: Optional[List[Literal["oai", "kobold"]]] = Field(
+    api_servers: list[Literal["oai", "kobold"]] | None = Field(
         ["OAI"],
         description=(
             'Select API servers to enable (default: ["OAI"]).\n'
@@ -91,15 +91,15 @@ class NetworkConfig(BaseConfigModel):
 class LoggingConfig(BaseConfigModel):
     """Options for logging"""
 
-    log_prompt: Optional[bool] = Field(
+    log_prompt: bool | None = Field(
         False,
         description=("Enable prompt logging (default: False)."),
     )
-    log_generation_params: Optional[bool] = Field(
+    log_generation_params: bool | None = Field(
         False,
         description=("Enable generation parameter logging (default: False)."),
     )
-    log_requests: Optional[bool] = Field(
+    log_requests: bool | None = Field(
         False,
         description=(
             "Enable request logging (default: False).\n"
@@ -123,7 +123,7 @@ class ModelConfig(BaseConfigModel):
             "Windows users, do NOT put this path in quotes!"
         ),
     )
-    inline_model_loading: Optional[bool] = Field(
+    inline_model_loading: bool | None = Field(
         False,
         description=(
             "Allow direct loading of models "
@@ -132,7 +132,7 @@ class ModelConfig(BaseConfigModel):
             "Enable dummy models to add exceptions for invalid model names."
         ),
     )
-    use_dummy_models: Optional[bool] = Field(
+    use_dummy_models: bool | None = Field(
         False,
         description=(
             "Sends dummy model names when the models endpoint is queried. "
@@ -140,7 +140,7 @@ class ModelConfig(BaseConfigModel):
             "Enable this if the client is looking for specific OAI models.\n"
         ),
     )
-    dummy_model_names: List[str] = Field(
+    dummy_model_names: list[str] = Field(
         default=["gpt-3.5-turbo"],
         description=(
             "A list of fake model names that are sent via the /v1/models endpoint. "
@@ -148,7 +148,7 @@ class ModelConfig(BaseConfigModel):
             "Also used as bypasses for strict mode if inline_model_loading is true."
         ),
     )
-    model_name: Optional[str] = Field(
+    model_name: str | None = Field(
         None,
         description=(
             "An initial model to load.\n"
@@ -156,7 +156,7 @@ class ModelConfig(BaseConfigModel):
             "REQUIRED: This must be filled out to load a model on startup."
         ),
     )
-    use_as_default: List[str] = Field(
+    use_as_default: list[str] = Field(
         default_factory=list,
         description=(
             "Names of args to use as a fallback for API load requests (default: []).\n"
@@ -165,22 +165,22 @@ class ModelConfig(BaseConfigModel):
             "Example: ['max_seq_len', 'cache_mode']."
         ),
     )
-    backend: Optional[str] = Field(
+    backend: str | None = Field(
         None,
         description=(
             "Backend to use for this model (auto-detect if not specified)\n"
             "Options: exllamav2, exllamav3"
         ),
     )
-    max_seq_len: Optional[int] = Field(
+    max_seq_len: int | None = Field(
         None,
         description=(
             "Max sequence length (default: 4096).\n"
-            "Set to -1 to fetch from the model's config.json"
+            "set to -1 to fetch from the model's config.json"
         ),
         ge=-1,
     )
-    cache_size: Optional[int] = Field(
+    cache_size: int | None = Field(
         None,
         description=(
             "Size of the prompt cache to allocate (default: max_seq_len).\n"
@@ -190,7 +190,7 @@ class ModelConfig(BaseConfigModel):
         multiple_of=256,
         gt=0,
     )
-    cache_mode: Optional[CACHE_TYPE] = Field(
+    cache_mode: CACHE_TYPE | None = Field(
         "FP16",
         description=(
             "Enable different cache modes for VRAM savings (default: FP16).\n"
@@ -199,7 +199,7 @@ class ModelConfig(BaseConfigModel):
             "are integers from 2-8 (i.e. 8,8)."
         ),
     )
-    tensor_parallel: Optional[bool] = Field(
+    tensor_parallel: bool | None = Field(
         False,
         description=(
             "Load model with tensor parallelism (default: False).\n"
@@ -207,7 +207,7 @@ class ModelConfig(BaseConfigModel):
             "This ignores the gpu_split_auto value."
         ),
     )
-    tensor_parallel_backend: Optional[str] = Field(
+    tensor_parallel_backend: str | None = Field(
         "native",
         description=(
             "Sets a backend type for tensor parallelism. (default: native).\n"
@@ -216,28 +216,28 @@ class ModelConfig(BaseConfigModel):
             "NCCL is recommended for NVLink."
         ),
     )
-    gpu_split_auto: Optional[bool] = Field(
+    gpu_split_auto: bool | None = Field(
         True,
         description=(
             "Automatically allocate resources to GPUs (default: True).\n"
             "Not parsed for single GPU users."
         ),
     )
-    autosplit_reserve: List[float] = Field(
+    autosplit_reserve: list[float] = Field(
         [96],
         description=(
             "Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0).\n"
             "Represented as an array of MB per GPU."
         ),
     )
-    gpu_split: List[float] = Field(
+    gpu_split: list[float] = Field(
         default_factory=list,
         description=(
             "An integer array of GBs of VRAM to split between GPUs (default: []).\n"
             "Used with tensor parallelism."
         ),
     )
-    rope_scale: Optional[float] = Field(
+    rope_scale: float | None = Field(
         1.0,
         description=(
             "Rope scale (default: 1.0).\n"
@@ -246,16 +246,16 @@ class ModelConfig(BaseConfigModel):
             "Leave blank to pull the value from the model."
         ),
     )
-    rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
+    rope_alpha: float | Literal["auto"] | None = Field(
         None,
         description=(
             "Rope alpha (default: None).\n"
-            'Same as alpha_value. Set to "auto" to auto-calculate.\n'
+            'Same as alpha_value. set to "auto" to auto-calculate.\n'
             "Leaving this value blank will either pull from the model "
             "or auto-calculate."
         ),
     )
-    chunk_size: Optional[int] = Field(
+    chunk_size: int | None = Field(
         2048,
         description=(
             "Chunk size for prompt ingestion (default: 2048).\n"
@@ -265,7 +265,7 @@ class ModelConfig(BaseConfigModel):
         ),
         gt=0,
     )
-    output_chunking: Optional[bool] = Field(
+    output_chunking: bool | None = Field(
         True,
         description=(
             "Use output chunking (default: True)\n"
@@ -274,27 +274,27 @@ class ModelConfig(BaseConfigModel):
             "Used by EXL3 models only.\n"
         ),
     )
-    max_batch_size: Optional[int] = Field(
+    max_batch_size: int | None = Field(
         None,
         description=(
-            "Set the maximum number of prompts to process at one time "
+            "set the maximum number of prompts to process at one time "
             "(default: None/Automatic).\n"
             "Automatically calculated if left blank.\n"
             "NOTE: Only available for Nvidia ampere (30 series) and above GPUs."
         ),
         ge=1,
     )
-    prompt_template: Optional[str] = Field(
+    prompt_template: str | None = Field(
         None,
         description=(
-            "Set the prompt template for this model. (default: None)\n"
+            "set the prompt template for this model. (default: None)\n"
             "If empty, attempts to look for the model's chat template.\n"
             "If a model contains multiple templates in its tokenizer_config.json,\n"
             "set prompt_template to the name of the template you want to use.\n"
             "NOTE: Only works with chat completion message lists!"
         ),
     )
-    vision: Optional[bool] = Field(
+    vision: bool | None = Field(
         False,
         description=(
             "Enables vision support if the model supports it. (default: False)"
@@ -312,18 +312,18 @@ class DraftModelConfig(BaseConfigModel):
     """
 
     # TODO: convert this to a pathlib.path?
-    draft_model_dir: Optional[str] = Field(
+    draft_model_dir: str | None = Field(
         "models",
         description=("Directory to look for draft models (default: models)"),
     )
-    draft_model_name: Optional[str] = Field(
+    draft_model_name: str | None = Field(
         None,
         description=(
             "An initial draft model to load.\n"
             "Ensure the model is in the model directory."
         ),
     )
-    draft_rope_scale: Optional[float] = Field(
+    draft_rope_scale: float | None = Field(
         1.0,
         description=(
             "Rope scale for draft models (default: 1.0).\n"
@@ -331,23 +331,23 @@ class DraftModelConfig(BaseConfigModel):
             "Use if the draft model was trained on long context with rope."
         ),
     )
-    draft_rope_alpha: Optional[float] = Field(
+    draft_rope_alpha: float | None = Field(
         None,
         description=(
             "Rope alpha for draft models (default: None).\n"
-            'Same as alpha_value. Set to "auto" to auto-calculate.\n'
+            'Same as alpha_value. set to "auto" to auto-calculate.\n'
             "Leaving this value blank will either pull from the model "
             "or auto-calculate."
         ),
     )
-    draft_cache_mode: Optional[CACHE_SIZES] = Field(
+    draft_cache_mode: CACHE_SIZES | None = Field(
         "FP16",
         description=(
             "Cache mode for draft models to save VRAM (default: FP16).\n"
             f"Possible values: {str(CACHE_SIZES)[15:-1]}."
         ),
     )
-    draft_gpu_split: List[float] = Field(
+    draft_gpu_split: list[float] = Field(
         default_factory=list,
         description=(
             "An integer array of GBs of VRAM to split between GPUs (default: []).\n"
@@ -359,7 +359,7 @@ class DraftModelConfig(BaseConfigModel):
 class SamplingConfig(BaseConfigModel):
     """Options for Sampling"""
 
-    override_preset: Optional[str] = Field(
+    override_preset: str | None = Field(
         None,
         description=(
             "Select a sampler override preset (default: None).\n"
@@ -376,7 +376,7 @@ class SamplingConfig(BaseConfigModel):
 class LoraInstanceModel(BaseConfigModel):
     """Model representing an instance of a Lora."""
 
-    name: Optional[str] = None
+    name: str | None = None
     scaling: float = Field(1.0, ge=0)
 
 
@@ -384,13 +384,13 @@ class LoraConfig(BaseConfigModel):
     """Options for Loras"""
 
     # TODO: convert this to a pathlib.path?
-    lora_dir: Optional[str] = Field(
+    lora_dir: str | None = Field(
         "loras", description=("Directory to look for LoRAs (default: loras).")
     )
-    loras: Optional[List[LoraInstanceModel]] = Field(
+    loras: list[LoraInstanceModel] | None = Field(
         None,
         description=(
-            "List of LoRAs to load and associated scaling factors "
+            "list of LoRAs to load and associated scaling factors "
             "(default scale: 1.0).\n"
             "For the YAML file, add each entry as a YAML list:\n"
             "- name: lora1\n"
@@ -407,11 +407,11 @@ class EmbeddingsConfig(BaseConfigModel):
     """
 
     # TODO: convert this to a pathlib.path?
-    embedding_model_dir: Optional[str] = Field(
+    embedding_model_dir: str | None = Field(
         "models",
         description=("Directory to look for embedding models (default: models)."),
     )
-    embeddings_device: Optional[Literal["cpu", "auto", "cuda"]] = Field(
+    embeddings_device: Literal["cpu", "auto", "cuda"] | None = Field(
         "cpu",
         description=(
             "Device to load embedding models on (default: cpu).\n"
@@ -420,7 +420,7 @@ class EmbeddingsConfig(BaseConfigModel):
             "If using an AMD GPU, set this value to 'cuda'."
         ),
     )
-    embedding_model_name: Optional[str] = Field(
+    embedding_model_name: str | None = Field(
         None,
         description=("An initial embedding model to load on the infinity backend."),
     )
@@ -429,7 +429,7 @@ class EmbeddingsConfig(BaseConfigModel):
 class DeveloperConfig(BaseConfigModel):
     """Options for development and experimentation"""
 
-    unsafe_launch: Optional[bool] = Field(
+    unsafe_launch: bool | None = Field(
         False,
         description=(
             "Skip Exllamav2 version check (default: False).\n"
@@ -437,13 +437,13 @@ class DeveloperConfig(BaseConfigModel):
             "than enabling this flag."
         ),
     )
-    disable_request_streaming: Optional[bool] = Field(
+    disable_request_streaming: bool | None = Field(
         False, description=("Disable API request streaming (default: False).")
     )
-    realtime_process_priority: Optional[bool] = Field(
+    realtime_process_priority: bool | None = Field(
         False,
         description=(
-            "Set process to use a higher priority.\n"
+            "set process to use a higher priority.\n"
             "For realtime process priority, run as administrator or sudo.\n"
             "Otherwise, the priority will be set to high."
         ),
@@ -453,27 +453,27 @@ class DeveloperConfig(BaseConfigModel):
 class TabbyConfigModel(BaseModel):
     """Base model for a TabbyConfig."""
 
-    config: Optional[ConfigOverrideConfig] = Field(
+    config: ConfigOverrideConfig | None = Field(
         default_factory=ConfigOverrideConfig.model_construct
     )
-    network: Optional[NetworkConfig] = Field(
+    network: NetworkConfig | None = Field(
         default_factory=NetworkConfig.model_construct
     )
-    logging: Optional[LoggingConfig] = Field(
+    logging: LoggingConfig | None = Field(
         default_factory=LoggingConfig.model_construct
     )
-    model: Optional[ModelConfig] = Field(default_factory=ModelConfig.model_construct)
-    draft_model: Optional[DraftModelConfig] = Field(
+    model: ModelConfig | None = Field(default_factory=ModelConfig.model_construct)
+    draft_model: DraftModelConfig | None = Field(
         default_factory=DraftModelConfig.model_construct
     )
-    lora: Optional[LoraConfig] = Field(default_factory=LoraConfig.model_construct)
-    embeddings: Optional[EmbeddingsConfig] = Field(
+    lora: LoraConfig | None = Field(default_factory=LoraConfig.model_construct)
+    embeddings: EmbeddingsConfig | None = Field(
         default_factory=EmbeddingsConfig.model_construct
     )
-    sampling: Optional[SamplingConfig] = Field(
+    sampling: SamplingConfig | None = Field(
         default_factory=SamplingConfig.model_construct
     )
-    developer: Optional[DeveloperConfig] = Field(
+    developer: DeveloperConfig | None = Field(
         default_factory=DeveloperConfig.model_construct
     )
 

@@ -9,7 +9,6 @@ import subprocess
 import sys
 import traceback
 from shutil import copyfile, which
-from typing import List
 
 # Checks for uv installation
 has_uv = which("uv") is not None
@@ -154,7 +153,7 @@ def migrate_start_options(start_options: dict):
     return migrated
 
 
-def run_pip(command: List[str]):
+def run_pip(command: list[str]):
     if has_uv:
         command.insert(0, "uv")
 
@@ -204,10 +203,10 @@ if __name__ == "__main__":
             "Getting things ready..."
         )
 
-    # Set variables that rely on start options
+    # set variables that rely on start options
     first_run = not start_options.get("first_run_done")
 
-    # Set gpu_lib for dependency install
+    # set gpu_lib for dependency install
     if args.gpu_lib:
         print("Overriding GPU lib name from args.")
         gpu_lib = args.gpu_lib

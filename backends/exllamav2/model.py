@@ -25,7 +25,6 @@ from exllamav2.generator import (
 )
 from itertools import zip_longest
 from loguru import logger
-from typing import Dict, List, Optional
 
 from backends.base_model_container import BaseModelContainer
 from backends.exllamav2.grammar import (
@@ -58,45 +57,45 @@ class ExllamaV2Container(BaseModelContainer):
     # Model directories
     model_dir: pathlib.Path = pathlib.Path("models")
     draft_model_dir: pathlib.Path = pathlib.Path("models")
-    prompt_template: Optional[PromptTemplate] = None
+    prompt_template: PromptTemplate | None = None
 
     # HF model instance
     hf_model: HFModel
 
     # Exl2 vars
-    config: Optional[ExLlamaV2Config] = None
-    model: Optional[ExLlamaV2] = None
-    cache: Optional[ExLlamaV2Cache] = None
-    tokenizer: Optional[ExLlamaV2Tokenizer] = None
-    generator: Optional[ExLlamaV2DynamicGeneratorAsync] = None
-    prompt_template: Optional[PromptTemplate] = None
+    config: ExLlamaV2Config | None = None
+    model: ExLlamaV2 | None = None
+    cache: ExLlamaV2Cache | None = None
+    tokenizer: ExLlamaV2Tokenizer | None = None
+    generator: ExLlamaV2DynamicGeneratorAsync | None = None
+    prompt_template: PromptTemplate | None = None
     paged: bool = True
 
     # Draft model vars
     use_draft_model: bool = False
-    draft_config: Optional[ExLlamaV2Config] = None
-    draft_model: Optional[ExLlamaV2] = None
-    draft_cache: Optional[ExLlamaV2Cache] = None
+    draft_config: ExLlamaV2Config | None = None
+    draft_model: ExLlamaV2 | None = None
+    draft_cache: ExLlamaV2Cache | None = None
 
     # Internal config vars
     cache_size: int = None
     cache_mode: str = "FP16"
     draft_cache_mode: str = "FP16"
-    max_batch_size: Optional[int] = None
+    max_batch_size: int | None = None
 
     # GPU split vars
-    gpu_split: List[float] = []
-    draft_gpu_split: List[float] = []
+    gpu_split: list[float] = []
+    draft_gpu_split: list[float] = []
     gpu_split_auto: bool = True
-    autosplit_reserve: List[float] = [96 * 1024**2]
+    autosplit_reserve: list[float] = [96 * 1024**2]
     use_tp: bool = False
 
     # Vision vars
     use_vision: bool = False
-    vision_model: Optional[ExLlamaV2VisionTower] = None
+    vision_model: ExLlamaV2VisionTower | None = None
 
     # Load synchronization
-    active_job_ids: Dict[str, Optional[ExLlamaV2DynamicJobAsync]] = {}
+    active_job_ids: dict[str, ExLlamaV2DynamicJobAsync | None] = {}
     loaded: bool = False
     load_lock: asyncio.Lock = asyncio.Lock()
     load_condition: asyncio.Condition = asyncio.Condition()
@@ -130,7 +129,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Check if the model arch is compatible with various exl2 features
         self.config.arch_compat_overrides()
 
-        # Set vision state and error if vision isn't supported on the current model
+        # set vision state and error if vision isn't supported on the current model
         self.use_vision = unwrap(kwargs.get("vision"), False)
         if self.use_vision and not self.config.vision_model_type:
             raise ValueError(
@@ -185,12 +184,12 @@ class ExllamaV2Container(BaseModelContainer):
         gpu_split = unwrap(kwargs.get("gpu_split"), [])
         gpu_device_list = list(range(0, gpu_count))
 
-        # Set GPU split options
+        # set GPU split options
         if gpu_count == 1:
             self.gpu_split_auto = False
             logger.info("Disabling GPU split because one GPU is in use.")
         else:
-            # Set tensor parallel
+            # set tensor parallel
             if use_tp:
                 self.use_tp = True
 
@@ -233,7 +232,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Hardcode max output length to 16
         self.config.max_output_len = 16
 
-        # Set max batch size to the config override
+        # set max batch size to the config override
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"))
 
         # Check whether the user's configuration supports flash/paged attention
@@ -262,7 +261,7 @@ class ExllamaV2Container(BaseModelContainer):
         # Grab user-set max seq len
         user_max_seq_len = kwargs.get("max_seq_len")
 
-        # Set k/v cache size
+        # set k/v cache size
         # cache_size is only relevant when paged mode is enabled
         if self.paged:
             user_cache_size = coalesce(kwargs.get("cache_size"), user_max_seq_len, 4096)
@@ -273,7 +272,7 @@ class ExllamaV2Container(BaseModelContainer):
                 user_max_seq_len, min(hf_model.hf_config.max_position_embeddings, 4096)
             )
 
-        # Set the rope scale
+        # set the rope scale
         self.config.scale_pos_emb = unwrap(
             kwargs.get("rope_scale"), self.config.scale_pos_emb
         )
@@ -322,7 +321,7 @@ class ExllamaV2Container(BaseModelContainer):
         self.config.max_input_len = chunk_size
         self.config.max_attention_size = chunk_size**2
 
-        # Set user-configured draft model values
+        # set user-configured draft model values
         if self.use_draft_model:
             self.draft_config.max_seq_len = self.config.max_seq_len
 
@@ -330,7 +329,7 @@ class ExllamaV2Container(BaseModelContainer):
                 draft_args.get("draft_rope_scale"), 1.0
             )
 
-            # Set draft rope alpha. Follows same behavior as model rope alpha.
+            # set draft rope alpha. Follows same behavior as model rope alpha.
             # Use the max_position_embeddings of the model
             draft_rope_alpha = unwrap(draft_args.get("draft_rope_alpha"), "auto")
             if draft_rope_alpha == "auto":
@@ -341,7 +340,7 @@ class ExllamaV2Container(BaseModelContainer):
             else:
                 self.draft_config.scale_alpha_value = draft_rope_alpha
 
-            # Set draft cache mode
+            # set draft cache mode
             self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
 
             # Catch exllamav3 draft_cache_mode
@@ -750,9 +749,9 @@ class ExllamaV2Container(BaseModelContainer):
             # Wait for existing generation jobs to finish
             await self.wait_for_jobs(kwargs.get("skip_wait"))
 
-            loras_to_load: List[ExLlamaV2Lora] = []
-            success: List[str] = []
-            failure: List[str] = []
+            loras_to_load: list[ExLlamaV2Lora] = []
+            success: list[str] = []
+            failure: list[str] = []
 
             for lora in loras:
                 lora_name = lora.get("name")
@@ -836,7 +835,7 @@ class ExllamaV2Container(BaseModelContainer):
                     await self.generator.close()
                     self.generator = None
 
-                # Set all model state variables to False
+                # set all model state variables to False
                 self.loaded = False
 
             gc.collect()
@@ -869,7 +868,7 @@ class ExllamaV2Container(BaseModelContainer):
             .tolist()
         )
 
-    def decode_tokens(self, ids: List[int], **kwargs):
+    def decode_tokens(self, ids: list[int], **kwargs):
         """Wrapper to decode tokens from a list of IDs"""
 
         ids = torch.tensor([ids])
@@ -908,8 +907,8 @@ class ExllamaV2Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
     ):
         """Generate a response to a prompt."""
         generations = []
@@ -969,8 +968,8 @@ class ExllamaV2Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
     ):
         try:
             # Wait for load lock to be freed before processing
@@ -1136,15 +1135,15 @@ class ExllamaV2Container(BaseModelContainer):
                 "top_k, top_p, and typical to 1.0, 1, 0, and 0."
             )
 
-        # Set banned tokens
+        # set banned tokens
         if params.banned_tokens:
             gen_settings.disallow_tokens(self.tokenizer, params.banned_tokens)
 
-        # Set allowed tokens
+        # set allowed tokens
         if params.allowed_tokens:
             gen_settings.allow_tokens(self.tokenizer, params.allowed_tokens)
 
-        # Set logit bias
+        # set logit bias
         if params.logit_bias:
             # Create a vocab tensor if it doesn't exist for token biasing
             if gen_settings.token_bias is None:
@@ -1242,8 +1241,8 @@ class ExllamaV2Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
     ):
         """
         Create generator function for prompt completion.
@@ -1261,7 +1260,7 @@ class ExllamaV2Container(BaseModelContainer):
             grammar_handler,
         )
 
-        # Set banned strings
+        # set banned strings
         banned_strings = params.banned_strings
         if banned_strings and len(grammar_handler.filters) > 0:
             logger.warning(
@@ -1271,7 +1270,7 @@ class ExllamaV2Container(BaseModelContainer):
 
             banned_strings = []
 
-        # Set CFG scale and negative prompt
+        # set CFG scale and negative prompt
         cfg_scale = params.cfg_scale
         negative_prompt = None
         if cfg_scale not in [None, 1.0]:
@@ -1301,7 +1300,7 @@ class ExllamaV2Container(BaseModelContainer):
         stop_conditions = params.stop
         ban_eos_token = params.ban_eos_token
 
-        # Set add_bos_token for generation
+        # set add_bos_token for generation
         add_bos_token = unwrap(params.add_bos_token, self.hf_model.add_bos_token())
 
         # Fetch EOS tokens from the HF model if they exist
@@ -1309,7 +1308,7 @@ class ExllamaV2Container(BaseModelContainer):
 
         # Ban the EOS token if specified. If not, append to stop conditions
         # as well.
-        # Set this below logging to avoid polluting the stop strings array
+        # set this below logging to avoid polluting the stop strings array
         if ban_eos_token:
             gen_settings.disallow_tokens(self.tokenizer, eos_tokens)
         else:

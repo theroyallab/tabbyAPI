@@ -9,7 +9,6 @@ import pathlib
 from asyncio import CancelledError
 from fastapi import HTTPException, Request
 from loguru import logger
-from typing import List, Optional, Union
 
 from common import model
 from common.auth import get_key_permission
@@ -39,7 +38,7 @@ def _parse_gen_request_id(n: int, request_id: str, task_idx: int):
 
 
 def _create_response(
-    request_id: str, generations: Union[dict, List[dict]], model_name: str = ""
+    request_id: str, generations: dict | list[dict], model_name: str = ""
 ):
     """Create a completion response from the provided choices."""
 
@@ -47,7 +46,7 @@ def _create_response(
     if not isinstance(generations, list):
         generations = [generations]
 
-    choices: List[CompletionRespChoice] = []
+    choices: list[CompletionRespChoice] = []
     for index, generation in enumerate(generations):
         logprob_response = None
 
@@ -103,7 +102,7 @@ async def _stream_collector(
     prompt: str,
     params: CompletionRequest,
     abort_event: asyncio.Event,
-    mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+    mm_embeddings: MultimodalEmbeddingWrapper | None = None,
 ):
     """Collects a stream and places results in a common queue"""
 
@@ -200,7 +199,7 @@ async def stream_generate_completion(
 
     abort_event = asyncio.Event()
     gen_queue = asyncio.Queue()
-    gen_tasks: List[asyncio.Task] = []
+    gen_tasks: list[asyncio.Task] = []
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
 
     try:
@@ -261,7 +260,7 @@ async def generate_completion(
 ):
     """Non-streaming generate for completions"""
 
-    gen_tasks: List[asyncio.Task] = []
+    gen_tasks: list[asyncio.Task] = []
 
     try:
         logger.info(f"Received completion request {request.state.id}")

@@ -1,7 +1,6 @@
 import asyncio
 import pathlib
 from sys import maxsize
-from typing import Optional
 from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -275,7 +274,7 @@ async def load_lora(data: LoraLoadRequest) -> LoraLoadResponse:
 
     if not data.loras:
         error_message = handle_request_error(
-            "List of loras to load is not found.",
+            "list of loras to load is not found.",
             exc_info=False,
         ).error.message
 
@@ -403,7 +402,7 @@ async def unload_embedding_model():
 async def encode_tokens(data: TokenEncodeRequest) -> TokenEncodeResponse:
     """Encodes a string or chat completion messages into tokens."""
 
-    mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None
+    mm_embeddings: MultimodalEmbeddingWrapper | None = None
 
     if isinstance(data.text, str):
         text = data.text
@@ -547,7 +546,7 @@ async def unload_template():
 @router.get("/v1/sampling/override/list", dependencies=[Depends(check_api_key)])
 async def list_sampler_overrides(request: Request) -> SamplerOverrideListResponse:
     """
-    List all currently applied sampler overrides.
+    list all currently applied sampler overrides.
 
     Requires an admin key to see all override presets.
     """

@@ -1,6 +1,5 @@
 import pathlib
 from asyncio import CancelledError
-from typing import Optional
 
 from common import model
 from common.networking import get_generator_error, handle_request_disconnect
@@ -13,7 +12,7 @@ from endpoints.core.types.model import (
 )
 
 
-def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = None):
+def get_model_list(model_path: pathlib.Path, draft_model_path: str | None = None):
     """Get the list of models from the provided path."""
 
     # Convert the provided draft model path to a pathlib path for
@@ -83,7 +82,7 @@ async def stream_model_load(
     # Get trimmed load data
     load_data = data.model_dump(exclude_none=True)
 
-    # Set the draft model directory
+    # set the draft model directory
     load_data.setdefault("draft_model", {})["draft_model_dir"] = (
         config.draft_model.draft_model_dir
     )

@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from pydantic import AliasChoices, BaseModel, Field, field_validator
 from time import time
-from typing import Literal, Union, List, Optional, Dict
+from typing import Literal
 from uuid import uuid4
 
 from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
@@ -10,11 +12,11 @@ from endpoints.OAI.types.tools import ToolSpec, ToolCall
 class ChatCompletionLogprob(BaseModel):
     token: str
     logprob: float
-    top_logprobs: Optional[List["ChatCompletionLogprob"]] = Field(default_factory=list)
+    top_logprobs: list[ChatCompletionLogprob] | None = Field(default_factory=list)
 
 
 class ChatCompletionLogprobs(BaseModel):
-    content: List[ChatCompletionLogprob] = Field(default_factory=list)
+    content: list[ChatCompletionLogprob] = Field(default_factory=list)
 
 
 class ChatCompletionImageUrl(BaseModel):
@@ -23,58 +25,58 @@ class ChatCompletionImageUrl(BaseModel):
 
 class ChatCompletionMessagePart(BaseModel):
     type: Literal["text", "image_url"] = "text"
-    text: Optional[str] = None
-    image_url: Optional[ChatCompletionImageUrl] = None
+    text: str | None = None
+    image_url: ChatCompletionImageUrl | None = None
 
 
 class ChatCompletionMessage(BaseModel):
     role: str = "user"
-    content: Optional[Union[str, List[ChatCompletionMessagePart]]] = None
-    tool_calls: Optional[List[ToolCall]] = None
-    tool_call_id: Optional[str] = None
+    content: str | list[ChatCompletionMessagePart] | None = None
+    tool_calls: list[ToolCall] | None = None
+    tool_call_id: str | None = None
 
 
 class ChatCompletionRespChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
-    finish_reason: Optional[str] = None
+    finish_reason: str | None = None
 
     # let's us understand why it stopped and if we need to generate a tool_call
-    stop_str: Optional[str] = None
+    stop_str: str | None = None
     message: ChatCompletionMessage
-    logprobs: Optional[ChatCompletionLogprobs] = None
+    logprobs: ChatCompletionLogprobs | None = None
 
 
 class ChatCompletionStreamChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
-    finish_reason: Optional[str] = None
-    delta: Union[ChatCompletionMessage, dict] = {}
-    logprobs: Optional[ChatCompletionLogprobs] = None
+    finish_reason: str | None = None
+    delta: ChatCompletionMessage | dict = {}
+    logprobs: ChatCompletionLogprobs | None = None
 
 
 # Inherited from common request
 class ChatCompletionRequest(CommonCompletionRequest):
-    messages: List[ChatCompletionMessage]
-    prompt_template: Optional[str] = None
-    add_generation_prompt: Optional[bool] = True
-    template_vars: Optional[dict] = Field(
+    messages: list[ChatCompletionMessage]
+    prompt_template: str | None = None
+    add_generation_prompt: bool | None = True
+    template_vars: dict | None = Field(
         default={},
         validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
         description="Aliases: chat_template_kwargs",
     )
-    response_prefix: Optional[str] = None
-    model: Optional[str] = None
+    response_prefix: str | None = None
+    model: str | None = None
 
     # tools is follows the format OAI schema, functions is more flexible
     # both are available in the chat template.
 
-    tools: Optional[List[ToolSpec]] = None
-    functions: Optional[List[Dict]] = None
+    tools: list[ToolSpec] | None = None
+    functions: list[dict] | None = None
 
     # Chat completions requests do not have a BOS token preference. Backend
     # respects the tokenization config for the individual model.
-    add_bos_token: Optional[bool] = None
+    add_bos_token: bool | None = None
 
     @field_validator("add_bos_token", mode="after")
     def force_bos_token(cls, v):
@@ -84,17 +86,17 @@ class ChatCompletionRequest(CommonCompletionRequest):
 
 class ChatCompletionResponse(BaseModel):
     id: str = Field(default_factory=lambda: f"chatcmpl-{uuid4().hex}")
-    choices: List[ChatCompletionRespChoice]
+    choices: list[ChatCompletionRespChoice]
     created: int = Field(default_factory=lambda: int(time()))
     model: str
     object: str = "chat.completion"
-    usage: Optional[UsageStats] = None
+    usage: UsageStats | None = None
 
 
 class ChatCompletionStreamChunk(BaseModel):
     id: str = Field(default_factory=lambda: f"chatcmpl-{uuid4().hex}")
-    choices: List[ChatCompletionStreamChoice]
+    choices: list[ChatCompletionStreamChoice]
     created: int = Field(default_factory=lambda: int(time()))
     model: str
     object: str = "chat.completion.chunk"
-    usage: Optional[UsageStats] = None
+    usage: UsageStats | None = None

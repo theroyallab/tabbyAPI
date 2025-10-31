@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import List
 from exllamav3.generator.sampler import (
     CustomSampler,
     SS_Temperature,
@@ -20,7 +19,7 @@ class ExllamaV3SamplerBuilder:
     Custom sampler chain/stack for TabbyAPI
     """
 
-    stack: List[SS_Base] = field(default_factory=list)
+    stack: list[SS_Base] = field(default_factory=list)
 
     def penalties(self, rep_p, freq_p, pres_p, penalty_range, rep_decay):
         self.stack += [

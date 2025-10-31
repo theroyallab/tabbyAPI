@@ -14,7 +14,6 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from typing import Dict, List, Optional, Union
 
 from common.utils import filter_none_values, unwrap
 
@@ -23,7 +22,7 @@ from common.utils import filter_none_values, unwrap
 class BaseSamplerRequest(BaseModel):
     """Common class for sampler params that are used in APIs"""
 
-    max_tokens: Optional[int] = Field(
+    max_tokens: int | None = Field(
         default_factory=lambda: get_default_sampler_value("max_tokens"),
         validation_alias=AliasChoices(
             "max_tokens", "max_completion_tokens", "max_length"
@@ -33,7 +32,7 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
-    min_tokens: Optional[int] = Field(
+    min_tokens: int | None = Field(
         default_factory=lambda: get_default_sampler_value("min_tokens", 0),
         validation_alias=AliasChoices("min_tokens", "min_length"),
         description="Aliases: min_length",
@@ -41,76 +40,76 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
-    stop: Optional[Union[str, List[Union[str, int]]]] = Field(
+    stop: str | list[str | int] | None = Field(
         default_factory=lambda: get_default_sampler_value("stop", []),
         validation_alias=AliasChoices("stop", "stop_sequence"),
         description="Aliases: stop_sequence",
     )
 
-    banned_strings: Optional[Union[str, List[str]]] = Field(
+    banned_strings: str | list[str] | None = Field(
         default_factory=lambda: get_default_sampler_value("banned_strings", [])
     )
 
-    banned_tokens: Optional[Union[List[int], str]] = Field(
+    banned_tokens: list[int] | str | None = Field(
         default_factory=lambda: get_default_sampler_value("banned_tokens", []),
         validation_alias=AliasChoices("banned_tokens", "custom_token_bans"),
         description="Aliases: custom_token_bans",
         examples=[[128, 330]],
     )
 
-    allowed_tokens: Optional[Union[List[int], str]] = Field(
+    allowed_tokens: list[int] | str | None = Field(
         default_factory=lambda: get_default_sampler_value("allowed_tokens", []),
         validation_alias=AliasChoices("allowed_tokens", "allowed_token_ids"),
         description="Aliases: allowed_token_ids",
         examples=[[128, 330]],
     )
 
-    token_healing: Optional[bool] = Field(
+    token_healing: bool | None = Field(
         default_factory=lambda: get_default_sampler_value("token_healing", False)
     )
 
-    temperature: Optional[float] = Field(
+    temperature: float | None = Field(
         default_factory=lambda: get_default_sampler_value("temperature", 1.0),
         examples=[1.0],
         ge=0,
         le=10,
     )
 
-    temperature_last: Optional[bool] = Field(
+    temperature_last: bool | None = Field(
         default_factory=lambda: get_default_sampler_value("temperature_last", False),
     )
 
-    smoothing_factor: Optional[float] = Field(
+    smoothing_factor: float | None = Field(
         default_factory=lambda: get_default_sampler_value("smoothing_factor", 0.0),
         ge=0,
     )
 
-    top_k: Optional[int] = Field(
+    top_k: int | None = Field(
         default_factory=lambda: get_default_sampler_value("top_k", 0),
         ge=-1,
     )
 
-    top_p: Optional[float] = Field(
+    top_p: float | None = Field(
         default_factory=lambda: get_default_sampler_value("top_p", 1.0),
         ge=0,
         le=1,
         examples=[1.0],
     )
 
-    top_a: Optional[float] = Field(
+    top_a: float | None = Field(
         default_factory=lambda: get_default_sampler_value("top_a", 0.0)
     )
 
-    min_p: Optional[float] = Field(
+    min_p: float | None = Field(
         default_factory=lambda: get_default_sampler_value("min_p", 0.0)
     )
 
-    tfs: Optional[float] = Field(
+    tfs: float | None = Field(
         default_factory=lambda: get_default_sampler_value("tfs", 1.0),
         examples=[1.0],
     )
 
-    typical: Optional[float] = Field(
+    typical: float | None = Field(
         default_factory=lambda: get_default_sampler_value("typical", 1.0),
         validation_alias=AliasChoices("typical", "typical_p"),
         description="Aliases: typical_p",
@@ -119,30 +118,30 @@ class BaseSamplerRequest(BaseModel):
         le=1,
     )
 
-    skew: Optional[float] = Field(
+    skew: float | None = Field(
         default_factory=lambda: get_default_sampler_value("skew", 0.0),
         examples=[0.0],
     )
 
-    xtc_probability: Optional[float] = Field(
+    xtc_probability: float | None = Field(
         default_factory=lambda: get_default_sampler_value("xtc_probability", 0.0),
     )
 
-    xtc_threshold: Optional[float] = Field(
+    xtc_threshold: float | None = Field(
         default_factory=lambda: get_default_sampler_value("xtc_threshold", 0.1)
     )
 
-    frequency_penalty: Optional[float] = Field(
+    frequency_penalty: float | None = Field(
         default_factory=lambda: get_default_sampler_value("frequency_penalty", 0.0),
         ge=0,
     )
 
-    presence_penalty: Optional[float] = Field(
+    presence_penalty: float | None = Field(
         default_factory=lambda: get_default_sampler_value("presence_penalty", 0.0),
         ge=0,
     )
 
-    repetition_penalty: Optional[float] = Field(
+    repetition_penalty: float | None = Field(
         default_factory=lambda: get_default_sampler_value("repetition_penalty", 1.0),
         validation_alias=AliasChoices("repetition_penalty", "rep_pen"),
         description="Aliases: rep_pen",
@@ -150,7 +149,7 @@ class BaseSamplerRequest(BaseModel):
         gt=0,
     )
 
-    penalty_range: Optional[int] = Field(
+    penalty_range: int | None = Field(
         default_factory=lambda: get_default_sampler_value("penalty_range", -1),
         validation_alias=AliasChoices(
             "penalty_range",
@@ -163,91 +162,91 @@ class BaseSamplerRequest(BaseModel):
         ),
     )
 
-    repetition_decay: Optional[int] = Field(
+    repetition_decay: int | None = Field(
         default_factory=lambda: get_default_sampler_value("repetition_decay", 0)
     )
 
-    dry_multiplier: Optional[float] = Field(
+    dry_multiplier: float | None = Field(
         default_factory=lambda: get_default_sampler_value("dry_multiplier", 0.0)
     )
 
-    dry_base: Optional[float] = Field(
+    dry_base: float | None = Field(
         default_factory=lambda: get_default_sampler_value("dry_base", 0.0)
     )
 
-    dry_allowed_length: Optional[int] = Field(
+    dry_allowed_length: int | None = Field(
         default_factory=lambda: get_default_sampler_value("dry_allowed_length", 0)
     )
 
-    dry_range: Optional[int] = Field(
+    dry_range: int | None = Field(
         default_factory=lambda: get_default_sampler_value("dry_range", 0),
         validation_alias=AliasChoices("dry_range", "dry_penalty_last_n"),
         description=("Aliases: dry_penalty_last_n"),
     )
 
-    dry_sequence_breakers: Optional[Union[str, List[str]]] = Field(
+    dry_sequence_breakers: str | list[str] | None = Field(
         default_factory=lambda: get_default_sampler_value("dry_sequence_breakers", [])
     )
 
-    mirostat_mode: Optional[int] = Field(
+    mirostat_mode: int | None = Field(
         default_factory=lambda: get_default_sampler_value("mirostat_mode", 0),
         alias=AliasChoices("mirostat_mode", "mirostat"),
     )
 
-    mirostat_tau: Optional[float] = Field(
+    mirostat_tau: float | None = Field(
         default_factory=lambda: get_default_sampler_value("mirostat_tau", 1.5),
         examples=[1.5],
     )
 
-    mirostat_eta: Optional[float] = Field(
+    mirostat_eta: float | None = Field(
         default_factory=lambda: get_default_sampler_value("mirostat_eta", 0.3),
         examples=[0.3],
     )
 
-    add_bos_token: Optional[bool] = Field(
+    add_bos_token: bool | None = Field(
         default_factory=lambda: get_default_sampler_value("add_bos_token")
     )
 
-    ban_eos_token: Optional[bool] = Field(
+    ban_eos_token: bool | None = Field(
         default_factory=lambda: get_default_sampler_value("ban_eos_token", False),
         validation_alias=AliasChoices("ban_eos_token", "ignore_eos"),
         description="Aliases: ignore_eos",
         examples=[False],
     )
 
-    logit_bias: Optional[Dict[int, float]] = Field(
+    logit_bias: dict[int, float] | None = Field(
         default_factory=lambda: get_default_sampler_value("logit_bias"),
         examples=[{"1": 10, "2": 50}],
     )
 
-    negative_prompt: Optional[str] = Field(
+    negative_prompt: str | None = Field(
         default_factory=lambda: get_default_sampler_value("negative_prompt")
     )
 
-    json_schema: Optional[object] = Field(
+    json_schema: object | None = Field(
         default_factory=lambda: get_default_sampler_value("json_schema"),
     )
 
-    regex_pattern: Optional[str] = Field(
+    regex_pattern: str | None = Field(
         default_factory=lambda: get_default_sampler_value("regex_pattern"),
     )
 
-    grammar_string: Optional[str] = Field(
+    grammar_string: str | None = Field(
         default_factory=lambda: get_default_sampler_value("grammar_string"),
     )
 
-    speculative_ngram: Optional[bool] = Field(
+    speculative_ngram: bool | None = Field(
         default_factory=lambda: get_default_sampler_value("speculative_ngram"),
     )
 
-    cfg_scale: Optional[float] = Field(
+    cfg_scale: float | None = Field(
         default_factory=lambda: get_default_sampler_value("cfg_scale", 1.0),
         validation_alias=AliasChoices("cfg_scale", "guidance_scale"),
         description="Aliases: guidance_scale",
         examples=[1.0],
     )
 
-    max_temp: Optional[float] = Field(
+    max_temp: float | None = Field(
         default_factory=lambda: get_default_sampler_value("max_temp", 1.0),
         validation_alias=AliasChoices("max_temp", "dynatemp_high"),
         description="Aliases: dynatemp_high",
@@ -255,7 +254,7 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
-    min_temp: Optional[float] = Field(
+    min_temp: float | None = Field(
         default_factory=lambda: get_default_sampler_value("min_temp", 1.0),
         validation_alias=AliasChoices("min_temp", "dynatemp_low"),
         description="Aliases: dynatemp_low",
@@ -263,14 +262,14 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
-    temp_exponent: Optional[float] = Field(
+    temp_exponent: float | None = Field(
         default_factory=lambda: get_default_sampler_value("temp_exponent", 1.0),
         validation_alias=AliasChoices("temp_exponent", "dynatemp_exponent"),
         examples=[1.0],
         ge=0,
     )
 
-    logprobs: Optional[int] = Field(
+    logprobs: int | None = Field(
         default_factory=lambda: get_default_sampler_value("logprobs", 0),
         ge=0,
     )
@@ -335,7 +334,7 @@ class BaseSamplerRequest(BaseModel):
 
 
 class SamplerOverridesContainer(BaseModel):
-    selected_preset: Optional[str] = None
+    selected_preset: str | None = None
     overrides: dict = {}
 
 
