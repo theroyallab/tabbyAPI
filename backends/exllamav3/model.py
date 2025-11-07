@@ -563,6 +563,10 @@ class ExllamaV3Container(BaseModelContainer):
                 self.draft_config = None
                 self.draft_cache = None
 
+            if self.use_vision:
+                self.vision_model.unload()
+                self.vision_model = None
+
             # Cleanup the generator from any pending jobs
             if self.generator is not None:
                 await self.generator.close()
