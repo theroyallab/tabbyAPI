@@ -3,7 +3,6 @@ from backends.exllamav3.vision import get_image_embedding_exl3
 from common import model
 from loguru import logger
 from pydantic import BaseModel, Field
-from typing import List
 
 from common.optional_dependencies import dependencies
 
@@ -18,7 +17,7 @@ class MultimodalEmbeddingWrapper(BaseModel):
 
     type: str = None
     content: list = Field(default_factory=list)
-    text_alias: List[str] = Field(default_factory=list)
+    text_alias: list[str] = Field(default_factory=list)
 
     async def add(self, url: str):
         # Determine the type of vision embedding to use

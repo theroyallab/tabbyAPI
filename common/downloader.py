@@ -10,7 +10,6 @@ from huggingface_hub.hf_api import RepoFile
 from fnmatch import fnmatch
 from loguru import logger
 from rich.progress import Progress
-from typing import List, Optional
 
 from common.logger import get_progress_bar
 from common.tabby_config import config
@@ -27,7 +26,7 @@ class RepoItem:
 async def _download_file(
     session: aiohttp.ClientSession,
     repo_item: RepoItem,
-    token: Optional[str],
+    token: str | None,
     download_path: pathlib.Path,
     chunk_limit: int,
     progress: Progress,
@@ -92,7 +91,7 @@ def _get_repo_info(repo_id, revision, token):
     ]
 
 
-def _get_download_folder(repo_id: str, repo_type: str, folder_name: Optional[str]):
+def _get_download_folder(repo_id: str, repo_type: str, folder_name: str | None):
     """Gets the download folder for the repo."""
 
     if repo_type == "lora":
@@ -105,7 +104,7 @@ def _get_download_folder(repo_id: str, repo_type: str, folder_name: Optional[str
 
 
 def _check_exclusions(
-    filename: str, include_patterns: List[str], exclude_patterns: List[str]
+    filename: str, include_patterns: list[str], exclude_patterns: list[str]
 ):
     include_result = any(fnmatch(filename, pattern) for pattern in include_patterns)
     exclude_result = any(fnmatch(filename, pattern) for pattern in exclude_patterns)
@@ -115,14 +114,14 @@ def _check_exclusions(
 
 async def hf_repo_download(
     repo_id: str,
-    folder_name: Optional[str],
-    revision: Optional[str],
-    token: Optional[str],
-    include: Optional[List[str]],
-    exclude: Optional[List[str]],
-    chunk_limit: Optional[float] = None,
-    timeout: Optional[int] = None,
-    repo_type: Optional[str] = "model",
+    folder_name: str | None,
+    revision: str | None,
+    token: str | None,
+    include: list[str] | None,
+    exclude: list[str] | None,
+    chunk_limit: float | None = None,
+    timeout: int | None = None,
+    repo_type: str | None = "model",
 ):
     """Gets a repo's information from HuggingFace and downloads it locally."""
 
