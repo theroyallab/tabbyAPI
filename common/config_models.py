@@ -433,6 +433,26 @@ class EmbeddingsConfig(BaseConfigModel):
         description=("An initial embedding model to load on the infinity backend."),
     )
 
+    @field_validator("embeddings_device_id", mode="before")
+    @classmethod
+    def validate_embeddings_device_id(cls, v, info):
+        # Only validate if CUDA is selected
+        if info.data.get("embeddings_device") == "cuda" and v:
+            # Check if torch is available
+            try:
+                import torch
+                available_gpus = torch.cuda.device_count()
+                for gpu_id in v:
+                    if gpu_id >= available_gpus:
+                        raise ValueError(
+                            f"GPU {gpu_id} not found. Available GPUs: 0-{available_gpus-1}"
+                        )
+            except ImportError:
+                # If torch is not available, we can't validate now
+                # This will be caught later during model loading
+                pass
+        return v
+
 
 class DeveloperConfig(BaseConfigModel):
     """Options for development and experimentation"""
