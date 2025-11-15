@@ -218,6 +218,12 @@ embeddings:
   # If using an AMD GPU, set this value to 'cuda'.
   embeddings_device: cpu
 
+  # Specific GPU device IDs for embedding models (default: []).
+  # Empty list for auto-select.
+  # Only applies when embeddings_device is 'cuda'.
+  # Example: [0] for first GPU, [1] for second GPU
+  embeddings_device_id: []
+
   # An initial embedding model to load on the infinity backend.
   embedding_model_name:
 

@@ -420,6 +420,14 @@ class EmbeddingsConfig(BaseConfigModel):
             "If using an AMD GPU, set this value to 'cuda'."
         ),
     )
+    embeddings_device_id: Optional[List[int]] = Field(
+        [],
+        description=(
+            "Specific GPU device IDs for embedding models (default: []).\n"
+            "Empty list for auto-select.\n"
+            "Only applies when embeddings_device is 'cuda'."
+        ),
+    )
     embedding_model_name: Optional[str] = Field(
         None,
         description=("An initial embedding model to load on the infinity backend."),

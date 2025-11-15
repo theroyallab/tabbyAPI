@@ -25,11 +25,28 @@ class InfinityContainer:
     async def load(self, **kwargs):
         # Use cpu by default
         device = unwrap(kwargs.get("embeddings_device"), "cpu")
+        
+        # Extract device ID if specified
+        device_id = kwargs.get("embeddings_device_id", [])
+        
+        # Validate device ID if using CUDA
+        if device == "cuda" and device_id:
+            if not isinstance(device_id, list):
+                device_id = [device_id]
+            
+            # Validate GPU exists
+            available_gpus = torch.cuda.device_count()
+            for gpu_id in device_id:
+                if gpu_id >= available_gpus:
+                    logger.error(f"GPU {gpu_id} not found. Available GPUs: 0-{available_gpus-1}")
+                    device_id = []  # Fallback to auto-select
+                    break
 
         engine_args = EngineArgs(
             model_name_or_path=str(self.model_dir),
             engine="torch",
             device=device,
+            device_id=device_id,  # Pass device ID to infinity_emb
             bettertransformer=False,
             model_warmup=False,
         )
@@ -38,7 +55,8 @@ class InfinityContainer:
         await self.engine.astart()
 
         self.loaded = True
-        logger.info("Embedding model successfully loaded.")
+        gpu_info = f" on GPU {device_id}" if device_id else ""
+        logger.info(f"Embedding model successfully loaded{gpu_info}.")
 
     async def unload(self):
         await self.engine.astop()
