@@ -21,6 +21,7 @@ from exllamav3 import (
     Tokenizer,
 )
 from exllamav3.cache import CacheLayer_quant
+from backends.exllamav3.grammar import ExLlamaV3Grammar
 from loguru import logger
 
 from backends.base_model_container import BaseModelContainer
@@ -929,6 +930,7 @@ class ExllamaV3Container(BaseModelContainer):
         prompts = [prompt]
         stop_conditions = params.stop
         add_bos_token = unwrap(params.add_bos_token, self.hf_model.add_bos_token())
+        grammar_handler = ExLlamaV3Grammar()
 
         # Get multimodal embeddings if present
         mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
@@ -970,6 +972,9 @@ class ExllamaV3Container(BaseModelContainer):
             request_id,
         )
 
+        if params.json_schema:
+            grammar_handler.add_json_schema_filter(params.json_schema, self.tokenizer)
+
         generation = {}
         job = AsyncJob(
             self.generator,
@@ -981,6 +986,7 @@ class ExllamaV3Container(BaseModelContainer):
             embeddings=mm_embeddings_content,
             return_top_tokens=params.logprobs,
             max_rq_tokens=self.max_rq_tokens,
+            filters=grammar_handler.filters,
         )
 
         generated_tokens = 0
