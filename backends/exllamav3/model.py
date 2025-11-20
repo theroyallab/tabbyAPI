@@ -7,9 +7,6 @@ from itertools import zip_longest
 from typing import (
     Any,
     AsyncIterator,
-    Dict,
-    List,
-    Optional,
 )
 
 from exllamav3 import (
@@ -49,7 +46,7 @@ class ExllamaV3Container(BaseModelContainer):
 
     # Exposed model information
     model_dir: pathlib.Path = pathlib.Path("models")
-    prompt_template: Optional[PromptTemplate] = None
+    prompt_template: PromptTemplate | None = None
 
     # HF Model instance
     hf_model: HFModel
@@ -58,26 +55,26 @@ class ExllamaV3Container(BaseModelContainer):
     # The bool is a master switch for accepting requests
     # The lock keeps load tasks sequential
     # The condition notifies any waiting tasks
-    active_job_ids: Dict[str, Any] = {}
+    active_job_ids: dict[str, Any] = {}
     loaded: bool = False
     load_lock: asyncio.Lock = asyncio.Lock()
     load_condition: asyncio.Condition = asyncio.Condition()
 
     # Exl3 vars
-    model: Optional[Model] = None
-    cache: Optional[Cache] = None
-    draft_model: Optional[Model] = None
-    draft_cache: Optional[Cache] = None
-    tokenizer: Optional[Tokenizer] = None
-    config: Optional[Config] = None
-    draft_config: Optional[Config] = None
-    generator: Optional[AsyncGenerator] = None
-    vision_model: Optional[Model] = None
+    model: Model | None = None
+    cache: Cache | None = None
+    draft_model: Model | None = None
+    draft_cache: Cache | None = None
+    tokenizer: Tokenizer | None = None
+    config: Config | None = None
+    draft_config: Config | None = None
+    generator: AsyncGenerator | None = None
+    vision_model: Model | None = None
 
     # Class-specific vars
-    gpu_split: Optional[List[float]] = None
+    gpu_split: list[float] | None = None
     gpu_split_auto: bool = True
-    autosplit_reserve: Optional[List[float]] = [96 / 1024]
+    autosplit_reserve: list[float] | None = [96 / 1024]
     use_tp: bool = False
     tp_backend: str = "native"
     max_seq_len: int = 4096
@@ -85,8 +82,8 @@ class ExllamaV3Container(BaseModelContainer):
     cache_mode: str = "FP16"
     draft_cache_mode: str = "FP16"
     chunk_size: int = 2048
-    max_rq_tokens: Optional[int] = 2048
-    max_batch_size: Optional[int] = None
+    max_rq_tokens: int | None = 2048
+    max_batch_size: int | None = None
 
     # Required methods
     @classmethod
@@ -583,7 +580,7 @@ class ExllamaV3Container(BaseModelContainer):
                 async with self.load_condition:
                     self.load_condition.notify_all()
 
-    def encode_tokens(self, text: str, **kwargs) -> List[int]:
+    def encode_tokens(self, text: str, **kwargs) -> list[int]:
         """
         Encodes a string of text into a list of token IDs.
 
@@ -611,7 +608,7 @@ class ExllamaV3Container(BaseModelContainer):
             .tolist()
         )
 
-    def decode_tokens(self, ids: List[int], **kwargs) -> str:
+    def decode_tokens(self, ids: list[int], **kwargs) -> str:
         """
         Decodes a list of token IDs back into a string.
 
@@ -670,9 +667,9 @@ class ExllamaV3Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
-    ) -> Dict[str, Any]:
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
+    ) -> dict[str, Any]:
         """
         Generates a complete response for a given prompt and parameters.
 
@@ -742,9 +739,9 @@ class ExllamaV3Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
-    ) -> AsyncIterator[Dict[str, Any]]:
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
         """
         Generates a response iteratively (streaming) for a given prompt.
 
@@ -863,8 +860,8 @@ class ExllamaV3Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
     ):
         """
         Create generator function for prompt completion.
