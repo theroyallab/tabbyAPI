@@ -47,9 +47,11 @@ class ExLlamaV3Grammar:
 
         f = FormatterBuilder()
         f.append_line(f"{f.json(schema)}")
-        self.filters.append(FormatronFilter(tokenizer, eos_after_completed = True, formatter_builder = f))
+        self.filters.append(
+            FormatronFilter(tokenizer, eos_after_completed=True, formatter_builder=f)
+        )
 
         # Additional constraint to force leading character
         f = FormatterBuilder()
         f.append_line(leading_character)
-        self.filters.append(FormatronFilter(tokenizer, formatter_builder = f))
+        self.filters.append(FormatronFilter(tokenizer, formatter_builder=f))
