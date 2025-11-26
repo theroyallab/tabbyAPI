@@ -1,7 +1,6 @@
 import traceback
-import typing
 from functools import lru_cache
-from typing import List
+from typing import Any
 
 import torch
 from exllamav2 import ExLlamaV2, ExLlamaV2Tokenizer
@@ -16,7 +15,7 @@ from loguru import logger
 class ExLlamaV2Grammar:
     """ExLlamaV2 class for various grammar filters/parsers."""
 
-    filters: List[ExLlamaV2Filter]
+    filters: list[ExLlamaV2Filter]
 
     def __init__(self):
         self.filters = []
@@ -123,7 +122,7 @@ class CFGExtractor(NonterminalExtractor):
         self.kbnf_string = kbnf_string
 
     # Return the entire input string as the extracted string
-    def extract(self, input_str: str) -> typing.Optional[tuple[str, typing.Any]]:
+    def extract(self, input_str: str) -> tuple[str, Any] | None:
         return "", input_str
 
     @property

@@ -1,5 +1,4 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
 
 
 def _generate_include_list():
@@ -11,13 +10,13 @@ class DownloadRequest(BaseModel):
 
     repo_id: str
     repo_type: str = "model"
-    folder_name: Optional[str] = None
-    revision: Optional[str] = None
-    token: Optional[str] = None
-    include: List[str] = Field(default_factory=_generate_include_list)
-    exclude: List[str] = Field(default_factory=list)
-    chunk_limit: Optional[int] = None
-    timeout: Optional[int] = None
+    folder_name: str | None = None
+    revision: str | None = None
+    token: str | None = None
+    include: list[str] = Field(default_factory=_generate_include_list)
+    exclude: list[str] = Field(default_factory=list)
+    chunk_limit: int | None = None
+    timeout: int | None = None
 
 
 class DownloadResponse(BaseModel):
