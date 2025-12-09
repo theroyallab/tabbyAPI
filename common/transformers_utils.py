@@ -3,7 +3,6 @@ import json
 import pathlib
 from loguru import logger
 from pydantic import BaseModel
-from typing import Dict, List, Optional, Set, Union
 
 
 class GenerationConfig(BaseModel):
@@ -12,7 +11,7 @@ class GenerationConfig(BaseModel):
     Will be expanded as needed.
     """
 
-    eos_token_id: Optional[Union[int, List[int]]] = None
+    eos_token_id: int | list[int] | None = None
 
     @classmethod
     async def from_directory(cls, model_directory: pathlib.Path):
@@ -44,8 +43,8 @@ class HuggingFaceConfig(BaseModel):
     """
 
     max_position_embeddings: int = 4096
-    eos_token_id: Optional[Union[int, List[int]]] = None
-    quantization_config: Optional[Dict] = None
+    eos_token_id: int | list[int] | None = None
+    quantization_config: dict | None = None
 
     @classmethod
     async def from_directory(cls, model_directory: pathlib.Path):
@@ -62,7 +61,7 @@ class HuggingFaceConfig(BaseModel):
     def quant_method(self):
         """Wrapper method to fetch quant type"""
 
-        if isinstance(self.quantization_config, Dict):
+        if isinstance(self.quantization_config, dict):
             return self.quantization_config.get("quant_method")
         else:
             return None
@@ -83,7 +82,7 @@ class TokenizerConfig(BaseModel):
     An abridged version of HuggingFace's tokenizer config.
     """
 
-    add_bos_token: Optional[bool] = True
+    add_bos_token: bool | None = True
 
     @classmethod
     async def from_directory(cls, model_directory: pathlib.Path):
@@ -111,8 +110,8 @@ class HFModel:
     """
 
     hf_config: HuggingFaceConfig
-    tokenizer_config: Optional[TokenizerConfig] = None
-    generation_config: Optional[GenerationConfig] = None
+    tokenizer_config: TokenizerConfig | None = None
+    generation_config: GenerationConfig | None = None
 
     @classmethod
     async def from_directory(cls, model_directory: pathlib.Path):
@@ -156,7 +155,7 @@ class HFModel:
     def eos_tokens(self):
         """Combines and returns EOS tokens from various configs"""
 
-        eos_ids: Set[int] = set()
+        eos_ids: set[int] = set()
 
         eos_ids.update(self.hf_config.eos_tokens())
 

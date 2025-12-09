@@ -1,23 +1,21 @@
-from typing import List, Optional, Union
-
 from pydantic import BaseModel, Field
 
 
 class UsageInfo(BaseModel):
     prompt_tokens: int = 0
     total_tokens: int = 0
-    completion_tokens: Optional[int] = 0
+    completion_tokens: int | None = 0
 
 
 class EmbeddingsRequest(BaseModel):
-    input: Union[str, List[str]] = Field(
+    input: str | list[str] = Field(
         ..., description="List of input texts to generate embeddings for."
     )
     encoding_format: str = Field(
         "float",
         description="Encoding format for the embeddings. Can be 'float' or 'base64'.",
     )
-    model: Optional[str] = Field(
+    model: str | None = Field(
         None,
         description="Name of the embedding model to use. "
         "If not provided, the default model will be used.",
@@ -26,7 +24,7 @@ class EmbeddingsRequest(BaseModel):
 
 class EmbeddingObject(BaseModel):
     object: str = Field("embedding", description="Type of the object.")
-    embedding: Union[List[float], str] = Field(
+    embedding: list[float] | str = Field(
         ..., description="Embedding values as a list of floats."
     )
     index: int = Field(
@@ -36,6 +34,6 @@ class EmbeddingObject(BaseModel):
 
 class EmbeddingsResponse(BaseModel):
     object: str = Field("list", description="Type of the response object.")
-    data: List[EmbeddingObject] = Field(..., description="List of embedding objects.")
+    data: list[EmbeddingObject] = Field(..., description="List of embedding objects.")
     model: str = Field(..., description="Name of the embedding model used.")
     usage: UsageInfo = Field(..., description="Information about token usage.")

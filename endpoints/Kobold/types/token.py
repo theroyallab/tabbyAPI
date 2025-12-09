@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-from typing import List
 
 
 class TokenCountRequest(BaseModel):
@@ -12,4 +11,4 @@ class TokenCountResponse(BaseModel):
     """Represents a KAI tokenization response."""
 
     value: int
-    ids: List[int]
+    ids: list[int]

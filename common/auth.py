@@ -10,7 +10,6 @@ from ruamel.yaml import YAML
 from fastapi import Header, HTTPException, Request
 from pydantic import BaseModel
 from loguru import logger
-from typing import Optional
 
 from common.utils import coalesce
 
@@ -38,7 +37,7 @@ class AuthKeys(BaseModel):
 
 
 # Global auth constants
-AUTH_KEYS: Optional[AuthKeys] = None
+AUTH_KEYS: AuthKeys | None = None
 DISABLE_AUTH: bool = False
 
 

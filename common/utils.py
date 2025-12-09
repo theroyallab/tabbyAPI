@@ -1,12 +1,12 @@
 """Common utility functions"""
 
-from types import NoneType
-from typing import Dict, Optional, Type, Union, get_args, get_origin, TypeVar
+from types import NoneType, UnionType
+from typing import Type, get_args, get_origin, TypeVar
 
 T = TypeVar("T")
 
 
-def unwrap(wrapped: Optional[T], default: T = None) -> T:
+def unwrap(wrapped: T | None, default: T = None) -> T:
     """Unwrap function for Optionals."""
     if wrapped is None:
         return default
@@ -19,7 +19,7 @@ def coalesce(*args):
     return next((arg for arg in args if arg is not None), None)
 
 
-def filter_none_values(collection: Union[dict, list]) -> Union[dict, list]:
+def filter_none_values(collection: dict | list) -> dict | list:
     """Remove None values from a collection."""
 
     if isinstance(collection, dict):
@@ -32,7 +32,7 @@ def filter_none_values(collection: Union[dict, list]) -> Union[dict, list]:
         return collection
 
 
-def deep_merge_dict(dict1: Dict, dict2: Dict, copy: bool = False) -> Dict:
+def deep_merge_dict(dict1: dict, dict2: dict, copy: bool = False) -> dict:
     """
     Merge 2 dictionaries. If copy is true, the original dictionary isn't modified.
     """
@@ -49,7 +49,7 @@ def deep_merge_dict(dict1: Dict, dict2: Dict, copy: bool = False) -> Dict:
     return dict1
 
 
-def deep_merge_dicts(*dicts: Dict) -> Dict:
+def deep_merge_dicts(*dicts: dict) -> dict:
     """
     Merge an arbitrary amount of dictionaries.
     We wanna do in-place modification for each level, so do not copy.
@@ -84,11 +84,13 @@ def is_list_type(type_hint) -> bool:
 
 def unwrap_optional_type(type_hint) -> Type:
     """
-    Unwrap Optional[type] annotations.
+    Unwrap type | None annotations to extract the base type.
     This is not the same as unwrap.
     """
 
-    if get_origin(type_hint) is Union:
+    origin = get_origin(type_hint)
+
+    if origin is UnionType:
         args = get_args(type_hint)
         if NoneType in args:
             for arg in args:
