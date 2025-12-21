@@ -1,6 +1,5 @@
 import json
 from loguru import logger
-from typing import List
 
 from endpoints.OAI.types.tools import ToolCall
 
@@ -30,7 +29,7 @@ TOOL_CALL_SCHEMA = {
 
 class ToolCallProcessor:
     @staticmethod
-    def from_json(tool_calls_str: str) -> List[ToolCall]:
+    def from_json(tool_calls_str: str) -> list[ToolCall]:
         """Postprocess tool call JSON to a parseable class"""
 
         tool_calls = json.loads(tool_calls_str)
@@ -42,15 +41,15 @@ class ToolCallProcessor:
         return [ToolCall(**tool_call) for tool_call in tool_calls]
 
     @staticmethod
-    def dump(tool_calls: List[ToolCall]) -> List[dict]:
+    def dump(tool_calls: list[ToolCall]) -> list[dict]:
         """
         Convert ToolCall objects to a list of dictionaries.
 
         Args:
-            tool_calls (List[ToolCall]): List of ToolCall objects to convert
+            tool_calls (list[ToolCall]): list of ToolCall objects to convert
 
         Returns:
-            List[dict]: List of dictionaries representing the tool calls
+            list[dict]: list of dictionaries representing the tool calls
         """
 
         # Don't use list comprehension here
@@ -64,12 +63,12 @@ class ToolCallProcessor:
         return dumped_tool_calls
 
     @staticmethod
-    def to_json(tool_calls: List[ToolCall]) -> str:
+    def to_json(tool_calls: list[ToolCall]) -> str:
         """
         Convert ToolCall objects to JSON string representation.
 
         Args:
-            tool_calls (List[ToolCall]): List of ToolCall objects to convert
+            tool_calls (list[ToolCall]): list of ToolCall objects to convert
 
         Returns:
             str: JSON representation of the tool calls

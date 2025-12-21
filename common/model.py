@@ -10,7 +10,6 @@ from enum import Enum
 from fastapi import HTTPException
 from loguru import logger
 from ruamel.yaml import YAML
-from typing import Dict, Optional
 
 from backends.base_model_container import BaseModelContainer
 from common.logger import get_loading_progress_bar
@@ -21,11 +20,11 @@ from common.transformers_utils import HFModel
 from common.utils import deep_merge_dict, unwrap
 
 # Global variables for model container
-container: Optional[BaseModelContainer] = None
+container: BaseModelContainer | None = None
 embeddings_container = None
 
 
-_BACKEND_REGISTRY: Dict[str, BaseModelContainer] = {}
+_BACKEND_REGISTRY: dict[str, BaseModelContainer] = {}
 
 if dependencies.exllamav2:
     from backends.exllamav2.model import ExllamaV2Container
@@ -42,7 +41,7 @@ if dependencies.exllamav3:
 if dependencies.extras:
     from backends.infinity.model import InfinityContainer
 
-    embeddings_container: Optional[InfinityContainer] = None
+    embeddings_container: InfinityContainer | None = None
 
 
 class ModelType(Enum):

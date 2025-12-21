@@ -1,8 +1,10 @@
 """Contains model card types."""
 
+from __future__ import annotations
+
 from pydantic import BaseModel, Field, ConfigDict
 from time import time
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 from common.config_models import LoggingConfig
 from common.tabby_config import config
@@ -13,19 +15,19 @@ class ModelCardParameters(BaseModel):
 
     # Safe to do this since it's guaranteed to fetch a max seq len
     # from model_container
-    max_seq_len: Optional[int] = None
-    cache_size: Optional[int] = None
-    cache_mode: Optional[str] = "FP16"
-    rope_scale: Optional[float] = 1.0
-    rope_alpha: Optional[float] = 1.0
-    max_batch_size: Optional[int] = 1
-    chunk_size: Optional[int] = 2048
-    prompt_template: Optional[str] = None
-    prompt_template_content: Optional[str] = None
-    use_vision: Optional[bool] = False
+    max_seq_len: int | None = None
+    cache_size: int | None = None
+    cache_mode: str | None = "FP16"
+    rope_scale: float | None = 1.0
+    rope_alpha: float | None = 1.0
+    max_batch_size: int | None = 1
+    chunk_size: int | None = 2048
+    prompt_template: str | None = None
+    prompt_template_content: str | None = None
+    use_vision: bool | None = False
 
     # Draft is another model, so include it in the card params
-    draft: Optional["ModelCard"] = None
+    draft: ModelCard | None = None
 
 
 class ModelCard(BaseModel):
@@ -35,15 +37,15 @@ class ModelCard(BaseModel):
     object: str = "model"
     created: int = Field(default_factory=lambda: int(time()))
     owned_by: str = "tabbyAPI"
-    logging: Optional[LoggingConfig] = None
-    parameters: Optional[ModelCardParameters] = None
+    logging: LoggingConfig | None = None
+    parameters: ModelCardParameters | None = None
 
 
 class ModelList(BaseModel):
     """Represents a list of model cards."""
 
     object: str = "list"
-    data: List[ModelCard] = Field(default_factory=list)
+    data: list[ModelCard] = Field(default_factory=list)
 
 
 class DraftModelLoadRequest(BaseModel):
@@ -53,13 +55,13 @@ class DraftModelLoadRequest(BaseModel):
     draft_model_name: str
 
     # Config arguments
-    draft_rope_scale: Optional[float] = None
-    draft_rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
+    draft_rope_scale: float | None = None
+    draft_rope_alpha: float | Literal["auto"] | None = Field(
         description='Automatically calculated if set to "auto"',
         default=None,
         examples=[1.0],
     )
-    draft_gpu_split: Optional[List[float]] = Field(
+    draft_gpu_split: list[float] | None = Field(
         default_factory=list,
         examples=[[24.0, 20.0]],
     )
@@ -75,54 +77,54 @@ class ModelLoadRequest(BaseModel):
     model_name: str
 
     # Config arguments
-    backend: Optional[str] = Field(
+    backend: str | None = Field(
         description="Backend to use",
         default=None,
     )
-    max_seq_len: Optional[int] = Field(
+    max_seq_len: int | None = Field(
         description="Leave this blank to use the model's base sequence length",
         default=None,
         examples=[4096],
     )
-    cache_size: Optional[int] = Field(
+    cache_size: int | None = Field(
         description="Number in tokens, must be multiple of 256",
         default=None,
         examples=[4096],
     )
-    cache_mode: Optional[str] = None
-    tensor_parallel: Optional[bool] = None
-    tensor_parallel_backend: Optional[str] = "native"
-    gpu_split_auto: Optional[bool] = None
-    autosplit_reserve: Optional[List[float]] = None
-    gpu_split: Optional[List[float]] = Field(
+    cache_mode: str | None = None
+    tensor_parallel: bool | None = None
+    tensor_parallel_backend: str | None = "native"
+    gpu_split_auto: bool | None = None
+    autosplit_reserve: list[float] | None = None
+    gpu_split: list[float] | None = Field(
         default_factory=list,
         examples=[[24.0, 20.0]],
     )
-    rope_scale: Optional[float] = Field(
+    rope_scale: float | None = Field(
         description="Automatically pulled from the model's config if not present",
         default=None,
         examples=[1.0],
     )
-    rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
+    rope_alpha: float | Literal["auto"] | None = Field(
         description='Automatically calculated if set to "auto"',
         default=None,
         examples=[1.0],
     )
-    chunk_size: Optional[int] = None
-    output_chunking: Optional[bool] = True
-    prompt_template: Optional[str] = None
-    vision: Optional[bool] = None
+    chunk_size: int | None = None
+    output_chunking: bool | None = True
+    prompt_template: str | None = None
+    vision: bool | None = None
 
     # Non-config arguments
-    draft_model: Optional[DraftModelLoadRequest] = None
-    skip_queue: Optional[bool] = False
+    draft_model: DraftModelLoadRequest | None = None
+    skip_queue: bool | None = False
 
 
 class EmbeddingModelLoadRequest(BaseModel):
     embedding_model_name: str
 
     # Set default from the config
-    embeddings_device: Optional[str] = Field(config.embeddings.embeddings_device)
+    embeddings_device: str | None = Field(config.embeddings.embeddings_device)
 
 
 class ModelLoadResponse(BaseModel):

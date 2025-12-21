@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import gc
 import pathlib
 import torch
 from loguru import logger
-from typing import List, Optional
 
 from common.utils import unwrap
 from common.optional_dependencies import dependencies
@@ -17,7 +18,7 @@ class InfinityContainer:
     loaded: bool = False
 
     # Use a runtime type hint here
-    engine: Optional["AsyncEmbeddingEngine"] = None
+    engine: AsyncEmbeddingEngine | None = None
 
     def __init__(self, model_directory: pathlib.Path):
         self.model_dir = model_directory
@@ -49,7 +50,7 @@ class InfinityContainer:
 
         logger.info("Embedding model unloaded.")
 
-    async def generate(self, sentence_input: List[str]):
+    async def generate(self, sentence_input: list[str]):
         result_embeddings, usage = await self.engine.embed(sentence_input)
 
         return {"embeddings": result_embeddings, "usage": usage}

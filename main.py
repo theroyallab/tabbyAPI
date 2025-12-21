@@ -11,7 +11,6 @@ import pathlib
 import platform
 import signal
 from loguru import logger
-from typing import Optional
 
 from common import gen_logging, sampling, model
 from common.args import convert_args_to_dict, init_argparser
@@ -104,8 +103,8 @@ async def entrypoint_async():
 
 
 def entrypoint(
-    args: Optional[argparse.Namespace] = None,
-    parser: Optional[argparse.ArgumentParser] = None,
+    args: argparse.Namespace | None = None,
+    parser: argparse.ArgumentParser | None = None,
 ):
     setup_logger()
 
