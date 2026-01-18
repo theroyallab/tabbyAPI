@@ -11,6 +11,7 @@ from exllamav3.generator.sampler import (
     SS_TopP,
     SS_Sample,
     SS_Base,
+    SS_AdaptiveP,
 )
 
 
@@ -21,6 +22,7 @@ class ExllamaV3SamplerBuilder:
     """
 
     stack: List[SS_Base] = field(default_factory=list)
+    has_adaptive: bool = False
 
     def penalties(self, rep_p, freq_p, pres_p, penalty_range, rep_decay):
         self.stack += [
@@ -40,6 +42,11 @@ class ExllamaV3SamplerBuilder:
     def min_p(self, min_p):
         self.stack.append(SS_MinP(min_p))
 
+    def adaptive_p(self, adaptive_target, adaptive_decay):
+        self.stack.append(SS_AdaptiveP(adaptive_target, adaptive_decay))
+        if adaptive_target != 1.0:
+            self.has_adaptive = True
+
     def greedy(self):
         self.stack.append(SS_Argmax())
 
@@ -50,5 +57,6 @@ class ExllamaV3SamplerBuilder:
         if greedy:
             return CustomSampler([SS_Argmax()])
         else:
-            self.stack.append(SS_Sample())
+            if not self.has_adaptive:
+                self.stack.append(SS_Sample())
             return CustomSampler(self.stack)
