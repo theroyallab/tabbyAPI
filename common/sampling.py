@@ -104,6 +104,13 @@ class BaseSamplerRequest(BaseModel):
     min_p: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("min_p", 0.0)
     )
+    adaptive_target: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("adaptive_target", 0.0)
+    )
+
+    adaptive_decay: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("adaptive_decay", 0.0)
+    )
 
     tfs: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("tfs", 1.0),
