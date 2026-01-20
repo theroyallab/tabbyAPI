@@ -156,3 +156,11 @@ cfg_scale:
 negative_prompt:
   override:
   force: false
+
+# MARK: Adaptive-P
+adaptive_target:
+  override: 1.0
+  force: false
+adaptive_decay:
+  override: 0.9
+  force: false

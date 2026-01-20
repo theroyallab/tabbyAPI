@@ -918,6 +918,10 @@ class ExllamaV3Container(BaseModelContainer):
         if params.temperature_last:
             sampler_builder.temperature(params.temperature)
 
+        # Apply adaptive-P
+        if params.adaptive_target < 1.0:
+            sampler_builder.adaptive_p(params.adaptive_target, params.adaptive_decay)
+
         # Build the sampler
         # Set greedy if temperature is 0
         sampler = sampler_builder.build(params.temperature == 0)

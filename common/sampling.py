@@ -275,6 +275,15 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
+    adaptive_target: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("adaptive_target", 1.0)
+    )
+
+    adaptive_decay: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("adaptive_decay", 0.9)
+    )
+
+
     @field_validator("top_k", mode="before")
     def convert_top_k(cls, v):
         """Fixes instance if Top-K is -1."""

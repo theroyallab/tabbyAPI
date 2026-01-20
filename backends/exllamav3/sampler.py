@@ -11,6 +11,7 @@ from exllamav3.generator.sampler import (
     SS_TopP,
     SS_Sample,
     SS_Base,
+    SS_AdaptiveP
 )
 
 
@@ -43,8 +44,15 @@ class ExllamaV3SamplerBuilder:
     def greedy(self):
         self.stack.append(SS_Argmax())
 
+    def adaptive_p(self, adaptive_target, adaptive_decay):
+        self.stack.append(SS_AdaptiveP(adaptive_target, adaptive_decay))
+
     def build(self, greedy):
         """Builds the final sampler from stack."""
+
+        # Adaptive-P does categorical sampling already
+        if len(self.stack) and isinstance(self.stack[-1], SS_AdaptiveP):
+            return CustomSampler(self.stack)
 
         # Use greedy if temp is 0
         if greedy:
