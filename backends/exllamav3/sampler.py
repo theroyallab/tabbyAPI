@@ -11,7 +11,7 @@ from exllamav3.generator.sampler import (
     SS_TopP,
     SS_Sample,
     SS_Base,
-    SS_AdaptiveP
+    SS_AdaptiveP,
 )
 
 
