@@ -1,2 +1,4 @@
-api_key: # Insert api key here
+api_key:
+  - # Insert api key here
+  - # Insert additional api key here (optional)
 admin_key: # Insert admin key here
