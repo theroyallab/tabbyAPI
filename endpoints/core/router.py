@@ -1,7 +1,6 @@
 import asyncio
 import pathlib
 from sys import maxsize
-from typing import Optional
 from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
@@ -403,7 +402,7 @@ async def unload_embedding_model():
 async def encode_tokens(data: TokenEncodeRequest) -> TokenEncodeResponse:
     """Encodes a string or chat completion messages into tokens."""
 
-    mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None
+    mm_embeddings: MultimodalEmbeddingWrapper | None = None
 
     if isinstance(data.text, str):
         text = data.text
