@@ -27,13 +27,17 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionResponse,
     ChatCompletionStreamChoice,
 )
+from endpoints.OAI.types.tools import ToolSpec
 from endpoints.OAI.types.common import UsageStats
 from endpoints.OAI.utils.completion import _parse_gen_request_id, _stream_collector
 from endpoints.OAI.utils.tools import ToolCallProcessor, TOOL_CALL_SCHEMA
 
 
 def _create_response(
-    request_id: str, generations: List[dict], model_name: Optional[str]
+    request_id: str,
+    generations: List[dict],
+    model_name: Optional[str],
+    tools: Optional[List[ToolSpec]] = None,
 ):
     """Create a chat completion response from the provided text."""
 
@@ -144,9 +148,21 @@ def _create_stream_chunk(
         # Mark finish_reason as tool_calls since this is the last chunk
         if "tool_calls" in generation:
             tool_calls = generation["tool_calls"]
-            message = ChatCompletionMessage(
-                tool_calls=ToolCallProcessor.from_json(tool_calls)
-            )
+            # Get template metadata for tool call processing
+            template_metadata = model.container.prompt_template.metadata
+            if template_metadata and template_metadata.tool_call_format == "xml":
+                # Use XML processor for XML-based tool calls
+                processed_tool_calls = ToolCallProcessor.from_text(
+                    tool_calls,
+                    [],  # We don't have tools context in streaming
+                    tool_call_format="xml",
+                    xml_processor_type=template_metadata.xml_processor_type,
+                )
+            else:
+                # Default to JSON processor
+                processed_tool_calls = ToolCallProcessor.from_json(tool_calls)
+
+            message = ChatCompletionMessage(tool_calls=processed_tool_calls)
             choice.delta = message
             choice.finish_reason = "tool_calls"
 
@@ -442,7 +458,9 @@ async def generate_chat_completion(
                 prompt, embeddings, data, generations, request
             )
 
-        response = _create_response(request.state.id, generations, model_path.name)
+        response = _create_response(
+            request.state.id, generations, model_path.name, data.tools
+        )
 
         logger.info(f"Finished chat completion request {request.state.id}")
 
