@@ -1,7 +1,6 @@
 # Use an official CUDA runtime with Ubuntu as a parent image
-FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04
+FROM nvidia/cuda:12.8.1-devel-ubuntu24.04
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
@@ -9,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.12 \
     python3-pip \
     python3.12-venv \
+    python3.12-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a virtual environment
@@ -27,7 +27,7 @@ WORKDIR /app
 COPY pyproject.toml .
 
 # Install packages specified in pyproject.toml cu12, extras
-RUN pip install --no-cache-dir .[cu12,extras]
+RUN pip install --no-cache-dir .[cu12,extras] flash-linear-attention
 
 RUN rm pyproject.toml
 
