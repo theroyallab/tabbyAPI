@@ -153,6 +153,11 @@ model:
   # NOTE: Only works with chat completion message lists!
   prompt_template:
 
+  # Reasoning parser key for splitting hidden reasoning and final content.
+  # Compatible keys include: basic, exaone4, deepseek_r1, deepseek_v3.
+  # If omitted, TabbyAPI defaults to `basic`.
+  reasoning_parser:
+
   # Enables vision support if the model supports it. (default: False)
   vision: false
 

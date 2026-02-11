@@ -4,7 +4,7 @@ from typing import Literal, Union, List, Optional, Dict
 from uuid import uuid4
 
 from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
-from endpoints.OAI.types.tools import ToolSpec, ToolCall
+from endpoints.OAI.types.tools import NamedToolChoice, ToolSpec, ToolCall
 
 
 class ChatCompletionLogprob(BaseModel):
@@ -30,6 +30,8 @@ class ChatCompletionMessagePart(BaseModel):
 class ChatCompletionMessage(BaseModel):
     role: str = "user"
     content: Optional[Union[str, List[ChatCompletionMessagePart]]] = None
+    reasoning: Optional[str] = None
+    reasoning_content: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
 
@@ -65,12 +67,17 @@ class ChatCompletionRequest(CommonCompletionRequest):
     )
     response_prefix: Optional[str] = None
     model: Optional[str] = None
+    include_reasoning: Optional[bool] = True
 
     # tools is follows the format OAI schema, functions is more flexible
     # both are available in the chat template.
 
     tools: Optional[List[ToolSpec]] = None
     functions: Optional[List[Dict]] = None
+    tool_choice: Optional[
+        Union[Literal["none", "auto", "required"], NamedToolChoice]
+    ] = None
+    parallel_tool_calls: Optional[bool] = True
 
     # Chat completions requests do not have a BOS token preference. Backend
     # respects the tokenization config for the individual model.

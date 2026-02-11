@@ -1426,12 +1426,15 @@ class ExllamaV2Container(BaseModelContainer):
                     full_response += chunk
 
                     chunk_tokens = result.get("token_ids")
+                    token_ids = []
                     if chunk_tokens is not None:
+                        token_ids = chunk_tokens.flatten().tolist()
                         generated_tokens += chunk_tokens.size(dim=0)
 
                     generation = {
                         "request_id": request_id,
                         "text": chunk,
+                        "token_ids": token_ids,
                         "prompt_tokens": context_len,
                         "generated_tokens": generated_tokens,
                         "offset": len(full_response),

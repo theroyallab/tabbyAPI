@@ -33,3 +33,12 @@ class ToolCall(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()).replace("-", "")[:9])
     function: Tool
     type: Literal["function"] = "function"
+
+
+class NamedToolFunction(BaseModel):
+    name: str
+
+
+class NamedToolChoice(BaseModel):
+    function: NamedToolFunction
+    type: Literal["function"] = "function"

@@ -3,6 +3,7 @@
 import asyncio
 import pathlib
 from asyncio import CancelledError
+from dataclasses import dataclass
 from typing import List, Optional
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
@@ -16,7 +17,9 @@ from common.networking import (
     handle_request_error,
     request_disconnect_loop,
 )
+from common.tabby_config import config
 from common.utils import unwrap
+from endpoints.OAI.reasoning import ReasoningParserManager
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionLogprobs,
     ChatCompletionLogprob,
@@ -32,6 +35,59 @@ from endpoints.OAI.utils.completion import _parse_gen_request_id, _stream_collec
 from endpoints.OAI.utils.tools import ToolCallProcessor, TOOL_CALL_SCHEMA
 
 
+@dataclass
+class _StreamReasoningState:
+    text: str = ""
+    token_ids: List[int] = None
+
+    def __post_init__(self):
+        if self.token_ids is None:
+            self.token_ids = []
+
+
+class _TokenizerAdapter:
+    """Expose a tiny tokenizer interface required by reasoning parsers."""
+
+    def __init__(self):
+        self._vocab = None
+
+    def get_vocab(self) -> dict[str, int]:
+        if self._vocab is not None:
+            return self._vocab
+
+        pieces = model.container.tokenizer.get_id_to_piece_list(True)
+        vocab: dict[str, int] = {}
+        for token_id, piece in enumerate(pieces):
+            if piece not in vocab:
+                vocab[piece] = token_id
+        self._vocab = vocab
+        return vocab
+
+
+def _token_ids_from_generation(generation: dict) -> List[int]:
+    token_ids = generation.get("token_ids")
+    if token_ids is None:
+        return []
+    if isinstance(token_ids, list):
+        return token_ids
+    # Covers tensor-like objects (PyTorch)
+    if hasattr(token_ids, "flatten"):
+        return token_ids.flatten().tolist()
+    return list(token_ids)
+
+
+def _build_reasoning_parser(data: ChatCompletionRequest):
+    parser_key = unwrap(config.model.reasoning_parser, "basic") or "basic"
+    try:
+        parser_cls = ReasoningParserManager.get_reasoning_parser(parser_key)
+    except KeyError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    chat_template_kwargs = unwrap(data.template_vars, {})
+    tokenizer_adapter = _TokenizerAdapter()
+    return parser_cls(tokenizer_adapter, chat_template_kwargs=chat_template_kwargs)
+
+
 def _create_response(
     request_id: str, generations: List[dict], model_name: Optional[str]
 ):
@@ -39,13 +95,20 @@ def _create_response(
 
     choices = []
     for index, generation in enumerate(generations):
+        reasoning = generation.get("reasoning")
+        reasoning_content = generation.get("reasoning_content")
+
         message = ChatCompletionMessage(
-            role="assistant", content=unwrap(generation.get("text"), "")
+            role="assistant",
+            content=generation.get("text"),
+            reasoning=reasoning,
+            reasoning_content=reasoning_content,
         )
 
         tool_calls = generation["tool_calls"]
         if tool_calls:
             message.tool_calls = ToolCallProcessor.from_json(tool_calls)
+            message.content = None
 
         logprob_response = None
 
@@ -152,8 +215,13 @@ def _create_stream_chunk(
 
         choices.append(choice)
     else:
+        reasoning = generation.get("reasoning")
+        reasoning_content = generation.get("reasoning_content")
         message = ChatCompletionMessage(
-            role="assistant", content=unwrap(generation.get("text"), "")
+            role="assistant",
+            content=generation.get("text"),
+            reasoning=reasoning,
+            reasoning_content=reasoning_content,
         )
 
         logprob_response = None
@@ -320,6 +388,8 @@ async def stream_generate_chat_completion(
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
+    reasoning_parser = _build_reasoning_parser(data)
+    reasoning_states = [_StreamReasoningState() for _ in range(0, data.n)]
 
     try:
         logger.info(f"Received chat completion streaming request {request.state.id}")
@@ -371,6 +441,41 @@ async def stream_generate_chat_completion(
             # Stream collector will push an exception to the queue if it fails
             if isinstance(generation, Exception):
                 raise generation
+
+            if "text" in generation and generation.get("finish_reason") is None:
+                idx = generation["index"]
+                state = reasoning_states[idx]
+
+                delta_text = unwrap(generation.get("text"), "")
+                delta_token_ids = _token_ids_from_generation(generation)
+
+                current_text = state.text + delta_text
+                current_token_ids = state.token_ids + delta_token_ids
+
+                delta_message = reasoning_parser.extract_reasoning_streaming(
+                    state.text,
+                    current_text,
+                    delta_text,
+                    state.token_ids,
+                    current_token_ids,
+                    delta_token_ids,
+                )
+
+                state.text = current_text
+                state.token_ids = current_token_ids
+
+                if delta_message is None:
+                    continue
+
+                generation["text"] = delta_message.content
+                if data.include_reasoning:
+                    generation["reasoning"] = delta_message.reasoning
+                    generation["reasoning_content"] = delta_message.reasoning
+                else:
+                    generation["reasoning"] = None
+                    generation["reasoning_content"] = None
+                    if generation["text"] is None:
+                        continue
 
             response = _create_stream_chunk(
                 request.state.id, generation, model_path.name
@@ -436,11 +541,29 @@ async def generate_chat_completion(
 
         generations = await asyncio.gather(*gen_tasks)
 
-        # Check all the generations and see if a tool call is required
-        if tool_start:
+        # Run tool pass when template exposes tool_start OR caller explicitly
+        # requires a tool call (required / named function).
+        force_tool_pass = data.tool_choice == "required" or hasattr(
+            data.tool_choice, "function"
+        )
+        if tool_start or force_tool_pass:
             generations = await generate_tool_calls(
                 prompt, embeddings, data, generations, request
             )
+
+        reasoning_parser = _build_reasoning_parser(data)
+        for generation in generations:
+            reasoning, content = reasoning_parser.extract_reasoning(
+                unwrap(generation.get("text"), ""),
+                data,
+            )
+
+            if not data.include_reasoning:
+                reasoning = None
+
+            generation["reasoning"] = reasoning
+            generation["reasoning_content"] = reasoning
+            generation["text"] = content
 
         response = _create_response(request.state.id, generations, model_path.name)
 
@@ -467,6 +590,10 @@ async def generate_tool_calls(
 ):
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
+    tool_choice = data.tool_choice
+
+    if tool_choice == "none":
+        return generations
 
     # Tracks which generations asked for a tool call
     tool_idx: List[int] = []
@@ -475,16 +602,31 @@ async def generate_tool_calls(
     tool_data = data.model_copy(deep=True)
     tool_data.json_schema = TOOL_CALL_SCHEMA
 
+    named_tool_name = None
+    if hasattr(tool_choice, "function") and tool_choice:
+        named_tool_name = tool_choice.function.name
+
     for idx, gen in enumerate(generations):
-        if gen["stop_str"] != tool_start:
+        stop_str = gen.get("stop_str")
+        should_generate = stop_str == tool_start
+
+        # If tool calls are required, run tool schema pass even when stop token
+        # was not emitted, using the existing completion as precursor.
+        if tool_choice == "required" and not should_generate:
+            should_generate = True
+        if named_tool_name and not should_generate:
+            should_generate = True
+
+        if not should_generate:
             continue
 
         logger.info(f"Detected tool call in chat completion request {request.state.id}")
 
         # Append the existing generation text if present
+        prompt_with_precursor = prompt
         precursor_text = gen.get("full_text")
         if precursor_text:
-            prompt = prompt + precursor_text
+            prompt_with_precursor = prompt + precursor_text
 
         gen_request_id = gen.get("request_id")
         tool_request_id = f"{gen_request_id}-tool"
@@ -493,7 +635,7 @@ async def generate_tool_calls(
             asyncio.create_task(
                 model.container.generate(
                     tool_request_id,
-                    prompt,
+                    prompt_with_precursor,
                     tool_data,
                     mm_embeddings=embeddings,
                 )
@@ -507,6 +649,17 @@ async def generate_tool_calls(
 
         # Map tool calls to their appropriate generation
         for gen_idx, tool_call in zip(tool_idx, tool_calls, strict=True):
-            generations[gen_idx]["tool_calls"] = tool_call["text"]
+            tool_calls_json = tool_call["text"]
+            if named_tool_name:
+                try:
+                    tool_calls_json = ToolCallProcessor.filter_by_name(
+                        tool_calls_json, named_tool_name
+                    )
+                except Exception:
+                    logger.warning(
+                        "Could not filter tool calls by name '%s'", named_tool_name
+                    )
+
+            generations[gen_idx]["tool_calls"] = tool_calls_json
 
     return generations
