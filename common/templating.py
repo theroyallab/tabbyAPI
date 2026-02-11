@@ -12,6 +12,7 @@ from jinja2 import Template, TemplateError
 from jinja2.ext import loopcontrols
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from loguru import logger
+from markupsafe import Markup
 from packaging import version
 
 
@@ -45,6 +46,23 @@ class PromptTemplate:
         extensions=[loopcontrols],
     )
     metadata: Optional[TemplateMetadata] = None
+
+    @staticmethod
+    def _tojson_compat(value, indent=None, ensure_ascii=True):
+        """
+        Compatibility JSON filter for chat templates.
+
+        Some model templates call `tojson(ensure_ascii=False)` while the
+        bundled Jinja filter may not accept that keyword in this environment.
+        """
+        return Markup(
+            json.dumps(
+                value,
+                indent=indent,
+                ensure_ascii=ensure_ascii,
+                separators=(",", ": "),
+            )
+        )
 
     async def extract_metadata(self, template_vars: dict):
         """
@@ -107,6 +125,7 @@ class PromptTemplate:
 
         self.environment.globals["strftime_now"] = strftime_now
         self.environment.globals["raise_exception"] = raise_exception
+        self.environment.filters["tojson"] = self._tojson_compat
 
         return self.environment.from_string(template_str)
 

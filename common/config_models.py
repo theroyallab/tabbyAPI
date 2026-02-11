@@ -294,6 +294,14 @@ class ModelConfig(BaseConfigModel):
             "NOTE: Only works with chat completion message lists!"
         ),
     )
+    reasoning_parser: Optional[str] = Field(
+        None,
+        description=(
+            "Reasoning parser key used to split output into reasoning/content.\n"
+            "Compatible with vLLM parser naming (e.g. exaone4, deepseek_r1).\n"
+            "If omitted, defaults to 'basic'."
+        ),
+    )
     vision: Optional[bool] = Field(
         False,
         description=(

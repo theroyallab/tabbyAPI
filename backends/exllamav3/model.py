@@ -1013,8 +1013,22 @@ class ExllamaV3Container(BaseModelContainer):
                 if chunk:
                     chunk_tokens = result.get("token_ids", self.tokenizer.encode(chunk))
                     full_response += chunk
+                    token_ids: list[int] = []
+                    if isinstance(chunk_tokens, torch.Tensor):
+                        token_ids = chunk_tokens.flatten().tolist()
+                    elif isinstance(chunk_tokens, tuple):
+                        # Some kernels may return tuple[token_ids, ...]
+                        first = chunk_tokens[0]
+                        if isinstance(first, torch.Tensor):
+                            token_ids = first.flatten().tolist()
+                        else:
+                            token_ids = list(first)
+                    else:
+                        token_ids = list(chunk_tokens)
                     if isinstance(chunk_tokens, torch.Tensor):
                         generated_tokens += chunk_tokens.size(dim=0)
+                    elif token_ids:
+                        generated_tokens += len(token_ids)
 
                     # Increase penalty range to generated token amount
                     # TODO:
@@ -1024,6 +1038,7 @@ class ExllamaV3Container(BaseModelContainer):
                     generation = {
                         "request_id": request_id,
                         "text": chunk,
+                        "token_ids": token_ids,
                         "prompt_tokens": context_len,
                         "generated_tokens": generated_tokens,
                         "offset": len(full_response),
