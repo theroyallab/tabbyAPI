@@ -1,4 +1,4 @@
-from pydantic import AliasChoices, BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 from time import time
 from typing import Literal, Union, List, Optional, Dict
 from uuid import uuid4
@@ -65,6 +65,8 @@ class ChatCompletionRequest(CommonCompletionRequest):
         validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
         description="Aliases: chat_template_kwargs",
     )
+    enable_thinking: Optional[bool] = None
+    thinking: Optional[bool] = None
     response_prefix: Optional[str] = None
     model: Optional[str] = None
     include_reasoning: Optional[bool] = True
@@ -87,6 +89,20 @@ class ChatCompletionRequest(CommonCompletionRequest):
     def force_bos_token(cls, v):
         """Always disable add_bos_token with chat completions."""
         return None
+
+    @model_validator(mode="after")
+    def apply_thinking_aliases(self):
+        """Support clients that send thinking flags at the top-level."""
+        template_vars = dict(self.template_vars or {})
+
+        if self.enable_thinking is not None and "enable_thinking" not in template_vars:
+            template_vars["enable_thinking"] = self.enable_thinking
+
+        if self.thinking is not None and "thinking" not in template_vars:
+            template_vars["thinking"] = self.thinking
+
+        self.template_vars = template_vars
+        return self
 
 
 class ChatCompletionResponse(BaseModel):
