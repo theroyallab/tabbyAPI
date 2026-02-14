@@ -60,10 +60,14 @@ PARAMETER_RE = re.compile(
 THINK_BLOCK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
 THINK_UNCLOSED_RE = re.compile(r"<think>(?!.*</think>).*$", re.DOTALL)
 
+# Markdown code fence patterns
+CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*", re.MULTILINE)
+CODE_FENCE_END_RE = re.compile(r"\s*```\s*$", re.MULTILINE)
+
 
 def _strip_think_blocks(text: str) -> str:
-    """
-    Strip <think>...</think> blocks from text.
+    """Strip <think>...</think> blocks from text.
+
     Handles both complete and unclosed blocks (quantization can cause
     the model to never close a think tag).
     """
@@ -88,8 +92,7 @@ def _strip_think_blocks(text: str) -> str:
 
 
 def _coerce_param_value(raw: str) -> Any:
-    """
-    Coerce a raw parameter value string to the appropriate Python type.
+    """Coerce a raw parameter value string to the appropriate Python type.
 
     Strategy (safe, no eval()):
       1. Strip leading/trailing newlines (official template emits \\n
@@ -122,19 +125,121 @@ def _coerce_param_value(raw: str) -> Any:
 class ToolCallProcessor:
 
     # ------------------------------------------------------------------
-    # JSON parsing (existing behavior, unchanged)
+    # JSON normalization helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _normalize_tool_calls(raw) -> list:
+        """Normalize model-emitted tool call payloads into OAI-like objects.
+
+        Accepted forms:
+        - [{"type":"function","function":{"name":...,"arguments":{...}}}]
+        - [{"name":...,"arguments":{...}}]
+        - {"name":...,"arguments":{...}}
+        """
+        if isinstance(raw, dict):
+            raw = [raw]
+        if not isinstance(raw, list):
+            raise ValueError("tool_calls payload is not list/dict")
+
+        normalized: list = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+
+            if "function" in item and isinstance(item["function"], dict):
+                fn = item["function"]
+                name = fn.get("name")
+                arguments = fn.get("arguments", {})
+            else:
+                name = item.get("name")
+                arguments = item.get("arguments", {})
+
+            if name is None:
+                continue
+
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError:
+                    arguments = {"input": arguments}
+
+            normalized.append(
+                {
+                    "type": "function",
+                    "function": {
+                        "name": name,
+                        "arguments": arguments if isinstance(arguments, dict) else {},
+                    },
+                }
+            )
+        return normalized
+
+    @staticmethod
+    def _safe_json_loads(payload: str) -> list:
+        """Best-effort JSON parse for model-emitted tool payloads.
+
+        Handles: clean JSON, markdown-fenced JSON, JSON substrings in
+        surrounding text, flat {name, arguments} dicts, and single objects.
+        """
+        # Direct parse
+        try:
+            return ToolCallProcessor._normalize_tool_calls(json.loads(payload))
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Clean up common model artifacts (markdown fences, whitespace)
+        cleaned = payload.strip()
+        cleaned = CODE_FENCE_RE.sub("", cleaned)
+        cleaned = CODE_FENCE_END_RE.sub("", cleaned)
+        cleaned = cleaned.strip()
+
+        # Try cleaned
+        try:
+            return ToolCallProcessor._normalize_tool_calls(json.loads(cleaned))
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+        # Find JSON array substring
+        start = cleaned.find("[")
+        end = cleaned.rfind("]")
+        if start != -1 and end != -1 and end > start:
+            try:
+                return ToolCallProcessor._normalize_tool_calls(
+                    json.loads(cleaned[start : end + 1])
+                )
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        # Find JSON object substring
+        obj_start = cleaned.find("{")
+        obj_end = cleaned.rfind("}")
+        if obj_start != -1 and obj_end != -1 and obj_end > obj_start:
+            try:
+                return ToolCallProcessor._normalize_tool_calls(
+                    json.loads(cleaned[obj_start : obj_end + 1])
+                )
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+        raise json.JSONDecodeError(
+            "Could not extract valid JSON from payload", payload, 0
+        )
+
+    # ------------------------------------------------------------------
+    # JSON parsing
     # ------------------------------------------------------------------
 
     @staticmethod
     def from_json(tool_calls_str: str) -> List[ToolCall]:
-        """Postprocess tool call JSON to a parseable class."""
+        """Postprocess tool call JSON to a parseable class.
 
-        logger.debug(
-            f"JSON Parser: Parsing tool calls from JSON "
-            f"({len(tool_calls_str)} chars)"
-        )
+        Handles clean JSON arrays, markdown-fenced output, flat dicts,
+        and other common model output variations via _safe_json_loads.
+        """
+        logger.debug(f"JSON Parser: Parsing tool calls ({len(tool_calls_str)} chars)")
 
-        tool_calls = json.loads(tool_calls_str)
+        tool_calls = ToolCallProcessor._safe_json_loads(tool_calls_str)
         for tool_call in tool_calls:
             tool_call["function"]["arguments"] = json.dumps(
                 tool_call["function"]["arguments"]
@@ -150,8 +255,7 @@ class ToolCallProcessor:
 
     @staticmethod
     def from_xml(raw_text: str) -> List[ToolCall]:
-        """
-        Parse Qwen3-Coder XML-format tool calls into ToolCall objects.
+        """Parse Qwen3-Coder XML-format tool calls into ToolCall objects.
 
         Handles:
           - Wrapped: <tool_call><function=name>...</function></tool_call>
@@ -161,10 +265,7 @@ class ToolCallProcessor:
           - Multi-line parameter values
           - Missing </parameter> closing tags
         """
-        logger.debug(
-            f"XML Parser: Parsing tool calls from XML " f"({len(raw_text)} chars)"
-        )
-        logger.debug(f"XML Parser: Raw input: {raw_text[:500]}...")
+        logger.debug(f"XML Parser: Parsing tool calls ({len(raw_text)} chars)")
 
         # Stage 1: Strip think blocks
         text = _strip_think_blocks(raw_text)
@@ -198,15 +299,12 @@ class ToolCallProcessor:
             if not is_wrapped:
                 logger.debug(
                     "XML Parser: Found bare <function> block without "
-                    "<tool_call> wrapper (common Qwen3-Coder behavior)"
+                    "<tool_call> wrapper"
                 )
                 function_blocks.append((func_match.group(1), func_match.group(2)))
 
         if not function_blocks:
-            logger.warning(
-                f"XML Parser: No <function=...> blocks found in text: "
-                f"{text[:200]}..."
-            )
+            logger.warning("XML Parser: No <function=...> blocks found")
             return []
 
         # Stage 4: Parse each function block into a ToolCall
@@ -221,7 +319,6 @@ class ToolCallProcessor:
                 value_raw = param_match.group(2)
                 value = _coerce_param_value(value_raw)
                 params[key] = value
-                logger.debug(f"XML Parser:   param '{key}' = {repr(value)[:100]}")
 
             arguments_json = json.dumps(params, ensure_ascii=False)
 
@@ -229,10 +326,6 @@ class ToolCallProcessor:
                 function=Tool(name=func_name, arguments=arguments_json)
             )
             tool_calls.append(tool_call)
-            logger.debug(
-                f"XML Parser: Parsed tool call: {func_name}"
-                f"({', '.join(params.keys())})"
-            )
 
         logger.debug(f"XML Parser: Successfully parsed {len(tool_calls)} tool call(s)")
         return tool_calls
@@ -243,12 +336,11 @@ class ToolCallProcessor:
 
     @staticmethod
     def from_auto(raw_text: str) -> List[ToolCall]:
-        """
-        Auto-detect format and parse.
+        """Auto-detect format and parse.
 
         Tries in order:
           1. Pure JSON (standard TabbyAPI / Llama)
-          2. JSON inside <tool_call> wrapper (Qwen3-Instruct style)
+          2. JSON inside <tool_call> wrappers (Qwen3-Instruct style)
           3. XML with <function=...> tags (Qwen3-Coder style)
         """
         logger.debug("Auto Parser: Attempting format auto-detection")
@@ -261,31 +353,32 @@ class ToolCallProcessor:
         except (json.JSONDecodeError, ValueError, KeyError) as e:
             logger.debug(f"Auto Parser: Not JSON ({e}), trying next format")
 
-        # Attempt 2: JSON inside <tool_call> wrapper (Qwen3-Instruct)
+        # Attempt 2: JSON inside <tool_call> wrappers (Qwen3-Instruct)
         try:
+            all_tool_calls = []
             for match in TOOL_CALL_BLOCK_RE.finditer(raw_text):
                 inner = match.group(1).strip()
-                if inner.startswith("{"):
+                if inner.startswith("{") or inner.startswith("["):
                     parsed = json.loads(inner)
                     if isinstance(parsed, dict):
                         parsed = [parsed]
-                    tool_calls = []
-                    for tc in parsed:
-                        name = tc.get("name", "")
-                        arguments = tc.get("arguments", {})
-                        if isinstance(arguments, dict):
-                            arguments = json.dumps(arguments)
-                        elif not isinstance(arguments, str):
-                            arguments = json.dumps(arguments)
-                        tool_calls.append(
-                            ToolCall(function=Tool(name=name, arguments=arguments))
-                        )
-                    if tool_calls:
-                        logger.debug(
-                            "Auto Parser: Detected JSON-inside-tool_call "
-                            "format (Qwen3-Instruct style)"
-                        )
-                        return tool_calls
+                    if isinstance(parsed, list):
+                        for tc in parsed:
+                            name = tc.get("name", "")
+                            arguments = tc.get("arguments", {})
+                            if isinstance(arguments, dict):
+                                arguments = json.dumps(arguments)
+                            elif not isinstance(arguments, str):
+                                arguments = json.dumps(arguments)
+                            all_tool_calls.append(
+                                ToolCall(function=Tool(name=name, arguments=arguments))
+                            )
+            if all_tool_calls:
+                logger.debug(
+                    "Auto Parser: Detected JSON-inside-tool_call "
+                    f"format ({len(all_tool_calls)} call(s))"
+                )
+                return all_tool_calls
         except (json.JSONDecodeError, ValueError, KeyError) as e:
             logger.debug(f"Auto Parser: Not JSON-in-tool_call ({e}), trying XML")
 
@@ -303,8 +396,7 @@ class ToolCallProcessor:
 
     @staticmethod
     def parse(tool_calls_str: str, format: str = "json") -> List[ToolCall]:
-        """
-        Dispatch tool call parsing to the appropriate format handler.
+        """Dispatch tool call parsing to the appropriate format handler.
 
         Args:
             tool_calls_str: Raw tool call text from model generation.
@@ -314,8 +406,6 @@ class ToolCallProcessor:
             List of parsed ToolCall objects.  Empty list on parse failure
             (never raises).
         """
-        logger.debug(f"ToolCallProcessor.parse: format={format}")
-
         try:
             if format == "xml":
                 return ToolCallProcessor.from_xml(tool_calls_str)
@@ -328,10 +418,24 @@ class ToolCallProcessor:
                 f"ToolCallProcessor.parse: Failed to parse tool calls "
                 f"(format={format}): {e}"
             )
-            logger.debug(
-                f"ToolCallProcessor.parse: Raw text was: " f"{tool_calls_str[:500]}..."
-            )
             return []
+
+    # ------------------------------------------------------------------
+    # Filtering
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def filter_by_name(
+        tool_calls: List[ToolCall], function_name: str
+    ) -> List[ToolCall]:
+        """Filter parsed tool calls to only those matching a function name."""
+        filtered = [tc for tc in tool_calls if tc.function.name == function_name]
+        if not filtered:
+            logger.warning(
+                f"filter_by_name: No tool calls matched '{function_name}' "
+                f"(had {len(tool_calls)} call(s))"
+            )
+        return filtered
 
     # ------------------------------------------------------------------
     # Content / tool-call separation
@@ -341,8 +445,7 @@ class ToolCallProcessor:
     def extract_content_and_tools(
         raw_text: str,
     ) -> Tuple[str, List[ToolCall]]:
-        """
-        Separate plain text content from XML tool call blocks.
+        """Separate plain text content from XML tool call blocks.
 
         Used when the model mixes reasoning text with tool calls, e.g.:
         ``"I'll help with that: <tool_call><function=...>...``
@@ -350,8 +453,6 @@ class ToolCallProcessor:
         Returns:
             Tuple of (remaining_content, tool_calls).
         """
-        logger.debug("extract_content_and_tools: Separating content and tools")
-
         text = _strip_think_blocks(raw_text)
 
         # Collect all XML regions to exclude from content
@@ -402,8 +503,7 @@ class ToolCallProcessor:
 
     @staticmethod
     def dump(tool_calls: List[ToolCall]) -> List[dict]:
-        """
-        Convert ToolCall objects to a list of dictionaries.
+        """Convert ToolCall objects to a list of dictionaries.
 
         Args:
             tool_calls (List[ToolCall]): List of ToolCall objects to convert
@@ -424,8 +524,7 @@ class ToolCallProcessor:
 
     @staticmethod
     def to_json(tool_calls: List[ToolCall]) -> str:
-        """
-        Convert ToolCall objects to JSON string representation.
+        """Convert ToolCall objects to JSON string representation.
 
         Args:
             tool_calls (List[ToolCall]): List of ToolCall objects to convert
