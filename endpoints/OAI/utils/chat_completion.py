@@ -32,7 +32,7 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionStreamChoice,
 )
 from endpoints.OAI.types.common import UsageStats
-from endpoints.OAI.types.tools import NamedToolChoice, ToolCall
+from endpoints.OAI.types.tools import ToolCall
 from endpoints.OAI.utils.completion import _parse_gen_request_id, _stream_collector
 from endpoints.OAI.utils.parser_options import (
     list_tool_call_parsers,
@@ -40,114 +40,6 @@ from endpoints.OAI.utils.parser_options import (
     resolve_tool_call_format,
 )
 from endpoints.OAI.utils.tools import ToolCallProcessor, TOOL_CALL_SCHEMA
-
-
-@dataclass
-class _StreamReasoningState:
-    text: str = ""
-    token_ids: List[int] = field(default_factory=list)
-
-
-class _TokenizerAdapter:
-    """Expose the minimal tokenizer interface required by reasoning parsers."""
-
-    def __init__(self):
-        self._vocab = None
-
-    def get_vocab(self) -> dict[str, int]:
-        if self._vocab is not None:
-            return self._vocab
-
-        tokenizer = model.container.tokenizer
-        if hasattr(tokenizer, "get_vocab"):
-            self._vocab = tokenizer.get_vocab()
-            return self._vocab
-
-        pieces = tokenizer.get_id_to_piece_list(True)
-        vocab: dict[str, int] = {}
-        for token_id, piece in enumerate(pieces):
-            if piece not in vocab:
-                vocab[piece] = token_id
-        self._vocab = vocab
-        return vocab
-
-
-def _token_ids_from_generation(generation: dict) -> List[int]:
-    token_ids = generation.get("token_ids")
-    if token_ids is None:
-        return []
-    if isinstance(token_ids, list):
-        return token_ids
-    if hasattr(token_ids, "flatten"):
-        return token_ids.flatten().tolist()
-    return list(token_ids)
-
-
-def _build_reasoning_parser(request_data: ChatCompletionRequest):
-    parser_key = unwrap(config.model.reasoning_parser, "basic") or "basic"
-    try:
-        parser_cls = ReasoningParserManager.get_reasoning_parser(parser_key)
-    except KeyError as exc:
-        raise HTTPException(400, str(exc)) from exc
-
-    template_kwargs = unwrap(request_data.template_vars, {})
-    try:
-        return parser_cls(_TokenizerAdapter(), chat_template_kwargs=template_kwargs)
-    except RuntimeError as exc:
-        # Keep compatibility for models that do not expose thinking tags.
-        if parser_key == "basic":
-            logger.warning(
-                "Reasoning parser 'basic' could not initialize ({}). "
-                "Falling back to identity parser.",
-                str(exc),
-            )
-            identity_cls = ReasoningParserManager.get_reasoning_parser("identity")
-            return identity_cls(_TokenizerAdapter(), chat_template_kwargs=template_kwargs)
-        raise HTTPException(400, str(exc)) from exc
-
-
-def _validate_and_get_tool_call_format(
-    request_data: ChatCompletionRequest, default_format: str
-) -> str:
-    tool_choice = request_data.tool_choice
-    parser_key = config.model.tool_call_parser
-    enable_auto = bool(config.model.enable_auto_tool_choice)
-    parser_names = list_tool_call_parsers()
-
-    if parser_key and parser_key not in parser_names:
-        parsers_str = ", ".join(sorted(parser_names))
-        raise HTTPException(
-            400,
-            f"invalid tool call parser: {parser_key} (choose from {{{parsers_str}}})",
-        )
-
-    if tool_choice == "auto" and (not enable_auto or not parser_key):
-        raise HTTPException(
-            400,
-            '"auto" tool choice requires --enable-auto-tool-choice and '
-            "--tool-call-parser to be set",
-        )
-
-    if tool_choice not in (None, "none", "auto") and parser_key is None:
-        raise HTTPException(
-            400,
-            f'tool_choice="{tool_choice}" requires --tool-call-parser to be set',
-        )
-
-    if (
-        tool_choice == "none"
-        and config.model.exclude_tools_when_tool_choice_none
-        and request_data.tools
-    ):
-        request_data.tools = None
-
-    resolved_format = resolve_tool_call_format(parser_key, default_format)
-    if not resolved_format:
-        raise HTTPException(
-            400,
-            f"Could not resolve format for tool_call_parser={parser_key}",
-        )
-    return resolved_format
 
 
 def _serialize_stream_chunk(chunk) -> str:
@@ -170,7 +62,6 @@ def _create_response(
     generations: List[dict],
     model_name: Optional[str],
     tool_call_format: str = "json",
-    tool_choice=None,
 ):
     """Create a chat completion response from the provided text."""
 
@@ -188,18 +79,9 @@ def _create_response(
 
         tool_calls_raw = generation.get("tool_calls")
         if tool_calls_raw:
-            parsed = ToolCallProcessor.parse(
-                tool_calls_raw,
-                format=tool_call_format,
-                parser_key=parser_key,
-            )
-            if parsed and isinstance(tool_choice, NamedToolChoice):
-                parsed = ToolCallProcessor.filter_by_name(
-                    parsed, tool_choice.function.name
-                )
+            parsed = ToolCallProcessor.parse(tool_calls_raw, format=tool_call_format)
             if parsed:
                 message.tool_calls = parsed
-                message.content = None
             else:
                 logger.warning(
                     "Tool call text present but parsing returned no results "
@@ -375,7 +257,6 @@ def _build_tool_call_chunks(
     tool_calls: List[ToolCall],
     request_id: str,
     model_name: str,
-    choice_index: int,
 ) -> List[ChatCompletionStreamChunk]:
     """Build the OpenAI-standard streaming sequence for tool calls.
 
@@ -408,7 +289,7 @@ def _build_tool_call_chunks(
         id=chunk_id,
         choices=[
             ChatCompletionStreamChoice(
-                index=choice_index,
+                index=0,
                 delta=tool_call_message,
                 finish_reason=None,
             )
@@ -420,7 +301,7 @@ def _build_tool_call_chunks(
     # Use model_construct to prevent Pydantic's smart Union from
     # coercing the empty dict {} into ChatCompletionMessage(role="user")
     finish_choice = ChatCompletionStreamChoice.model_construct(
-        index=choice_index,
+        index=0,
         delta={},
         finish_reason="tool_calls",
         logprobs=None,
@@ -578,7 +459,7 @@ async def stream_generate_chat_completion(
     gen_queue = asyncio.Queue()
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
-    default_tool_call_format = model.container.prompt_template.metadata.tool_call_format
+    tool_call_format = model.container.prompt_template.metadata.tool_call_format
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
 
     try:
@@ -630,45 +511,6 @@ async def stream_generate_chat_completion(
             if disconnect_task.done():
                 raise CancelledError()
 
-            # Stream collector will push an exception to the queue if it fails
-            if isinstance(generation, Exception):
-                raise generation
-
-            if "text" in generation and generation.get("finish_reason") is None:
-                idx = generation["index"]
-                state = reasoning_states[idx]
-
-                delta_text = unwrap(generation.get("text"), "")
-                delta_token_ids = _token_ids_from_generation(generation)
-
-                current_text = state.text + delta_text
-                current_token_ids = state.token_ids + delta_token_ids
-
-                delta_message = reasoning_parser.extract_reasoning_streaming(
-                    state.text,
-                    current_text,
-                    delta_text,
-                    state.token_ids,
-                    current_token_ids,
-                    delta_token_ids,
-                )
-
-                state.text = current_text
-                state.token_ids = current_token_ids
-
-                if delta_message is None:
-                    continue
-
-                generation["text"] = delta_message.content
-                if data.include_reasoning:
-                    generation["reasoning"] = delta_message.reasoning
-                    generation["reasoning_content"] = delta_message.reasoning
-                else:
-                    generation["reasoning"] = None
-                    generation["reasoning_content"] = None
-                    if generation["text"] is None:
-                        continue
-
             # Handle options if a tool model is present
             if (tool_start or force_tool_pass) and data.tool_choice != "none":
                 if "stop_str" in generation:
@@ -683,6 +525,48 @@ async def stream_generate_chat_completion(
 
                     # Only one generation present in this case
                     generation = generations[0]
+
+                    # Emit proper three-phase tool-call streaming sequence
+                    if "tool_calls" in generation:
+                        tool_calls_raw = generation["tool_calls"]
+                        parsed = ToolCallProcessor.parse(
+                            tool_calls_raw, format=tool_call_format
+                        )
+                        if parsed:
+                            for tc_chunk in _build_tool_call_chunks(
+                                parsed,
+                                request.state.id,
+                                model_path.name,
+                            ):
+                                yield _serialize_stream_chunk(tc_chunk)
+
+                            # Handle completion and usage after tool calls
+                            if (
+                                all(task.done() for task in gen_tasks)
+                                and gen_queue.empty()
+                            ):
+                                if (
+                                    data.stream_options
+                                    and data.stream_options.include_usage
+                                ):
+                                    usage_chunk = _create_stream_chunk(
+                                        request.state.id,
+                                        generation,
+                                        model_path.name,
+                                        is_usage_chunk=True,
+                                    )
+                                    yield _serialize_stream_chunk(usage_chunk)
+
+                                logger.info(
+                                    "Finished chat completion streaming "
+                                    f"request {request.state.id}"
+                                )
+                                yield "[DONE]"
+                                break
+                            continue
+
+                elif "text" in generation:
+                    current_generation_text += generation["text"]
 
                     # Emit proper three-phase tool-call streaming sequence
                     if "tool_calls" in generation:
@@ -759,8 +643,6 @@ async def stream_generate_chat_completion(
         # Get out if the request gets disconnected
 
         handle_request_disconnect("Chat completion generation cancelled by user.")
-    except HTTPException as exc:
-        yield get_generator_error(str(exc.detail))
     except Exception:
         yield get_generator_error(
             "Chat completion aborted. Please check the server console."
@@ -779,10 +661,7 @@ async def generate_chat_completion(
 ):
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
-    default_tool_call_format = model.container.prompt_template.metadata.tool_call_format
-    tool_call_format = _validate_and_get_tool_call_format(
-        data, default_tool_call_format
-    )
+    tool_call_format = model.container.prompt_template.metadata.tool_call_format
 
     try:
         logger.info(f"Received chat completion request {request.state.id}")
@@ -817,26 +696,11 @@ async def generate_chat_completion(
                 tool_call_format=tool_call_format,
             )
 
-        reasoning_parser = _build_reasoning_parser(data)
-        for generation in generations:
-            reasoning, content = reasoning_parser.extract_reasoning(
-                unwrap(generation.get("text"), ""),
-                data,
-            )
-
-            if not data.include_reasoning:
-                reasoning = None
-
-            generation["reasoning"] = reasoning
-            generation["reasoning_content"] = reasoning
-            generation["text"] = content
-
         response = _create_response(
             request.state.id,
             generations,
             model_path.name,
             tool_call_format=tool_call_format,
-            tool_choice=data.tool_choice,
         )
 
         logger.info(f"Finished chat completion request {request.state.id}")
@@ -865,19 +729,7 @@ async def generate_tool_calls(
 ):
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
-    if tool_call_format is None:
-        default_tool_call_format = model.container.prompt_template.metadata.tool_call_format
-        tool_call_format = _validate_and_get_tool_call_format(
-            data, default_tool_call_format
-        )
-    tool_choice = data.tool_choice
-    parser_key = config.model.tool_call_parser
-    use_native_generation = parser_uses_native_tool_generation(
-        parser_key, tool_call_format
-    )
-
-    if tool_choice == "none":
-        return generations
+    tool_call_format = model.container.prompt_template.metadata.tool_call_format
 
     # Tracks which generations asked for a tool call
     tool_idx: List[int] = []
@@ -885,14 +737,12 @@ async def generate_tool_calls(
     # Copy to make sure the parent JSON schema doesn't get modified
     tool_data = data.model_copy(deep=True)
 
-    if use_native_generation:
-        # Native syntax mode: let the model generate its natural tool-call
-        # representation without JSON schema constraint.
+    if tool_call_format in ("xml", "auto"):
+        # XML / auto mode: let the model generate its natural output
+        # without JSON schema constraint
         logger.debug(
-            "generate_tool_calls: Using parser '{}' in native mode "
-            "(format={}, no JSON schema constraint)",
-            parser_key or "template-default",
-            tool_call_format,
+            f"generate_tool_calls: Using '{tool_call_format}' mode "
+            f"(no JSON schema constraint)"
         )
 
         # Remove tool_start from stop strings so the model can emit
@@ -942,6 +792,17 @@ async def generate_tool_calls(
         if use_native_generation and tool_start:
             tool_prompt = tool_prompt + tool_start + "\n"
 
+        # For XML/auto mode: append tool_start back to prompt.
+        # The stop string was consumed by the first pass and not included
+        # in full_text, but the model expects to continue after <tool_call>.
+        # Include a trailing newline to match the canonical template format.
+        if tool_call_format in ("xml", "auto"):
+            prompt = prompt + tool_start + "\n"
+            logger.debug(
+                f"generate_tool_calls: Appended '{tool_start}\\n' "
+                f"to prompt for XML continuation"
+            )
+
         gen_request_id = gen.get("request_id")
         tool_request_id = f"{gen_request_id}-tool"
 
@@ -965,9 +826,13 @@ async def generate_tool_calls(
         for gen_idx, tool_call in zip(tool_idx, tool_calls, strict=True):
             raw_text = tool_call["text"]
 
-            if use_native_generation and tool_start:
-                # Prepend tool_start to reconstruct complete native payload.
+            if tool_call_format in ("xml", "auto"):
+                # Prepend tool_start to reconstruct complete XML for parser
                 raw_text = tool_start + "\n" + raw_text
+                logger.debug(
+                    f"generate_tool_calls: Raw XML tool call output "
+                    f"({len(raw_text)} chars): {raw_text[:500]}..."
+                )
 
             generations[gen_idx]["tool_calls"] = raw_text
 
