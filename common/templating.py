@@ -24,12 +24,16 @@ class TemplateLoadError(Exception):
     pass
 
 
+VALID_TOOL_CALL_FORMATS = {"json", "xml", "auto"}
+
+
 @dataclass
 class TemplateMetadata:
     """Represents the parsed metadata from a template."""
 
     stop_strings: List[str] = field(default_factory=list)
     tool_start: Optional[str] = None
+    tool_call_format: str = "json"
 
 
 class PromptTemplate:
@@ -75,6 +79,18 @@ class PromptTemplate:
         if hasattr(template_module, "tool_start"):
             if isinstance(template_module.tool_start, str):
                 template_metadata.tool_start = template_module.tool_start
+
+        if hasattr(template_module, "tool_call_format"):
+            fmt = template_module.tool_call_format
+            if isinstance(fmt, str) and fmt in VALID_TOOL_CALL_FORMATS:
+                template_metadata.tool_call_format = fmt
+                logger.debug(f"Template tool_call_format: {fmt}")
+            else:
+                logger.warning(
+                    f"Invalid tool_call_format '{fmt}' in template, "
+                    f"defaulting to 'json'. "
+                    f"Valid values: {VALID_TOOL_CALL_FORMATS}"
+                )
 
         self.metadata = template_metadata
         return template_metadata

@@ -996,6 +996,7 @@ class ExllamaV3Container(BaseModelContainer):
             max_rq_tokens=self.max_rq_tokens,
             filters=grammar_handler.filters,
         )
+        self.active_job_ids[request_id] = job
 
         generated_tokens = 0
         full_response = ""
@@ -1044,8 +1045,6 @@ class ExllamaV3Container(BaseModelContainer):
 
                     yield finish_chunk
                     break
-            # Assign the active job to the request ID
-            self.active_job_ids[request_id] = job
 
         except asyncio.CancelledError:
             await job.cancel()
