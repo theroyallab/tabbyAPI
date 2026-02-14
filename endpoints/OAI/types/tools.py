@@ -40,3 +40,16 @@ class ToolCall(BaseModel):
     function: Tool
     type: Literal["function"] = "function"
     index: Optional[int] = None
+
+
+class NamedToolFunction(BaseModel):
+    """Represents a named function reference for tool_choice."""
+
+    name: str
+
+
+class NamedToolChoice(BaseModel):
+    """Represents a named tool choice (forces a specific function call)."""
+
+    function: NamedToolFunction
+    type: Literal["function"] = "function"

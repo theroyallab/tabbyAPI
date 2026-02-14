@@ -32,7 +32,7 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionStreamChoice,
 )
 from endpoints.OAI.types.common import UsageStats
-from endpoints.OAI.types.tools import ToolCall
+from endpoints.OAI.types.tools import NamedToolChoice, ToolCall
 from endpoints.OAI.utils.completion import _parse_gen_request_id, _stream_collector
 from endpoints.OAI.utils.parser_options import (
     list_tool_call_parsers,
@@ -62,6 +62,7 @@ def _create_response(
     generations: List[dict],
     model_name: Optional[str],
     tool_call_format: str = "json",
+    tool_choice=None,
 ):
     """Create a chat completion response from the provided text."""
 
@@ -80,6 +81,10 @@ def _create_response(
         tool_calls_raw = generation.get("tool_calls")
         if tool_calls_raw:
             parsed = ToolCallProcessor.parse(tool_calls_raw, format=tool_call_format)
+            if parsed and isinstance(tool_choice, NamedToolChoice):
+                parsed = ToolCallProcessor.filter_by_name(
+                    parsed, tool_choice.function.name
+                )
             if parsed:
                 message.tool_calls = parsed
             else:
@@ -512,7 +517,7 @@ async def stream_generate_chat_completion(
                 raise CancelledError()
 
             # Handle options if a tool model is present
-            if (tool_start or force_tool_pass) and data.tool_choice != "none":
+            if tool_start and data.tool_choice != "none":
                 if "stop_str" in generation:
                     generations = await generate_tool_calls(
                         prompt,
@@ -532,6 +537,10 @@ async def stream_generate_chat_completion(
                         parsed = ToolCallProcessor.parse(
                             tool_calls_raw, format=tool_call_format
                         )
+                        if parsed and isinstance(data.tool_choice, NamedToolChoice):
+                            parsed = ToolCallProcessor.filter_by_name(
+                                parsed, data.tool_choice.function.name
+                            )
                         if parsed:
                             for tc_chunk in _build_tool_call_chunks(
                                 parsed,
@@ -701,6 +710,7 @@ async def generate_chat_completion(
             generations,
             model_path.name,
             tool_call_format=tool_call_format,
+            tool_choice=data.tool_choice,
         )
 
         logger.info(f"Finished chat completion request {request.state.id}")
@@ -730,6 +740,10 @@ async def generate_tool_calls(
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
     tool_call_format = model.container.prompt_template.metadata.tool_call_format
+    tool_choice = data.tool_choice
+
+    if tool_choice == "none":
+        return generations
 
     # Tracks which generations asked for a tool call
     tool_idx: List[int] = []
@@ -785,23 +799,12 @@ async def generate_tool_calls(
         if precursor_text:
             tool_prompt = tool_prompt + precursor_text
 
-        # For native generation mode: append tool_start back to prompt.
-        # The stop string was consumed by the first pass and not included
-        # in full_text, but the model expects to continue after tool_start.
-        # Include a trailing newline to match the canonical template format.
-        if use_native_generation and tool_start:
-            tool_prompt = tool_prompt + tool_start + "\n"
-
         # For XML/auto mode: append tool_start back to prompt.
         # The stop string was consumed by the first pass and not included
         # in full_text, but the model expects to continue after <tool_call>.
         # Include a trailing newline to match the canonical template format.
-        if tool_call_format in ("xml", "auto"):
-            prompt = prompt + tool_start + "\n"
-            logger.debug(
-                f"generate_tool_calls: Appended '{tool_start}\\n' "
-                f"to prompt for XML continuation"
-            )
+        if tool_call_format in ("xml", "auto") and tool_start:
+            tool_prompt = tool_prompt + tool_start + "\n"
 
         gen_request_id = gen.get("request_id")
         tool_request_id = f"{gen_request_id}-tool"
@@ -829,10 +832,6 @@ async def generate_tool_calls(
             if tool_call_format in ("xml", "auto"):
                 # Prepend tool_start to reconstruct complete XML for parser
                 raw_text = tool_start + "\n" + raw_text
-                logger.debug(
-                    f"generate_tool_calls: Raw XML tool call output "
-                    f"({len(raw_text)} chars): {raw_text[:500]}..."
-                )
 
             generations[gen_idx]["tool_calls"] = raw_text
 
