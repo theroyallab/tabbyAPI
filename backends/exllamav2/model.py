@@ -25,7 +25,6 @@ from exllamav2.generator import (
 )
 from itertools import zip_longest
 from loguru import logger
-from typing import Dict, List, Optional
 
 from backends.base_model_container import BaseModelContainer
 from backends.exllamav2.grammar import (
@@ -58,45 +57,45 @@ class ExllamaV2Container(BaseModelContainer):
     # Model directories
     model_dir: pathlib.Path = pathlib.Path("models")
     draft_model_dir: pathlib.Path = pathlib.Path("models")
-    prompt_template: Optional[PromptTemplate] = None
+    prompt_template: PromptTemplate | None = None
 
     # HF model instance
     hf_model: HFModel
 
     # Exl2 vars
-    config: Optional[ExLlamaV2Config] = None
-    model: Optional[ExLlamaV2] = None
-    cache: Optional[ExLlamaV2Cache] = None
-    tokenizer: Optional[ExLlamaV2Tokenizer] = None
-    generator: Optional[ExLlamaV2DynamicGeneratorAsync] = None
-    prompt_template: Optional[PromptTemplate] = None
+    config: ExLlamaV2Config | None = None
+    model: ExLlamaV2 | None = None
+    cache: ExLlamaV2Cache | None = None
+    tokenizer: ExLlamaV2Tokenizer | None = None
+    generator: ExLlamaV2DynamicGeneratorAsync | None = None
+    prompt_template: PromptTemplate | None = None
     paged: bool = True
 
     # Draft model vars
     use_draft_model: bool = False
-    draft_config: Optional[ExLlamaV2Config] = None
-    draft_model: Optional[ExLlamaV2] = None
-    draft_cache: Optional[ExLlamaV2Cache] = None
+    draft_config: ExLlamaV2Config | None = None
+    draft_model: ExLlamaV2 | None = None
+    draft_cache: ExLlamaV2Cache | None = None
 
     # Internal config vars
     cache_size: int = None
     cache_mode: str = "FP16"
     draft_cache_mode: str = "FP16"
-    max_batch_size: Optional[int] = None
+    max_batch_size: int | None = None
 
     # GPU split vars
-    gpu_split: List[float] = []
-    draft_gpu_split: List[float] = []
+    gpu_split: list[float] = []
+    draft_gpu_split: list[float] = []
     gpu_split_auto: bool = True
-    autosplit_reserve: List[float] = [96 * 1024**2]
+    autosplit_reserve: list[float] = [96 * 1024**2]
     use_tp: bool = False
 
     # Vision vars
     use_vision: bool = False
-    vision_model: Optional[ExLlamaV2VisionTower] = None
+    vision_model: ExLlamaV2VisionTower | None = None
 
     # Load synchronization
-    active_job_ids: Dict[str, Optional[ExLlamaV2DynamicJobAsync]] = {}
+    active_job_ids: dict[str, ExLlamaV2DynamicJobAsync | None] = {}
     loaded: bool = False
     load_lock: asyncio.Lock = asyncio.Lock()
     load_condition: asyncio.Condition = asyncio.Condition()
@@ -751,9 +750,9 @@ class ExllamaV2Container(BaseModelContainer):
             # Wait for existing generation jobs to finish
             await self.wait_for_jobs(kwargs.get("skip_wait"))
 
-            loras_to_load: List[ExLlamaV2Lora] = []
-            success: List[str] = []
-            failure: List[str] = []
+            loras_to_load: list[ExLlamaV2Lora] = []
+            success: list[str] = []
+            failure: list[str] = []
 
             for lora in loras:
                 lora_name = lora.get("name")
@@ -870,7 +869,7 @@ class ExllamaV2Container(BaseModelContainer):
             .tolist()
         )
 
-    def decode_tokens(self, ids: List[int], **kwargs):
+    def decode_tokens(self, ids: list[int], **kwargs):
         """Wrapper to decode tokens from a list of IDs"""
 
         ids = torch.tensor([ids])
@@ -909,8 +908,8 @@ class ExllamaV2Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
     ):
         """Generate a response to a prompt."""
         generations = []
@@ -970,8 +969,8 @@ class ExllamaV2Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
     ):
         try:
             # Wait for load lock to be freed before processing
@@ -1243,8 +1242,8 @@ class ExllamaV2Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
     ):
         """
         Create generator function for prompt completion.

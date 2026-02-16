@@ -3,7 +3,6 @@
 import asyncio
 import pathlib
 from asyncio import CancelledError
-from typing import List, Optional
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
 from loguru import logger
@@ -33,7 +32,7 @@ from endpoints.OAI.utils.tools import ToolCallProcessor, TOOL_CALL_SCHEMA
 
 
 def _create_response(
-    request_id: str, generations: List[dict], model_name: Optional[str]
+    request_id: str, generations: list[dict], model_name: str | None
 ):
     """Create a chat completion response from the provided text."""
 
@@ -111,8 +110,8 @@ def _create_response(
 
 def _create_stream_chunk(
     request_id: str,
-    generation: Optional[dict] = None,
-    model_name: Optional[str] = None,
+    generation: dict | None = None,
+    model_name: str | None = None,
     is_usage_chunk: bool = False,
 ):
     """Create a chat completion stream chunk from the provided text."""
@@ -212,8 +211,8 @@ async def _append_template_metadata(data: ChatCompletionRequest, template_vars: 
 
 
 async def format_messages_with_template(
-    messages: List[ChatCompletionMessage],
-    existing_template_vars: Optional[dict] = None,
+    messages: list[ChatCompletionMessage],
+    existing_template_vars: dict | None = None,
 ):
     """Barebones function to format chat completion messages into a prompt."""
 
@@ -221,7 +220,7 @@ async def format_messages_with_template(
     mm_embeddings = MultimodalEmbeddingWrapper() if model.container.use_vision else None
 
     # Convert all messages to a dictionary representation
-    message_dicts: List[dict] = []
+    message_dicts: list[dict] = []
     for message in messages:
         if isinstance(message.content, list):
             concatenated_content = ""
@@ -317,7 +316,7 @@ async def stream_generate_chat_completion(
     """Generator for the generation process."""
     abort_event = asyncio.Event()
     gen_queue = asyncio.Queue()
-    gen_tasks: List[asyncio.Task] = []
+    gen_tasks: list[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
 
@@ -414,7 +413,7 @@ async def generate_chat_completion(
     request: Request,
     model_path: pathlib.Path,
 ):
-    gen_tasks: List[asyncio.Task] = []
+    gen_tasks: list[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
 
     try:
@@ -462,14 +461,14 @@ async def generate_tool_calls(
     prompt: str,
     embeddings: MultimodalEmbeddingWrapper,
     data: ChatCompletionRequest,
-    generations: List[str],
+    generations: list[str],
     request: Request,
 ):
-    gen_tasks: List[asyncio.Task] = []
+    gen_tasks: list[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
 
     # Tracks which generations asked for a tool call
-    tool_idx: List[int] = []
+    tool_idx: list[int] = []
 
     # Copy to make sure the parent JSON schema doesn't get modified
     tool_data = data.model_copy(deep=True)

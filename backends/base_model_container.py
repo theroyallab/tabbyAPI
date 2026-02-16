@@ -2,13 +2,7 @@ import abc
 import asyncio
 import pathlib
 from loguru import logger
-from typing import (
-    Any,
-    AsyncIterator,
-    Dict,
-    List,
-    Optional,
-)
+from typing import Any, AsyncIterator
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.sampling import BaseSamplerRequest
 from common.templating import PromptTemplate
@@ -21,7 +15,7 @@ class BaseModelContainer(abc.ABC):
 
     # Exposed model information
     model_dir: pathlib.Path = pathlib.Path("models")
-    prompt_template: Optional[PromptTemplate] = None
+    prompt_template: PromptTemplate | None = None
 
     # HF Model instance
     hf_model: HFModel
@@ -34,7 +28,7 @@ class BaseModelContainer(abc.ABC):
     # The bool is a master switch for accepting requests
     # The lock keeps load tasks sequential
     # The condition notifies any waiting tasks
-    active_job_ids: Dict[str, Any] = {}
+    active_job_ids: dict[str, Any] = {}
     loaded: bool = False
     load_lock: asyncio.Lock
     load_condition: asyncio.Condition
@@ -98,7 +92,7 @@ class BaseModelContainer(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def encode_tokens(self, text: str, **kwargs) -> List[int]:
+    def encode_tokens(self, text: str, **kwargs) -> list[int]:
         """
         Encodes a string of text into a list of token IDs.
 
@@ -113,7 +107,7 @@ class BaseModelContainer(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def decode_tokens(self, ids: List[int], **kwargs) -> str:
+    def decode_tokens(self, ids: list[int], **kwargs) -> str:
         """
         Decodes a list of token IDs back into a string.
 
@@ -128,7 +122,7 @@ class BaseModelContainer(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_special_tokens(self) -> Dict[str, Any]:
+    def get_special_tokens(self) -> dict[str, Any]:
         """
         Gets special tokens used by the model/tokenizer.
 
@@ -164,7 +158,7 @@ class BaseModelContainer(abc.ABC):
     # Optional methods
     async def load_loras(
         self, lora_directory: pathlib.Path, **kwargs
-    ) -> Dict[str, List[str]]:
+    ) -> dict[str, list[str]]:
         """
         Loads LoRA adapters. Base implementation does nothing or raises error.
 
@@ -184,7 +178,7 @@ class BaseModelContainer(abc.ABC):
             ],
         }
 
-    def get_loras(self) -> List[Any]:
+    def get_loras(self) -> list[Any]:
         """
         Gets the currently loaded LoRA adapters. Base implementation returns empty list.
 
@@ -200,9 +194,9 @@ class BaseModelContainer(abc.ABC):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
-    ) -> Dict[str, Any]:
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
+    ) -> dict[str, Any]:
         """
         Generates a complete response for a given prompt and parameters.
 
@@ -225,9 +219,9 @@ class BaseModelContainer(abc.ABC):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
-        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
-    ) -> AsyncIterator[Dict[str, Any]]:
+        abort_event: asyncio.Event | None = None,
+        mm_embeddings: MultimodalEmbeddingWrapper | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
         """
         Generates a response iteratively (streaming) for a given prompt.
 

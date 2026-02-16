@@ -1,7 +1,6 @@
 """Common types for OAI."""
 
 from pydantic import BaseModel, Field
-from typing import Optional, Union
 
 from common.sampling import BaseSamplerRequest, get_default_sampler_value
 
@@ -10,13 +9,13 @@ class UsageStats(BaseModel):
     """Represents usage stats."""
 
     prompt_tokens: int
-    prompt_time: Optional[float] = None
-    prompt_tokens_per_sec: Optional[Union[float, str]] = None
+    prompt_time: float | None = None
+    prompt_tokens_per_sec: float | str | None = None
     completion_tokens: int
-    completion_time: Optional[float] = None
-    completion_tokens_per_sec: Optional[Union[float, str]] = None
+    completion_time: float | None = None
+    completion_tokens_per_sec: float | str | None = None
     total_tokens: int
-    total_time: Optional[float] = None
+    total_time: float | None = None
 
 
 class CompletionResponseFormat(BaseModel):
@@ -24,7 +23,7 @@ class CompletionResponseFormat(BaseModel):
 
 
 class ChatCompletionStreamOptions(BaseModel):
-    include_usage: Optional[bool] = False
+    include_usage: bool | None = False
 
 
 class CommonCompletionRequest(BaseSamplerRequest):
@@ -32,29 +31,29 @@ class CommonCompletionRequest(BaseSamplerRequest):
 
     # Model information
     # This parameter is not used, the loaded model is used instead
-    model: Optional[str] = None
+    model: str | None = None
 
     # Generation info (remainder is in BaseSamplerRequest superclass)
-    stream: Optional[bool] = False
-    stream_options: Optional[ChatCompletionStreamOptions] = None
-    response_format: Optional[CompletionResponseFormat] = Field(
+    stream: bool | None = False
+    stream_options: ChatCompletionStreamOptions | None = None
+    response_format: CompletionResponseFormat | None = Field(
         default_factory=CompletionResponseFormat
     )
-    n: Optional[int] = Field(
+    n: int | None = Field(
         default_factory=lambda: get_default_sampler_value("n", 1),
         ge=1,
     )
 
     # Extra OAI request stuff
-    best_of: Optional[int] = Field(
+    best_of: int | None = Field(
         description="Not parsed. Only used for OAI compliance.", default=None
     )
-    echo: Optional[bool] = Field(
+    echo: bool | None = Field(
         description="Not parsed. Only used for OAI compliance.", default=False
     )
-    suffix: Optional[str] = Field(
+    suffix: str | None = Field(
         description="Not parsed. Only used for OAI compliance.", default=None
     )
-    user: Optional[str] = Field(
+    user: str | None = Field(
         description="Not parsed. Only used for OAI compliance.", default=None
     )

@@ -3,7 +3,6 @@ from collections import deque
 from datetime import datetime, timezone
 from functools import partial
 from pydantic import BaseModel, Field
-from typing import Union
 
 
 class UnhealthyEvent(BaseModel):
@@ -24,7 +23,7 @@ class HealthManagerClass:
         self.issues: deque[UnhealthyEvent] = deque(maxlen=100)
         self._lock = asyncio.Lock()
 
-    async def add_unhealthy_event(self, error: Union[str, Exception]):
+    async def add_unhealthy_event(self, error: str | Exception):
         """Add a new unhealthy event"""
         async with self._lock:
             if isinstance(error, Exception):

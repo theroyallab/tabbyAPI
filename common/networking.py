@@ -7,7 +7,6 @@ import traceback
 from fastapi import Depends, HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel
-from typing import Optional
 from uuid import uuid4
 
 from common.tabby_config import config
@@ -17,7 +16,7 @@ class TabbyRequestErrorMessage(BaseModel):
     """Common request error type."""
 
     message: str
-    trace: Optional[str] = None
+    trace: str | None = None
 
 
 class TabbyRequestError(BaseModel):

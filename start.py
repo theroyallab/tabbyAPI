@@ -9,7 +9,6 @@ import subprocess
 import sys
 import traceback
 from shutil import copyfile, which
-from typing import List
 
 # Checks for uv installation
 has_uv = which("uv") is not None
@@ -169,7 +168,7 @@ def migrate_start_options(start_options: dict):
     return migrated
 
 
-def run_pip(command: List[str]):
+def run_pip(command: list[str]):
     if has_uv:
         command.insert(0, "uv")
 

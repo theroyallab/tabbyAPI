@@ -7,7 +7,6 @@ import pathlib
 from dataclasses import dataclass, field
 from datetime import datetime
 from importlib.metadata import version as package_version
-from typing import List, Optional
 from jinja2 import Template, TemplateError
 from jinja2.ext import loopcontrols
 from jinja2.sandbox import ImmutableSandboxedEnvironment
@@ -28,8 +27,8 @@ class TemplateLoadError(Exception):
 class TemplateMetadata:
     """Represents the parsed metadata from a template."""
 
-    stop_strings: List[str] = field(default_factory=list)
-    tool_start: Optional[str] = None
+    stop_strings: list[str] = field(default_factory=list)
+    tool_start: str | None = None
 
 
 class PromptTemplate:
@@ -44,7 +43,7 @@ class PromptTemplate:
         enable_async=True,
         extensions=[loopcontrols],
     )
-    metadata: Optional[TemplateMetadata] = None
+    metadata: TemplateMetadata | None = None
 
     async def extract_metadata(self, template_vars: dict):
         """
@@ -145,7 +144,7 @@ class PromptTemplate:
 
     @classmethod
     async def from_model_json(
-        cls, json_path: pathlib.Path, key: str, name: Optional[str] = None
+        cls, json_path: pathlib.Path, key: str, name: str | None = None
     ):
         """Get a template from a JSON file. Requires a key and template name"""
         if not json_path.exists():

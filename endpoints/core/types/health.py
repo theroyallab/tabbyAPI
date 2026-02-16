@@ -11,5 +11,5 @@ class HealthCheckResponse(BaseModel):
         "healthy", description="System health status"
     )
     issues: list[UnhealthyEvent] = Field(
-        default_factory=list, description="List of issues"
+        default_factory=list, description="list of issues"
     )

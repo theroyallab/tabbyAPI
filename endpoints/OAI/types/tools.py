@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Literal
+from typing import Literal
 from uuid import uuid4
 
 
@@ -8,7 +8,7 @@ class Function(BaseModel):
 
     name: str
     description: str
-    parameters: Dict[str, object]
+    parameters: dict[str, object]
 
 
 class ToolSpec(BaseModel):
