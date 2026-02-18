@@ -225,10 +225,23 @@ async def stream_generate_completion(
 
         # Consumer loop
         while True:
+            # Fast path: items already queued — no task overhead
+            if not gen_queue.empty():
+                generation = gen_queue.get_nowait()
+            else:
+                # Slow path: queue empty — race get against disconnect
+                get_task = asyncio.create_task(gen_queue.get())
+                done, _ = await asyncio.wait(
+                    [get_task, disconnect_task],
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if disconnect_task in done:
+                    get_task.cancel()
+                    raise CancelledError()
+                generation = get_task.result()
+
             if disconnect_task.done():
                 raise CancelledError()
-
-            generation = await gen_queue.get()
 
             # Stream collector will push an exception to the queue if it fails
             if isinstance(generation, Exception):
@@ -245,15 +258,16 @@ async def stream_generate_completion(
     except CancelledError:
         # Get out if the request gets disconnected
 
-        if not abort_event.is_set():
-            abort_event.set()
-            handle_request_disconnect(
-                f"Completion generation {request.state.id} cancelled by user."
-            )
+        handle_request_disconnect(
+            f"Completion generation {request.state.id} cancelled by user."
+        )
     except Exception:
         yield get_generator_error(
             f"Completion {request.state.id} aborted. Please check the server console."
         )
+    finally:
+        abort_event.set()
+        disconnect_task.cancel()
 
 
 async def generate_completion(

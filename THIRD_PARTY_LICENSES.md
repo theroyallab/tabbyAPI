@@ -26,6 +26,9 @@ licensed under Apache License 2.0:
 - `endpoints/OAI/reasoning/step3_reasoning_parser.py`
 - `endpoints/OAI/reasoning/step3p5_reasoning_parser.py`
 - `endpoints/OAI/reasoning/__init__.py`
+- `endpoints/OAI/utils/parser_options.py`
+- `endpoints/OAI/utils/tools.py`
+- `templates/tool_calls/qwen3_coder.jinja`
 
 Source project:
 - vLLM: https://github.com/vllm-project/vllm

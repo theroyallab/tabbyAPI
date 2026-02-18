@@ -1,7 +1,7 @@
-from endpoints.OAI.reasoning.abs_reasoning_parsers import (
-
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
+
+from endpoints.OAI.reasoning.abs_reasoning_parsers import (
     DeltaMessage,
     ReasoningParser,
     ReasoningParserManager,
@@ -11,11 +11,15 @@ from endpoints.OAI.reasoning.deepseek_r1_reasoning_parser import DeepSeekR1Reaso
 from endpoints.OAI.reasoning.deepseek_v3_reasoning_parser import DeepSeekV3ReasoningParser
 from endpoints.OAI.reasoning.ernie45_reasoning_parser import Ernie45ReasoningParser
 from endpoints.OAI.reasoning.exaone4_reasoning_parser import Exaone4ReasoningParser
-from endpoints.OAI.reasoning.glm4_moe_reasoning_parser import Glm4MoeModelReasoningParser
+from endpoints.OAI.reasoning.glm4_moe_reasoning_parser import (
+    Glm4MoeModelReasoningParser,
+)
 from endpoints.OAI.reasoning.gptoss_reasoning_parser import GptOssReasoningParser
 from endpoints.OAI.reasoning.granite_reasoning_parser import GraniteReasoningParser
 from endpoints.OAI.reasoning.holo2_reasoning_parser import Holo2ReasoningParser
-from endpoints.OAI.reasoning.hunyuan_a13b_reasoning_parser import HunyuanA13BReasoningParser
+from endpoints.OAI.reasoning.hunyuan_a13b_reasoning_parser import (
+    HunyuanA13BReasoningParser,
+)
 from endpoints.OAI.reasoning.identity_reasoning_parser import IdentityReasoningParser
 from endpoints.OAI.reasoning.kimi_k2_reasoning_parser import KimiK2ReasoningParser
 from endpoints.OAI.reasoning.minimax_m2_reasoning_parser import (

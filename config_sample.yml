@@ -158,6 +158,20 @@ model:
   # If omitted, TabbyAPI defaults to `basic`.
   reasoning_parser:
 
+  # Enable automatic tool selection (default: False).
+  # Equivalent to vLLM --enable-auto-tool-choice.
+  # Requires tool_call_parser to be set.
+  enable_auto_tool_choice: false
+
+  # Tool parser key for model-generated tool call text.
+  # Equivalent to vLLM --tool-call-parser.
+  # Common values: qwen3_coder, qwen3_xml, mistral, hermes, openai.
+  tool_call_parser:
+
+  # Exclude tool definitions from prompt when tool_choice='none'.
+  # Equivalent to vLLM --exclude-tools-when-tool-choice-none.
+  exclude_tools_when_tool_choice_none: false
+
   # Enables vision support if the model supports it. (default: False)
   vision: false
 

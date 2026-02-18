@@ -51,7 +51,7 @@ class ChatCompletionStreamChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
     finish_reason: Optional[str] = None
-    delta: Union[ChatCompletionMessage, dict] = {}
+    delta: Union[ChatCompletionMessage, dict] = Field(default_factory=dict)
     logprobs: Optional[ChatCompletionLogprobs] = None
 
 
@@ -61,7 +61,7 @@ class ChatCompletionRequest(CommonCompletionRequest):
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
     template_vars: Optional[dict] = Field(
-        default={},
+        default_factory=dict,
         validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
         description="Aliases: chat_template_kwargs",
     )

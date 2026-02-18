@@ -25,12 +25,17 @@ class TemplateLoadError(Exception):
     pass
 
 
+VALID_TOOL_CALL_FORMATS = {"json", "xml", "auto"}
+
+
 @dataclass
 class TemplateMetadata:
     """Represents the parsed metadata from a template."""
 
     stop_strings: List[str] = field(default_factory=list)
     tool_start: Optional[str] = None
+    tool_end: Optional[str] = None
+    tool_call_format: str = "json"
 
 
 class PromptTemplate:
@@ -49,11 +54,10 @@ class PromptTemplate:
 
     @staticmethod
     def _tojson_compat(value, indent=None, ensure_ascii=True):
-        """
-        Compatibility JSON filter for chat templates.
+        """Compatibility JSON filter for chat templates.
 
-        Some model templates call `tojson(ensure_ascii=False)` while the
-        bundled Jinja filter may not accept that keyword in this environment.
+        Some model templates call ``tojson(ensure_ascii=False)`` while the
+        bundled Jinja filter may not accept that keyword in sandboxed mode.
         """
         return Markup(
             json.dumps(
@@ -93,6 +97,22 @@ class PromptTemplate:
         if hasattr(template_module, "tool_start"):
             if isinstance(template_module.tool_start, str):
                 template_metadata.tool_start = template_module.tool_start
+
+        if hasattr(template_module, "tool_end"):
+            if isinstance(template_module.tool_end, str):
+                template_metadata.tool_end = template_module.tool_end
+
+        if hasattr(template_module, "tool_call_format"):
+            fmt = template_module.tool_call_format
+            if isinstance(fmt, str) and fmt in VALID_TOOL_CALL_FORMATS:
+                template_metadata.tool_call_format = fmt
+                logger.debug(f"Template tool_call_format: {fmt}")
+            else:
+                logger.warning(
+                    f"Invalid tool_call_format '{fmt}' in template, "
+                    f"defaulting to 'json'. "
+                    f"Valid values: {VALID_TOOL_CALL_FORMATS}"
+                )
 
         self.metadata = template_metadata
         return template_metadata
