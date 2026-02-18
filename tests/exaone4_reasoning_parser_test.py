@@ -104,6 +104,95 @@ def test_thinking_streaming_prefill_flow_without_start_token():
     assert third.content == "!"
 
 
+def test_thinking_streaming_handles_split_end_token_boundary():
+    parser = _parser(enable_thinking=True)
+
+    first = parser.extract_reasoning_streaming(
+        previous_text="",
+        current_text="analysis </thi",
+        delta_text="analysis </thi",
+        previous_token_ids=[],
+        current_token_ids=[11],
+        delta_token_ids=[11],
+    )
+    assert first is not None
+    assert first.reasoning == "analysis "
+    assert first.content is None
+
+    second = parser.extract_reasoning_streaming(
+        previous_text="analysis </thi",
+        current_text="analysis </think>answer",
+        delta_text="nk>answer",
+        previous_token_ids=[11],
+        current_token_ids=[11, 102, 12],
+        delta_token_ids=[12],
+    )
+    assert second is not None
+    assert second.reasoning is None
+    assert second.content == "answer"
+
+
+def test_thinking_streaming_handles_split_tool_call_boundary_without_end_token():
+    parser = _parser(enable_thinking=True)
+
+    first = parser.extract_reasoning_streaming(
+        previous_text="",
+        current_text="analysis <tool_c",
+        delta_text="analysis <tool_c",
+        previous_token_ids=[],
+        current_token_ids=[11],
+        delta_token_ids=[11],
+    )
+    assert first is not None
+    assert first.reasoning == "analysis "
+    assert first.content is None
+
+    second = parser.extract_reasoning_streaming(
+        previous_text="analysis <tool_c",
+        current_text='analysis <tool_call>{"name":"lookup","arguments":{}}',
+        delta_text='all>{"name":"lookup","arguments":{}}',
+        previous_token_ids=[11],
+        current_token_ids=[11, 12],
+        delta_token_ids=[12],
+    )
+    assert second is not None
+    assert second.reasoning is None
+    assert second.content == '<tool_call>{"name":"lookup","arguments":{}}'
+
+
+def test_thinking_streaming_handles_split_deepseek_tool_boundary_without_end_token():
+    parser = _parser(enable_thinking=True)
+
+    first = parser.extract_reasoning_streaming(
+        previous_text="",
+        current_text="analysis <｜tool▁call▁b",
+        delta_text="analysis <｜tool▁call▁b",
+        previous_token_ids=[],
+        current_token_ids=[11],
+        delta_token_ids=[11],
+    )
+    assert first is not None
+    assert first.reasoning == "analysis "
+    assert first.content is None
+
+    second = parser.extract_reasoning_streaming(
+        previous_text="analysis <｜tool▁call▁b",
+        current_text=(
+            "analysis <｜tool▁call▁begin｜>lookup<｜tool▁sep｜>{\"q\":\"tabby\"}"
+            "<｜tool▁call▁end｜>"
+        ),
+        delta_text='egin｜>lookup<｜tool▁sep｜>{"q":"tabby"}<｜tool▁call▁end｜>',
+        previous_token_ids=[11],
+        current_token_ids=[11, 12],
+        delta_token_ids=[12],
+    )
+    assert second is not None
+    assert second.reasoning is None
+    assert second.content == (
+        '<｜tool▁call▁begin｜>lookup<｜tool▁sep｜>{"q":"tabby"}<｜tool▁call▁end｜>'
+    )
+
+
 def test_thinking_mode_content_ids_and_end_detection():
     parser = _parser(enable_thinking=True)
 
