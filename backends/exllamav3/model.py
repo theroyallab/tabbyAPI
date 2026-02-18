@@ -996,6 +996,7 @@ class ExllamaV3Container(BaseModelContainer):
             max_rq_tokens=self.max_rq_tokens,
             filters=grammar_handler.filters,
         )
+        self.active_job_ids[request_id] = job
 
         generated_tokens = 0
         full_response = ""
@@ -1013,22 +1014,21 @@ class ExllamaV3Container(BaseModelContainer):
                 if chunk:
                     chunk_tokens = result.get("token_ids", self.tokenizer.encode(chunk))
                     full_response += chunk
-                    token_ids: list[int] = []
+
+                    # Extract token IDs as a plain list for downstream consumers
                     if isinstance(chunk_tokens, torch.Tensor):
-                        token_ids = chunk_tokens.flatten().tolist()
+                        token_id_list = chunk_tokens.flatten().tolist()
+                        generated_tokens += chunk_tokens.size(dim=0)
                     elif isinstance(chunk_tokens, tuple):
-                        # Some kernels may return tuple[token_ids, ...]
                         first = chunk_tokens[0]
                         if isinstance(first, torch.Tensor):
-                            token_ids = first.flatten().tolist()
+                            token_id_list = first.flatten().tolist()
                         else:
-                            token_ids = list(first)
+                            token_id_list = list(first)
+                        generated_tokens += len(token_id_list)
                     else:
-                        token_ids = list(chunk_tokens)
-                    if isinstance(chunk_tokens, torch.Tensor):
-                        generated_tokens += chunk_tokens.size(dim=0)
-                    elif token_ids:
-                        generated_tokens += len(token_ids)
+                        token_id_list = list(chunk_tokens)
+                        generated_tokens += len(token_id_list)
 
                     # Increase penalty range to generated token amount
                     # TODO:
@@ -1038,7 +1038,7 @@ class ExllamaV3Container(BaseModelContainer):
                     generation = {
                         "request_id": request_id,
                         "text": chunk,
-                        "token_ids": token_ids,
+                        "token_ids": token_id_list,
                         "prompt_tokens": context_len,
                         "generated_tokens": generated_tokens,
                         "offset": len(full_response),
@@ -1059,8 +1059,6 @@ class ExllamaV3Container(BaseModelContainer):
 
                     yield finish_chunk
                     break
-            # Assign the active job to the request ID
-            self.active_job_ids[request_id] = job
 
         except asyncio.CancelledError:
             await job.cancel()

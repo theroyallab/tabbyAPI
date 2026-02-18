@@ -302,6 +302,29 @@ class ModelConfig(BaseConfigModel):
             "If omitted, defaults to 'basic'."
         ),
     )
+    enable_auto_tool_choice: Optional[bool] = Field(
+        False,
+        description=(
+            "Enable auto tool choice for chat completions (default: False).\n"
+            "Equivalent to vLLM's --enable-auto-tool-choice.\n"
+            "Requires tool_call_parser to be set."
+        ),
+    )
+    tool_call_parser: Optional[str] = Field(
+        None,
+        description=(
+            "Tool parser key for model-generated tool call output.\n"
+            "Equivalent to vLLM's --tool-call-parser.\n"
+            "Example values: qwen3_coder, qwen3_xml, mistral, hermes, openai."
+        ),
+    )
+    exclude_tools_when_tool_choice_none: Optional[bool] = Field(
+        False,
+        description=(
+            "Exclude tool definitions from prompt when tool_choice='none'.\n"
+            "Equivalent to vLLM's --exclude-tools-when-tool-choice-none."
+        ),
+    )
     vision: Optional[bool] = Field(
         False,
         description=(
