@@ -165,7 +165,10 @@ model:
 
   # Tool parser key for model-generated tool call text.
   # Equivalent to vLLM --tool-call-parser.
-  # Common values: qwen3_coder, qwen3_xml, mistral, hermes, openai.
+  # Built-in values include:
+  # hermes, llama (alias of llama3_json), llama3_json, llama4_json,
+  # openai, pythonic, qwen3_coder, qwen3_xml,
+  # deepseek_v3, deepseek_v31, deepseek_v32.
   tool_call_parser:
 
   # Exclude tool definitions from prompt when tool_choice='none'.

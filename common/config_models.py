@@ -315,7 +315,9 @@ class ModelConfig(BaseConfigModel):
         description=(
             "Tool parser key for model-generated tool call output.\n"
             "Equivalent to vLLM's --tool-call-parser.\n"
-            "Example values: qwen3_coder, qwen3_xml, mistral, hermes, openai."
+            "Built-in parser keys include: hermes, llama/llama3_json/llama4_json,\n"
+            "openai, pythonic, qwen3_coder, qwen3_xml,\n"
+            "deepseek_v3, deepseek_v31, deepseek_v32."
         ),
     )
     exclude_tools_when_tool_choice_none: Optional[bool] = Field(

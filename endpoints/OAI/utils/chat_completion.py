@@ -36,6 +36,7 @@ from endpoints.OAI.types.tools import NamedToolChoice, ToolCall
 from endpoints.OAI.utils.completion import _parse_gen_request_id, _stream_collector
 from endpoints.OAI.utils.parser_options import (
     list_tool_call_parsers,
+    parser_uses_native_tool_generation,
     resolve_tool_call_format,
 )
 from endpoints.OAI.utils.tools import ToolCallProcessor, TOOL_CALL_SCHEMA
@@ -174,6 +175,7 @@ def _create_response(
     """Create a chat completion response from the provided text."""
 
     choices = []
+    parser_key = config.model.tool_call_parser
     for index, generation in enumerate(generations):
         reasoning = generation.get("reasoning")
         reasoning_content = generation.get("reasoning_content")
@@ -186,7 +188,11 @@ def _create_response(
 
         tool_calls_raw = generation.get("tool_calls")
         if tool_calls_raw:
-            parsed = ToolCallProcessor.parse(tool_calls_raw, format=tool_call_format)
+            parsed = ToolCallProcessor.parse(
+                tool_calls_raw,
+                format=tool_call_format,
+                parser_key=parser_key,
+            )
             if parsed and isinstance(tool_choice, NamedToolChoice):
                 parsed = ToolCallProcessor.filter_by_name(
                     parsed, tool_choice.function.name
@@ -682,7 +688,9 @@ async def stream_generate_chat_completion(
                     if "tool_calls" in generation:
                         tool_calls_raw = generation["tool_calls"]
                         parsed = ToolCallProcessor.parse(
-                            tool_calls_raw, format=tool_call_format
+                            tool_calls_raw,
+                            format=tool_call_format,
+                            parser_key=config.model.tool_call_parser,
                         )
                         if parsed and isinstance(data.tool_choice, NamedToolChoice):
                             parsed = ToolCallProcessor.filter_by_name(
@@ -863,6 +871,10 @@ async def generate_tool_calls(
             data, default_tool_call_format
         )
     tool_choice = data.tool_choice
+    parser_key = config.model.tool_call_parser
+    use_native_generation = parser_uses_native_tool_generation(
+        parser_key, tool_call_format
+    )
 
     if tool_choice == "none":
         return generations
@@ -873,12 +885,14 @@ async def generate_tool_calls(
     # Copy to make sure the parent JSON schema doesn't get modified
     tool_data = data.model_copy(deep=True)
 
-    if tool_call_format in ("xml", "auto"):
-        # XML / auto mode: let the model generate its natural output
-        # without JSON schema constraint
+    if use_native_generation:
+        # Native syntax mode: let the model generate its natural tool-call
+        # representation without JSON schema constraint.
         logger.debug(
-            f"generate_tool_calls: Using '{tool_call_format}' mode "
-            f"(no JSON schema constraint)"
+            "generate_tool_calls: Using parser '{}' in native mode "
+            "(format={}, no JSON schema constraint)",
+            parser_key or "template-default",
+            tool_call_format,
         )
 
         # Remove tool_start from stop strings so the model can emit
@@ -921,11 +935,11 @@ async def generate_tool_calls(
         if precursor_text:
             tool_prompt = tool_prompt + precursor_text
 
-        # For XML/auto mode: append tool_start back to prompt.
+        # For native generation mode: append tool_start back to prompt.
         # The stop string was consumed by the first pass and not included
-        # in full_text, but the model expects to continue after <tool_call>.
+        # in full_text, but the model expects to continue after tool_start.
         # Include a trailing newline to match the canonical template format.
-        if tool_call_format in ("xml", "auto") and tool_start:
+        if use_native_generation and tool_start:
             tool_prompt = tool_prompt + tool_start + "\n"
 
         gen_request_id = gen.get("request_id")
@@ -951,8 +965,8 @@ async def generate_tool_calls(
         for gen_idx, tool_call in zip(tool_idx, tool_calls, strict=True):
             raw_text = tool_call["text"]
 
-            if tool_call_format in ("xml", "auto") and tool_start:
-                # Prepend tool_start to reconstruct complete XML for parser
+            if use_native_generation and tool_start:
+                # Prepend tool_start to reconstruct complete native payload.
                 raw_text = tool_start + "\n" + raw_text
 
             generations[gen_idx]["tool_calls"] = raw_text
