@@ -26,6 +26,18 @@ class Exaone4ReasoningParser(ReasoningParser):
 
     start_token = "<think>"
     end_token = "</think>"
+    # Tool-call starts supported by ToolCallProcessor parser families.
+    # We use these as fallback reasoning boundaries when a model emits
+    # tool syntax without closing </think>.
+    tool_start_markers = (
+        "<tool_call>",
+        "<function=",
+        "<｜tool▁calls▁begin｜>",
+        "<｜tool▁call▁begin｜>",
+        "<｜DSML｜function_calls>",
+        "<｜DSML｜invoke",
+        "<|python_tag|>",
+    )
 
     def __init__(self, tokenizer: Any, *args, **kwargs):
         super().__init__(tokenizer, *args, **kwargs)
@@ -35,17 +47,88 @@ class Exaone4ReasoningParser(ReasoningParser):
         self.start_token_id = self.vocab.get(self.start_token)
         self.end_token_id = self.vocab.get(self.end_token)
 
-    def _contains_token(
-        self, token_id: int | None, token_text: str, token_ids: Sequence[int], text: str
-    ) -> bool:
-        if token_id is not None and token_id in token_ids:
-            return True
-        return token_text in text if text else False
-
     def _strip_reasoning_tokens(self, text: str) -> str:
         if not text:
             return ""
         return text.replace(self.start_token, "").replace(self.end_token, "")
+
+    def _trailing_overlap_len(self, text: str, token: str) -> int:
+        """Longest suffix overlap of text with token prefix."""
+        max_len = min(len(text), len(token) - 1)
+        for size in range(max_len, 0, -1):
+            if text.endswith(token[:size]):
+                return size
+        return 0
+
+    def _find_first_marker(self, text: str, markers: Sequence[str]) -> tuple[int, str] | None:
+        first_idx = -1
+        first_marker = ""
+        for marker in markers:
+            idx = text.find(marker)
+            if idx == -1:
+                continue
+            if first_idx == -1 or idx < first_idx:
+                first_idx = idx
+                first_marker = marker
+        if first_idx == -1:
+            return None
+        return first_idx, first_marker
+
+    def _max_trailing_overlap_len(self, text: str, markers: Sequence[str]) -> int:
+        overlap = 0
+        for marker in markers:
+            overlap = max(overlap, self._trailing_overlap_len(text, marker))
+        return overlap
+
+    def _split_reasoning_content_streaming(
+        self, text: str
+    ) -> tuple[str | None, str | None]:
+        """Split text into reasoning/content for streaming-safe diffing.
+
+        Important: when end token is not yet complete, withhold a trailing
+        overlap with `</think>` or tool-call prefixes to avoid leaking
+        partial control-tag bytes into reasoning output. This prevents
+        boundary-split regressions such as `</thi` + `nk>answer` and
+        `<tool_c` + `all>{...}`.
+        """
+        if not self.thinking_enabled:
+            content = self._strip_reasoning_tokens(text)
+            return None, content or None
+
+        body = text
+        if self.start_token in body:
+            _, _, body = body.partition(self.start_token)
+
+        if self.end_token in body:
+            reasoning, _, content = body.partition(self.end_token)
+            return reasoning or None, self._strip_reasoning_tokens(content) or None
+
+        marker_match = self._find_first_marker(body, self.tool_start_markers)
+        if marker_match is not None:
+            marker_index, _ = marker_match
+            reasoning = body[:marker_index]
+            content = body[marker_index:]
+            return reasoning or None, self._strip_reasoning_tokens(content) or None
+
+        reasoning = body.replace(self.start_token, "")
+        overlap = max(
+            self._trailing_overlap_len(reasoning, self.end_token),
+            self._max_trailing_overlap_len(reasoning, self.tool_start_markers),
+        )
+        if overlap:
+            reasoning = reasoning[:-overlap]
+        return reasoning or None, None
+
+    def _delta_from_previous(self, previous: str | None, current: str | None) -> str | None:
+        if current is None:
+            return None
+        previous_text = previous or ""
+        if current.startswith(previous_text):
+            delta = current[len(previous_text) :]
+        else:
+            # Fallback for recovery paths where prefix alignment breaks.
+            delta = current
+        return delta or None
 
     def is_reasoning_end(self, input_ids: Sequence[int]) -> bool:
         if not self.thinking_enabled:
@@ -94,15 +177,16 @@ class Exaone4ReasoningParser(ReasoningParser):
             return None
 
         if not self.thinking_enabled:
-            content = self._strip_reasoning_tokens(delta_text)
-            return DeltaMessage(content=content or None) if content else None
-
-        end_in_prev = self._contains_token(
-            self.end_token_id, self.end_token, previous_token_ids, previous_text
-        )
-        end_in_delta = self._contains_token(
-            self.end_token_id, self.end_token, delta_token_ids, delta_text
-        )
+            prev_reasoning, prev_content = self._split_reasoning_content_streaming(
+                previous_text
+            )
+            cur_reasoning, cur_content = self._split_reasoning_content_streaming(
+                current_text
+            )
+            content_delta = self._delta_from_previous(prev_content, cur_content)
+            if content_delta is None:
+                return None
+            return DeltaMessage(content=content_delta)
 
         if len(delta_token_ids) == 1 and (
             (self.start_token_id is not None and delta_token_ids[0] == self.start_token_id)
@@ -110,24 +194,12 @@ class Exaone4ReasoningParser(ReasoningParser):
         ):
             return None
 
-        if end_in_prev:
-            content = self._strip_reasoning_tokens(delta_text)
-            return DeltaMessage(content=content or None) if content else None
+        prev_reasoning, prev_content = self._split_reasoning_content_streaming(previous_text)
+        cur_reasoning, cur_content = self._split_reasoning_content_streaming(current_text)
 
-        if end_in_delta:
-            reasoning_part, _, content_part = delta_text.partition(self.end_token)
-            if self.start_token in reasoning_part:
-                _, _, reasoning_part = reasoning_part.partition(self.start_token)
+        reasoning_delta = self._delta_from_previous(prev_reasoning, cur_reasoning)
+        content_delta = self._delta_from_previous(prev_content, cur_content)
 
-            reasoning = reasoning_part or None
-            content = self._strip_reasoning_tokens(content_part) or None
-            if reasoning is None and content is None:
-                return None
-            return DeltaMessage(reasoning=reasoning, content=content)
-
-        # EXAONE can omit start token in stream when template prefills <think>.
-        # While thinking mode is enabled, treat pre-end chunks as reasoning.
-        reasoning_part = delta_text.replace(self.start_token, "")
-
-        reasoning = reasoning_part or None
-        return DeltaMessage(reasoning=reasoning) if reasoning else None
+        if reasoning_delta is None and content_delta is None:
+            return None
+        return DeltaMessage(reasoning=reasoning_delta, content=content_delta)
