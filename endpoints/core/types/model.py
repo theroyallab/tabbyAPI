@@ -123,6 +123,7 @@ class EmbeddingModelLoadRequest(BaseModel):
 
     # Set default from the config
     embeddings_device: Optional[str] = Field(config.embeddings.embeddings_device)
+    embeddings_device_id: Optional[List[int]] = Field(config.embeddings.embeddings_device_id)
 
 
 class ModelLoadResponse(BaseModel):
