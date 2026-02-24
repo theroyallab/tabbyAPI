@@ -1,5 +1,8 @@
 """Test the model container."""
 
+import pytest
+
+pytest.importorskip("exllamav2")
 from backends.exllamav2.model import ModelContainer
 
 
