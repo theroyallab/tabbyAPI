@@ -12,11 +12,21 @@ from endpoints.OAI.reasoning.basic_parsers import BaseThinkingReasoningParser
 class MistralReasoningParser(BaseThinkingReasoningParser):
     @property
     def start_token(self) -> str:
-        return "[THINK]"
+        try:
+            from mistral_common.tokens.tokenizers.base import SpecialTokens
+
+            return SpecialTokens.begin_think
+        except Exception:
+            return "[THINK]"
 
     @property
     def end_token(self) -> str:
-        return "[/THINK]"
+        try:
+            from mistral_common.tokens.tokenizers.base import SpecialTokens
+
+            return SpecialTokens.end_think
+        except Exception:
+            return "[/THINK]"
 
     def is_reasoning_end(self, input_ids: Sequence[int]) -> bool:
         has_eot = False
