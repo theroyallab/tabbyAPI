@@ -83,6 +83,7 @@ class ExllamaV2Container(BaseModelContainer):
     cache_mode: str = "FP16"
     draft_cache_mode: str = "FP16"
     max_batch_size: Optional[int] = None
+    tokenizer_mode: str = "auto"
 
     # GPU split vars
     gpu_split: List[float] = []
@@ -120,6 +121,7 @@ class ExllamaV2Container(BaseModelContainer):
         self.model_dir = model_directory
         self.config.model_dir = str(model_directory.resolve())
         self.hf_model = hf_model
+        self.tokenizer_mode = str(unwrap(kwargs.get("tokenizer_mode"), "auto")).lower()
 
         # Make the max seq len 4096 before preparing the config
         # This is a better default than 2048
@@ -440,6 +442,7 @@ class ExllamaV2Container(BaseModelContainer):
             max_batch_size=self.max_batch_size,
             cache_mode=self.cache_mode,
             chunk_size=self.config.max_input_len,
+            tokenizer_mode=self.tokenizer_mode,
             use_vision=self.use_vision,
             draft=draft_model_card,
         )

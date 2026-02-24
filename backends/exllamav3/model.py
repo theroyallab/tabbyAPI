@@ -45,6 +45,17 @@ from common.utils import coalesce, unwrap
 from endpoints.core.types.model import ModelCard, ModelCardParameters
 
 
+_SUPPORTED_TOKENIZER_MODES = {"auto", "hf", "mistral"}
+
+
+def _supports_mistral_tokenizer_mode(model_directory: pathlib.Path) -> bool:
+    return (
+        (model_directory / "tekken.json").exists()
+        or (model_directory / "tokenizer.model").exists()
+        or any(model_directory.glob("tokenizer.model.v*"))
+    )
+
+
 class ExllamaV3Container(BaseModelContainer):
     """Abstract base class for model containers."""
 
@@ -88,6 +99,7 @@ class ExllamaV3Container(BaseModelContainer):
     chunk_size: int = 2048
     max_rq_tokens: Optional[int] = 2048
     max_batch_size: Optional[int] = None
+    tokenizer_mode: str = "auto"
 
     # Required methods
     @classmethod
@@ -110,6 +122,26 @@ class ExllamaV3Container(BaseModelContainer):
 
         self.model_dir = model_directory
         self.hf_model = hf_model
+        requested_tokenizer_mode = str(unwrap(kwargs.get("tokenizer_mode"), "auto")).lower()
+        if requested_tokenizer_mode not in _SUPPORTED_TOKENIZER_MODES:
+            logger.warning(
+                "Unknown tokenizer_mode '{}' requested. Falling back to 'auto'.",
+                requested_tokenizer_mode,
+            )
+            requested_tokenizer_mode = "auto"
+
+        if requested_tokenizer_mode == "mistral":
+            if _supports_mistral_tokenizer_mode(model_directory):
+                logger.info("Using tokenizer_mode='mistral' compatibility path.")
+            else:
+                logger.warning(
+                    "tokenizer_mode='mistral' requested but model does not appear "
+                    "to use Mistral tokenizer assets. Falling back to default mode."
+                )
+                requested_tokenizer_mode = "auto"
+
+        self.tokenizer_mode = requested_tokenizer_mode
+
         self.config = Config.from_directory(str(model_directory.resolve()))
         self.model = Model.from_config(self.config)
         self.tokenizer = Tokenizer.from_config(self.config)
@@ -369,6 +401,7 @@ class ExllamaV3Container(BaseModelContainer):
             max_batch_size=self.max_batch_size,
             cache_mode=self.cache_mode,
             chunk_size=self.chunk_size,
+            tokenizer_mode=self.tokenizer_mode,
             use_vision=self.use_vision,
         )
 

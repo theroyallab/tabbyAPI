@@ -153,6 +153,12 @@ model:
   # NOTE: Only works with chat completion message lists!
   prompt_template:
 
+  # Tokenizer compatibility mode for chat formatting (default: auto).
+  # Values: auto, hf, mistral.
+  # mistral applies Mistral-style tool-call ID normalization and
+  # falls back to default behavior for non-Mistral models.
+  tokenizer_mode: auto
+
   # Reasoning parser key for splitting hidden reasoning and final content.
   # Compatible keys include: basic, exaone4, deepseek_r1, deepseek_v3.
   # If omitted, TabbyAPI defaults to `basic`.
@@ -166,7 +172,7 @@ model:
   # Tool parser key for model-generated tool call text.
   # Equivalent to vLLM --tool-call-parser.
   # Built-in values include:
-  # hermes, llama (alias of llama3_json), llama3_json, llama4_json,
+  # hermes, llama (alias of llama3_json), llama3_json, llama4_json, mistral,
   # openai, pythonic, qwen3_coder, qwen3_xml,
   # deepseek_v3, deepseek_v31, deepseek_v32.
   tool_call_parser:

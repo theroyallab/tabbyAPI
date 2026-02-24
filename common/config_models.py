@@ -294,6 +294,16 @@ class ModelConfig(BaseConfigModel):
             "NOTE: Only works with chat completion message lists!"
         ),
     )
+    tokenizer_mode: Optional[str] = Field(
+        "auto",
+        description=(
+            "Tokenizer compatibility mode for chat formatting.\n"
+            "Compatible values: auto, hf, mistral.\n"
+            "mistral applies Mistral-specific message normalization "
+            "(tool-call ID handling) and falls back to default behavior "
+            "for non-Mistral models."
+        ),
+    )
     reasoning_parser: Optional[str] = Field(
         None,
         description=(
@@ -316,7 +326,7 @@ class ModelConfig(BaseConfigModel):
             "Tool parser key for model-generated tool call output.\n"
             "Equivalent to vLLM's --tool-call-parser.\n"
             "Built-in parser keys include: hermes, llama/llama3_json/llama4_json,\n"
-            "openai, pythonic, qwen3_coder, qwen3_xml,\n"
+            "mistral, openai, pythonic, qwen3_coder, qwen3_xml,\n"
             "deepseek_v3, deepseek_v31, deepseek_v32."
         ),
     )

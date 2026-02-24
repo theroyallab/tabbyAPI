@@ -42,6 +42,181 @@ from endpoints.OAI.utils.parser_options import (
 from endpoints.OAI.utils.tools import ToolCallProcessor, TOOL_CALL_SCHEMA
 
 
+_SUPPORTED_TOKENIZER_MODES = {"auto", "hf", "mistral"}
+
+
+@dataclass
+class _StreamReasoningState:
+    text: str = ""
+    token_ids: List[int] = field(default_factory=list)
+
+
+class _TokenizerAdapter:
+    """Expose the minimal tokenizer interface required by reasoning parsers."""
+
+    def __init__(self):
+        self._vocab = None
+
+    def get_vocab(self) -> dict[str, int]:
+        if self._vocab is not None:
+            return self._vocab
+
+        tokenizer = model.container.tokenizer
+        if hasattr(tokenizer, "get_vocab"):
+            self._vocab = tokenizer.get_vocab()
+            return self._vocab
+
+        pieces = tokenizer.get_id_to_piece_list(True)
+        vocab: dict[str, int] = {}
+        for token_id, piece in enumerate(pieces):
+            if piece not in vocab:
+                vocab[piece] = token_id
+        self._vocab = vocab
+        return vocab
+
+
+def _token_ids_from_generation(generation: dict) -> List[int]:
+    token_ids = generation.get("token_ids")
+    if token_ids is None:
+        return []
+    if isinstance(token_ids, list):
+        return token_ids
+    if hasattr(token_ids, "flatten"):
+        return token_ids.flatten().tolist()
+    return list(token_ids)
+
+
+def _get_tokenizer_mode() -> str:
+    container_mode = getattr(model.container, "tokenizer_mode", None)
+    tokenizer_mode = str(
+        unwrap(container_mode, unwrap(config.model.tokenizer_mode, "auto")) or "auto"
+    ).lower()
+    if tokenizer_mode not in _SUPPORTED_TOKENIZER_MODES:
+        logger.warning(
+            "Unknown tokenizer_mode '{}' configured; falling back to 'auto'.",
+            tokenizer_mode,
+        )
+        return "auto"
+    return tokenizer_mode
+
+
+def _truncate_mistral_tool_ids(message_dicts: List[dict]) -> None:
+    """Match vLLM mistral_common behavior by truncating tool IDs to 9 chars."""
+    for message in message_dicts:
+        role = message.get("role")
+
+        if role == "assistant":
+            for tool_call in message.get("tool_calls", []):
+                tool_id = tool_call.get("id")
+                if isinstance(tool_id, str) and len(tool_id) > 9:
+                    tool_call["id"] = tool_id[-9:]
+
+        if role in {"tool", "tool_results"}:
+            tool_call_id = message.get("tool_call_id")
+            if isinstance(tool_call_id, str) and len(tool_call_id) > 9:
+                message["tool_call_id"] = tool_call_id[-9:]
+
+
+def _sanitize_mistral_tool_choice_ids(request_data: ChatCompletionRequest) -> None:
+    """Normalize tool_choice IDs so mistral templates don't fail validation."""
+    for message in request_data.messages:
+        if message.role == "assistant" and message.tool_calls:
+            for tool_call in message.tool_calls:
+                if isinstance(tool_call.id, str) and len(tool_call.id) > 9:
+                    tool_call.id = tool_call.id[-9:]
+        elif message.role in {"tool", "tool_results"} and message.tool_call_id:
+            if len(message.tool_call_id) > 9:
+                message.tool_call_id = message.tool_call_id[-9:]
+
+
+def _build_parser_instance(parser_key: str, template_kwargs: dict):
+    parser_cls = ReasoningParserManager.get_reasoning_parser(parser_key)
+    return parser_cls(_TokenizerAdapter(), chat_template_kwargs=template_kwargs)
+
+
+def _build_reasoning_parser(request_data: ChatCompletionRequest):
+    parser_key = unwrap(config.model.reasoning_parser, "basic") or "basic"
+
+    template_kwargs = unwrap(request_data.template_vars, {})
+
+    try:
+        return _build_parser_instance(parser_key, template_kwargs)
+    except KeyError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except RuntimeError as exc:
+        # Keep compatibility for models that do not expose thinking tags.
+        if parser_key == "basic":
+            logger.warning(
+                "Reasoning parser 'basic' could not initialize ({}). "
+                "Falling back to identity parser.",
+                str(exc),
+            )
+            identity_cls = ReasoningParserManager.get_reasoning_parser("identity")
+            return identity_cls(_TokenizerAdapter(), chat_template_kwargs=template_kwargs)
+
+        # Mistral parser only applies when think tokens exist. If a
+        # non-Mistral model is selected, fall back to basic behavior.
+        if parser_key == "mistral":
+            logger.warning(
+                "Reasoning parser 'mistral' could not initialize ({}). "
+                "Falling back to 'basic'.",
+                str(exc),
+            )
+            try:
+                return _build_parser_instance("basic", template_kwargs)
+            except Exception:
+                identity_cls = ReasoningParserManager.get_reasoning_parser("identity")
+                return identity_cls(
+                    _TokenizerAdapter(), chat_template_kwargs=template_kwargs
+                )
+
+        raise HTTPException(400, str(exc)) from exc
+
+
+def _validate_and_get_tool_call_format(
+    request_data: ChatCompletionRequest, default_format: str
+) -> str:
+    tool_choice = request_data.tool_choice
+    parser_key = config.model.tool_call_parser
+    enable_auto = bool(config.model.enable_auto_tool_choice)
+    parser_names = list_tool_call_parsers()
+
+    if parser_key and parser_key not in parser_names:
+        parsers_str = ", ".join(sorted(parser_names))
+        raise HTTPException(
+            400,
+            f"invalid tool call parser: {parser_key} (choose from {{{parsers_str}}})",
+        )
+
+    if tool_choice == "auto" and (not enable_auto or not parser_key):
+        raise HTTPException(
+            400,
+            '"auto" tool choice requires --enable-auto-tool-choice and '
+            "--tool-call-parser to be set",
+        )
+
+    if tool_choice not in (None, "none", "auto") and parser_key is None:
+        raise HTTPException(
+            400,
+            f'tool_choice="{tool_choice}" requires --tool-call-parser to be set',
+        )
+
+    if (
+        tool_choice == "none"
+        and config.model.exclude_tools_when_tool_choice_none
+        and request_data.tools
+    ):
+        request_data.tools = None
+
+    resolved_format = resolve_tool_call_format(parser_key, default_format)
+    if not resolved_format:
+        raise HTTPException(
+            400,
+            f"Could not resolve format for tool_call_parser={parser_key}",
+        )
+    return resolved_format
+
+
 def _serialize_stream_chunk(chunk) -> str:
     """Serialize a streaming chunk with OpenAI-compatible field handling.
 
@@ -80,13 +255,18 @@ def _create_response(
 
         tool_calls_raw = generation.get("tool_calls")
         if tool_calls_raw:
-            parsed = ToolCallProcessor.parse(tool_calls_raw, format=tool_call_format)
+            parsed = ToolCallProcessor.parse(
+                tool_calls_raw,
+                format=tool_call_format,
+                parser_key=parser_key,
+            )
             if parsed and isinstance(tool_choice, NamedToolChoice):
                 parsed = ToolCallProcessor.filter_by_name(
                     parsed, tool_choice.function.name
                 )
             if parsed:
                 message.tool_calls = parsed
+                message.content = None
             else:
                 logger.warning(
                     "Tool call text present but parsing returned no results "
@@ -262,6 +442,7 @@ def _build_tool_call_chunks(
     tool_calls: List[ToolCall],
     request_id: str,
     model_name: str,
+    choice_index: int,
 ) -> List[ChatCompletionStreamChunk]:
     """Build the OpenAI-standard streaming sequence for tool calls.
 
@@ -294,7 +475,7 @@ def _build_tool_call_chunks(
         id=chunk_id,
         choices=[
             ChatCompletionStreamChoice(
-                index=0,
+                index=choice_index,
                 delta=tool_call_message,
                 finish_reason=None,
             )
@@ -306,7 +487,7 @@ def _build_tool_call_chunks(
     # Use model_construct to prevent Pydantic's smart Union from
     # coercing the empty dict {} into ChatCompletionMessage(role="user")
     finish_choice = ChatCompletionStreamChoice.model_construct(
-        index=0,
+        index=choice_index,
         delta={},
         finish_reason="tool_calls",
         logprobs=None,
@@ -364,6 +545,9 @@ async def format_messages_with_template(
 
         message_dicts.append(message.model_dump(exclude_none=True))
 
+    if _get_tokenizer_mode() == "mistral":
+        _truncate_mistral_tool_ids(message_dicts)
+
     # Pre-template: convert tool_call arguments from JSON strings to dicts.
     # OpenAI-compatible clients (Kilo, Roo, etc.) send arguments as JSON
     # strings per the OAI spec, but Qwen3-Coder's template calls
@@ -399,6 +583,8 @@ async def apply_chat_template(data: ChatCompletionRequest):
 
     # Locally store tools dict
     tools = data.model_dump()["tools"]
+    if _get_tokenizer_mode() == "mistral":
+        _sanitize_mistral_tool_choice_ids(data)
 
     try:
         data.template_vars.update(
@@ -464,7 +650,7 @@ async def stream_generate_chat_completion(
     gen_queue = asyncio.Queue()
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
-    tool_call_format = model.container.prompt_template.metadata.tool_call_format
+    default_tool_call_format = model.container.prompt_template.metadata.tool_call_format
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
 
     try:
@@ -516,8 +702,47 @@ async def stream_generate_chat_completion(
             if disconnect_task.done():
                 raise CancelledError()
 
+            # Stream collector will push an exception to the queue if it fails
+            if isinstance(generation, Exception):
+                raise generation
+
+            if "text" in generation and generation.get("finish_reason") is None:
+                idx = generation["index"]
+                state = reasoning_states[idx]
+
+                delta_text = unwrap(generation.get("text"), "")
+                delta_token_ids = _token_ids_from_generation(generation)
+
+                current_text = state.text + delta_text
+                current_token_ids = state.token_ids + delta_token_ids
+
+                delta_message = reasoning_parser.extract_reasoning_streaming(
+                    state.text,
+                    current_text,
+                    delta_text,
+                    state.token_ids,
+                    current_token_ids,
+                    delta_token_ids,
+                )
+
+                state.text = current_text
+                state.token_ids = current_token_ids
+
+                if delta_message is None:
+                    continue
+
+                generation["text"] = delta_message.content
+                if data.include_reasoning:
+                    generation["reasoning"] = delta_message.reasoning
+                    generation["reasoning_content"] = delta_message.reasoning
+                else:
+                    generation["reasoning"] = None
+                    generation["reasoning_content"] = None
+                    if generation["text"] is None:
+                        continue
+
             # Handle options if a tool model is present
-            if tool_start and data.tool_choice != "none":
+            if (tool_start or force_tool_pass) and data.tool_choice != "none":
                 if "stop_str" in generation:
                     generations = await generate_tool_calls(
                         prompt,
@@ -530,52 +755,6 @@ async def stream_generate_chat_completion(
 
                     # Only one generation present in this case
                     generation = generations[0]
-
-                    # Emit proper three-phase tool-call streaming sequence
-                    if "tool_calls" in generation:
-                        tool_calls_raw = generation["tool_calls"]
-                        parsed = ToolCallProcessor.parse(
-                            tool_calls_raw, format=tool_call_format
-                        )
-                        if parsed and isinstance(data.tool_choice, NamedToolChoice):
-                            parsed = ToolCallProcessor.filter_by_name(
-                                parsed, data.tool_choice.function.name
-                            )
-                        if parsed:
-                            for tc_chunk in _build_tool_call_chunks(
-                                parsed,
-                                request.state.id,
-                                model_path.name,
-                            ):
-                                yield _serialize_stream_chunk(tc_chunk)
-
-                            # Handle completion and usage after tool calls
-                            if (
-                                all(task.done() for task in gen_tasks)
-                                and gen_queue.empty()
-                            ):
-                                if (
-                                    data.stream_options
-                                    and data.stream_options.include_usage
-                                ):
-                                    usage_chunk = _create_stream_chunk(
-                                        request.state.id,
-                                        generation,
-                                        model_path.name,
-                                        is_usage_chunk=True,
-                                    )
-                                    yield _serialize_stream_chunk(usage_chunk)
-
-                                logger.info(
-                                    "Finished chat completion streaming "
-                                    f"request {request.state.id}"
-                                )
-                                yield "[DONE]"
-                                break
-                            continue
-
-                elif "text" in generation:
-                    current_generation_text += generation["text"]
 
                     # Emit proper three-phase tool-call streaming sequence
                     if "tool_calls" in generation:
@@ -652,6 +831,8 @@ async def stream_generate_chat_completion(
         # Get out if the request gets disconnected
 
         handle_request_disconnect("Chat completion generation cancelled by user.")
+    except HTTPException as exc:
+        yield get_generator_error(str(exc.detail))
     except Exception:
         yield get_generator_error(
             "Chat completion aborted. Please check the server console."
@@ -670,7 +851,10 @@ async def generate_chat_completion(
 ):
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
-    tool_call_format = model.container.prompt_template.metadata.tool_call_format
+    default_tool_call_format = model.container.prompt_template.metadata.tool_call_format
+    tool_call_format = _validate_and_get_tool_call_format(
+        data, default_tool_call_format
+    )
 
     try:
         logger.info(f"Received chat completion request {request.state.id}")
@@ -704,6 +888,20 @@ async def generate_chat_completion(
                 request,
                 tool_call_format=tool_call_format,
             )
+
+        reasoning_parser = _build_reasoning_parser(data)
+        for generation in generations:
+            reasoning, content = reasoning_parser.extract_reasoning(
+                unwrap(generation.get("text"), ""),
+                data,
+            )
+
+            if not data.include_reasoning:
+                reasoning = None
+
+            generation["reasoning"] = reasoning
+            generation["reasoning_content"] = reasoning
+            generation["text"] = content
 
         response = _create_response(
             request.state.id,
@@ -739,8 +937,16 @@ async def generate_tool_calls(
 ):
     gen_tasks: List[asyncio.Task] = []
     tool_start = model.container.prompt_template.metadata.tool_start
-    tool_call_format = model.container.prompt_template.metadata.tool_call_format
+    if tool_call_format is None:
+        default_tool_call_format = model.container.prompt_template.metadata.tool_call_format
+        tool_call_format = _validate_and_get_tool_call_format(
+            data, default_tool_call_format
+        )
     tool_choice = data.tool_choice
+    parser_key = config.model.tool_call_parser
+    use_native_generation = parser_uses_native_tool_generation(
+        parser_key, tool_call_format
+    )
 
     if tool_choice == "none":
         return generations
@@ -751,12 +957,14 @@ async def generate_tool_calls(
     # Copy to make sure the parent JSON schema doesn't get modified
     tool_data = data.model_copy(deep=True)
 
-    if tool_call_format in ("xml", "auto"):
-        # XML / auto mode: let the model generate its natural output
-        # without JSON schema constraint
+    if use_native_generation:
+        # Native syntax mode: let the model generate its natural tool-call
+        # representation without JSON schema constraint.
         logger.debug(
-            f"generate_tool_calls: Using '{tool_call_format}' mode "
-            f"(no JSON schema constraint)"
+            "generate_tool_calls: Using parser '{}' in native mode "
+            "(format={}, no JSON schema constraint)",
+            parser_key or "template-default",
+            tool_call_format,
         )
 
         # Remove tool_start from stop strings so the model can emit
@@ -799,11 +1007,11 @@ async def generate_tool_calls(
         if precursor_text:
             tool_prompt = tool_prompt + precursor_text
 
-        # For XML/auto mode: append tool_start back to prompt.
+        # For native generation mode: append tool_start back to prompt.
         # The stop string was consumed by the first pass and not included
-        # in full_text, but the model expects to continue after <tool_call>.
+        # in full_text, but the model expects to continue after tool_start.
         # Include a trailing newline to match the canonical template format.
-        if tool_call_format in ("xml", "auto") and tool_start:
+        if use_native_generation and tool_start:
             tool_prompt = tool_prompt + tool_start + "\n"
 
         gen_request_id = gen.get("request_id")
@@ -829,8 +1037,8 @@ async def generate_tool_calls(
         for gen_idx, tool_call in zip(tool_idx, tool_calls, strict=True):
             raw_text = tool_call["text"]
 
-            if tool_call_format in ("xml", "auto"):
-                # Prepend tool_start to reconstruct complete XML for parser
+            if use_native_generation and tool_start:
+                # Prepend tool_start to reconstruct complete native payload.
                 raw_text = tool_start + "\n" + raw_text
 
             generations[gen_idx]["tool_calls"] = raw_text

@@ -20,6 +20,7 @@ class ModelCardParameters(BaseModel):
     rope_alpha: Optional[float] = 1.0
     max_batch_size: Optional[int] = 1
     chunk_size: Optional[int] = 2048
+    tokenizer_mode: Optional[str] = "auto"
     prompt_template: Optional[str] = None
     prompt_template_content: Optional[str] = None
     use_vision: Optional[bool] = False
@@ -111,6 +112,10 @@ class ModelLoadRequest(BaseModel):
     chunk_size: Optional[int] = None
     output_chunking: Optional[bool] = True
     prompt_template: Optional[str] = None
+    tokenizer_mode: Optional[str] = Field(
+        description="Tokenizer compatibility mode (auto, hf, mistral)",
+        default=None,
+    )
     vision: Optional[bool] = None
 
     # Non-config arguments
