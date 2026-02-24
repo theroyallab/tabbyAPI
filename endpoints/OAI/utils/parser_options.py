@@ -60,6 +60,7 @@ NATIVE_TOOL_GENERATION_PARSERS: Set[str] = {
     "deepseek_v31",
     "deepseek_v32",
     "llama4_pythonic",
+    "mistral",
     "pythonic",
     "qwen3_coder",
     "qwen3_xml",

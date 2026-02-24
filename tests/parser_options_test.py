@@ -36,4 +36,5 @@ def test_native_generation_flags_cover_native_syntax_parsers():
     assert parser_uses_native_tool_generation("qwen3_coder", "json") is True
     assert parser_uses_native_tool_generation("deepseek_v31", "json") is True
     assert parser_uses_native_tool_generation("pythonic", "json") is True
+    assert parser_uses_native_tool_generation("mistral", "json") is True
     assert parser_uses_native_tool_generation("hermes", "json") is False

@@ -183,6 +183,47 @@ def test_parse_with_openai_parser_handles_functions_recipient():
     assert _arguments_dict(parsed[0]) == {"city": "Seoul"}
 
 
+def test_parse_with_mistral_parser_handles_pre_v11_json():
+    payload = (
+        '[TOOL_CALLS] [{"name":"get_weather","arguments":{"city":"Seoul","days":2}}]'
+    )
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="mistral")
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "get_weather"
+    assert _arguments_dict(parsed[0]) == {"city": "Seoul", "days": 2}
+    assert parsed[0].id.isalnum()
+    assert len(parsed[0].id) == 9
+
+
+def test_parse_with_mistral_parser_handles_v11_style_segments():
+    payload = (
+        '[TOOL_CALLS]search{"q":"tabbyapi"}'
+        '[TOOL_CALLS]lookup{"id":42}'
+    )
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="mistral")
+
+    assert len(parsed) == 2
+    assert parsed[0].function.name == "search"
+    assert _arguments_dict(parsed[0]) == {"q": "tabbyapi"}
+    assert parsed[1].function.name == "lookup"
+    assert _arguments_dict(parsed[1]) == {"id": 42}
+    assert parsed[1].id.isalnum()
+    assert len(parsed[1].id) == 9
+
+
+def test_parse_with_mistral_parser_falls_back_to_standard_json():
+    payload = '[{"name":"lookup","arguments":{"id":42}}]'
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="mistral")
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "lookup"
+    assert _arguments_dict(parsed[0]) == {"id": 42}
+
+
 def test_parser_key_dispatch_overrides_format_for_qwen3_xml():
     payload = (
         "<tool_call><function=search>"

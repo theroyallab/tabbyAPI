@@ -6,6 +6,8 @@
 import ast
 import json
 import re
+from random import choices
+from string import ascii_letters, digits
 from loguru import logger
 from typing import Any, Callable, Dict, List, Tuple
 
@@ -86,6 +88,9 @@ DEEPSEEK_V32_PARAM_RE = re.compile(
     r'<｜DSML｜parameter\s+name="(?P<name>[^"]+)"(?:\s+string="(?P<string>true|false)")?\s*>(?P<value>.*?)</｜DSML｜parameter>',  # noqa: E501
     re.DOTALL,
 )
+
+MISTRAL_TOOL_START = "[TOOL_CALLS]"
+MISTRAL_ID_ALPHANUMERIC = ascii_letters + digits
 
 
 def _strip_think_blocks(text: str) -> str:
@@ -292,6 +297,64 @@ class ToolCallProcessor:
             return json.dumps(json.loads(payload), ensure_ascii=False)
         except (json.JSONDecodeError, ValueError, TypeError):
             return payload
+
+    @staticmethod
+    def _normalize_mistral_tool_call_id(raw_id: Any) -> str:
+        """Normalize tool call IDs to Mistral's 9-char alphanumeric format."""
+        if isinstance(raw_id, str):
+            candidate = re.sub(r"[^A-Za-z0-9]", "", raw_id)
+            if len(candidate) >= 9:
+                return candidate[-9:]
+        return "".join(choices(MISTRAL_ID_ALPHANUMERIC, k=9))
+
+    @staticmethod
+    def _build_mistral_tool_call(name: str, arguments: Any, raw_id: Any = None) -> ToolCall:
+        if isinstance(arguments, str):
+            payload = ToolCallProcessor._coerce_argument_payload(arguments)
+        else:
+            payload = json.dumps(arguments, ensure_ascii=False)
+        return ToolCall(
+            id=ToolCallProcessor._normalize_mistral_tool_call_id(raw_id),
+            function=Tool(name=name, arguments=payload),
+        )
+
+    @staticmethod
+    def _parse_mistral_json_tool_calls(payload: str) -> List[ToolCall]:
+        """Parse JSON-style Mistral tool calls following [TOOL_CALLS]."""
+        decoded = ToolCallProcessor._decode_json_sequence(payload)
+        if not decoded:
+            try:
+                decoded = [json.loads(payload)]
+            except (json.JSONDecodeError, ValueError):
+                return []
+
+        tool_calls: List[ToolCall] = []
+        for item in decoded:
+            candidates = item if isinstance(item, list) else [item]
+            for candidate in candidates:
+                if not isinstance(candidate, dict):
+                    continue
+
+                if "function" in candidate and isinstance(candidate["function"], dict):
+                    fn = candidate["function"]
+                    name = fn.get("name")
+                    arguments = fn.get("arguments", {})
+                    tool_id = candidate.get("id")
+                else:
+                    name = candidate.get("name")
+                    arguments = candidate.get("arguments", {})
+                    tool_id = candidate.get("id")
+
+                if not isinstance(name, str) or not name:
+                    continue
+
+                tool_calls.append(
+                    ToolCallProcessor._build_mistral_tool_call(
+                        name=name, arguments=arguments, raw_id=tool_id
+                    )
+                )
+
+        return tool_calls
 
     @staticmethod
     def _ast_to_literal(node: ast.AST) -> Any:
@@ -524,6 +587,57 @@ class ToolCallProcessor:
         return ToolCallProcessor.from_deepseek_v31(raw_text)
 
     @staticmethod
+    def from_mistral(raw_text: str) -> List[ToolCall]:
+        """Parse Mistral [TOOL_CALLS] payloads for both tokenizer formats."""
+        text = raw_text.strip()
+
+        # Non-Mistral outputs should remain compatible with existing JSON logic.
+        if MISTRAL_TOOL_START not in text:
+            return ToolCallProcessor.from_json(text)
+
+        split_payloads = [
+            chunk.strip()
+            for chunk in text.split(MISTRAL_TOOL_START)[1:]
+            if chunk.strip()
+        ]
+        if not split_payloads:
+            return []
+
+        # pre-v11 format: [TOOL_CALLS] [{"name": "...", "arguments": {...}}]
+        if len(split_payloads) == 1:
+            json_calls = ToolCallProcessor._parse_mistral_json_tool_calls(
+                split_payloads[0]
+            )
+            if json_calls:
+                return json_calls
+
+        # v11+ format: [TOOL_CALLS]name{...}[TOOL_CALLS]name{...}
+        tool_calls: List[ToolCall] = []
+        for payload in split_payloads:
+            start = payload.find("{")
+            end = payload.rfind("}")
+            if start == -1 or end < start:
+                continue
+
+            function_name = payload[:start].strip()
+            if not function_name:
+                continue
+
+            arguments = payload[start : end + 1]
+            tool_calls.append(
+                ToolCallProcessor._build_mistral_tool_call(
+                    name=function_name,
+                    arguments=arguments,
+                )
+            )
+
+        if tool_calls:
+            return tool_calls
+
+        # Final fallback for malformed payloads.
+        return ToolCallProcessor.from_json(split_payloads[-1])
+
+    @staticmethod
     def from_json(tool_calls_str: str) -> List[ToolCall]:
         """Postprocess tool call JSON to a parseable class.
 
@@ -699,6 +813,7 @@ class ToolCallProcessor:
                 "llama": ToolCallProcessor.from_llama,
                 "llama3_json": ToolCallProcessor.from_llama,
                 "llama4_json": ToolCallProcessor.from_llama,
+                "mistral": ToolCallProcessor.from_mistral,
                 "openai": ToolCallProcessor.from_openai,
                 "pythonic": ToolCallProcessor.from_pythonic,
                 "qwen3_coder": ToolCallProcessor.from_xml,
