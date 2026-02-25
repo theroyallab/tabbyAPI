@@ -21,6 +21,7 @@ class ModelCardParameters(BaseModel):
     max_batch_size: Optional[int] = 1
     chunk_size: Optional[int] = 2048
     tokenizer_mode: Optional[str] = "auto"
+    mistral_tokenizer_models: Optional[List[str]] = Field(default_factory=list)
     prompt_template: Optional[str] = None
     prompt_template_content: Optional[str] = None
     use_vision: Optional[bool] = False
@@ -113,8 +114,15 @@ class ModelLoadRequest(BaseModel):
     output_chunking: Optional[bool] = True
     prompt_template: Optional[str] = None
     tokenizer_mode: Optional[str] = Field(
-        description="Tokenizer compatibility mode (auto, hf, mistral)",
+        description="Tokenizer compatibility mode (auto, hf, slow, mistral, deepseek_v32)",
         default=None,
+    )
+    mistral_tokenizer_models: Optional[List[str]] = Field(
+        default_factory=list,
+        description=(
+            "Optional allowlist for tokenizer_mode='mistral'. "
+            "Only listed Mistral-family models can use mistral mode."
+        ),
     )
     vision: Optional[bool] = None
 

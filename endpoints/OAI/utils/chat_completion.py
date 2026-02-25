@@ -19,6 +19,7 @@ from common.networking import (
     request_disconnect_loop,
 )
 from common.tabby_config import config
+from common.tokenizer_modes import normalize_tokenizer_mode
 from common.utils import unwrap
 from endpoints.OAI.reasoning import ReasoningParserManager
 from endpoints.OAI.types.chat_completion import (
@@ -40,9 +41,6 @@ from endpoints.OAI.utils.parser_options import (
     resolve_tool_call_format,
 )
 from endpoints.OAI.utils.tools import ToolCallProcessor, TOOL_CALL_SCHEMA
-
-
-_SUPPORTED_TOKENIZER_MODES = {"auto", "hf", "mistral"}
 
 
 @dataclass
@@ -88,15 +86,11 @@ def _token_ids_from_generation(generation: dict) -> List[int]:
 
 def _get_tokenizer_mode() -> str:
     container_mode = getattr(model.container, "tokenizer_mode", None)
-    tokenizer_mode = str(
-        unwrap(container_mode, unwrap(config.model.tokenizer_mode, "auto")) or "auto"
-    ).lower()
-    if tokenizer_mode not in _SUPPORTED_TOKENIZER_MODES:
-        logger.warning(
-            "Unknown tokenizer_mode '{}' configured; falling back to 'auto'.",
-            tokenizer_mode,
-        )
-        return "auto"
+    tokenizer_mode, mode_message = normalize_tokenizer_mode(
+        unwrap(container_mode, unwrap(config.model.tokenizer_mode, "auto"))
+    )
+    if mode_message:
+        logger.warning(mode_message)
     return tokenizer_mode
 
 

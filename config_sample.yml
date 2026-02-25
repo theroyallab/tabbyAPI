@@ -154,10 +154,16 @@ model:
   prompt_template:
 
   # Tokenizer compatibility mode for chat formatting (default: auto).
-  # Values: auto, hf, mistral.
+  # Values: auto, hf, slow, mistral, deepseek_v32.
+  # Note: ExLlama backends treat "slow" as "hf".
   # mistral applies Mistral-style tool-call ID normalization and
   # falls back to default behavior for non-Mistral models.
   tokenizer_mode: auto
+
+  # Optional allowlist for tokenizer_mode='mistral'.
+  # If set, only listed model names/paths can use mistral mode.
+  # Leave empty to keep auto-detection behavior.
+  mistral_tokenizer_models: []
 
   # Reasoning parser key for splitting hidden reasoning and final content.
   # Compatible keys include: basic, exaone4, deepseek_r1, deepseek_v3.

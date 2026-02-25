@@ -298,10 +298,19 @@ class ModelConfig(BaseConfigModel):
         "auto",
         description=(
             "Tokenizer compatibility mode for chat formatting.\n"
-            "Compatible values: auto, hf, mistral.\n"
+            "Compatible values: auto, hf, slow, mistral, deepseek_v32.\n"
+            "slow is normalized to hf for ExLlama backends.\n"
             "mistral applies Mistral-specific message normalization "
             "(tool-call ID handling) and falls back to default behavior "
             "for non-Mistral models."
+        ),
+    )
+    mistral_tokenizer_models: Optional[List[str]] = Field(
+        default_factory=list,
+        description=(
+            "Optional allowlist for tokenizer_mode='mistral'.\n"
+            "When set, only listed model names/paths will use mistral mode.\n"
+            "If empty, Tabby auto-detects Mistral-family models."
         ),
     )
     reasoning_parser: Optional[str] = Field(

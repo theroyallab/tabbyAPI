@@ -34,26 +34,20 @@ from common.gen_logging import (
     log_metrics,
     log_prompt,
 )
-from common.hardware import hardware_supports_flash_attn
+from common.hardware import hardware_supports_flashinfer
 from common.health import HealthManager
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.optional_dependencies import check_package_version
 from common.sampling import BaseSamplerRequest
+from common.tabby_config import config
 from common.templating import PromptTemplate, find_prompt_template
+from common.tokenizer_modes import (
+    normalize_tokenizer_mode,
+    should_enable_mistral_tokenizer_mode,
+)
 from common.transformers_utils import HFModel
 from common.utils import coalesce, unwrap
 from endpoints.core.types.model import ModelCard, ModelCardParameters
-
-
-_SUPPORTED_TOKENIZER_MODES = {"auto", "hf", "mistral"}
-
-
-def _supports_mistral_tokenizer_mode(model_directory: pathlib.Path) -> bool:
-    return (
-        (model_directory / "tekken.json").exists()
-        or (model_directory / "tokenizer.model").exists()
-        or any(model_directory.glob("tokenizer.model.v*"))
-    )
 
 
 class ExllamaV3Container(BaseModelContainer):
@@ -100,6 +94,7 @@ class ExllamaV3Container(BaseModelContainer):
     max_rq_tokens: Optional[int] = 2048
     max_batch_size: Optional[int] = None
     tokenizer_mode: str = "auto"
+    mistral_tokenizer_models: List[str] = []
 
     # Required methods
     @classmethod
@@ -119,19 +114,26 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Make sure ExllamaV3 is up to date
         check_package_version("exllamav3", "0.0.7")
+        check_package_version("flashinfer-python", "0.6.3")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
-        requested_tokenizer_mode = str(unwrap(kwargs.get("tokenizer_mode"), "auto")).lower()
-        if requested_tokenizer_mode not in _SUPPORTED_TOKENIZER_MODES:
-            logger.warning(
-                "Unknown tokenizer_mode '{}' requested. Falling back to 'auto'.",
-                requested_tokenizer_mode,
-            )
-            requested_tokenizer_mode = "auto"
+        requested_tokenizer_mode, mode_message = normalize_tokenizer_mode(
+            coalesce(kwargs.get("tokenizer_mode"), config.model.tokenizer_mode, "auto")
+        )
+        if mode_message:
+            logger.warning(mode_message)
 
+        mistral_tokenizer_models = coalesce(
+            kwargs.get("mistral_tokenizer_models"),
+            config.model.mistral_tokenizer_models,
+            [],
+        )
+        self.mistral_tokenizer_models = list(mistral_tokenizer_models)
         if requested_tokenizer_mode == "mistral":
-            if _supports_mistral_tokenizer_mode(model_directory):
+            if should_enable_mistral_tokenizer_mode(
+                model_directory, mistral_tokenizer_models
+            ):
                 logger.info("Using tokenizer_mode='mistral' compatibility path.")
             else:
                 logger.warning(
@@ -243,12 +245,12 @@ class ExllamaV3Container(BaseModelContainer):
                     value / 1024 for value in autosplit_reserve_megabytes
                 ]
 
-        if not hardware_supports_flash_attn(gpu_device_list):
+        if not hardware_supports_flashinfer(gpu_device_list):
             gpu_unsupported_message = (
                 "Unable to run ExllamaV3 because an unsupported GPU is "
                 "found in this configuration. \n"
-                "All GPUs must be ampere "
-                "(30 series) or newer. AMD GPUs are not supported."
+                "All GPUs must be Ampere "
+                "(30 series) or newer for flashinfer. AMD GPUs are not supported."
             )
 
             logger.warning(gpu_unsupported_message)
@@ -402,6 +404,7 @@ class ExllamaV3Container(BaseModelContainer):
             cache_mode=self.cache_mode,
             chunk_size=self.chunk_size,
             tokenizer_mode=self.tokenizer_mode,
+            mistral_tokenizer_models=self.mistral_tokenizer_models,
             use_vision=self.use_vision,
         )
 
@@ -465,8 +468,10 @@ class ExllamaV3Container(BaseModelContainer):
             Progress updates
         """
 
+        acquired_lock = False
         try:
             await self.load_lock.acquire()
+            acquired_lock = True
 
             # Wait for existing generation jobs to finish
             await self.wait_for_jobs(kwargs.get("skip_wait"))
@@ -487,7 +492,8 @@ class ExllamaV3Container(BaseModelContainer):
             self.loaded = True
             logger.info("Model successfully loaded.")
         finally:
-            self.load_lock.release()
+            if acquired_lock and self.load_lock.locked():
+                self.load_lock.release()
 
             async with self.load_condition:
                 self.load_condition.notify_all()
