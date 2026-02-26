@@ -49,9 +49,11 @@ TOOL_CALL_BLOCK_RE = re.compile(
     re.DOTALL,
 )
 
-# Matches <function=NAME>BODY</function> blocks
+# Matches <function=NAME>BODY blocks.
+# Supports complete and partially-closed function sections to keep parity
+# with vLLM behavior on generation cutoffs.
 FUNCTION_RE = re.compile(
-    r"<function=(.*?)>(.*?)</function>",
+    r"<function=(.*?)>(.*?)</function>|<function=(.*?)>(.*)$",
     re.DOTALL,
 )
 
@@ -70,6 +72,35 @@ THINK_UNCLOSED_RE = re.compile(r"<think>(?!.*</think>).*$", re.DOTALL)
 # Markdown code fence patterns
 CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*", re.MULTILINE)
 CODE_FENCE_END_RE = re.compile(r"\s*```\s*$", re.MULTILINE)
+
+# Jamba / MiniMax tagged JSON blocks
+TOOL_CALLS_TAG_RE = re.compile(r"<tool_calls>(.*?)</tool_calls>", re.DOTALL)
+
+# GLM-4.5 style: <tool_call>function_name\n{...}</tool_call>
+GLM45_CALL_RE = re.compile(
+    r"<tool_call>\s*(?P<name>[^\n<]+?)\s*\n(?P<args>.*?)</tool_call>",
+    re.DOTALL,
+)
+
+# MiniMax-M2 XML-like syntax
+MINIMAX_M2_CALL_RE = re.compile(
+    r"<minimax:tool_call>(.*?)</minimax:tool_call>",
+    re.DOTALL,
+)
+MINIMAX_M2_INVOKE_RE = re.compile(
+    r"<invoke\s+name=(?P<name>.*?)>(?P<body>.*?)</invoke>",
+    re.DOTALL,
+)
+MINIMAX_M2_PARAM_RE = re.compile(
+    r"<parameter\s+name=(?P<name>.*?)>(?P<value>.*?)</parameter>",
+    re.DOTALL,
+)
+
+# Seed-OSS tags
+SEED_THINK_BLOCK_RE = re.compile(r"<seed:think>.*?</seed:think>\s*", re.DOTALL)
+SEED_THINK_UNCLOSED_RE = re.compile(r"<seed:think>(?!.*</seed:think>).*$", re.DOTALL)
+SEED_TOOL_CALL_START = "<seed:tool_call>"
+SEED_TOOL_CALL_END = "</seed:tool_call>"
 
 # DeepSeek family patterns
 DEEPSEEK_V31_CALL_RE = re.compile(
@@ -146,16 +177,31 @@ def _coerce_param_value(raw: str) -> Any:
     except (json.JSONDecodeError, ValueError):
         pass
 
+    # Handle Python-like literals often emitted by coder models,
+    # e.g. {'k': 'v'} for object parameters.
+    try:
+        return ast.literal_eval(stripped)
+    except (ValueError, SyntaxError):
+        pass
+
     # Fall back to string — never eval()
     return stripped
 
 
 class ToolCallProcessor:
     _PARSER_DISPATCHER: Dict[str, Callable[[str], List[ToolCall]]] = {}
+    _MISSING_PARSER_WARNED: set[str] = set()
 
     # ------------------------------------------------------------------
     # JSON normalization helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _strip_quotes(value: str) -> str:
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            return value[1:-1]
+        return value
 
     @staticmethod
     def _normalize_tool_calls(raw) -> list:
@@ -355,6 +401,44 @@ class ToolCallProcessor:
                 )
 
         return tool_calls
+
+    @staticmethod
+    def _parse_tagged_json_payload(payload: str) -> List[ToolCall]:
+        payload = payload.strip()
+        if not payload:
+            return []
+
+        # Prefer full JSON parse first (array/object).
+        try:
+            return ToolCallProcessor._build_tool_calls_from_normalized(json.loads(payload))
+        except (json.JSONDecodeError, ValueError, TypeError, KeyError):
+            pass
+
+        # Fallback: decode a sequence of JSON values.
+        decoded = ToolCallProcessor._decode_json_sequence(payload)
+        if decoded:
+            flattened = []
+            for item in decoded:
+                if isinstance(item, list):
+                    flattened.extend(item)
+                else:
+                    flattened.append(item)
+            return ToolCallProcessor._build_tool_calls_from_normalized(flattened)
+
+        # Fallback: line-delimited JSON objects.
+        lines = [line.strip().rstrip(",") for line in payload.splitlines() if line.strip()]
+        parsed_lines = []
+        for line in lines:
+            if not line.startswith("{"):
+                continue
+            try:
+                parsed_lines.append(json.loads(line))
+            except (json.JSONDecodeError, ValueError):
+                continue
+        if parsed_lines:
+            return ToolCallProcessor._build_tool_calls_from_normalized(parsed_lines)
+
+        return []
 
     @staticmethod
     def _ast_to_literal(node: ast.AST) -> Any:
@@ -638,6 +722,95 @@ class ToolCallProcessor:
         return ToolCallProcessor.from_json(split_payloads[-1])
 
     @staticmethod
+    def from_tagged_tool_calls(raw_text: str) -> List[ToolCall]:
+        """Parse <tool_calls>...</tool_calls> tagged payloads (Jamba/MiniMax)."""
+        text = _strip_think_blocks(raw_text)
+        matches = TOOL_CALLS_TAG_RE.findall(text)
+        if not matches:
+            return []
+
+        tool_calls: List[ToolCall] = []
+        for payload in matches:
+            tool_calls.extend(ToolCallProcessor._parse_tagged_json_payload(payload))
+        return tool_calls
+
+    @staticmethod
+    def from_glm45(raw_text: str) -> List[ToolCall]:
+        """Parse GLM-4.5 style <tool_call>name\\n{args}</tool_call> payloads."""
+        text = _strip_think_blocks(raw_text)
+        tool_calls: List[ToolCall] = []
+        for match in GLM45_CALL_RE.finditer(text):
+            name = match.group("name").strip()
+            if not name:
+                continue
+            args = ToolCallProcessor._coerce_argument_payload(match.group("args"))
+            tool_calls.append(
+                ToolCall(
+                    function=Tool(
+                        name=name,
+                        arguments=args,
+                    )
+                )
+            )
+        return tool_calls
+
+    @staticmethod
+    def from_minimax_m2(raw_text: str) -> List[ToolCall]:
+        """Parse MiniMax-M2 XML-like tool call payloads."""
+        text = _strip_think_blocks(raw_text)
+        tool_calls: List[ToolCall] = []
+
+        for call in MINIMAX_M2_CALL_RE.finditer(text):
+            call_body = call.group(1)
+            for invoke in MINIMAX_M2_INVOKE_RE.finditer(call_body):
+                fn_name = ToolCallProcessor._strip_quotes(invoke.group("name"))
+                if not fn_name:
+                    continue
+
+                params: Dict[str, Any] = {}
+                invoke_body = invoke.group("body")
+                for param in MINIMAX_M2_PARAM_RE.finditer(invoke_body):
+                    key = ToolCallProcessor._strip_quotes(param.group("name"))
+                    if not key:
+                        continue
+                    value = _coerce_param_value(param.group("value"))
+                    params[key] = value
+
+                tool_calls.append(
+                    ToolCall(
+                        function=Tool(
+                            name=fn_name,
+                            arguments=json.dumps(params, ensure_ascii=False),
+                        )
+                    )
+                )
+
+        return tool_calls
+
+    @staticmethod
+    def from_seed_oss(raw_text: str) -> List[ToolCall]:
+        """Parse Seed-OSS XML-style tool calls by adapting to Qwen3 XML format."""
+        text = SEED_THINK_BLOCK_RE.sub("", raw_text)
+        text = SEED_THINK_UNCLOSED_RE.sub("", text)
+        text = text.replace(SEED_TOOL_CALL_START, "<tool_call>")
+        text = text.replace(SEED_TOOL_CALL_END, "</tool_call>")
+        return ToolCallProcessor.from_xml(text)
+
+    @staticmethod
+    def from_olmo3(raw_text: str) -> List[ToolCall]:
+        """Parse OLMo3 pythonic tool calls, optionally wrapped by <function_calls>."""
+        text = _strip_think_blocks(raw_text).strip()
+        wrapped = re.search(r"<function_calls>(.*?)</function_calls>", text, re.DOTALL)
+        if wrapped:
+            text = wrapped.group(1).strip()
+
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if len(lines) > 1 and all(re.match(r"^[A-Za-z_]\w*\s*\(", line) for line in lines):
+            text = "[" + ", ".join(lines) + "]"
+
+        return ToolCallProcessor.from_pythonic(text)
+
+    @staticmethod
     def from_json(tool_calls_str: str) -> List[ToolCall]:
         """Postprocess tool call JSON to a parseable class.
 
@@ -697,7 +870,9 @@ class ToolCallProcessor:
         for match in TOOL_CALL_BLOCK_RE.finditer(text):
             inner = match.group(1)
             for func_match in FUNCTION_RE.finditer(inner):
-                function_blocks.append((func_match.group(1), func_match.group(2)))
+                name = func_match.group(1) if func_match.group(1) is not None else func_match.group(3)
+                body = func_match.group(2) if func_match.group(2) is not None else func_match.group(4)
+                function_blocks.append((name, body))
 
         # Find bare <function> blocks NOT inside any wrapped region
         for func_match in FUNCTION_RE.finditer(text):
@@ -708,7 +883,9 @@ class ToolCallProcessor:
                     "XML Parser: Found bare <function> block without "
                     "<tool_call> wrapper"
                 )
-                function_blocks.append((func_match.group(1), func_match.group(2)))
+                name = func_match.group(1) if func_match.group(1) is not None else func_match.group(3)
+                body = func_match.group(2) if func_match.group(2) is not None else func_match.group(4)
+                function_blocks.append((name, body))
 
         if not function_blocks:
             logger.warning("XML Parser: No <function=...> blocks found")
@@ -809,15 +986,36 @@ class ToolCallProcessor:
                 "deepseek_v3": ToolCallProcessor.from_deepseek_v3,
                 "deepseek_v31": ToolCallProcessor.from_deepseek_v31,
                 "deepseek_v32": ToolCallProcessor.from_deepseek_v32,
+                "ernie45": ToolCallProcessor.from_hermes,
+                "functiongemma": ToolCallProcessor.from_auto,
+                "gigachat3": ToolCallProcessor.from_auto,
+                "glm45": ToolCallProcessor.from_glm45,
+                "glm47": ToolCallProcessor.from_glm45,
+                "granite": ToolCallProcessor.from_json,
+                "granite-20b-fc": ToolCallProcessor.from_auto,
                 "hermes": ToolCallProcessor.from_hermes,
+                "hunyuan_a13b": ToolCallProcessor.from_auto,
+                "internlm": ToolCallProcessor.from_auto,
+                "jamba": ToolCallProcessor.from_tagged_tool_calls,
+                "kimi_k2": ToolCallProcessor.from_auto,
                 "llama": ToolCallProcessor.from_llama,
                 "llama3_json": ToolCallProcessor.from_llama,
                 "llama4_json": ToolCallProcessor.from_llama,
+                "llama4_pythonic": ToolCallProcessor.from_pythonic,
+                "longcat": ToolCallProcessor.from_hermes,
+                "minimax": ToolCallProcessor.from_tagged_tool_calls,
+                "minimax_m2": ToolCallProcessor.from_minimax_m2,
                 "mistral": ToolCallProcessor.from_mistral,
+                "olmo3": ToolCallProcessor.from_olmo3,
                 "openai": ToolCallProcessor.from_openai,
+                "phi4_mini_json": ToolCallProcessor.from_json,
                 "pythonic": ToolCallProcessor.from_pythonic,
                 "qwen3_coder": ToolCallProcessor.from_xml,
                 "qwen3_xml": ToolCallProcessor.from_xml,
+                "seed_oss": ToolCallProcessor.from_seed_oss,
+                "step3": ToolCallProcessor.from_auto,
+                "step3p5": ToolCallProcessor.from_xml,
+                "xlam": ToolCallProcessor.from_auto,
             }
         return ToolCallProcessor._PARSER_DISPATCHER
 
@@ -853,6 +1051,14 @@ class ToolCallProcessor:
                     else:
                         if parsed:
                             return parsed
+                elif canonical_key not in ToolCallProcessor._MISSING_PARSER_WARNED:
+                    ToolCallProcessor._MISSING_PARSER_WARNED.add(canonical_key)
+                    logger.warning(
+                        "No dedicated tool parser handler for key '{}'; "
+                        "falling back to format parser '{}'.",
+                        canonical_key,
+                        format,
+                    )
 
             if format == "xml":
                 return ToolCallProcessor.from_xml(tool_calls_str)

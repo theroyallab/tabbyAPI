@@ -1,11 +1,49 @@
 """Tests for vLLM-compatible parser option mapping."""
 
 from endpoints.OAI.utils.parser_options import (
+    TOOL_CALL_PARSER_FORMATS,
     list_tool_call_parsers,
     parser_uses_native_tool_generation,
     resolve_tool_call_parser_key,
     resolve_tool_call_format,
 )
+from endpoints.OAI.utils.tools import ToolCallProcessor
+
+
+VLLM_CANONICAL_TOOL_PARSERS = {
+    "deepseek_v3",
+    "deepseek_v31",
+    "deepseek_v32",
+    "ernie45",
+    "glm45",
+    "glm47",
+    "granite",
+    "granite-20b-fc",
+    "hermes",
+    "hunyuan_a13b",
+    "internlm",
+    "jamba",
+    "kimi_k2",
+    "llama3_json",
+    "llama4_json",
+    "llama4_pythonic",
+    "longcat",
+    "minimax",
+    "minimax_m2",
+    "mistral",
+    "olmo3",
+    "openai",
+    "phi4_mini_json",
+    "pythonic",
+    "qwen3_coder",
+    "qwen3_xml",
+    "seed_oss",
+    "step3",
+    "step3p5",
+    "xlam",
+    "gigachat3",
+    "functiongemma",
+}
 
 
 def test_parser_key_registry_contains_core_vllm_keys():
@@ -17,6 +55,25 @@ def test_parser_key_registry_contains_core_vllm_keys():
     assert "mistral" in parser_keys
     assert "deepseek_v3" in parser_keys
     assert "llama" in parser_keys
+
+
+def test_parser_key_registry_matches_vllm_set_plus_local_aliases():
+    parser_keys = list_tool_call_parsers()
+
+    # Canonical set should match current vLLM registry.
+    assert VLLM_CANONICAL_TOOL_PARSERS.issubset(parser_keys)
+    assert set(TOOL_CALL_PARSER_FORMATS.keys()) - {"auto"} == VLLM_CANONICAL_TOOL_PARSERS
+
+    # Local compatibility alias.
+    assert "llama" in parser_keys
+
+
+def test_every_configured_canonical_parser_has_dispatch_handler():
+    dispatcher = ToolCallProcessor._parser_dispatcher()
+    canonical = set(TOOL_CALL_PARSER_FORMATS.keys()) - {"auto"}
+
+    missing = sorted(canonical - set(dispatcher.keys()))
+    assert missing == []
 
 
 def test_resolve_tool_call_format_uses_vllm_mapping():

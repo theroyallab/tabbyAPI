@@ -37,6 +37,36 @@ def test_from_xml_parses_qwen3_coder_style_blocks():
     assert _arguments_dict(parsed[0]) == {"city": "Seoul", "days": 3}
 
 
+def test_from_xml_supports_single_quote_object_parameter():
+    payload = (
+        "<tool_call><function=test_types>"
+        "<parameter=obj_param>\n{'key': 'value'}\n</parameter>"
+        "</function></tool_call>"
+    )
+
+    parsed = ToolCallProcessor.from_xml(payload)
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "test_types"
+    assert _arguments_dict(parsed[0]) == {"obj_param": {"key": "value"}}
+
+
+def test_from_xml_parses_incomplete_function_block_at_generation_cutoff():
+    payload = (
+        "I'll call a tool. "
+        "<tool_call><function=get_weather>"
+        "<parameter=city>\nSeoul\n</parameter>"
+        "<parameter=days>\n3\n</parameter>"
+        # Missing </function></tool_call> on purpose
+    )
+
+    parsed = ToolCallProcessor.from_xml(payload)
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "get_weather"
+    assert _arguments_dict(parsed[0]) == {"city": "Seoul", "days": 3}
+
+
 def test_from_auto_parses_json_inside_tool_call_wrapper():
     payload = (
         "<tool_call>"
@@ -169,6 +199,115 @@ def test_parse_with_deepseek_v32_parser():
     assert len(parsed) == 1
     assert parsed[0].function.name == "get_weather"
     assert _arguments_dict(parsed[0]) == {"location": "Seoul", "days": 3}
+
+
+def test_parse_with_ernie45_parser_handles_tool_call_json():
+    payload = (
+        "<tool_call>"
+        '{"name":"get_weather","arguments":{"city":"Seoul"}}'
+        "</tool_call>"
+    )
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="ernie45")
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "get_weather"
+    assert _arguments_dict(parsed[0]) == {"city": "Seoul"}
+
+
+def test_parse_with_jamba_parser_handles_tool_calls_tag_array():
+    payload = (
+        "<tool_calls>"
+        '[{"name":"get_weather","arguments":{"city":"Seoul","days":2}}]'
+        "</tool_calls>"
+    )
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="jamba")
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "get_weather"
+    assert _arguments_dict(parsed[0]) == {"city": "Seoul", "days": 2}
+
+
+def test_parse_with_minimax_parser_handles_line_delimited_json():
+    payload = (
+        "<tool_calls>\n"
+        '{"name":"foo","arguments":{"x":1}}\n'
+        '{"name":"bar","arguments":{"y":2}}\n'
+        "</tool_calls>"
+    )
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="minimax")
+
+    assert len(parsed) == 2
+    assert parsed[0].function.name == "foo"
+    assert _arguments_dict(parsed[0]) == {"x": 1}
+    assert parsed[1].function.name == "bar"
+    assert _arguments_dict(parsed[1]) == {"y": 2}
+
+
+def test_parse_with_glm45_parser_handles_name_and_json_body():
+    payload = '<tool_call>lookup\n{"id":42,"q":"tabbyapi"}</tool_call>'
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="glm45")
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "lookup"
+    assert _arguments_dict(parsed[0]) == {"id": 42, "q": "tabbyapi"}
+
+
+def test_parse_with_minimax_m2_parser_handles_invoke_parameters():
+    payload = (
+        '<minimax:tool_call><invoke name="lookup">'
+        '<parameter name="id">42</parameter>'
+        '<parameter name="query">tabbyapi</parameter>'
+        "</invoke></minimax:tool_call>"
+    )
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="minimax_m2")
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "lookup"
+    assert _arguments_dict(parsed[0]) == {"id": 42, "query": "tabbyapi"}
+
+
+def test_parse_with_seed_oss_parser_handles_seed_xml():
+    payload = (
+        "<seed:tool_call><function=get_weather>"
+        "<parameter=city>\nSeoul\n</parameter>"
+        "<parameter=days>\n2\n</parameter>"
+        "</function></seed:tool_call>"
+    )
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="seed_oss")
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "get_weather"
+    assert _arguments_dict(parsed[0]) == {"city": "Seoul", "days": 2}
+
+
+def test_parse_with_olmo3_parser_handles_function_calls_wrapper():
+    payload = "<function_calls>\nget_weather(city='Seoul', days=2)\n</function_calls>"
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="olmo3")
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "get_weather"
+    assert _arguments_dict(parsed[0]) == {"city": "Seoul", "days": 2}
+
+
+def test_parse_with_step3p5_parser_handles_qwen3_xml_shape():
+    payload = (
+        "<tool_call><function=search>"
+        "<parameter=q>\ntabbyapi\n</parameter>"
+        "</function></tool_call>"
+    )
+
+    parsed = ToolCallProcessor.parse(payload, format="json", parser_key="step3p5")
+
+    assert len(parsed) == 1
+    assert parsed[0].function.name == "search"
+    assert _arguments_dict(parsed[0]) == {"q": "tabbyapi"}
 
 
 def test_parse_with_openai_parser_handles_functions_recipient():
