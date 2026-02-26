@@ -10,7 +10,7 @@ from enum import Enum
 from fastapi import HTTPException
 from loguru import logger
 from ruamel.yaml import YAML
-from typing import Dict, Optional
+from typing import Dict, Optional, Type
 
 from backends.base_model_container import BaseModelContainer
 from common.logger import get_loading_progress_bar
@@ -25,24 +25,60 @@ container: Optional[BaseModelContainer] = None
 embeddings_container = None
 
 
-_BACKEND_REGISTRY: Dict[str, BaseModelContainer] = {}
-
-if dependencies.exllamav2:
-    from backends.exllamav2.model import ExllamaV2Container
-
-    _BACKEND_REGISTRY["exllamav2"] = ExllamaV2Container
+_BACKEND_REGISTRY: Dict[str, Type[BaseModelContainer]] = {}
+_BACKEND_REGISTRY_INITIALIZED = False
+_INFINITY_CONTAINER_CLASS = None
 
 
-if dependencies.exllamav3:
-    from backends.exllamav3.model import ExllamaV3Container
+def _log_exllamav3_lock_hint():
+    """Warn about stale torch extension lock files before ExLlama import."""
+    lock_paths = sorted(
+        pathlib.Path.home().glob(".cache/torch_extensions/*/exllamav3_ext/lock")
+    )
+    if not lock_paths:
+        return
 
-    _BACKEND_REGISTRY["exllamav3"] = ExllamaV3Container
+    sample_paths = ", ".join(str(path) for path in lock_paths[:3])
+    remaining = len(lock_paths) - 3
+    if remaining > 0:
+        sample_paths += f", ... (+{remaining} more)"
+
+    logger.warning(
+        "Detected torch extension lock file(s): "
+        f"{sample_paths}. Startup may appear frozen while waiting on this lock. "
+        "If no build process (ninja/nvcc) is active, remove the lock file and retry."
+    )
 
 
-if dependencies.extras:
-    from backends.infinity.model import InfinityContainer
+def _ensure_backend_registry():
+    """Initialize backend registry lazily to avoid heavy imports at startup."""
+    global _BACKEND_REGISTRY_INITIALIZED
+    global _INFINITY_CONTAINER_CLASS
 
-    embeddings_container: Optional[InfinityContainer] = None
+    if _BACKEND_REGISTRY_INITIALIZED:
+        return
+
+    if dependencies.exllamav2:
+        from backends.exllamav2.model import ExllamaV2Container
+
+        _BACKEND_REGISTRY["exllamav2"] = ExllamaV2Container
+
+    if dependencies.exllamav3:
+        logger.info(
+            "Initializing exllamav3 backend. "
+            "First run or source changes may trigger extension build."
+        )
+        _log_exllamav3_lock_hint()
+        from backends.exllamav3.model import ExllamaV3Container
+
+        _BACKEND_REGISTRY["exllamav3"] = ExllamaV3Container
+
+    if dependencies.extras:
+        from backends.infinity.model import InfinityContainer
+
+        _INFINITY_CONTAINER_CLASS = InfinityContainer
+
+    _BACKEND_REGISTRY_INITIALIZED = True
 
 
 class ModelType(Enum):
@@ -159,6 +195,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
 
     # Fetch the extra HF configuration options
     hf_model = await HFModel.from_directory(model_path)
+    _ensure_backend_registry()
 
     # Override the max sequence length based on user
     max_seq_len = kwargs.get("max_seq_len")
@@ -255,6 +292,8 @@ async def load_embedding_model(model_path: pathlib.Path, **kwargs):
             "pip install -U .[extras]"
         )
 
+    _ensure_backend_registry()
+
     # Check if the model is already loaded
     if embeddings_container and embeddings_container.engine:
         loaded_model_name = embeddings_container.model_dir.name
@@ -270,7 +309,10 @@ async def load_embedding_model(model_path: pathlib.Path, **kwargs):
     # Reset to prepare for a new container
     embeddings_container = None
 
-    new_embeddings_container = InfinityContainer(model_path)
+    if _INFINITY_CONTAINER_CLASS is None:
+        raise ImportError("Infinity backend is unavailable in the current environment.")
+
+    new_embeddings_container = _INFINITY_CONTAINER_CLASS(model_path)
     await new_embeddings_container.load(**kwargs)
 
     embeddings_container = new_embeddings_container
