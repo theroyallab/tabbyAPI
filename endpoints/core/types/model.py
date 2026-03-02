@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Literal, Optional, Union
 
-from common.config_models import LoggingConfig
+from common.config_models import ATTENTION_BACKENDS, LoggingConfig
 from common.tabby_config import config
 
 
@@ -22,6 +22,8 @@ class ModelCardParameters(BaseModel):
     chunk_size: Optional[int] = 2048
     tokenizer_mode: Optional[str] = "auto"
     mistral_tokenizer_models: Optional[List[str]] = Field(default_factory=list)
+    attention_backend: Optional[str] = "auto"
+    resolved_attention_backend: Optional[str] = None
     prompt_template: Optional[str] = None
     prompt_template_content: Optional[str] = None
     use_vision: Optional[bool] = False
@@ -79,6 +81,13 @@ class ModelLoadRequest(BaseModel):
     # Config arguments
     backend: Optional[str] = Field(
         description="Backend to use",
+        default=None,
+    )
+    attention_backend: Optional[ATTENTION_BACKENDS] = Field(
+        description=(
+            "Attention backend policy for exllamav3 "
+            "(auto, flash_attn, flashinfer)"
+        ),
         default=None,
     )
     max_seq_len: Optional[int] = Field(

@@ -17,6 +17,7 @@ class DependenciesModel(BaseModel):
     torch: bool
     exllamav2: bool
     exllamav3: bool
+    flash_attn: bool
     flashinfer: bool
     infinity_emb: bool
     sentence_transformers: bool
@@ -29,7 +30,9 @@ class DependenciesModel(BaseModel):
     @computed_field
     @property
     def inference(self) -> bool:
-        return self.torch and (self.exllamav2 or (self.exllamav3 and self.flashinfer))
+        return self.torch and (
+            self.exllamav2 or (self.exllamav3 and (self.flash_attn or self.flashinfer))
+        )
 
 
 def is_installed(package_name: str) -> bool:

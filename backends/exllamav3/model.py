@@ -20,6 +20,7 @@ from exllamav3 import (
     Model,
     Tokenizer,
 )
+from exllamav3.modules.attn import has_flash_attn_backend, has_flashinfer_backend
 from exllamav3.cache import CacheLayer_quant
 from backends.exllamav3.grammar import ExLlamaV3Grammar
 from loguru import logger
@@ -34,7 +35,7 @@ from common.gen_logging import (
     log_metrics,
     log_prompt,
 )
-from common.hardware import hardware_supports_flashinfer
+from common.hardware import hardware_supports_flash_attn, hardware_supports_flashinfer
 from common.health import HealthManager
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.optional_dependencies import check_package_version
@@ -95,6 +96,8 @@ class ExllamaV3Container(BaseModelContainer):
     max_batch_size: Optional[int] = None
     tokenizer_mode: str = "auto"
     mistral_tokenizer_models: List[str] = []
+    attention_backend: str = "auto"
+    resolved_attention_backend: Optional[str] = None
 
     # Required methods
     @classmethod
@@ -114,10 +117,17 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Make sure ExllamaV3 is up to date
         check_package_version("exllamav3", "0.0.7")
-        check_package_version("flashinfer-python", "0.6.3")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
+        requested_attention_backend = unwrap(kwargs.get("attention_backend"), "auto")
+        if requested_attention_backend not in ("auto", "flash_attn", "flashinfer"):
+            raise ValueError(
+                "Invalid attention_backend "
+                f"'{requested_attention_backend}'. "
+                "Expected one of: auto, flash_attn, flashinfer."
+            )
+        self.attention_backend = requested_attention_backend
         requested_tokenizer_mode, mode_message = normalize_tokenizer_mode(
             coalesce(kwargs.get("tokenizer_mode"), config.model.tokenizer_mode, "auto")
         )
@@ -245,17 +255,59 @@ class ExllamaV3Container(BaseModelContainer):
                     value / 1024 for value in autosplit_reserve_megabytes
                 ]
 
-        if not hardware_supports_flashinfer(gpu_device_list):
-            gpu_unsupported_message = (
-                "Unable to run ExllamaV3 because an unsupported GPU is "
-                "found in this configuration. \n"
-                "All GPUs must be Ampere "
-                "(30 series) or newer for flashinfer. AMD GPUs are not supported."
+        flash_attn_available = (
+            has_flash_attn_backend() and hardware_supports_flash_attn(gpu_device_list)
+        )
+        flashinfer_available = (
+            has_flashinfer_backend() and hardware_supports_flashinfer(gpu_device_list)
+        )
+
+        def _unsupported_backend_message(backend_name: str) -> str:
+            package_name = (
+                "flash_attn" if backend_name == "flash_attn" else "flashinfer-python"
+            )
+            return (
+                f"Unable to use the requested ExllamaV3 attention backend "
+                f"'{backend_name}'.\n"
+                f"The required package ({package_name}) is missing or unsupported "
+                "on the selected GPUs. All GPUs must be Ampere (30 series) or "
+                "newer, CUDA only."
             )
 
-            logger.warning(gpu_unsupported_message)
+        if self.attention_backend == "flash_attn":
+            if not flash_attn_available:
+                message = _unsupported_backend_message("flash_attn")
+                logger.warning(message)
+                raise RuntimeError(message)
+            self.resolved_attention_backend = "flash_attn"
+        elif self.attention_backend == "flashinfer":
+            if not flashinfer_available:
+                message = _unsupported_backend_message("flashinfer")
+                logger.warning(message)
+                raise RuntimeError(message)
+            check_package_version("flashinfer-python", "0.6.3")
+            self.resolved_attention_backend = "flashinfer"
+        else:
+            if flash_attn_available:
+                self.resolved_attention_backend = "flash_attn"
+            elif flashinfer_available:
+                check_package_version("flashinfer-python", "0.6.3")
+                self.resolved_attention_backend = "flashinfer"
+            else:
+                message = (
+                    "Unable to run ExllamaV3 because no supported cache-capable "
+                    "attention backend is available.\n"
+                    "Install flash_attn or flashinfer-python, and use Ampere-class "
+                    "CUDA GPUs or newer."
+                )
+                logger.warning(message)
+                raise RuntimeError(message)
 
-            raise RuntimeError(gpu_unsupported_message)
+        logger.info(
+            "Attention backend policy: {} (resolved: {})",
+            self.attention_backend,
+            self.resolved_attention_backend,
+        )
 
         # Store the max_seq_len arg
         user_max_seq_len = kwargs.get("max_seq_len")
@@ -410,6 +462,8 @@ class ExllamaV3Container(BaseModelContainer):
             chunk_size=self.chunk_size,
             tokenizer_mode=self.tokenizer_mode,
             mistral_tokenizer_models=self.mistral_tokenizer_models,
+            attention_backend=self.attention_backend,
+            resolved_attention_backend=self.resolved_attention_backend,
             use_vision=self.use_vision,
         )
 
@@ -560,6 +614,7 @@ class ExllamaV3Container(BaseModelContainer):
                 tokenizer=self.tokenizer,
                 max_batch_size=self.max_batch_size,
                 max_chunk_size=self.chunk_size,
+                attn_mode=self.resolved_attention_backend or self.attention_backend,
             )
 
             # Update the state of the container var
