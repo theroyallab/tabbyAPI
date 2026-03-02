@@ -42,6 +42,14 @@ def test_non_stream_extract_non_thinking_mode_content_only():
     assert content == "hiddenvisible"
 
 
+def test_non_stream_without_explicit_thinking_switch_treats_plain_text_as_content():
+    parser = _parser()
+
+    reasoning, content = parser.extract_reasoning("OK", request=None)
+    assert reasoning is None
+    assert content == "OK"
+
+
 def test_streaming_prefilled_think_mode_splits_reasoning_and_content():
     parser = _parser(enable_thinking=True)
 
@@ -96,6 +104,22 @@ def test_streaming_non_thinking_mode_emits_content_only():
     assert delta is not None
     assert delta.reasoning is None
     assert delta.content == "plain output"
+
+
+def test_streaming_without_explicit_thinking_switch_emits_content_only():
+    parser = _parser()
+
+    delta = parser.extract_reasoning_streaming(
+        previous_text="",
+        current_text="OK",
+        delta_text="OK",
+        previous_token_ids=[],
+        current_token_ids=[11],
+        delta_token_ids=[11],
+    )
+    assert delta is not None
+    assert delta.reasoning is None
+    assert delta.content == "OK"
 
 
 def test_streaming_strips_generated_start_token_when_present():

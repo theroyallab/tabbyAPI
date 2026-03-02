@@ -28,8 +28,12 @@ class Qwen3ReasoningParser(BaseThinkingReasoningParser):
         if enable_thinking is None:
             enable_thinking = chat_kwargs.get("thinking")
 
-        # Keep default behavior when no explicit switch is provided.
-        self.thinking_enabled = True if enable_thinking is None else bool(enable_thinking)
+        # Only force "prefilled <think>" behavior when the template explicitly
+        # exposes a thinking switch. Templates like Qwen3-Next's tokenizer
+        # config do not, and should fall back to normal tag-based parsing.
+        self.thinking_enabled = (
+            None if enable_thinking is None else bool(enable_thinking)
+        )
 
     @property
     def start_token(self) -> str:
@@ -47,6 +51,14 @@ class Qwen3ReasoningParser(BaseThinkingReasoningParser):
     def extract_reasoning(
         self, model_output: str, request: Any
     ) -> tuple[str | None, str | None]:
+        if self.thinking_enabled is None:
+            if self.start_token not in model_output or self.end_token not in model_output:
+                return None, model_output or None
+
+            _, _, tail = model_output.partition(self.start_token)
+            reasoning, _, content = tail.partition(self.end_token)
+            return reasoning or None, content or None
+
         if not self.thinking_enabled:
             content = self._strip_reasoning_tags(model_output)
             return None, content or None
@@ -73,6 +85,16 @@ class Qwen3ReasoningParser(BaseThinkingReasoningParser):
         current_token_ids: Sequence[int],
         delta_token_ids: Sequence[int],
     ) -> DeltaMessage | None:
+        if self.thinking_enabled is None:
+            return super().extract_reasoning_streaming(
+                previous_text,
+                current_text,
+                delta_text,
+                previous_token_ids,
+                current_token_ids,
+                delta_token_ids,
+            )
+
         if not self.thinking_enabled:
             cleaned = self._strip_reasoning_tags(delta_text)
             if not cleaned:
