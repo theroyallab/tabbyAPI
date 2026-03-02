@@ -78,6 +78,12 @@ model:
   # Options: exllamav2, exllamav3
   backend:
 
+  # Attention backend policy for exllamav3 (default: auto).
+  # Options: auto, flash_attn, flashinfer
+  # Picks the cache-capable attention backend once at model init time.
+  # SDPA remains an internal fallback for non-cache paths and unsupported cases.
+  attention_backend: auto
+
   # Max sequence length (default: min(max_position_embeddings, cache_size)).
   # Set to -1 to fetch from the model's config.json
   max_seq_len:
@@ -152,6 +158,40 @@ model:
   # set prompt_template to the name of the template you want to use.
   # NOTE: Only works with chat completion message lists!
   prompt_template:
+
+  # Tokenizer compatibility mode for chat formatting (default: auto).
+  # Values: auto, hf, slow, mistral, deepseek_v32.
+  # Note: ExLlama backends treat "slow" as "hf".
+  # mistral applies Mistral-style tool-call ID normalization and
+  # falls back to default behavior for non-Mistral models.
+  tokenizer_mode: auto
+
+  # Optional allowlist for tokenizer_mode='mistral'.
+  # If set, only listed model names/paths can use mistral mode.
+  # Leave empty to keep auto-detection behavior.
+  mistral_tokenizer_models: []
+
+  # Reasoning parser key for splitting hidden reasoning and final content.
+  # Compatible keys include: basic, exaone4, deepseek_r1, deepseek_v3.
+  # If omitted, TabbyAPI defaults to `basic`.
+  reasoning_parser:
+
+  # Enable automatic tool selection (default: False).
+  # Equivalent to vLLM --enable-auto-tool-choice.
+  # Requires tool_call_parser to be set.
+  enable_auto_tool_choice: false
+
+  # Tool parser key for model-generated tool call text.
+  # Equivalent to vLLM --tool-call-parser.
+  # Built-in values include:
+  # hermes, llama (alias of llama3_json), llama3_json, llama4_json, mistral,
+  # openai, pythonic, qwen3_coder, qwen3_xml,
+  # deepseek_v3, deepseek_v31, deepseek_v32.
+  tool_call_parser:
+
+  # Exclude tool definitions from prompt when tool_choice='none'.
+  # Equivalent to vLLM --exclude-tools-when-tool-choice-none.
+  exclude_tools_when_tool_choice_none: false
 
   # Enables vision support if the model supports it. (default: False)
   vision: false

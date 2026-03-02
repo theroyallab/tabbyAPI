@@ -49,4 +49,13 @@ async def get_image(url: str) -> Image:
 
                     raise HTTPException(400, error_message)
 
-    return Image.open(io.BytesIO(bytes_image))
+    try:
+        image = Image.open(io.BytesIO(bytes_image))
+        image.load()
+        return image
+    except Exception as e:
+        error_message = handle_request_error(
+            "Failed to read or decode image data stream.",
+            exc_info=False,
+        ).error.message
+        raise HTTPException(400, error_message)

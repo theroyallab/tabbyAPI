@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from time import time
 from typing import List, Literal, Optional, Union
 
-from common.config_models import LoggingConfig
+from common.config_models import ATTENTION_BACKENDS, LoggingConfig
 from common.tabby_config import config
 
 
@@ -20,6 +20,10 @@ class ModelCardParameters(BaseModel):
     rope_alpha: Optional[float] = 1.0
     max_batch_size: Optional[int] = 1
     chunk_size: Optional[int] = 2048
+    tokenizer_mode: Optional[str] = "auto"
+    mistral_tokenizer_models: Optional[List[str]] = Field(default_factory=list)
+    attention_backend: Optional[str] = "auto"
+    resolved_attention_backend: Optional[str] = None
     prompt_template: Optional[str] = None
     prompt_template_content: Optional[str] = None
     use_vision: Optional[bool] = False
@@ -79,6 +83,13 @@ class ModelLoadRequest(BaseModel):
         description="Backend to use",
         default=None,
     )
+    attention_backend: Optional[ATTENTION_BACKENDS] = Field(
+        description=(
+            "Attention backend policy for exllamav3 "
+            "(auto, flash_attn, flashinfer)"
+        ),
+        default=None,
+    )
     max_seq_len: Optional[int] = Field(
         description="Leave this blank to use the model's base sequence length",
         default=None,
@@ -111,6 +122,17 @@ class ModelLoadRequest(BaseModel):
     chunk_size: Optional[int] = None
     output_chunking: Optional[bool] = True
     prompt_template: Optional[str] = None
+    tokenizer_mode: Optional[str] = Field(
+        description="Tokenizer compatibility mode (auto, hf, slow, mistral, deepseek_v32)",
+        default=None,
+    )
+    mistral_tokenizer_models: Optional[List[str]] = Field(
+        default_factory=list,
+        description=(
+            "Optional allowlist for tokenizer_mode='mistral'. "
+            "Only listed Mistral-family models can use mistral mode."
+        ),
+    )
     vision: Optional[bool] = None
 
     # Non-config arguments

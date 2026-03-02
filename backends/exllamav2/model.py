@@ -46,7 +46,12 @@ from common.health import HealthManager
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.optional_dependencies import check_package_version
 from common.sampling import BaseSamplerRequest
+from common.tabby_config import config
 from common.templating import PromptTemplate, find_prompt_template
+from common.tokenizer_modes import (
+    normalize_tokenizer_mode,
+    should_enable_mistral_tokenizer_mode,
+)
 from common.transformers_utils import HFModel
 from common.utils import calculate_rope_alpha, coalesce, unwrap
 from endpoints.core.types.model import ModelCard, ModelCardParameters
@@ -83,6 +88,8 @@ class ExllamaV2Container(BaseModelContainer):
     cache_mode: str = "FP16"
     draft_cache_mode: str = "FP16"
     max_batch_size: Optional[int] = None
+    tokenizer_mode: str = "auto"
+    mistral_tokenizer_models: List[str] = []
 
     # GPU split vars
     gpu_split: List[float] = []
@@ -120,6 +127,29 @@ class ExllamaV2Container(BaseModelContainer):
         self.model_dir = model_directory
         self.config.model_dir = str(model_directory.resolve())
         self.hf_model = hf_model
+        self.tokenizer_mode, mode_message = normalize_tokenizer_mode(
+            coalesce(kwargs.get("tokenizer_mode"), config.model.tokenizer_mode, "auto")
+        )
+        if mode_message:
+            logger.warning(mode_message)
+
+        if self.tokenizer_mode == "mistral":
+            mistral_tokenizer_models = coalesce(
+                kwargs.get("mistral_tokenizer_models"),
+                config.model.mistral_tokenizer_models,
+                [],
+            )
+            self.mistral_tokenizer_models = list(mistral_tokenizer_models)
+            if should_enable_mistral_tokenizer_mode(
+                model_directory, mistral_tokenizer_models
+            ):
+                logger.info("Using tokenizer_mode='mistral' compatibility path.")
+            else:
+                logger.warning(
+                    "tokenizer_mode='mistral' requested but model does not appear "
+                    "to support mistral tokenizer mode. Falling back to default mode."
+                )
+                self.tokenizer_mode = "auto"
 
         # Make the max seq len 4096 before preparing the config
         # This is a better default than 2048
@@ -440,6 +470,8 @@ class ExllamaV2Container(BaseModelContainer):
             max_batch_size=self.max_batch_size,
             cache_mode=self.cache_mode,
             chunk_size=self.config.max_input_len,
+            tokenizer_mode=self.tokenizer_mode,
+            mistral_tokenizer_models=self.mistral_tokenizer_models,
             use_vision=self.use_vision,
             draft=draft_model_card,
         )
@@ -1426,12 +1458,15 @@ class ExllamaV2Container(BaseModelContainer):
                     full_response += chunk
 
                     chunk_tokens = result.get("token_ids")
+                    token_ids = []
                     if chunk_tokens is not None:
+                        token_ids = chunk_tokens.flatten().tolist()
                         generated_tokens += chunk_tokens.size(dim=0)
 
                     generation = {
                         "request_id": request_id,
                         "text": chunk,
+                        "token_ids": token_ids,
                         "prompt_tokens": context_len,
                         "generated_tokens": generated_tokens,
                         "offset": len(full_response),

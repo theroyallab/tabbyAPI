@@ -2,23 +2,40 @@
 
 from importlib.metadata import version
 from importlib.util import find_spec
+from packaging import version as package_version
 
 successful_packages = []
 errored_packages = []
 
 if find_spec("flash_attn") is not None:
-    print(f"Flash attention on version {version('flash_attn')} successfully imported")
-    successful_packages.append("flash_attn")
+    torch_version = version("torch").split("+")[0] if find_spec("torch") else "0"
+    if package_version.parse(torch_version) >= package_version.parse("2.10.0"):
+        print(
+            f"Flash attention 2 detected with torch {torch_version}. "
+            "This combination is unsupported for the flashinfer migration."
+        )
+        errored_packages.append("flash_attn")
+    else:
+        print(
+            "Flash attention 2 is installed. "
+            "ExLlamaV3 now uses flashinfer."
+        )
+
+if find_spec("flashinfer") is not None:
+    print(
+        "FlashInfer on version "
+        f"{version('flashinfer-python')} successfully imported"
+    )
+    successful_packages.append("flashinfer")
 else:
-    print("Flash attention 2 is not found in your environment.")
-    errored_packages.append("flash_attn")
+    print("FlashInfer is not found in your environment.")
+    errored_packages.append("flashinfer")
 
 if find_spec("exllamav2") is not None:
     print(f"Exllamav2 on version {version('exllamav2')} successfully imported")
     successful_packages.append("exllamav2")
 else:
-    print("Exllamav2 is not found in your environment.")
-    errored_packages.append("exllamav2")
+    print("Exllamav2 is not found in your environment (optional).")
 
 if find_spec("torch") is not None:
     print(f"Torch on version {version('torch')} successfully imported")

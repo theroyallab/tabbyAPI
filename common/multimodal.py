@@ -1,16 +1,9 @@
-from backends.exllamav2.vision import get_image_embedding_exl2
-from backends.exllamav3.vision import get_image_embedding_exl3
 from common import model
 from loguru import logger
 from pydantic import BaseModel, Field
 from typing import List
 
 from common.optional_dependencies import dependencies
-
-if dependencies.exllamav2:
-    from exllamav2 import ExLlamaV2VisionTower
-if dependencies.exllamav3:
-    from exllamav3 import Model
 
 
 class MultimodalEmbeddingWrapper(BaseModel):
@@ -23,21 +16,24 @@ class MultimodalEmbeddingWrapper(BaseModel):
     async def add(self, url: str):
         # Determine the type of vision embedding to use
         if not self.type:
-            if dependencies.exllamav2 and isinstance(
-                model.container.vision_model, ExLlamaV2VisionTower
-            ):
-                self.type = "ExLlamaV2MMEmbedding"
-            elif dependencies.exllamav3 and isinstance(
-                model.container.vision_model, Model
-            ):
-                self.type = "MMEmbedding"
+            container = model.container
+            if container and getattr(container, "vision_model", None):
+                container_name = container.__class__.__name__
+                if dependencies.exllamav2 and container_name == "ExllamaV2Container":
+                    self.type = "ExLlamaV2MMEmbedding"
+                elif dependencies.exllamav3 and container_name == "ExllamaV3Container":
+                    self.type = "MMEmbedding"
 
         # Create the embedding
         if self.type == "ExLlamaV2MMEmbedding":
+            from backends.exllamav2.vision import get_image_embedding_exl2
+
             embedding = await get_image_embedding_exl2(url)
             self.content.append(embedding)
             self.text_alias.append(embedding.text_alias)
         elif self.type == "MMEmbedding":
+            from backends.exllamav3.vision import get_image_embedding_exl3
+
             embedding = await get_image_embedding_exl3(url)
             self.content.append(embedding)
             self.text_alias.append(embedding.text_alias)

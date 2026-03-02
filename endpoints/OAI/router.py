@@ -16,6 +16,7 @@ from endpoints.OAI.types.chat_completion import (
 from endpoints.OAI.types.embedding import EmbeddingsRequest, EmbeddingsResponse
 from endpoints.OAI.utils.chat_completion import (
     apply_chat_template,
+    chat_completions_available,
     generate_chat_completion,
     stream_generate_chat_completion,
 )
@@ -113,7 +114,7 @@ async def chat_completion_request(
     else:
         await check_model_container()
 
-    if model.container.prompt_template is None:
+    if not chat_completions_available():
         error_message = handle_request_error(
             "Chat completions are disabled because a prompt template is not set.",
             exc_info=False,

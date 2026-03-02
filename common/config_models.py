@@ -11,6 +11,7 @@ from typing import List, Literal, Optional, Union
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
 CACHE_TYPE = Union[CACHE_SIZES, constr(pattern=r"^[2-8]\s*,\s*[2-8]$")]
+ATTENTION_BACKENDS = Literal["auto", "flash_attn", "flashinfer"]
 
 
 class Metadata(BaseModel):
@@ -172,6 +173,15 @@ class ModelConfig(BaseConfigModel):
             "Options: exllamav2, exllamav3"
         ),
     )
+    attention_backend: Optional[ATTENTION_BACKENDS] = Field(
+        "auto",
+        description=(
+            "Attention backend policy for exllamav3 (default: auto).\n"
+            "Options: auto, flash_attn, flashinfer.\n"
+            "This chooses the cache-capable attention backend at model init time.\n"
+            "SDPA remains an internal fallback for non-cache paths and unsupported cases."
+        ),
+    )
     max_seq_len: Optional[int] = Field(
         None,
         description=(
@@ -292,6 +302,58 @@ class ModelConfig(BaseConfigModel):
             "If a model contains multiple templates in its tokenizer_config.json,\n"
             "set prompt_template to the name of the template you want to use.\n"
             "NOTE: Only works with chat completion message lists!"
+        ),
+    )
+    tokenizer_mode: Optional[str] = Field(
+        "auto",
+        description=(
+            "Tokenizer compatibility mode for chat formatting.\n"
+            "Compatible values: auto, hf, slow, mistral, deepseek_v32.\n"
+            "slow is normalized to hf for ExLlama backends.\n"
+            "mistral applies Mistral-specific message normalization "
+            "(tool-call ID handling) and falls back to default behavior "
+            "for non-Mistral models."
+        ),
+    )
+    mistral_tokenizer_models: Optional[List[str]] = Field(
+        default_factory=list,
+        description=(
+            "Optional allowlist for tokenizer_mode='mistral'.\n"
+            "When set, only listed model names/paths will use mistral mode.\n"
+            "If empty, Tabby auto-detects Mistral-family models."
+        ),
+    )
+    reasoning_parser: Optional[str] = Field(
+        None,
+        description=(
+            "Reasoning parser key used to split output into reasoning/content.\n"
+            "Compatible with vLLM parser naming (e.g. exaone4, deepseek_r1).\n"
+            "If omitted, defaults to 'basic'."
+        ),
+    )
+    enable_auto_tool_choice: Optional[bool] = Field(
+        False,
+        description=(
+            "Enable auto tool choice for chat completions (default: False).\n"
+            "Equivalent to vLLM's --enable-auto-tool-choice.\n"
+            "Requires tool_call_parser to be set."
+        ),
+    )
+    tool_call_parser: Optional[str] = Field(
+        None,
+        description=(
+            "Tool parser key for model-generated tool call output.\n"
+            "Equivalent to vLLM's --tool-call-parser.\n"
+            "Built-in parser keys include: hermes, llama/llama3_json/llama4_json,\n"
+            "mistral, openai, pythonic, qwen3_coder, qwen3_xml,\n"
+            "deepseek_v3, deepseek_v31, deepseek_v32."
+        ),
+    )
+    exclude_tools_when_tool_choice_none: Optional[bool] = Field(
+        False,
+        description=(
+            "Exclude tool definitions from prompt when tool_choice='none'.\n"
+            "Equivalent to vLLM's --exclude-tools-when-tool-choice-none."
         ),
     )
     vision: Optional[bool] = Field(

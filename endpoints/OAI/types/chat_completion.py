@@ -1,10 +1,10 @@
-from pydantic import AliasChoices, BaseModel, Field, field_validator
+from pydantic import AliasChoices, BaseModel, Field, field_validator, model_validator
 from time import time
 from typing import Literal, Union, List, Optional, Dict
 from uuid import uuid4
 
 from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
-from endpoints.OAI.types.tools import ToolSpec, ToolCall
+from endpoints.OAI.types.tools import NamedToolChoice, ToolSpec, ToolCall
 
 
 class ChatCompletionLogprob(BaseModel):
@@ -30,6 +30,8 @@ class ChatCompletionMessagePart(BaseModel):
 class ChatCompletionMessage(BaseModel):
     role: str = "user"
     content: Optional[Union[str, List[ChatCompletionMessagePart]]] = None
+    reasoning: Optional[str] = None
+    reasoning_content: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
 
@@ -49,7 +51,7 @@ class ChatCompletionStreamChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
     finish_reason: Optional[str] = None
-    delta: Union[ChatCompletionMessage, dict] = {}
+    delta: Union[ChatCompletionMessage, dict] = Field(default_factory=dict)
     logprobs: Optional[ChatCompletionLogprobs] = None
 
 
@@ -59,18 +61,25 @@ class ChatCompletionRequest(CommonCompletionRequest):
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
     template_vars: Optional[dict] = Field(
-        default={},
+        default_factory=dict,
         validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
         description="Aliases: chat_template_kwargs",
     )
+    enable_thinking: Optional[bool] = None
+    thinking: Optional[bool] = None
     response_prefix: Optional[str] = None
     model: Optional[str] = None
+    include_reasoning: Optional[bool] = True
 
     # tools is follows the format OAI schema, functions is more flexible
     # both are available in the chat template.
 
     tools: Optional[List[ToolSpec]] = None
     functions: Optional[List[Dict]] = None
+    tool_choice: Optional[
+        Union[Literal["none", "auto", "required"], NamedToolChoice]
+    ] = None
+    parallel_tool_calls: Optional[bool] = True
 
     # Chat completions requests do not have a BOS token preference. Backend
     # respects the tokenization config for the individual model.
@@ -80,6 +89,20 @@ class ChatCompletionRequest(CommonCompletionRequest):
     def force_bos_token(cls, v):
         """Always disable add_bos_token with chat completions."""
         return None
+
+    @model_validator(mode="after")
+    def apply_thinking_aliases(self):
+        """Support clients that send thinking flags at the top-level."""
+        template_vars = dict(self.template_vars or {})
+
+        if self.enable_thinking is not None and "enable_thinking" not in template_vars:
+            template_vars["enable_thinking"] = self.enable_thinking
+
+        if self.thinking is not None and "thinking" not in template_vars:
+            template_vars["thinking"] = self.thinking
+
+        self.template_vars = template_vars
+        return self
 
 
 class ChatCompletionResponse(BaseModel):
