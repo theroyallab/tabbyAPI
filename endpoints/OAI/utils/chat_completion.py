@@ -49,6 +49,9 @@ class _StreamReasoningState:
     token_ids: List[int] = field(default_factory=list)
 
 
+DEEPSEEK_VL2_ARCH = "DeepseekVLV2ForCausalLM"
+
+
 class _TokenizerAdapter:
     """Expose the minimal tokenizer interface required by reasoning parsers."""
 
@@ -92,6 +95,24 @@ def _get_tokenizer_mode() -> str:
     if mode_message:
         logger.warning(mode_message)
     return tokenizer_mode
+
+
+def _uses_builtin_chat_serializer() -> bool:
+    container = model.container
+    cfg = getattr(container, "config", None)
+    return bool(cfg and getattr(cfg, "architecture", None) == DEEPSEEK_VL2_ARCH)
+
+
+def chat_completions_available() -> bool:
+    return bool(getattr(model.container, "prompt_template", None)) or _uses_builtin_chat_serializer()
+
+
+def _get_template_tooling_defaults() -> tuple[Optional[str], str]:
+    prompt_template = getattr(model.container, "prompt_template", None)
+    metadata = getattr(prompt_template, "metadata", None)
+    if metadata is None:
+        return None, "json"
+    return metadata.tool_start, metadata.tool_call_format
 
 
 def _truncate_mistral_tool_ids(message_dicts: List[dict]) -> None:
@@ -498,6 +519,9 @@ def _build_tool_call_chunks(
 async def _append_template_metadata(data: ChatCompletionRequest, template_vars: dict):
     """Adding metadata is a one-time process."""
 
+    if model.container.prompt_template is None:
+        return
+
     template_metadata = await model.container.prompt_template.extract_metadata(
         template_vars
     )
@@ -569,6 +593,91 @@ async def format_messages_with_template(
     return prompt, mm_embeddings, template_vars
 
 
+async def format_messages_with_builtin_serializer(
+    messages: List[ChatCompletionMessage],
+):
+    """Serialize messages for models that define their own chat protocol."""
+
+    if not _uses_builtin_chat_serializer():
+        raise HTTPException(400, "No built-in chat serializer is available.")
+
+    mm_embeddings = MultimodalEmbeddingWrapper() if model.container.use_vision else None
+    pending_system: List[str] = []
+    segments: List[str] = []
+    last_non_system_role: Optional[str] = None
+
+    for message in messages:
+        content = message.content
+        if isinstance(content, list):
+            concatenated_content = ""
+            previous_part_type: Optional[str] = None
+            for part in content:
+                if part.type == "text" and part.text:
+                    if previous_part_type == "image_url" and concatenated_content:
+                        concatenated_content += "\n"
+                    concatenated_content += part.text
+                elif part.type == "image_url" and mm_embeddings:
+                    if (
+                        previous_part_type == "text"
+                        and concatenated_content
+                        and not concatenated_content.endswith("\n")
+                    ):
+                        concatenated_content += "\n"
+                    elif previous_part_type == "image_url" and concatenated_content:
+                        concatenated_content += "\n"
+                    await mm_embeddings.add(part.image_url.url)
+                    concatenated_content += mm_embeddings.text_alias[-1]
+                previous_part_type = part.type
+            content = concatenated_content
+
+        normalized_content = content or ""
+        role = (message.role or "user").lower()
+
+        if role == "system":
+            if normalized_content:
+                pending_system.append(normalized_content)
+            continue
+
+        if role == "user":
+            if pending_system:
+                normalized_content = "\n\n".join(
+                    pending_system + ([normalized_content] if normalized_content else [])
+                )
+                pending_system.clear()
+
+            segments.append(f"<|User|>: {normalized_content}")
+            last_non_system_role = "user"
+            continue
+
+        if role == "assistant":
+            segments.append(f"<|Assistant|>: {normalized_content}")
+            last_non_system_role = "assistant"
+            continue
+
+        if role in {"tool", "tool_results"}:
+            tool_payload = normalized_content
+            if message.tool_call_id:
+                prefix = f"[tool_call_id={message.tool_call_id}]"
+                tool_payload = (
+                    f"{prefix}\n{tool_payload}" if tool_payload else prefix
+                )
+            segments.append(f"<|User|>: {tool_payload}")
+            last_non_system_role = "user"
+            continue
+
+        raise HTTPException(
+            400,
+            f"Unsupported role '{message.role}' for built-in DeepSeek-VL2 chat serialization.",
+        )
+
+    if pending_system:
+        segments.append(f"<|User|>: {'\\n\\n'.join(pending_system)}")
+        last_non_system_role = "user"
+
+    prompt = "\n\n".join(segments)
+    return prompt, mm_embeddings, {"last_non_system_role": last_non_system_role}
+
+
 async def apply_chat_template(data: ChatCompletionRequest):
     """
     Compile the prompt and get any additional stop strings from the template.
@@ -579,6 +688,33 @@ async def apply_chat_template(data: ChatCompletionRequest):
     tools = data.model_dump()["tools"]
     if _get_tokenizer_mode() == "mistral":
         _sanitize_mistral_tool_choice_ids(data)
+
+    if _uses_builtin_chat_serializer():
+        if data.tools or data.functions or data.tool_choice not in (None, "none"):
+            raise HTTPException(
+                400,
+                "Tool calling is not supported for the built-in DeepSeek-VL2 chat serializer.",
+            )
+
+        prompt, mm_embeddings, serializer_state = (
+            await format_messages_with_builtin_serializer(data.messages)
+        )
+
+        last_non_system_role = serializer_state.get("last_non_system_role")
+
+        if data.add_generation_prompt and last_non_system_role != "assistant":
+            prompt = f"{prompt}\n\n<|Assistant|>: " if prompt else "<|Assistant|>: "
+
+        if data.response_prefix:
+            if data.add_generation_prompt:
+                prompt += data.response_prefix
+            else:
+                logger.warning(
+                    "Could not add response prefix because "
+                    "add_generation_prompt is False"
+                )
+
+        return prompt, mm_embeddings
 
     try:
         data.template_vars.update(
@@ -643,8 +779,7 @@ async def stream_generate_chat_completion(
     abort_event = asyncio.Event()
     gen_queue = asyncio.Queue()
     gen_tasks: List[asyncio.Task] = []
-    tool_start = model.container.prompt_template.metadata.tool_start
-    default_tool_call_format = model.container.prompt_template.metadata.tool_call_format
+    tool_start, default_tool_call_format = _get_template_tooling_defaults()
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
 
     try:
@@ -844,8 +979,7 @@ async def generate_chat_completion(
     model_path: pathlib.Path,
 ):
     gen_tasks: List[asyncio.Task] = []
-    tool_start = model.container.prompt_template.metadata.tool_start
-    default_tool_call_format = model.container.prompt_template.metadata.tool_call_format
+    tool_start, default_tool_call_format = _get_template_tooling_defaults()
     tool_call_format = _validate_and_get_tool_call_format(
         data, default_tool_call_format
     )
@@ -930,9 +1064,8 @@ async def generate_tool_calls(
     tool_call_format: Optional[str] = None,
 ):
     gen_tasks: List[asyncio.Task] = []
-    tool_start = model.container.prompt_template.metadata.tool_start
+    tool_start, default_tool_call_format = _get_template_tooling_defaults()
     if tool_call_format is None:
-        default_tool_call_format = model.container.prompt_template.metadata.tool_call_format
         tool_call_format = _validate_and_get_tool_call_format(
             data, default_tool_call_format
         )

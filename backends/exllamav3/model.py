@@ -301,10 +301,15 @@ class ExllamaV3Container(BaseModelContainer):
                 f'Using template "{self.prompt_template.name}" for chat completions.'
             )
         else:
-            logger.warning(
-                "Chat completions are disabled because a prompt "
-                "template wasn't provided or auto-detected."
-            )
+            if self.config.architecture == "DeepseekVLV2ForCausalLM":
+                logger.info(
+                    "Using built-in DeepSeek-VL2 chat serializer for chat completions."
+                )
+            else:
+                logger.warning(
+                    "Chat completions are disabled because a prompt "
+                    "template wasn't provided or auto-detected."
+                )
 
         return self
 
