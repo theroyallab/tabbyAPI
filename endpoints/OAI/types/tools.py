@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Literal
+from typing import Dict, Literal, Optional
 from uuid import uuid4
 
 
@@ -28,8 +28,28 @@ class Tool(BaseModel):
 
 
 class ToolCall(BaseModel):
-    """Represents an OAI tool description."""
+    """Represents an OAI tool call.
 
-    id: str = Field(default_factory=lambda: str(uuid4()).replace("-", "")[:9])
+    The ``index`` field is optional so it can be omitted in non-streaming
+    responses (where OpenAI does not include it) via ``exclude_none=True``,
+    while being set explicitly for streaming deltas where it is required
+    by strict validators like the Vercel AI SDK.
+    """
+
+    id: str = Field(default_factory=lambda: f"call_{uuid4().hex[:24]}")
     function: Tool
+    type: Literal["function"] = "function"
+    index: Optional[int] = None
+
+
+class NamedToolFunction(BaseModel):
+    """Represents a named function reference for tool_choice."""
+
+    name: str
+
+
+class NamedToolChoice(BaseModel):
+    """Represents a named tool choice (forces a specific function call)."""
+
+    function: NamedToolFunction
     type: Literal["function"] = "function"
