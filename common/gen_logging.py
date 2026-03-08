@@ -3,7 +3,6 @@ Functions for logging generation events.
 """
 
 from loguru import logger
-from typing import Optional
 
 from common.tabby_config import config
 
@@ -29,7 +28,7 @@ def log_generation_params(**kwargs):
         logger.info(f"Generation options: {kwargs}\n")
 
 
-def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str] = None):
+def log_prompt(prompt: str, request_id: str, negative_prompt: str | None = None):
     """Logs the prompt to console."""
     if config.logging.log_prompt:
         formatted_prompt = "\n" + prompt
@@ -55,7 +54,7 @@ def log_response(request_id: str, response: str):
 def log_metrics(
     request_id: str,
     metrics: dict,
-    context_len: Optional[int],
+    context_len: int | None,
     max_seq_len: int,
 ):
     initial_response = (
