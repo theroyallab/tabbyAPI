@@ -153,6 +153,28 @@ model:
   # NOTE: Only works with chat completion message lists!
   prompt_template:
 
+  # Reasoning parser key for splitting hidden reasoning and final content.
+  # Compatible keys include: basic, exaone4, deepseek_r1, deepseek_v3.
+  # If omitted, TabbyAPI defaults to `basic`.
+  reasoning_parser:
+
+  # Enable automatic tool selection (default: False).
+  # Equivalent to vLLM --enable-auto-tool-choice.
+  # Requires tool_call_parser to be set.
+  enable_auto_tool_choice: false
+
+  # Tool parser key for model-generated tool call text.
+  # Equivalent to vLLM --tool-call-parser.
+  # Built-in values include:
+  # hermes, llama (alias of llama3_json), llama3_json, llama4_json,
+  # openai, pythonic, qwen3_coder, qwen3_xml,
+  # deepseek_v3, deepseek_v31, deepseek_v32.
+  tool_call_parser:
+
+  # Exclude tool definitions from prompt when tool_choice='none'.
+  # Equivalent to vLLM --exclude-tools-when-tool-choice-none.
+  exclude_tools_when_tool_choice_none: false
+
   # Enables vision support if the model supports it. (default: False)
   vision: false
 
