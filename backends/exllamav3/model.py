@@ -298,6 +298,11 @@ class ExllamaV3Container(BaseModelContainer):
                 "template wasn't provided or auto-detected."
             )
 
+        # Reasoning mode
+        self.reasoning = kwargs.get("reasoning")
+        self.reasoning_start_token = kwargs.get("reasoning_start_token")
+        self.reasoning_end_token = kwargs.get("reasoning_end_token")
+
         return self
 
     # Enforce a multiple of 256 for cache size

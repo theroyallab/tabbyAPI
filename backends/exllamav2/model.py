@@ -361,6 +361,11 @@ class ExllamaV2Container(BaseModelContainer):
                 self.draft_config.max_input_len = chunk_size
                 self.draft_config.max_attention_size = chunk_size**2
 
+        # Reasoning mode
+        self.reasoning = kwargs.get("reasoning")
+        self.reasoning_start_token = kwargs.get("reasoning_start_token")
+        self.reasoning_end_token = kwargs.get("reasoning_end_token")
+
         # Return the created instance
         return self
 
