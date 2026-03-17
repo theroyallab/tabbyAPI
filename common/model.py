@@ -138,12 +138,12 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         loaded_model_name = container.model_dir.name
 
         if loaded_model_name == model_path.name and container.loaded:
-            raise ValueError(
-                f'Model "{loaded_model_name}" is already loaded! Aborting.'
-            )
+            logger.info(f'Model "{loaded_model_name}" is already loaded')
+            return
 
-        logger.info("Unloading existing model.")
-        await unload_model()
+        if container.loaded:
+            logger.info("Unloading existing model.")
+            await unload_model()
 
     # Reset to prepare for a new container
     container = None
