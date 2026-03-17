@@ -41,12 +41,6 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
-    generate_window: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("generate_window"),
-        examples=[512],
-        ge=0,
-    )
-
     stop: Optional[Union[str, List[Union[str, int]]]] = Field(
         default_factory=lambda: get_default_sampler_value("stop", []),
         validation_alias=AliasChoices("stop", "stop_sequence"),
@@ -165,7 +159,7 @@ class BaseSamplerRequest(BaseModel):
             "rep_pen_range",
         ),
         description=(
-            "Aliases: repetition_range, repetition_penalty_range, " "rep_pen_range"
+            "Aliases: repetition_range, repetition_penalty_range, rep_pen_range"
         ),
     )
 
@@ -195,10 +189,9 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("dry_sequence_breakers", [])
     )
 
-    mirostat: Optional[bool] = False
-
     mirostat_mode: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("mirostat_mode", 0)
+        default_factory=lambda: get_default_sampler_value("mirostat_mode", 0),
+        alias=AliasChoices("mirostat_mode", "mirostat"),
     )
 
     mirostat_tau: Optional[float] = Field(
@@ -212,7 +205,7 @@ class BaseSamplerRequest(BaseModel):
     )
 
     add_bos_token: Optional[bool] = Field(
-        default_factory=lambda: get_default_sampler_value("add_bos_token", True)
+        default_factory=lambda: get_default_sampler_value("add_bos_token")
     )
 
     ban_eos_token: Optional[bool] = Field(
@@ -220,11 +213,6 @@ class BaseSamplerRequest(BaseModel):
         validation_alias=AliasChoices("ban_eos_token", "ignore_eos"),
         description="Aliases: ignore_eos",
         examples=[False],
-    )
-
-    skip_special_tokens: Optional[bool] = Field(
-        default_factory=lambda: get_default_sampler_value("skip_special_tokens", True),
-        examples=[True],
     )
 
     logit_bias: Optional[Dict[int, float]] = Field(
@@ -282,6 +270,19 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
+    logprobs: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("logprobs", 0),
+        ge=0,
+    )
+
+    adaptive_target: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("adaptive_target", 1.0)
+    )
+
+    adaptive_decay: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("adaptive_decay", 0.9)
+    )
+
     @field_validator("top_k", mode="before")
     def convert_top_k(cls, v):
         """Fixes instance if Top-K is -1."""
@@ -324,15 +325,6 @@ class BaseSamplerRequest(BaseModel):
                 "Could not parse DRY sequence breakers. Using an empty array."
             )
             return []  # Return empty list if parsing fails
-
-    @field_validator("mirostat_mode", mode="before")
-    def convert_mirostat(cls, v, field_info):
-        """Mirostat is enabled if mirostat_mode == 2."""
-
-        if v == 2:
-            field_info.data["mirostat"] = True
-
-        return v
 
     @model_validator(mode="after")
     def after_validate(self):

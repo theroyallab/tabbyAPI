@@ -1,6 +1,9 @@
 """Construct a model of all optional dependencies"""
 
 import importlib.util
+from importlib.metadata import version as package_version
+from loguru import logger
+from packaging import version
 from pydantic import BaseModel, computed_field
 
 
@@ -13,6 +16,7 @@ class DependenciesModel(BaseModel):
 
     torch: bool
     exllamav2: bool
+    exllamav3: bool
     flash_attn: bool
     infinity_emb: bool
     sentence_transformers: bool
@@ -25,7 +29,7 @@ class DependenciesModel(BaseModel):
     @computed_field
     @property
     def inference(self) -> bool:
-        return self.torch and self.exllamav2 and self.flash_attn
+        return self.torch and (self.exllamav2 or (self.exllamav3 and self.flash_attn))
 
 
 def is_installed(package_name: str) -> bool:
@@ -46,6 +50,28 @@ def get_installed_deps() -> DependenciesModel:
         installed_deps[field_name] = is_installed(field_name)
 
     return DependenciesModel(**installed_deps)
+
+
+def check_package_version(package_name: str, required_version_str: str):
+    """
+    Fetches and verifies a given package version.
+
+    This assumes that the required package is installed.
+    """
+
+    required_version = version.parse(required_version_str)
+    current_version = version.parse(package_version(package_name).split("+")[0])
+
+    unsupported_message = (
+        f"ERROR: TabbyAPI requires {package_name} {required_version} "
+        f"or greater. Your current version is {current_version}. "
+        "Please update your dependencies."
+    )
+
+    if current_version < required_version:
+        raise RuntimeError(unsupported_message)
+    else:
+        logger.info(f"{package_name} version: {current_version}")
 
 
 dependencies = get_installed_deps()

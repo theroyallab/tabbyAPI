@@ -11,7 +11,7 @@ from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import PreservedScalarString
 
 from common.config_models import BaseConfigModel, TabbyConfigModel
-from common.utils import merge_dicts, filter_none_values, unwrap
+from common.utils import deep_merge_dicts, filter_none_values, unwrap
 
 yaml = YAML(typ=["rt", "safe"])
 
@@ -20,6 +20,7 @@ class TabbyConfig(TabbyConfigModel):
     # Persistent defaults
     # TODO: make this pydantic?
     model_defaults: dict = {}
+    draft_model_defaults: dict = {}
 
     def load(self, arguments: Optional[dict] = None):
         """Synchronously loads the global application config"""
@@ -36,7 +37,7 @@ class TabbyConfig(TabbyConfigModel):
         # Remove None (aka unset) values from the configs and merge them together
         # This should be less expensive than pruning the entire merged dictionary
         configs = filter_none_values(configs)
-        merged_config = merge_dicts(*configs)
+        merged_config = deep_merge_dicts(*configs)
 
         # validate and update config
         merged_config_model = TabbyConfigModel.model_validate(merged_config)
@@ -50,7 +51,7 @@ class TabbyConfig(TabbyConfigModel):
             if hasattr(self.model, field):
                 self.model_defaults[field] = getattr(config.model, field)
             elif hasattr(self.draft_model, field):
-                self.model_defaults[field] = getattr(config.draft_model, field)
+                self.draft_model_defaults[field] = getattr(config.draft_model, field)
             else:
                 logger.error(
                     f"invalid item {field} in config option `model.use_as_default`"

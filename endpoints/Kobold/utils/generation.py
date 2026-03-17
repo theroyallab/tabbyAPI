@@ -52,15 +52,16 @@ async def _stream_collector(data: GenerateRequest, request: Request):
     try:
         logger.info(f"Received Kobold generation request {data.genkey}")
 
-        generator = model.container.generate_gen(
-            request_id=data.genkey, abort_event=abort_event, **data.model_dump()
+        generator = model.container.stream_generate(
+            request_id=data.genkey,
+            prompt=data.prompt,
+            params=data,
+            abort_event=abort_event,
         )
+
         async for generation in generator:
             if disconnect_task.done():
-                abort_event.set()
-                handle_request_disconnect(
-                    f"Kobold generation {data.genkey} cancelled by user."
-                )
+                raise CancelledError()
 
             text = generation.get("text")
 
@@ -74,7 +75,7 @@ async def _stream_collector(data: GenerateRequest, request: Request):
                 break
     except CancelledError:
         # If the request disconnects, break out
-        if not disconnect_task.done():
+        if not abort_event.is_set():
             abort_event.set()
             handle_request_disconnect(
                 f"Kobold generation {data.genkey} cancelled by user."
@@ -99,8 +100,7 @@ async def stream_generation(data: GenerateRequest, request: Request):
             )
     except Exception:
         yield get_generator_error(
-            f"Kobold generation {data.genkey} aborted. "
-            "Please check the server console."
+            f"Kobold generation {data.genkey} aborted. Please check the server console."
         )
 
 

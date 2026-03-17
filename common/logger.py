@@ -9,12 +9,12 @@ from loguru import logger
 from rich.console import Console
 from rich.markup import escape
 from rich.progress import (
-    Progress,
-    TextColumn,
     BarColumn,
-    TimeRemainingColumn,
-    TaskProgressColumn,
     MofNCompleteColumn,
+    Progress,
+    TaskProgressColumn,
+    TextColumn,
+    TimeRemainingColumn,
 )
 
 from common.utils import unwrap
@@ -114,4 +114,13 @@ def setup_logger():
         level=LOG_LEVEL,
         format=_log_formatter,
         colorize=True,
+    )
+    # Add file logging
+    logger.add(
+        "logs/{time}.log",
+        level=LOG_LEVEL,
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {message}",
+        rotation="20 MB",  # Rotate file when it reaches 20MB
+        retention="1 week",  # Keep logs for 1 week
+        compression="zip",  # Compress rotated log
     )

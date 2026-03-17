@@ -1,17 +1,16 @@
-from pydantic import BaseModel, Field
-from pydantic.json_schema import SkipJsonSchema
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 from time import time
 from typing import Literal, Union, List, Optional, Dict
 from uuid import uuid4
 
 from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
-from endpoints.OAI.types.tools import ToolSpec, ToolCall, tool_call_schema
+from endpoints.OAI.types.tools import ToolSpec, ToolCall
 
 
 class ChatCompletionLogprob(BaseModel):
     token: str
     logprob: float
-    top_logprobs: Optional[List["ChatCompletionLogprob"]] = None
+    top_logprobs: Optional[List["ChatCompletionLogprob"]] = Field(default_factory=list)
 
 
 class ChatCompletionLogprobs(BaseModel):
@@ -33,7 +32,7 @@ class ChatCompletionMessage(BaseModel):
     content: Optional[Union[str, List[ChatCompletionMessagePart]]] = None
     reasoning_content: Optional[str] = None
     tool_calls: Optional[List[ToolCall]] = None
-    tool_calls_json: SkipJsonSchema[Optional[str]] = None
+    tool_call_id: Optional[str] = None
 
 
 class ChatCompletionRespChoice(BaseModel):
@@ -57,16 +56,14 @@ class ChatCompletionStreamChoice(BaseModel):
 
 # Inherited from common request
 class ChatCompletionRequest(CommonCompletionRequest):
-    # Messages
-    # Take in a string as well even though it's not part of the OAI spec
-    # support messages.content as a list of dict
-
-    # WIP this can probably be tightened, or maybe match the OAI lib type
-    # in openai\types\chat\chat_completion_message_param.py
-    messages: List[ChatCompletionMessage] = Field(default_factory=list)
+    messages: List[ChatCompletionMessage]
     prompt_template: Optional[str] = None
     add_generation_prompt: Optional[bool] = True
-    template_vars: Optional[dict] = {}
+    template_vars: Optional[dict] = Field(
+        default={},
+        validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
+        description="Aliases: chat_template_kwargs",
+    )
     response_prefix: Optional[str] = None
     model: Optional[str] = None
 
@@ -76,12 +73,14 @@ class ChatCompletionRequest(CommonCompletionRequest):
     tools: Optional[List[ToolSpec]] = None
     functions: Optional[List[Dict]] = None
 
-    # Typically collected from Chat Template.
-    # Don't include this in the OpenAPI docs
-    # TODO: Use these custom parameters
-    tool_call_start: SkipJsonSchema[Optional[List[Union[str, int]]]] = None
-    tool_call_end: SkipJsonSchema[Optional[str]] = None
-    tool_call_schema: SkipJsonSchema[Optional[dict]] = tool_call_schema
+    # Chat completions requests do not have a BOS token preference. Backend
+    # respects the tokenization config for the individual model.
+    add_bos_token: Optional[bool] = None
+
+    @field_validator("add_bos_token", mode="after")
+    def force_bos_token(cls, v):
+        """Always disable add_bos_token with chat completions."""
+        return None
 
 
 class ChatCompletionResponse(BaseModel):

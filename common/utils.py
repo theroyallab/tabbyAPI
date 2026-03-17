@@ -32,21 +32,32 @@ def filter_none_values(collection: Union[dict, list]) -> Union[dict, list]:
         return collection
 
 
-def merge_dict(dict1: Dict, dict2: Dict) -> Dict:
-    """Merge 2 dictionaries"""
+def deep_merge_dict(dict1: Dict, dict2: Dict, copy: bool = False) -> Dict:
+    """
+    Merge 2 dictionaries. If copy is true, the original dictionary isn't modified.
+    """
+
+    if copy:
+        dict1 = dict1.copy()
+
     for key, value in dict2.items():
         if isinstance(value, dict) and key in dict1 and isinstance(dict1[key], dict):
-            merge_dict(dict1[key], value)
+            deep_merge_dict(dict1[key], value, copy=False)
         else:
             dict1[key] = value
+
     return dict1
 
 
-def merge_dicts(*dicts: Dict) -> Dict:
-    """Merge an arbitrary amount of dictionaries"""
+def deep_merge_dicts(*dicts: Dict) -> Dict:
+    """
+    Merge an arbitrary amount of dictionaries.
+    We wanna do in-place modification for each level, so do not copy.
+    """
+
     result = {}
     for dictionary in dicts:
-        result = merge_dict(result, dictionary)
+        result = deep_merge_dict(result, dictionary)
 
     return result
 
@@ -85,3 +96,24 @@ def unwrap_optional_type(type_hint) -> Type:
                     return arg
 
     return type_hint
+
+
+def calculate_rope_alpha(base_seq_len: int, target_seq_len: int):
+    """
+    Converts a given max sequence length to a rope alpha value.
+
+    Args:
+        base_seq_len: The model's configured sequence length.
+        target_seq_len: The user-specified max sequence length.
+    """
+
+    # Get the ratio of the model's max sequence length to the target
+    ratio = target_seq_len / base_seq_len
+
+    # Default to a 1 alpha if the sequence length is ever less
+    # than or equal to 1
+    if ratio <= 1.0:
+        alpha = 1
+    else:
+        alpha = -0.13436 + 0.80541 * ratio + 0.28833 * ratio**2
+    return alpha

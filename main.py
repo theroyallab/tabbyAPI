@@ -1,8 +1,12 @@
 """The main tabbyAPI module. Contains the FastAPI server and endpoints."""
 
+# Set this env var for cuda malloc async before torch is initalized
+import os
+
+os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
+
 import argparse
 import asyncio
-import os
 import pathlib
 import platform
 import signal
@@ -15,11 +19,10 @@ from common.auth import load_auth_keys
 from common.actions import run_subcommand
 from common.logger import setup_logger
 from common.networking import is_port_in_use
+from common.optional_dependencies import dependencies
 from common.signals import signal_handler
 from common.tabby_config import config
 from endpoints.server import start_api
-
-from backends.exllamav2.version import check_exllama_version
 
 
 async def entrypoint_async():
@@ -46,19 +49,6 @@ async def entrypoint_async():
             )
 
             port = fallback_port
-
-    # Initialize auth keys
-    await load_auth_keys(config.network.disable_auth)
-
-    gen_logging.broadcast_status()
-
-    # Set sampler parameter overrides if provided
-    sampling_override_preset = config.sampling.override_preset
-    if sampling_override_preset:
-        try:
-            await sampling.overrides_from_file(sampling_override_preset)
-        except FileNotFoundError as e:
-            logger.warning(str(e))
 
     # If an initial model name is specified, create a container
     # and load the model
@@ -96,6 +86,19 @@ async def entrypoint_async():
             )
         except ImportError as ex:
             logger.error(ex.msg)
+
+    # Initialize auth keys
+    await load_auth_keys(config.network.disable_auth)
+
+    gen_logging.broadcast_status()
+
+    # Set sampler parameter overrides if provided
+    sampling_override_preset = config.sampling.override_preset
+    if sampling_override_preset:
+        try:
+            await sampling.overrides_from_file(sampling_override_preset)
+        except FileNotFoundError as e:
+            logger.warning(str(e))
 
     await start_api(host, port)
 
@@ -139,13 +142,21 @@ def entrypoint(
             "UNSAFE: Skipping ExllamaV2 version check.\n"
             "If you aren't a developer, please keep this off!"
         )
-    else:
-        check_exllama_version()
+    elif not dependencies.inference:
+        install_message = (
+            f"ERROR: Inference dependencies for TabbyAPI are not installed.\n"
+            "Please update your environment by running an update script "
+            "(update_scripts/"
+            f"update_deps.{'bat' if platform.system() == 'Windows' else 'sh'})\n\n"
+            "Or you can manually run a requirements update "
+            "using the following command:\n\n"
+            "For CUDA 12.1:\n"
+            "pip install --upgrade .[cu12]\n\n"
+            "For ROCm:\n"
+            "pip install --upgrade .[amd]\n\n"
+        )
 
-    # Enable CUDA malloc backend
-    if config.developer.cuda_malloc_backend:
-        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
-        logger.warning("EXPERIMENTAL: Enabled the pytorch CUDA malloc backend.")
+        raise SystemExit(install_message)
 
     # Set the process priority
     if config.developer.realtime_process_priority:

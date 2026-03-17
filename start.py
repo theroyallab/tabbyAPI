@@ -8,8 +8,11 @@ import platform
 import subprocess
 import sys
 import traceback
-from shutil import copyfile
+from shutil import copyfile, which
+from typing import List
 
+# Checks for uv installation
+has_uv = which("uv") is not None
 
 start_options = {}
 
@@ -41,21 +44,35 @@ def get_user_choice(question: str, options_dict: dict):
 def get_install_features(lib_name: str = None):
     """Fetches the appropriate requirements file depending on the GPU"""
     install_features = None
-    possible_features = ["cu121", "cu118", "amd"]
+    possible_features = ["cu12", "amd"]
 
     if not lib_name:
-        # Ask the user for the GPU lib
-        gpu_lib_choices = {
-            "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu121"},
-            "B": {"pretty": "NVIDIA Cuda 11.8 (Unsupported)", "internal": "cu118"},
-            "C": {"pretty": "AMD", "internal": "amd"},
-        }
-        user_input = get_user_choice(
-            "Select your GPU. If you don't know, select Cuda 12.x (A)",
-            gpu_lib_choices,
-        )
+        has_nvidia = which("nvidia-smi") is not None
+        has_rocm = which("rocm-smi") is not None
+        has_amd = which("amd-smi") is not None
+        has_amd_gpu = has_rocm or has_amd
 
-        lib_name = gpu_lib_choices.get(user_input, {}).get("internal")
+        if has_nvidia and not has_amd_gpu:
+            lib_name = "cu12"
+            print("Auto-detected NVIDIA GPU. Using CUDA 12.x backend.")
+        elif has_amd_gpu and not has_nvidia:
+            lib_name = "amd"
+            print("Auto-detected AMD GPU. Using AMD backend.")
+        else:
+            gpu_lib_choices = {
+                "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu12"},
+                "B": {"pretty": "AMD", "internal": "amd"},
+            }
+            print(
+                "WARNING: Auto-detection failed. "
+                "Please ensure you have either an NVIDIA GPU (with nvidia-smi) "
+                "or an AMD GPU (with rocm-smi or amd-smi) installed."
+            )
+            user_input = get_user_choice(
+                "Select your GPU. If you don't know, select Cuda 12.x (A)",
+                gpu_lib_choices,
+            )
+            lib_name = gpu_lib_choices.get(user_input, {}).get("internal")
 
         # Write to start options
         start_options["gpu_lib"] = lib_name
@@ -79,7 +96,7 @@ def get_install_features(lib_name: str = None):
         if platform.system() == "Windows":
             print(
                 "ERROR: TabbyAPI does not support AMD and Windows. "
-                "Please use Linux and ROCm 6.0. Exiting."
+                "Please use Linux and ROCm 6.4. Exiting."
             )
             sys.exit(0)
 
@@ -139,29 +156,27 @@ def add_start_args(parser: argparse.ArgumentParser):
     )
 
 
-def migrate_gpu_lib():
-    gpu_lib_path = pathlib.Path("gpu_lib.txt")
+def migrate_start_options(start_options: dict):
+    migrated = False
 
-    if not gpu_lib_path.exists():
-        return
+    # Migrate gpu_lib key
+    gpu_lib = start_options.get("gpu_lib")
+    if gpu_lib == "cu121" or gpu_lib == "cu118":
+        print("GPU lib key is legacy, migrating to cu12")
+        start_options["gpu_lib"] = "cu12"
+        migrated = True
 
-    print("Migrating gpu_lib.txt to the new start_options.json")
-    with open("gpu_lib.txt", "r") as gpu_lib_file:
-        start_options["gpu_lib"] = gpu_lib_file.readline().strip()
-        start_options["first_run_done"] = True
+    return migrated
 
-    # Remove the old file
-    gpu_lib_path.unlink()
 
-    print(
-        "Successfully migrated gpu lib options to start_options. "
-        "The old file has been deleted."
-    )
+def run_pip(command: List[str]):
+    if has_uv:
+        command.insert(0, "uv")
+
+    subprocess.run(command)
 
 
 if __name__ == "__main__":
-    subprocess.run(["pip", "-V"])
-
     # Create an argparser and add extra startup script args
     # Try creating a full argparser if pydantic is installed
     # Otherwise, create an abridged one solely for startup
@@ -182,7 +197,12 @@ if __name__ == "__main__":
 
     add_start_args(parser)
     args, _ = parser.parse_known_args()
+
+    # Log pip version
+    run_pip(["pip", "-V"])
+
     script_ext = "bat" if platform.system() == "Windows" else "sh"
+    do_start_options_write = False
 
     start_options_path = pathlib.Path("start_options.json")
     if start_options_path.exists():
@@ -190,6 +210,7 @@ if __name__ == "__main__":
             start_options = json.load(start_options_file)
             print("Loaded your saved preferences from `start_options.json`")
 
+            do_start_options_write = migrate_start_options(start_options)
         if start_options.get("first_run_done"):
             first_run = False
     else:
@@ -197,9 +218,6 @@ if __name__ == "__main__":
             "It looks like you're running TabbyAPI for the first time. "
             "Getting things ready..."
         )
-
-    # Migrate from old setting storage
-    migrate_gpu_lib()
 
     # Set variables that rely on start options
     first_run = not start_options.get("first_run_done")
@@ -233,22 +251,14 @@ if __name__ == "__main__":
 
         # pip install .[features]
         print(f"Running install command: {' '.join(install_command)}")
-        subprocess.run(install_command)
+        run_pip(install_command)
         print()
 
         if first_run:
             start_options["first_run_done"] = True
 
             # Save start options on first run
-            with open("start_options.json", "w") as start_file:
-                start_file.write(json.dumps(start_options))
-
-                print(
-                    "Successfully wrote your start script options to "
-                    "`start_options.json`. \n"
-                    "If something goes wrong, editing or deleting the file "
-                    "will reinstall TabbyAPI as a first-time user."
-                )
+            do_start_options_write = True
 
         if args.update_deps:
             print(
@@ -260,6 +270,17 @@ if __name__ == "__main__":
             print(
                 f"Dependencies installed. Update them with `update_deps.{script_ext}` "
                 "inside the `update_scripts` folder."
+            )
+
+    if do_start_options_write:
+        with open("start_options.json", "w") as start_file:
+            start_file.write(json.dumps(start_options))
+
+            print(
+                "Successfully wrote your start script options to "
+                "`start_options.json`. \n"
+                "If something goes wrong, editing or deleting the file "
+                "will reinstall TabbyAPI as a first-time user."
             )
 
     # Expand the parser if it's not fully created

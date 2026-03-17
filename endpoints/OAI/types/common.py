@@ -1,7 +1,7 @@
 """Common types for OAI."""
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Union
 
 from common.sampling import BaseSamplerRequest, get_default_sampler_value
 
@@ -10,8 +10,13 @@ class UsageStats(BaseModel):
     """Represents usage stats."""
 
     prompt_tokens: int
+    prompt_time: Optional[float] = None
+    prompt_tokens_per_sec: Optional[Union[float, str]] = None
     completion_tokens: int
+    completion_time: Optional[float] = None
+    completion_tokens_per_sec: Optional[Union[float, str]] = None
     total_tokens: int
+    total_time: Optional[float] = None
 
 
 class CompletionResponseFormat(BaseModel):
@@ -32,10 +37,6 @@ class CommonCompletionRequest(BaseSamplerRequest):
     # Generation info (remainder is in BaseSamplerRequest superclass)
     stream: Optional[bool] = False
     stream_options: Optional[ChatCompletionStreamOptions] = None
-    logprobs: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("logprobs", 0),
-        ge=0,
-    )
     response_format: Optional[CompletionResponseFormat] = Field(
         default_factory=CompletionResponseFormat
     )

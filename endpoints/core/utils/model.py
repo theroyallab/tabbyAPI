@@ -5,10 +5,8 @@ from typing import Optional
 from common import model
 from common.networking import get_generator_error, handle_request_disconnect
 from common.tabby_config import config
-from common.utils import unwrap
 from endpoints.core.types.model import (
     ModelCard,
-    ModelCardParameters,
     ModelList,
     ModelLoadRequest,
     ModelLoadResponse,
@@ -64,30 +62,7 @@ async def get_current_model_list(model_type: str = "model"):
 def get_current_model():
     """Gets the current model with all parameters."""
 
-    model_params = model.container.get_model_parameters()
-    draft_model_params = model_params.pop("draft", {})
-
-    if draft_model_params:
-        model_params["draft"] = ModelCard(
-            id=unwrap(draft_model_params.get("name"), "unknown"),
-            parameters=ModelCardParameters.model_validate(draft_model_params),
-        )
-    else:
-        draft_model_params = None
-
-    model_card = ModelCard(
-        id=unwrap(model_params.pop("name", None), "unknown"),
-        parameters=ModelCardParameters.model_validate(model_params),
-        logging=config.logging,
-    )
-
-    if draft_model_params:
-        draft_card = ModelCard(
-            id=unwrap(draft_model_params.pop("name", None), "unknown"),
-            parameters=ModelCardParameters.model_validate(draft_model_params),
-        )
-
-        model_card.parameters.draft = draft_card
+    model_card = model.container.model_info()
 
     return model_card
 
@@ -102,16 +77,16 @@ def get_dummy_models():
 async def stream_model_load(
     data: ModelLoadRequest,
     model_path: pathlib.Path,
-    draft_model_path: str,
 ):
     """Request generation wrapper for the loading process."""
 
     # Get trimmed load data
     load_data = data.model_dump(exclude_none=True)
 
-    # Set the draft model path if it exists
-    if draft_model_path:
-        load_data["draft_model"]["draft_model_dir"] = draft_model_path
+    # Set the draft model directory
+    load_data.setdefault("draft_model", {})["draft_model_dir"] = (
+        config.draft_model.draft_model_dir
+    )
 
     load_status = model.load_model_gen(
         model_path, skip_wait=data.skip_queue, **load_data

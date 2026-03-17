@@ -14,9 +14,6 @@ max_tokens:
 min_tokens:
   override: 0
   force: false
-generate_window:
-  override: 512
-  force: false
 stop:
   override: []
   force: false
@@ -134,13 +131,10 @@ mirostat_eta:
 
 # MARK: Token options
 add_bos_token:
-  override: true
+  override:
   force: false
 ban_eos_token:
   override: false
-  force: false
-skip_special_tokens:
-  override: true
   force: false
 logit_bias:
   override:
@@ -161,4 +155,12 @@ cfg_scale:
   force: false
 negative_prompt:
   override:
+  force: false
+
+# MARK: Adaptive-P
+adaptive_target:
+  override: 1.0
+  force: false
+adaptive_decay:
+  override: 0.9
   force: false

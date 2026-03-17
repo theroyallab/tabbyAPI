@@ -1,17 +1,24 @@
 # Use an official CUDA runtime with Ubuntu as a parent image
-FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ca-certificates \
-    python3.11 \
+    python3.12 \
     python3-pip \
+    python3.12-venv \
     && rm -rf /var/lib/apt/lists/*
 
+# Create a virtual environment
+RUN python3 -m venv /opt/venv
+
+# Activate the venv and set the PATH
+ENV PATH="/opt/venv/bin:$PATH"
+
 # Upgrade pip
-RUN pip3 install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
 
 # Set the working directory in the container
 WORKDIR /app
@@ -19,8 +26,8 @@ WORKDIR /app
 # Get requirements
 COPY pyproject.toml .
 
-# Install packages specified in pyproject.toml cu121, extras
-RUN pip3 install --no-cache-dir .[cu121,extras]
+# Install packages specified in pyproject.toml cu12, extras
+RUN pip install --no-cache-dir .[cu12,extras]
 
 RUN rm pyproject.toml
 

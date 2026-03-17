@@ -1,0 +1,10 @@
+# Minimal "safe" fallback settings for most models, used when the frontend doesn't supply any settings
+# with a request.
+
+temperature:
+  override: 0.8
+  force: false
+
+top_p:
+  override: 0.9
+  force: false

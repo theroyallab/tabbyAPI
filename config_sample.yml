@@ -74,14 +74,35 @@ model:
   # Example: ['max_seq_len', 'cache_mode'].
   use_as_default: []
 
-  # Max sequence length (default: Empty).
-  # Fetched from the model's base sequence length in config.json by default.
+  # Backend to use for this model (auto-detect if not specified)
+  # Options: exllamav2, exllamav3
+  backend:
+
+  # Max sequence length (default: min(max_position_embeddings, cache_size)).
+  # Set to -1 to fetch from the model's config.json
   max_seq_len:
+
+  # Size of the key/value cache to allocate, in tokens (default: 4096).
+  # Must be a multiple of 256.
+  # ExllamaV2 note: On AMD GPUs and NVIDIA GPUs older than Ampere, this value
+  # is ignored. Please use max_seq_len
+  cache_size:
+
+  # Enable different cache modes for VRAM savings (default: FP16).
+  # Possible values for exllamav2: 'FP16', 'Q8', 'Q6', 'Q4'.
+  # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
+  cache_mode: FP16
 
   # Load model with tensor parallelism.
   # Falls back to autosplit if GPU split isn't provided.
   # This ignores the gpu_split_auto value.
   tensor_parallel: false
+
+  # Sets a backend type for tensor parallelism. (default: native).
+  # Options: native, nccl
+  # Native is recommended for PCIe GPUs
+  # NCCL is recommended for NVLink.
+  tensor_parallel_backend: native
 
   # Automatically allocate resources to GPUs (default: True).
   # Not parsed for single GPU users.
@@ -109,20 +130,16 @@ model:
   # Leaving this value blank will either pull from the model or auto-calculate.
   rope_alpha:
 
-  # Enable different cache modes for VRAM savings (default: FP16).
-  # Possible values: 'FP16', 'Q8', 'Q6', 'Q4'.
-  cache_mode: FP16
-
-  # Size of the prompt cache to allocate (default: max_seq_len).
-  # Must be a multiple of 256 and can't be less than max_seq_len.
-  # For CFG, set this to 2 * max_seq_len.
-  cache_size:
-
   # Chunk size for prompt ingestion (default: 2048).
   # A lower value reduces VRAM usage but decreases ingestion speed.
   # NOTE: Effects vary depending on the model.
   # An ideal value is between 512 and 4096.
   chunk_size: 2048
+
+  # Use output chunking (default: True)
+  # Instead of allocating cache space for the entire completion at once, allocate in chunks as needed.
+  # Used by EXL3 models only.
+  output_chunking: true
 
   # Set the maximum number of prompts to process at one time (default: None/Automatic).
   # Automatically calculated if left blank.
@@ -170,12 +187,22 @@ draft_model:
   draft_rope_alpha:
 
   # Cache mode for draft models to save VRAM (default: FP16).
-  # Possible values: 'FP16', 'Q8', 'Q6', 'Q4'.
+  # Possible values for exllamav2: 'FP16', 'Q8', 'Q6', 'Q4'.
+  # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
   draft_cache_mode: FP16
 
   # An integer array of GBs of VRAM to split between GPUs (default: []).
   # If this isn't filled in, the draft model is autosplit.
   draft_gpu_split: []
+
+# Options for Sampling
+sampling:
+  # Select a sampler override preset (default: None).
+  # Find this in the sampler-overrides folder.
+  # This overrides default fallbacks for sampler values that are passed to the API.
+  # NOTE: safe_defaults is noob friendly and provides fallbacks for frontends that don't send sampling parameters.
+  # Remove this for any advanced usage.
+  override_preset: safe_defaults
 
 # Options for Loras
 lora:
@@ -204,13 +231,6 @@ embeddings:
   # An initial embedding model to load on the infinity backend.
   embedding_model_name:
 
-# Options for Sampling
-sampling:
-  # Select a sampler override preset (default: None).
-  # Find this in the sampler-overrides folder.
-  # This overrides default fallbacks for sampler values that are passed to the API.
-  override_preset:
-
 # Options for development and experimentation
 developer:
   # Skip Exllamav2 version check (default: False).
@@ -219,9 +239,6 @@ developer:
 
   # Disable API request streaming (default: False).
   disable_request_streaming: false
-
-  # Enable the torch CUDA malloc backend (default: False).
-  cuda_malloc_backend: false
 
   # Set process to use a higher priority.
   # For realtime process priority, run as administrator or sudo.

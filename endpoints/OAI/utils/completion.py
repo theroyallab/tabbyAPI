@@ -8,12 +8,12 @@ import asyncio
 import pathlib
 from asyncio import CancelledError
 from fastapi import HTTPException, Request
-from typing import List, Union
-
 from loguru import logger
+from typing import List, Optional, Union
 
 from common import model
 from common.auth import get_key_permission
+from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import (
     get_generator_error,
     handle_request_disconnect,
@@ -29,6 +29,13 @@ from endpoints.OAI.types.completion import (
     CompletionLogProbs,
 )
 from endpoints.OAI.types.common import UsageStats
+
+
+def _parse_gen_request_id(n: int, request_id: str, task_idx: int):
+    if n > 1:
+        return f"{request_id}-{task_idx}"
+    else:
+        return request_id
 
 
 def _create_response(
@@ -66,8 +73,9 @@ def _create_response(
 
         choices.append(choice)
 
-    prompt_tokens = unwrap(generations[-1].get("prompt_tokens"), 0)
-    completion_tokens = unwrap(generations[-1].get("generated_tokens"), 0)
+    final_generation = generations[-1]
+    prompt_tokens = unwrap(final_generation.get("prompt_tokens"), 0)
+    completion_tokens = unwrap(final_generation.get("gen_tokens"), 0)
 
     response = CompletionResponse(
         id=f"cmpl-{request_id}",
@@ -75,8 +83,13 @@ def _create_response(
         model=model_name,
         usage=UsageStats(
             prompt_tokens=prompt_tokens,
+            prompt_time=final_generation.get("prompt_time"),
+            prompt_tokens_per_sec=final_generation.get("prompt_tokens_per_sec"),
             completion_tokens=completion_tokens,
+            completion_time=final_generation.get("gen_time"),
+            completion_tokens_per_sec=final_generation.get("gen_tokens_per_sec"),
             total_tokens=prompt_tokens + completion_tokens,
+            total_time=final_generation.get("total_time"),
         ),
     )
 
@@ -86,16 +99,21 @@ def _create_response(
 async def _stream_collector(
     task_idx: int,
     gen_queue: asyncio.Queue,
-    prompt: str,
     request_id: str,
+    prompt: str,
+    params: CompletionRequest,
     abort_event: asyncio.Event,
-    **kwargs,
+    mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
 ):
     """Collects a stream and places results in a common queue"""
 
     try:
-        new_generation = model.container.generate_gen(
-            prompt, request_id, abort_event, **kwargs
+        new_generation = model.container.stream_generate(
+            request_id,
+            prompt,
+            params,
+            abort_event,
+            mm_embeddings,
         )
         async for generation in new_generation:
             generation["index"] = task_idx
@@ -115,7 +133,7 @@ async def load_inline_model(model_name: str, request: Request):
     if (
         model.container
         and model.container.model_dir.name == model_name
-        and model.container.model_loaded
+        and model.container.loaded
     ):
         return
 
@@ -188,17 +206,18 @@ async def stream_generate_completion(
     try:
         logger.info(f"Received streaming completion request {request.state.id}")
 
-        for n in range(0, data.n):
+        for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
+            request_id = _parse_gen_request_id(data.n, request.state.id, idx)
 
             gen_task = asyncio.create_task(
                 _stream_collector(
-                    n,
+                    idx,
                     gen_queue,
+                    request_id,
                     data.prompt,
-                    request.state.id,
+                    task_gen_params,
                     abort_event,
-                    **task_gen_params.model_dump(exclude={"prompt"}),
                 )
             )
 
@@ -207,10 +226,7 @@ async def stream_generate_completion(
         # Consumer loop
         while True:
             if disconnect_task.done():
-                abort_event.set()
-                handle_request_disconnect(
-                    f"Completion generation {request.state.id} cancelled by user."
-                )
+                raise CancelledError()
 
             generation = await gen_queue.get()
 
@@ -229,7 +245,7 @@ async def stream_generate_completion(
     except CancelledError:
         # Get out if the request gets disconnected
 
-        if not disconnect_task.done():
+        if not abort_event.is_set():
             abort_event.set()
             handle_request_disconnect(
                 f"Completion generation {request.state.id} cancelled by user."
@@ -248,17 +264,18 @@ async def generate_completion(
     gen_tasks: List[asyncio.Task] = []
 
     try:
-        logger.info(f"Recieved completion request {request.state.id}")
+        logger.info(f"Received completion request {request.state.id}")
 
-        for _ in range(0, data.n):
+        for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
+            request_id = _parse_gen_request_id(data.n, request.state.id, idx)
 
             gen_tasks.append(
                 asyncio.create_task(
                     model.container.generate(
+                        request_id,
                         data.prompt,
-                        request.state.id,
-                        **task_gen_params.model_dump(exclude={"prompt"}),
+                        task_gen_params,
                     )
                 )
             )
