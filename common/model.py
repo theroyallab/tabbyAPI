@@ -163,7 +163,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     # Override the max sequence length based on user
     max_seq_len = kwargs.get("max_seq_len")
     if max_seq_len == -1:
-        kwargs["max_seq_len"] = hf_model.hf_config.max_position_embeddings
+        kwargs["max_seq_len"] = hf_model.hf_config.get_max_position_embeddings()
 
     # Create a new container and check if the right dependencies are installed
     backend = unwrap(kwargs.get("backend"), detect_backend(hf_model))

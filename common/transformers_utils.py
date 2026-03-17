@@ -37,13 +37,18 @@ class GenerationConfig(BaseModel):
             return []
 
 
+class TextConfig(BaseModel):
+    max_position_embeddings: int = None
+
+
 class HuggingFaceConfig(BaseModel):
     """
     An abridged version of HuggingFace's model config.
     Will be expanded as needed.
     """
 
-    max_position_embeddings: int = 4096
+    max_position_embeddings: int = None
+    text_config: Optional[TextConfig] = None
     eos_token_id: Optional[Union[int, List[int]]] = None
     quantization_config: Optional[Dict] = None
 
@@ -77,6 +82,13 @@ class HuggingFaceConfig(BaseModel):
         else:
             return []
 
+    def get_max_position_embeddings(self, default: int | None = 4096) -> int:
+        if self.text_config is not None and self.text_config.max_position_embeddings is not None:
+            return self.text_config.max_position_embeddings
+        elif self.max_position_embeddings is not None:
+            return self.max_position_embeddings
+        else:
+            return default
 
 class TokenizerConfig(BaseModel):
     """

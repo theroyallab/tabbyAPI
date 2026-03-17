@@ -223,19 +223,45 @@ class ExllamaV3Container(BaseModelContainer):
 
             raise RuntimeError(gpu_unsupported_message)
 
-        # Store the max_seq_len arg
-        user_max_seq_len = kwargs.get("max_seq_len")
+        # Determine max_seq_len and cache_size
+        max_seq_len_user = kwargs.get("max_seq_len")
+        max_seq_len_model = self.hf_model.hf_config.get_max_position_embeddings(default = None)
+        max_seq_len_default = 8192
 
-        # Cache creation
+        if max_seq_len_model and not max_seq_len_user:
+            logger.info(f'Using default max_seq_len from model: {max_seq_len_model} tokens.')
+            max_seq_len = max_seq_len_model
+        elif max_seq_len_user:
+            logger.info(f'Using configured max_seq_len: {max_seq_len_user} tokens.')
+            max_seq_len = max_seq_len_user
+        else:
+            logger.warning(f"max_seq_len is undefined. Defaulting to {max_seq_len_default} tokens.")
+            max_seq_len = max_seq_len_default
 
-        # If undefined, cache_size should be max_seq_len, otherwise use 4096 default
-        user_cache_size = coalesce(kwargs.get("cache_size"), user_max_seq_len, 4096)
-        self.cache_size = self.adjust_cache_size(user_cache_size)
-        self.cache_mode = unwrap(kwargs.get("cache_mode"), "FP16")
+        cache_size_user = kwargs.get("cache_size")
+        cache_size_default = 8192
+
+        if cache_size_user:
+            logger.info(f'Using configured cache_size: {cache_size_user} tokens.')
+            cache_size = cache_size_user
+        else:
+            logger.warning(f"cache_size is undefined. Defaulting to {cache_size_default} tokens.")
+            cache_size = cache_size_default
+
+        if max_seq_len < cache_size:
+            logger.warning(
+                f"The given max_seq_len ({max_seq_len}) is larger than the cache size "
+                f"and will be limited to {cache_size} tokens."
+            )
+            max_seq_len = cache_size
+
+        self.max_seq_len = max_seq_len
+        self.cache_size = cache_size
+
+        # Create cache
+        cache_mode_default = "FP16"
+        self.cache_mode = unwrap(kwargs.get("cache_mode"), cache_mode_default)
         self.cache = self.create_cache(self.cache_mode, self.model)
-
-        # Limit max_seq_len to prevent sequences larger than the cache
-        self.max_seq_len = self.adjust_max_seq_len(user_max_seq_len)
 
         # Draft cache
         if self.use_draft_model:
@@ -290,28 +316,6 @@ class ExllamaV3Container(BaseModelContainer):
             cache_size = rounded_cache_size
 
         return cache_size
-
-    # Make sure max_seq_len's upper limit is cache_size
-    # If max_seq_len isn't specified, override it to
-    # cache_size/max_pos_embeddings, whichever is smaller
-    def adjust_max_seq_len(self, max_seq_len):
-        if not max_seq_len:
-            default_max_seq_len = min(
-                self.hf_model.hf_config.max_position_embeddings, self.cache_size
-            )
-
-            logger.warning(
-                f"max_seq_len is undefined. Overriding to {default_max_seq_len} tokens."
-            )
-            max_seq_len = default_max_seq_len
-        elif max_seq_len > self.cache_size:
-            logger.warning(
-                f"The given max_seq_len ({max_seq_len}) is larger than the cache size "
-                f"and will be limited to {self.cache_size} tokens."
-            )
-            max_seq_len = self.cache_size
-
-        return max_seq_len
 
     def adjust_chunk_size(self, user_chunk_size: int):
         chunk_size = max(256, user_chunk_size)
