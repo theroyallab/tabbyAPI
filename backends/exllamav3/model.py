@@ -225,27 +225,35 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Determine max_seq_len and cache_size
         max_seq_len_user = kwargs.get("max_seq_len")
-        max_seq_len_model = self.hf_model.hf_config.get_max_position_embeddings(default = None)
+        max_seq_len_model = self.hf_model.hf_config.get_max_position_embeddings(
+            default=None
+        )
         max_seq_len_default = 8192
 
         if max_seq_len_model and not max_seq_len_user:
-            logger.info(f'Using default max_seq_len from model: {max_seq_len_model} tokens.')
+            logger.info(
+                f"Using default max_seq_len from model: {max_seq_len_model} tokens."
+            )
             max_seq_len = max_seq_len_model
         elif max_seq_len_user:
-            logger.info(f'Using configured max_seq_len: {max_seq_len_user} tokens.')
+            logger.info(f"Using configured max_seq_len: {max_seq_len_user} tokens.")
             max_seq_len = max_seq_len_user
         else:
-            logger.warning(f"max_seq_len is undefined. Defaulting to {max_seq_len_default} tokens.")
+            logger.warning(
+                f"max_seq_len is undefined. Defaulting to {max_seq_len_default} tokens."
+            )
             max_seq_len = max_seq_len_default
 
         cache_size_user = kwargs.get("cache_size")
         cache_size_default = 8192
 
         if cache_size_user:
-            logger.info(f'Using configured cache_size: {cache_size_user} tokens.')
+            logger.info(f"Using configured cache_size: {cache_size_user} tokens.")
             cache_size = cache_size_user
         else:
-            logger.warning(f"cache_size is undefined. Defaulting to {cache_size_default} tokens.")
+            logger.warning(
+                f"cache_size is undefined. Defaulting to {cache_size_default} tokens."
+            )
             cache_size = cache_size_default
 
         if max_seq_len < cache_size:

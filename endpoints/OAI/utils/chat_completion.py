@@ -43,7 +43,9 @@ def _extract_think_content(text: str) -> tuple[Optional[str], Optional[str]]:
         return None, text
     elif model.container.reasoning_start_token in text:
         start_reasoning = text.split(model.container.reasoning_start_token)[1]
-        reasoning_content = start_reasoning.split(model.container.reasoning_end_token)[0]
+        reasoning_content = start_reasoning.split(model.container.reasoning_end_token)[
+            0
+        ]
         content = start_reasoning.split(model.container.reasoning_end_token)[1]
         return reasoning_content.strip(), content.strip()
     else:

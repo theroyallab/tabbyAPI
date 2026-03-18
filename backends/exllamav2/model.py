@@ -270,7 +270,8 @@ class ExllamaV2Container(BaseModelContainer):
             self.config.max_seq_len = self.adjust_max_seq_len(user_max_seq_len)
         else:
             self.config.max_seq_len = unwrap(
-                user_max_seq_len, min(hf_model.hf_config.get_max_position_embeddings(), 4096)
+                user_max_seq_len,
+                min(hf_model.hf_config.get_max_position_embeddings(), 4096),
             )
             self.cache_size = self.config.max_seq_len
 
