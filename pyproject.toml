@@ -143,6 +143,9 @@ exclude = [
     "docker",
 ]
 
+# For dev/debug purposes
+extend-exclude = ["*_test_.py"]
+
 # Same as Black.
 line-length = 88
 indent-width = 4

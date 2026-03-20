@@ -16,7 +16,6 @@ from common.networking import (
     handle_request_error,
     request_disconnect_loop,
 )
-from common.tabby_config import config
 from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionLogprobs,

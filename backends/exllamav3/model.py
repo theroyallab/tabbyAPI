@@ -97,6 +97,7 @@ class ExllamaV3Container(BaseModelContainer):
 
         Args:
             model_directory: Path to the model files.
+            hf_model: HF config.json wrapper.
             **kwargs: Backend-specific configuration options.
 
         Returns:

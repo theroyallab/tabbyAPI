@@ -39,7 +39,7 @@ class TabbyConfig(TabbyConfigModel):
         configs = filter_none_values(configs)
         merged_config = deep_merge_dicts(*configs)
 
-        # validate and update config
+        # Validate and update config
         merged_config_model = TabbyConfigModel.model_validate(merged_config)
         for field in TabbyConfigModel.model_fields.keys():
             value = getattr(merged_config_model, field)
@@ -137,25 +137,25 @@ class TabbyConfig(TabbyConfigModel):
 
     def _from_args(self, args: dict):
         """loads config from the provided arguments"""
-        config = {}
+        cfg = {}
 
         config_override = args.get("config", {}).get("config", None)
         if config_override:
             logger.info("Config file override detected in args.")
-            config = self._from_file(pathlib.Path(config_override))
-            return config  # Return early if loading from file
+            cfg = self._from_file(pathlib.Path(config_override))
+            return cfg  # Return early if loading from file
 
         for key in TabbyConfigModel.model_fields.keys():
             override = args.get(key)
             if override:
-                config[key] = override
+                cfg[key] = override
 
-        return config
+        return cfg
 
     def _from_environment(self):
         """loads configuration from environment variables"""
 
-        config = {}
+        cfg = {}
 
         for field_name in TabbyConfigModel.model_fields.keys():
             section_config = {}
@@ -166,9 +166,9 @@ class TabbyConfig(TabbyConfigModel):
                 if setting is not None:
                     section_config[sub_field_name] = setting
 
-            config[field_name] = section_config
+            cfg[field_name] = section_config
 
-        return config
+        return cfg
 
 
 # Create an empty instance of the config class

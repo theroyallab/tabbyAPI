@@ -30,7 +30,7 @@ class ConfigOverrideConfig(BaseConfigModel):
 
     # TODO: convert this to a pathlib.path?
     config: Optional[str] = Field(
-        None, description=("Path to an overriding config.yml file")
+        None, description="Path to an overriding config.yml file"
     )
 
     _metadata: Metadata = PrivateAttr(Metadata(include_in_config=False))
@@ -47,7 +47,7 @@ class NetworkConfig(BaseConfigModel):
         ),
     )
     port: Optional[int] = Field(
-        5000, description=("The port to host on (default: 5000).")
+        5000, description="The port to host on (default: 5000)."
     )
     disable_auth: Optional[bool] = Field(
         False,
@@ -93,11 +93,11 @@ class LoggingConfig(BaseConfigModel):
 
     log_prompt: Optional[bool] = Field(
         False,
-        description=("Enable prompt logging (default: False)."),
+        description="Enable prompt logging (default: False).",
     )
     log_generation_params: Optional[bool] = Field(
         False,
-        description=("Enable generation parameter logging (default: False)."),
+        description="Enable generation parameter logging (default: False).",
     )
     log_requests: Optional[bool] = Field(
         False,
@@ -309,11 +309,11 @@ class ModelConfig(BaseConfigModel):
     )
     reasoning_start_token: str = Field(
         "<think>",
-        description=("Start token for the reasoning parser (default: <think>)."),
+        description="Start token for the reasoning parser (default: <think>).",
     )
     reasoning_end_token: str = Field(
         "</think>",
-        description=("End token for the reasoning parser (default: </think>)."),
+        description="End token for the reasoning parser (default: </think>).",
     )
 
     _metadata: Metadata = PrivateAttr(Metadata())
@@ -329,7 +329,7 @@ class DraftModelConfig(BaseConfigModel):
     # TODO: convert this to a pathlib.path?
     draft_model_dir: Optional[str] = Field(
         "models",
-        description=("Directory to look for draft models (default: models)"),
+        description="Directory to look for draft models (default: models)",
     )
     draft_model_name: Optional[str] = Field(
         None,
@@ -400,7 +400,7 @@ class LoraConfig(BaseConfigModel):
 
     # TODO: convert this to a pathlib.path?
     lora_dir: Optional[str] = Field(
-        "loras", description=("Directory to look for LoRAs (default: loras).")
+        "loras", description="Directory to look for LoRAs (default: loras)."
     )
     loras: Optional[List[LoraInstanceModel]] = Field(
         None,
@@ -437,7 +437,7 @@ class EmbeddingsConfig(BaseConfigModel):
     )
     embedding_model_name: Optional[str] = Field(
         None,
-        description=("An initial embedding model to load on the infinity backend."),
+        description="An initial embedding model to load on the infinity backend.",
     )
 
 
@@ -453,7 +453,7 @@ class DeveloperConfig(BaseConfigModel):
         ),
     )
     disable_request_streaming: Optional[bool] = Field(
-        False, description=("Disable API request streaming (default: False).")
+        False, description="Disable API request streaming (default: False)."
     )
     realtime_process_priority: Optional[bool] = Field(
         False,
@@ -469,27 +469,31 @@ class TabbyConfigModel(BaseModel):
     """Base model for a TabbyConfig."""
 
     config: Optional[ConfigOverrideConfig] = Field(
-        default_factory=ConfigOverrideConfig.model_construct
+        default_factory=ConfigOverrideConfig.model_construct,
     )
     network: Optional[NetworkConfig] = Field(
-        default_factory=NetworkConfig.model_construct
+        default_factory=NetworkConfig.model_construct,
     )
     logging: Optional[LoggingConfig] = Field(
-        default_factory=LoggingConfig.model_construct
+        default_factory=LoggingConfig.model_construct,
     )
-    model: Optional[ModelConfig] = Field(default_factory=ModelConfig.model_construct)
+    model: Optional[ModelConfig] = Field(
+        default_factory=ModelConfig.model_construct,
+    )
     draft_model: Optional[DraftModelConfig] = Field(
-        default_factory=DraftModelConfig.model_construct
+        default_factory=DraftModelConfig.model_construct,
     )
-    lora: Optional[LoraConfig] = Field(default_factory=LoraConfig.model_construct)
+    lora: Optional[LoraConfig] = Field(
+        default_factory=LoraConfig.model_construct,
+    )
     embeddings: Optional[EmbeddingsConfig] = Field(
-        default_factory=EmbeddingsConfig.model_construct
+        default_factory=EmbeddingsConfig.model_construct,
     )
     sampling: Optional[SamplingConfig] = Field(
-        default_factory=SamplingConfig.model_construct
+        default_factory=SamplingConfig.model_construct,
     )
     developer: Optional[DeveloperConfig] = Field(
-        default_factory=DeveloperConfig.model_construct
+        default_factory=DeveloperConfig.model_construct,
     )
 
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())
