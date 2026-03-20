@@ -116,17 +116,23 @@ class ExllamaV3Container(BaseModelContainer):
         self.tokenizer = Tokenizer.from_config(self.config)
 
         # Prepare vision model if requested in config
-        self.use_vision = kwargs.get("vision")
-        if self.use_vision and "vision" in self.config.model_classes:
-            self.vision_model = Model.from_config(self.config, component="vision")
+        self.vision_model = None
+        self.use_vision = kwargs.get("vision", False)
+        if self.use_vision:
+            if "vision" in self.config.model_classes:
+                self.vision_model = Model.from_config(self.config, component="vision")
+            else:
+                logger.warning(
+                    "The provided model does not have vision capabilities that are "
+                    "supported by ExllamaV3. Vision input is disabled."
+                )
+                self.use_vision = False
         else:
-            logger.warning(
-                "The provided model does not have vision capabilities that are "
-                "supported by ExllamaV3. "
-                "Vision input is disabled."
-            )
-            self.vision_model = None
-            self.use_vision = False
+            if "vision" in self.config.model_classes:
+                logger.info(
+                    "The provided model has vision capabilities, vision is disabled "
+                    "in config."
+                )
 
         # Prepare the draft model config if necessary
         draft_args = unwrap(kwargs.get("draft_model"), {})
