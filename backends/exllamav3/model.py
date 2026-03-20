@@ -252,14 +252,15 @@ class ExllamaV3Container(BaseModelContainer):
             max_seq_len = max_seq_len_default
 
         cache_size_user = kwargs.get("cache_size")
-        cache_size_default = 8192
+        cache_size_default = max_seq_len
 
         if cache_size_user:
             logger.info(f"Using configured cache_size: {cache_size_user} tokens.")
             cache_size = cache_size_user
         else:
             logger.warning(
-                f"cache_size is undefined. Defaulting to {cache_size_default} tokens."
+                f"cache_size is undefined. Defaulting to {cache_size_default} tokens. "
+                f"You should ideally configure cache_size explicitly."
             )
             cache_size = cache_size_default
 
