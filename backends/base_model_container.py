@@ -39,6 +39,10 @@ class BaseModelContainer(abc.ABC):
     load_lock: asyncio.Lock
     load_condition: asyncio.Condition
 
+    reasoning: bool
+    reasoning_start_token: Optional[str]
+    reasoning_end_token: Optional[str]
+
     # Required methods
     @classmethod
     @abc.abstractmethod

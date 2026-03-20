@@ -314,9 +314,9 @@ class ExllamaV3Container(BaseModelContainer):
             )
 
         # Reasoning mode
-        self.reasoning = kwargs.get("reasoning")
-        self.reasoning_start_token = kwargs.get("reasoning_start_token")
-        self.reasoning_end_token = kwargs.get("reasoning_end_token")
+        self.reasoning = kwargs.get("reasoning", False)
+        self.reasoning_start_token = kwargs.get("reasoning_start_token", "<think>")
+        self.reasoning_end_token = kwargs.get("reasoning_end_token", "</think>")
 
         return self
 
