@@ -53,6 +53,19 @@ def _extract_think_content(text: str) -> tuple[Optional[str], Optional[str]]:
         return reasoning_content.strip(), content.strip()
 
 
+def _start_in_reasoning_mode(prompt: str) -> bool:
+    """Determine if the formatted prompt indicates that inference should start in
+    reasoning mode.
+    - the system prompt may contain instructions mentioning both tags
+    - templates that force-disable thinking may force <think> </think> in the response
+    - templates that force-enable thinking may force just <think>
+    Best guess: count if there is one more instance of <think> than </think>."""
+    # TODO: Try to find a more robust solution
+    num_start_tokens = prompt.count(model.container.reasoning_start_token)
+    num_end_tokens = prompt.count(model.container.reasoning_end_token)
+    return num_start_tokens == num_end_tokens + 1
+
+
 def _create_response(
     request_id: str, generations: List[dict], model_name: Optional[str]
 ):
@@ -380,7 +393,11 @@ async def stream_generate_chat_completion(
         # Text accumulation for tool calls
         current_generation_text = ""
 
-        is_reasoning_chunk = model.container.reasoning
+        # Determine if we're streaming content or reasoning_content to start with
+        is_reasoning_chunk = (
+            model.container.reasoning and
+            _start_in_reasoning_mode(prompt)
+        )
 
         # Consumer loop
         while True:
