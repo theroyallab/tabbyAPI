@@ -264,7 +264,7 @@ class ExllamaV3Container(BaseModelContainer):
             )
             cache_size = cache_size_default
 
-        if max_seq_len < cache_size:
+        if max_seq_len > cache_size:
             logger.warning(
                 f"The given max_seq_len ({max_seq_len}) is larger than the cache size "
                 f"and will be limited to {cache_size} tokens."
