@@ -2,7 +2,7 @@ import argparse
 import asyncio
 import json
 import traceback
-from loguru import logger
+from common.logger import xlogger
 
 from common.downloader import hf_repo_download
 from common.tabby_config import generate_config_file
@@ -24,7 +24,7 @@ def download_action(args: argparse.Namespace):
         )
     except Exception:
         exception = traceback.format_exc()
-        logger.error(exception)
+        xlogger.error(exception)
 
 
 def config_export_action(args: argparse.Namespace):
@@ -38,7 +38,7 @@ def openapi_export_action(args: argparse.Namespace):
 
     with open(export_path, "w") as f:
         f.write(json.dumps(openapi_json))
-        logger.info("Successfully wrote OpenAPI spec to " + f"{export_path}")
+        xlogger.info("Successfully wrote OpenAPI spec to " + f"{export_path}")
 
 
 def run_subcommand(args: argparse.Namespace) -> bool:

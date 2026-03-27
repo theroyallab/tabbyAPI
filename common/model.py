@@ -8,7 +8,7 @@ import aiofiles
 import pathlib
 from enum import Enum
 from fastapi import HTTPException
-from loguru import logger
+from common.logger import xlogger
 from ruamel.yaml import YAML
 from typing import Dict, Optional
 
@@ -95,7 +95,7 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
             if model_inline_config:
                 overrides = {**overrides, **model_inline_config}
             else:
-                logger.warning(
+                xlogger.warning(
                     "Cannot find inline model overrides. "
                     'Make sure they are nested under a "model:" key'
                 )
@@ -118,6 +118,16 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
     # Merge the override and model kwargs
     # No need to preserve the original overrides dict
     merged_kwargs = deep_merge_dict(overrides, kwargs)
+
+    xlogger.verbose(
+        "Applying load defaults",
+        {
+            "kwargs": kwargs,
+            "model_inline_config": model_inline_config,
+            "overrides": overrides,
+            "merged_kwargs": merged_kwargs,
+        }
+    )
     return merged_kwargs
 
 
@@ -138,11 +148,11 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         loaded_model_name = container.model_dir.name
 
         if loaded_model_name == model_path.name and container.loaded:
-            logger.info(f'Model "{loaded_model_name}" is already loaded')
+            xlogger.info(f'Model "{loaded_model_name}" is already loaded')
             return
 
         if container.loaded:
-            logger.info("Unloading existing model.")
+            xlogger.info("Unloading existing model.")
             await unload_model()
 
     # Reset to prepare for a new container
@@ -181,7 +191,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 f"Invalid backend '{backend}'. Available backends: {available_backends}"
             )
 
-    logger.info(f"Using backend {backend}")
+    xlogger.info(f"Using backend {backend}")
     new_container: BaseModelContainer = await container_class.create(
         model_path.resolve(), hf_model, **kwargs
     )
@@ -264,7 +274,7 @@ async def load_embedding_model(model_path: pathlib.Path, **kwargs):
                 f'Embeddings model "{loaded_model_name}" is already loaded! Aborting.'
             )
 
-        logger.info("Unloading existing embeddings model.")
+        xlogger.info("Unloading existing embeddings model.")
         await unload_embedding_model()
 
     # Reset to prepare for a new container

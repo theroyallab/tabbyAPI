@@ -6,6 +6,7 @@ import socket
 import traceback
 from fastapi import Depends, HTTPException, Request
 from loguru import logger
+from common.logger import xlogger
 from pydantic import BaseModel
 from typing import Optional
 from uuid import uuid4
@@ -48,7 +49,7 @@ def handle_request_error(message: str, exc_info: bool = True):
 
     # Log the error and provided message to the console
     if trace and exc_info:
-        logger.error(trace)
+        xlogger.error(trace, {"message": message})
 
     logger.error(f"Sent to request: {message}")
 
@@ -58,7 +59,7 @@ def handle_request_error(message: str, exc_info: bool = True):
 def handle_request_disconnect(message: str):
     """Wrapper for handling for request disconnection."""
 
-    logger.error(message)
+    xlogger.error(message)
 
 
 async def request_disconnect_loop(request: Request):
@@ -125,7 +126,7 @@ async def log_request(request: Request):
 
             log_message.append(f"Body: {dict(body)}")
 
-    logger.info("\n".join(log_message))
+    xlogger.info("Request", dict(request), details = "\n".join(log_message))
 
 
 def get_global_depends():

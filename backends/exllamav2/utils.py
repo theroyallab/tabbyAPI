@@ -1,4 +1,4 @@
-from loguru import logger
+from common.logger import xlogger
 
 
 def exllama_disabled_flash_attn(no_flash_attn: bool):
@@ -11,6 +11,6 @@ def exllama_disabled_flash_attn(no_flash_attn: bool):
     )
 
     if no_flash_attn:
-        logger.warning(unsupported_message)
+        xlogger.warning(unsupported_message)
 
     return no_flash_attn

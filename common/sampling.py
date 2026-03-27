@@ -6,7 +6,7 @@ import pathlib
 from pydantic_core import ValidationError
 from ruamel.yaml import YAML
 from copy import deepcopy
-from loguru import logger
+from common.logger import xlogger
 from pydantic import (
     AliasChoices,
     BaseModel,
@@ -288,7 +288,7 @@ class BaseSamplerRequest(BaseModel):
         """Fixes instance if Top-K is -1."""
 
         if v == -1:
-            logger.warning("Provided a top-k value of -1. Converting to 0 instead.")
+            xlogger.warning("Provided a top-k value of -1. Converting to 0 instead.")
             return 0
 
         return v
@@ -321,7 +321,7 @@ class BaseSamplerRequest(BaseModel):
         try:
             return json.loads(v) if isinstance(v, str) else v
         except Exception:
-            logger.warning(
+            xlogger.warning(
                 "Could not parse DRY sequence breakers. Using an empty array."
             )
             return []  # Return empty list if parsing fails
@@ -374,7 +374,10 @@ async def overrides_from_file(preset_name: str):
             preset = yaml.load(contents)
             overrides_from_dict(preset)
 
-            logger.info("Applied sampler overrides from file.")
+            xlogger.info(
+                "Applied sampler overrides from file.",
+                {"preset": preset}
+            )
     else:
         error_message = (
             f'Sampler override file named "{preset_name}" was not found. '

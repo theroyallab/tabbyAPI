@@ -8,7 +8,7 @@ import asyncio
 import pathlib
 from asyncio import CancelledError
 from fastapi import HTTPException, Request
-from loguru import logger
+from common.logger import xlogger
 from typing import List, Optional, Union
 
 from common import model
@@ -141,7 +141,7 @@ async def load_inline_model(model_name: str, request: Request):
     # Also warn if an admin key is used
     if not config.model.inline_model_loading:
         if get_key_permission(request) == "admin":
-            logger.warning(
+            xlogger.warning(
                 f"Unable to switch model to {model_name} because "
                 '"inline_model_loading" is not True in config.yml.'
             )
@@ -171,8 +171,10 @@ async def load_inline_model(model_name: str, request: Request):
 
     # Skip if the model is a dummy
     if is_dummy_model:
-        logger.warning(f"Dummy model {model_name} provided. Skipping inline load.")
-
+        xlogger.warning(
+            f"Dummy model {str(model_name)} provided. "
+            f"Skipping inline load."
+        )
         return
 
     model_path = pathlib.Path(config.model.model_dir)
@@ -180,7 +182,7 @@ async def load_inline_model(model_name: str, request: Request):
 
     # Model path doesn't exist
     if not model_path.exists():
-        logger.warning(
+        xlogger.warning(
             f"Could not find model path {str(model_path)}. Skipping inline model load."
         )
 
@@ -204,7 +206,13 @@ async def stream_generate_completion(
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
 
     try:
-        logger.info(f"Received streaming completion request {request.state.id}")
+        xlogger.info(
+            f"Received streaming completion streaming request {request.state.id}",
+            {
+                "data": data.model_dump(mode="json"),
+                "model_path": str(model_path)
+            }
+        )
 
         for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
@@ -240,7 +248,7 @@ async def stream_generate_completion(
             # Check if all tasks are completed
             if all(task.done() for task in gen_tasks) and gen_queue.empty():
                 yield "[DONE]"
-                logger.info(f"Finished streaming completion request {request.state.id}")
+                xlogger.info(f"Finished streaming completion request {request.state.id}")
                 break
     except CancelledError:
         # Get out if the request gets disconnected
@@ -264,7 +272,13 @@ async def generate_completion(
     gen_tasks: List[asyncio.Task] = []
 
     try:
-        logger.info(f"Received completion request {request.state.id}")
+        xlogger.info(
+            f"Received completion request {request.state.id}",
+            {
+                "data": data.model_dump(mode="json"),
+                "model_path": str(model_path)
+            }
+        )
 
         for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
@@ -283,7 +297,7 @@ async def generate_completion(
         generations = await asyncio.gather(*gen_tasks)
         response = _create_response(request.state.id, generations, model_path.name)
 
-        logger.info(f"Finished completion request {request.state.id}")
+        xlogger.info(f"Finished completion request {request.state.id}")
 
         return response
     except Exception as exc:

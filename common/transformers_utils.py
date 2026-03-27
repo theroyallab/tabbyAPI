@@ -1,7 +1,7 @@
 import aiofiles
 import json
 import pathlib
-from loguru import logger
+from common.logger import xlogger
 from pydantic import BaseModel
 from typing import Dict, List, Optional, Set, Union
 
@@ -148,8 +148,9 @@ class HFModel:
             self.generation_config = await GenerationConfig.from_directory(
                 model_directory
             )
+            xlogger.verbose("Found generation config file in model directory")
         except Exception:
-            logger.warning(
+            xlogger.warning(
                 "Generation config file not found in model directory, skipping."
             )
 
@@ -157,8 +158,9 @@ class HFModel:
             self.tokenizer_config = await TokenizerConfig.from_directory(
                 model_directory
             )
+            xlogger.verbose("Found tokenizer config file in model directory")
         except Exception:
-            logger.warning(
+            xlogger.warning(
                 "Tokenizer config file not found in model directory, skipping."
             )
 

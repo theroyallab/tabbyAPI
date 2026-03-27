@@ -2,7 +2,7 @@
 
 import importlib.util
 from importlib.metadata import version as package_version
-from loguru import logger
+from common.logger import xlogger
 from packaging import version
 from pydantic import BaseModel, computed_field
 
@@ -71,7 +71,7 @@ def check_package_version(package_name: str, required_version_str: str):
     if current_version < required_version:
         raise RuntimeError(unsupported_message)
     else:
-        logger.info(f"{package_name} version: {current_version}")
+        xlogger.info(f"{package_name} version: {current_version}")
 
 
 dependencies = get_installed_deps()

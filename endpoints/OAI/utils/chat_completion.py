@@ -6,7 +6,7 @@ from asyncio import CancelledError
 from typing import List, Optional
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
-from loguru import logger
+from common.logger import xlogger
 import re
 
 from common import model
@@ -337,7 +337,7 @@ async def apply_chat_template(data: ChatCompletionRequest):
             if data.add_generation_prompt:
                 prompt += data.response_prefix
             else:
-                logger.warning(
+                xlogger.warning(
                     "Could not add response prefix because "
                     "add_generation_prompt is False"
                 )
@@ -386,7 +386,14 @@ async def stream_generate_chat_completion(
     disconnect_task = asyncio.create_task(request_disconnect_loop(request))
 
     try:
-        logger.info(f"Received chat completion streaming request {request.state.id}")
+        xlogger.info(
+            f"Received chat completion streaming request {request.state.id}",
+            {
+                "prompt": prompt,
+                "data": data.model_dump(mode="json"),
+                "model_path": str(model_path)
+            }
+        )
 
         for idx in range(0, data.n):
             task_gen_params = data.model_copy(deep=True)
@@ -474,7 +481,7 @@ async def stream_generate_chat_completion(
                     )
                     yield usage_chunk.model_dump_json()
 
-                logger.info(
+                xlogger.info(
                     f"Finished chat completion streaming request {request.state.id}"
                 )
 
@@ -503,7 +510,14 @@ async def generate_chat_completion(
     tool_start = model.container.prompt_template.metadata.tool_start
 
     try:
-        logger.info(f"Received chat completion request {request.state.id}")
+        xlogger.info(
+            f"Received chat completion streaming request {request.state.id}",
+            {
+                "prompt": prompt,
+                "data": data.model_dump(mode="json"),
+                "model_path": str(model_path)
+            }
+        )
 
         for idx in range(0, data.n):
             request_id = _parse_gen_request_id(data.n, request.state.id, idx)
@@ -529,7 +543,7 @@ async def generate_chat_completion(
 
         response = _create_response(request.state.id, generations, model_path.name)
 
-        logger.info(f"Finished chat completion request {request.state.id}")
+        xlogger.info(f"Finished chat completion request {request.state.id}")
 
         return response
     except Exception as exc:
@@ -564,7 +578,7 @@ async def generate_tool_calls(
         if gen["stop_str"] != tool_start:
             continue
 
-        logger.info(f"Detected tool call in chat completion request {request.state.id}")
+        xlogger.info(f"Detected tool call in chat completion request {request.state.id}")
 
         # Append the existing generation text if present
         precursor_text = gen.get("full_text")

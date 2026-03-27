@@ -1,7 +1,7 @@
 from backends.exllamav2.vision import get_image_embedding_exl2
 from backends.exllamav3.vision import get_image_embedding_exl3
 from common import model
-from loguru import logger
+from common.logger import xlogger
 from pydantic import BaseModel, Field
 from typing import List
 
@@ -42,4 +42,4 @@ class MultimodalEmbeddingWrapper(BaseModel):
             self.content.append(embedding)
             self.text_alias.append(embedding.text_alias)
         else:
-            logger.error("No valid vision model to create embedding")
+            xlogger.error("No valid vision model to create embedding")

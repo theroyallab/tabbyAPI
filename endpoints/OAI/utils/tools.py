@@ -1,5 +1,5 @@
 import json
-from loguru import logger
+from common.logger import xlogger
 from typing import List
 
 from endpoints.OAI.types.tools import ToolCall
@@ -60,7 +60,7 @@ class ToolCallProcessor:
             try:
                 dumped_tool_calls.append(tool_call_obj.model_dump())
             except (json.JSONDecodeError, AttributeError) as e:
-                logger.warning(f"Error processing tool call: {e}")
+                xlogger.warning(f"Error processing tool call:", str(e), details=str(e))
         return dumped_tool_calls
 
     @staticmethod

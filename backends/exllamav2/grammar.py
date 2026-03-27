@@ -10,7 +10,7 @@ from formatron.extractor import NonterminalExtractor
 from formatron.formatter import FormatterBuilder
 from formatron.integrations.exllamav2 import FormatterFilter, create_engine_vocabulary
 from formatron.schemas import json_schema
-from loguru import logger
+from common.logger import xlogger
 
 
 class ExLlamaV2Grammar:
@@ -43,9 +43,10 @@ class ExLlamaV2Grammar:
             f.append_line(f"{f.json(schema)}")
         except Exception:
             traceback.print_exc()
-            logger.error(
+            xlogger.error(
                 "Skipping because the JSON schema couldn't be parsed. "
-                "Please read the above error for more information."
+                "Please read the above error for more information.",
+                { "schema": schema, "exception": traceback.format_exc() }
             )
 
             return
@@ -70,9 +71,10 @@ class ExLlamaV2Grammar:
             f.append_line(f"{f.regex(pattern)}")
         except Exception:
             traceback.print_exc()
-            logger.error(
+            xlogger.error(
                 "Skipping because the regex pattern couldn't be parsed. "
-                "Please read the above error for more information."
+                "Please read the above error for more information.",
+                { "pattern": pattern, "exception": traceback.format_exc() }
             )
 
             return
@@ -102,9 +104,10 @@ class ExLlamaV2Grammar:
                 }"""
             )
         except Exception:
-            logger.error(
+            xlogger.error(
                 "Skipping because the KBNF string couldn't be parsed. "
-                "Please read the above error for more information."
+                "Please read the above error for more information.",
+                { "kbnf_string": kbnf_string, "exception": traceback.format_exc() }
             )
 
             return

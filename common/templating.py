@@ -11,7 +11,7 @@ from typing import List, Optional
 from jinja2 import Template, TemplateError
 from jinja2.ext import loopcontrols
 from jinja2.sandbox import ImmutableSandboxedEnvironment
-from loguru import logger
+from common.logger import xlogger
 from packaging import version
 
 
@@ -67,7 +67,7 @@ class PromptTemplate:
             if isinstance(template_module.stop_strings, list):
                 template_metadata.stop_strings += template_module.stop_strings
             else:
-                logger.warning(
+                xlogger.warning(
                     "Skipping append of stopping strings from chat template "
                     "because stop_strings isn't a list."
                 )
@@ -215,7 +215,7 @@ def find_template_from_model(model_path: pathlib.Path):
 async def find_prompt_template(template_name, model_dir: pathlib.Path):
     """Tries to find a prompt template using various methods."""
 
-    logger.info("Attempting to load a prompt template if present.")
+    xlogger.info("Attempting to load a prompt template if present.")
 
     find_template_functions = [
         lambda: PromptTemplate.from_file(model_dir / "chat_template.jinja"),
@@ -256,12 +256,18 @@ async def find_prompt_template(template_name, model_dir: pathlib.Path):
             if prompt_template is not None:
                 return prompt_template
         except TemplateLoadError as e:
-            logger.warning(f"TemplateLoadError: {str(e)}")
+            xlogger.warning(
+                f"TemplateLoadError",
+                {"exception": str(e)},
+                details = f"{str(e)}"
+            )
             continue
         except Exception:
-            logger.error(traceback.format_exc())
-            logger.warning(
+            xlogger.error(traceback.format_exc())
+            xlogger.warning(
                 "An unexpected error happened when trying to load the template. "
                 "Trying other methods."
             )
             continue
+
+    return None

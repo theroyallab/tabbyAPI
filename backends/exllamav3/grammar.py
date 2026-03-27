@@ -8,7 +8,7 @@ from exllamav3 import (
 )
 from formatron.formatter import FormatterBuilder
 from formatron.schemas import json_schema
-from loguru import logger
+from common.logger import xlogger
 
 
 class ExLlamaV3Grammar:
@@ -39,9 +39,10 @@ class ExLlamaV3Grammar:
             schema = json_schema.create_schema(schema)
         except Exception:
             traceback.print_exc()
-            logger.error(
+            xlogger.error(
                 "Skipping because the JSON schema couldn't be parsed. "
-                "Please read the above error for more information."
+                "Please read the above error for more information.",
+                { "schema": schema, "exception": traceback.format_exc() }
             )
             return
 

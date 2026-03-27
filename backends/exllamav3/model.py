@@ -36,6 +36,7 @@ from common.gen_logging import (
 )
 from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
+from common.logger import xlogger
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.optional_dependencies import check_package_version
 from common.sampling import BaseSamplerRequest
@@ -104,6 +105,19 @@ class ExllamaV3Container(BaseModelContainer):
             An instance of the implementing class.
         """
 
+        _hf = hf_model.hf_config
+        _tok = hf_model.tokenizer_config
+        _gen = hf_model.generation_config
+        xlogger.verbose(
+            "Creating ExLlamaV3 model instance",
+            {
+                "kwargs": kwargs,
+                "hf_config": _hf.model_dump(mode="json") if _hf else {},
+                "tokenizer_config": _tok.model_dump(mode="json") if _tok else {},
+                "generation_config": _gen.model_dump(mode="json") if _gen else {},
+            }
+        )
+
         self = cls()
 
         # Make sure ExllamaV3 is up to date
@@ -122,14 +136,14 @@ class ExllamaV3Container(BaseModelContainer):
             if "vision" in self.config.model_classes:
                 self.vision_model = Model.from_config(self.config, component="vision")
             else:
-                logger.warning(
+                xlogger.warning(
                     "The provided model does not have vision capabilities that are "
                     "supported by ExllamaV3. Vision input is disabled."
                 )
                 self.use_vision = False
         else:
             if "vision" in self.config.model_classes:
-                logger.info(
+                xlogger.info(
                     "The provided model has vision capabilities, vision is disabled "
                     "in config."
                 )
@@ -141,7 +155,7 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Always disable draft if params are incorrectly configured
         if draft_args and draft_model_name is None:
-            logger.warning(
+            xlogger.warning(
                 "Draft model is disabled because a model name "
                 "wasn't provided. Please check your config.yml!"
             )
@@ -156,7 +170,7 @@ class ExllamaV3Container(BaseModelContainer):
             self.draft_model_dir = draft_model_path
             self.draft_config = Config.from_directory(str(draft_model_path.resolve()))
             self.draft_model = Model.from_config(self.draft_config)
-            logger.info(f"Using draft model: {str(draft_model_path.resolve())}")
+            xlogger.info(f"Using draft model: {str(draft_model_path.resolve())}")
         else:
             self.draft_model = None
             self.draft_cache = None
@@ -171,7 +185,7 @@ class ExllamaV3Container(BaseModelContainer):
         # Set GPU split options
         if gpu_count == 1:
             self.gpu_split_auto = False
-            logger.info("Disabling GPU split because one GPU is in use.")
+            xlogger.info("Disabling GPU split because one GPU is in use.")
         else:
             # Set tensor parallel
             if use_tp:
@@ -182,7 +196,7 @@ class ExllamaV3Container(BaseModelContainer):
                     unsupported_message = (
                         "NCCL is not available. Falling back to native backend."
                     )
-                    logger.warning(unsupported_message)
+                    xlogger.warning(unsupported_message)
                     tp_backend = "native"
 
                 self.tp_backend = tp_backend
@@ -226,7 +240,7 @@ class ExllamaV3Container(BaseModelContainer):
                 "(30 series) or newer. AMD GPUs are not supported."
             )
 
-            logger.warning(gpu_unsupported_message)
+            xlogger.warning(gpu_unsupported_message)
 
             raise RuntimeError(gpu_unsupported_message)
 
@@ -238,15 +252,15 @@ class ExllamaV3Container(BaseModelContainer):
         max_seq_len_default = 8192
 
         if max_seq_len_model and not max_seq_len_user:
-            logger.info(
+            xlogger.info(
                 f"Using default max_seq_len from model: {max_seq_len_model} tokens."
             )
             max_seq_len = max_seq_len_model
         elif max_seq_len_user:
-            logger.info(f"Using configured max_seq_len: {max_seq_len_user} tokens.")
+            xlogger.info(f"Using configured max_seq_len: {max_seq_len_user} tokens.")
             max_seq_len = max_seq_len_user
         else:
-            logger.warning(
+            xlogger.warning(
                 f"max_seq_len is undefined. Defaulting to {max_seq_len_default} tokens."
             )
             max_seq_len = max_seq_len_default
@@ -255,17 +269,17 @@ class ExllamaV3Container(BaseModelContainer):
         cache_size_default = max_seq_len
 
         if cache_size_user:
-            logger.info(f"Using configured cache_size: {cache_size_user} tokens.")
+            xlogger.info(f"Using configured cache_size: {cache_size_user} tokens.")
             cache_size = cache_size_user
         else:
-            logger.warning(
+            xlogger.warning(
                 f"cache_size is undefined. Defaulting to {cache_size_default} tokens. "
                 f"You should ideally configure cache_size explicitly."
             )
             cache_size = cache_size_default
 
         if max_seq_len > cache_size:
-            logger.warning(
+            xlogger.warning(
                 f"The given max_seq_len ({max_seq_len}) is larger than the cache size "
                 f"and will be limited to {cache_size} tokens."
             )
@@ -305,11 +319,12 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Catch all for template lookup errors
         if self.prompt_template:
-            logger.info(
-                f'Using template "{self.prompt_template.name}" for chat completions.'
+            xlogger.info(
+                f'Using template "{self.prompt_template.name}" for chat completions.',
+                {"raw": self.prompt_template.raw_template}
             )
         else:
-            logger.warning(
+            xlogger.warning(
                 "Chat completions are disabled because a prompt "
                 "template wasn't provided or auto-detected."
             )
@@ -327,7 +342,7 @@ class ExllamaV3Container(BaseModelContainer):
         cache_remainder = cache_size % 256
         if cache_remainder != 0:
             rounded_cache_size = int(256 * ((cache_size - cache_remainder) / 256 + 1))
-            logger.warning(
+            xlogger.warning(
                 f"The given cache size ({cache_size}) is "
                 "not a multiple of 256.\n"
                 "Overriding cache_size with an overestimated value of "
@@ -342,7 +357,7 @@ class ExllamaV3Container(BaseModelContainer):
         chunk_size = max(256, user_chunk_size)
         rounded_chunk_size = (chunk_size + 255) // 256 * 256
         if chunk_size != rounded_chunk_size:
-            logger.warning(
+            xlogger.warning(
                 f"The given chunk size ({chunk_size}) is "
                 "not a multiple of 256.\n"
                 "Overriding chunk_size with an overestimated value of "
@@ -421,7 +436,7 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Immediately abort all jobs if asked
         if skip_wait:
-            logger.warning(
+            xlogger.warning(
                 "Immediately terminating all jobs. "
                 "Clients will have their requests cancelled.\n"
             )
@@ -477,7 +492,7 @@ class ExllamaV3Container(BaseModelContainer):
 
             # Cleanup and update model load state
             self.loaded = True
-            logger.info("Model successfully loaded.")
+            xlogger.info("Model successfully loaded.")
         finally:
             self.load_lock.release()
 
@@ -502,14 +517,14 @@ class ExllamaV3Container(BaseModelContainer):
                 if value:
                     yield value
 
-        logger.info("Loading model: " + str(self.model_dir))
+        xlogger.info("Loading model: " + str(self.model_dir))
 
         if self.use_tp:
-            logger.info("Loading with tensor parallel")
+            xlogger.info("Loading with tensor parallel")
         elif self.gpu_split_auto:
-            logger.info("Loading with autosplit")
+            xlogger.info("Loading with autosplit")
         else:
-            logger.info("Loading with a manual GPU split (or a one GPU setup)")
+            xlogger.info("Loading with a manual GPU split (or a one GPU setup)")
 
         for value in self.model.load_gen(
             tensor_p=self.use_tp,
@@ -601,7 +616,7 @@ class ExllamaV3Container(BaseModelContainer):
             gc.collect()
             torch.cuda.empty_cache()
 
-            logger.info("Model unloaded.")
+            xlogger.info("Model unloaded.")
         finally:
             if not do_shutdown:
                 self.load_lock.release()
@@ -899,6 +914,11 @@ class ExllamaV3Container(BaseModelContainer):
         """
         chunk_tokens: torch.Tensor | tuple[torch.Tensor, torch.Tensor]
 
+        xlogger.verbose(
+            f"Starting generation, ID: {request_id}",
+            {"request_id": request_id, "params": params.model_dump(mode="json")}
+        )
+
         sampler_builder = ExllamaV3SamplerBuilder()
 
         # Penalties
@@ -1062,6 +1082,7 @@ class ExllamaV3Container(BaseModelContainer):
                     yield generation
 
                 if result.get("eos"):
+                    xlogger.verbose("EOS result received from generator", result)
                     finish_chunk = self.handle_finish_chunk(
                         result, request_id, full_response
                     )
@@ -1079,10 +1100,11 @@ class ExllamaV3Container(BaseModelContainer):
         except Exception as ex:
             # Create a new generator since the current state is broken
             # No need to wait for this to finish
-            logger.error(
+            xlogger.error(
                 "FATAL ERROR with generation. "
                 "Attempting to recreate the generator. "
-                "If this fails, please restart the server.\n"
+                "If this fails, please restart the server.\n",
+                {"exception": str(ex)}
             )
             asyncio.ensure_future(self.create_generator())
 

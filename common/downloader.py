@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from huggingface_hub import HfApi, hf_hub_url
 from huggingface_hub.hf_api import RepoFile
 from fnmatch import fnmatch
-from loguru import logger
+from common.logger import xlogger
 from rich.progress import Progress
 from typing import List, Optional
 
@@ -162,13 +162,13 @@ async def hf_repo_download(
 
     download_path.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Saving {repo_id} to {str(download_path)}")
+    xlogger.info(f"Saving {repo_id} to {str(download_path)}")
 
     try:
         client_timeout = aiohttp.ClientTimeout(total=timeout)  # Turn off timeout
         async with aiohttp.ClientSession(timeout=client_timeout) as session:
             tasks = []
-            logger.info(f"Starting download for {repo_id}")
+            xlogger.info(f"Starting download for {repo_id}")
 
             progress = get_progress_bar()
             progress.start()
@@ -187,7 +187,7 @@ async def hf_repo_download(
 
             await asyncio.gather(*tasks)
             progress.stop()
-            logger.info(f"Finished download for {repo_id}")
+            xlogger.info(f"Finished download for {repo_id}")
 
             return download_path
     except (asyncio.CancelledError, Exception) as exc:
