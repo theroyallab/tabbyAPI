@@ -7,6 +7,7 @@ from typing import List, Optional
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
 from loguru import logger
+import re
 
 from common import model
 from common.multimodal import MultimodalEmbeddingWrapper
@@ -59,11 +60,26 @@ def _start_in_reasoning_mode(prompt: str) -> bool:
     - the system prompt may contain instructions mentioning both tags
     - templates that force-disable thinking may force <think> </think> in the response
     - templates that force-enable thinking may force just <think>
-    Best guess: count if there is one more instance of <think> than </think>."""
-    # TODO: Try to find a more robust solution
-    num_start_tokens = prompt.count(model.container.reasoning_start_token)
-    num_end_tokens = prompt.count(model.container.reasoning_end_token)
-    return num_start_tokens == num_end_tokens + 1
+    Best guess: check if the last occurrence of either is <think>, and not much text
+    and no other <> tags follow it."""
+    _think_prefix_max_chars = 256  # Arbitrary hard-cutoff threshold
+    _tags_max_length = 32
+
+    st = model.container.reasoning_start_token
+    et = model.container.reasoning_end_token
+    last_st = prompt.rfind(st)  # or -1
+    last_et = prompt.rfind(et)  # or -1
+    if last_st <= last_et:
+        return False
+    i = last_st + len(st)
+    if len(prompt) - i > _think_prefix_max_chars:
+        return False
+    char_op = st[:1]
+    char_cl = st[-1:]
+    tags_pattern = char_op + r"\S{1," + str(_tags_max_length - 2) + r"}" + char_cl
+    if re.search(tags_pattern, prompt[i:]):
+        return False
+    return True
 
 
 def _create_response(
@@ -394,9 +410,8 @@ async def stream_generate_chat_completion(
         current_generation_text = ""
 
         # Determine if we're streaming content or reasoning_content to start with
-        is_reasoning_chunk = (
-            model.container.reasoning and
-            _start_in_reasoning_mode(prompt)
+        is_reasoning_chunk = model.container.reasoning and _start_in_reasoning_mode(
+            prompt
         )
 
         # Consumer loop
