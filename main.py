@@ -17,7 +17,7 @@ from common import gen_logging, sampling, model
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
 from common.actions import run_subcommand
-from common.logger import setup_logger
+from common.logger import setup_logger, xlogger
 from common.networking import is_port_in_use
 from common.optional_dependencies import dependencies
 from common.signals import signal_handler
@@ -130,6 +130,13 @@ def entrypoint(
 
     # load config
     config.load(dict_args)
+
+    # optionally enable seqlog logging
+    if config.developer.seqlog:
+        xlogger.setup(
+            seqlog_url=config.developer.seqlog_server_url,
+            api_key=config.developer.seqlog_api_key,
+        )
 
     # branch to default paths if required
     if run_subcommand(args):

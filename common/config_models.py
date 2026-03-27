@@ -463,6 +463,20 @@ class DeveloperConfig(BaseConfigModel):
             "Otherwise, the priority will be set to high."
         ),
     )
+    seqlog: Optional[bool] = Field(
+        False,
+        description=(
+            "Enable extremely verbose seqlog logging, requires a running Seq server"
+        ),
+    )
+    seqlog_server_url: Optional[str] = Field(
+        "http://localhost:5341",
+        description=("Seq server url:port"),
+    )
+    seqlog_api_key: Optional[str] = Field(
+        None,
+        description=("Seq server API key (default: None)"),
+    )
 
 
 class TabbyConfigModel(BaseModel):

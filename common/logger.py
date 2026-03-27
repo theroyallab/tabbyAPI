@@ -4,6 +4,9 @@ Internal logging utility.
 
 import logging
 import os
+import requests
+import json
+from datetime import datetime, timezone
 
 from loguru import logger
 from rich.console import Console
@@ -126,3 +129,104 @@ def setup_logger():
         retention="1 week",  # Keep logs for 1 week
         compression="zip",  # Compress rotated log
     )
+
+
+"""
+Extended logging via Seq.
+"""
+
+
+class XLogger:
+    def __init__(self):
+        self.seqlog_url = None
+        self.headers = {}
+        self.enabled = False
+
+    def _get_timestamp_now(self):
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def setup(
+        self, seqlog_url: str = "http://localhost:5341", api_key: str | None = None
+    ):
+        self.seqlog_url = seqlog_url.rstrip("/")
+        self.headers = {"Content-Type": "application/vnd.serilog.clef"}
+        if api_key:
+            self.headers["X-Seq-ApiKey"] = api_key
+
+        # Check if seqlog is reachable
+        try:
+            r = requests.post(
+                self.seqlog_url + "/ingest/clef",
+                data=(
+                    f'{{"@t":"{self._get_timestamp_now()}",'
+                    f'"@m":"TabbyAPI startup probe"}}\n'
+                ),
+                headers=self.headers,
+                timeout=2,
+            )
+            r.raise_for_status()
+        except requests.RequestException as e:
+            logger.info(
+                f"Failed to initialize seqlog handler for server at "
+                f"{self.seqlog_url}: {e}"
+                f"seqlog logging is disabled."
+            )
+            return
+
+        self.enabled = True
+        logger.info(f"Enabled logging to seqlog instance at {self.seqlog_url}")
+
+    def _commit(self, log_level: str, log_message: str, log_extra: dict):
+        if not self.enabled:
+            return
+
+        try:
+            if log_extra is None:
+                log_extra = {}
+            elif not isinstance(log_extra, dict):
+                log_extra = {"extra": str(log_extra)}
+            event = {
+                "@t": self._get_timestamp_now(),
+                "@m": log_message,
+                "@l": log_level,
+                **log_extra,
+            }
+            try:
+                data = json.dumps(event, default = str) + "\n"
+            except Exception as e:
+                data = "## Failed to serialize log data: " + str(e)
+            r = requests.post(
+                self.seqlog_url + "/ingest/clef",
+                data = data,
+                headers=self.headers,
+                timeout=2,
+            )
+            r.raise_for_status()
+        except requests.RequestException as e:
+            logger.warning(f"Failed to write log event to Seq, logging disabled: {e}")
+            self.enabled = False
+
+    def _compose(self, log_message, details):
+        return (log_message + " " + details) if details else log_message
+
+    def verbose(self, log_message: str, log_extra: dict | None = None, details: str | None = None):
+        self._commit("Verbose", log_message, log_extra)
+
+    def debug(self, log_message: str, log_extra: dict | None = None, details: str | None = None):
+        logger.debug(self._compose(log_message, details))
+        self._commit("Debug", log_message, log_extra)
+
+    def info(self, log_message: str, log_extra: dict | None = None, details: str | None = None):
+        logger.info(self._compose(log_message, details))
+        self._commit("Information", log_message, log_extra)
+
+    def warning(self, log_message: str, log_extra: dict | None = None, details: str | None = None):
+        logger.warning(self._compose(log_message, details))
+        self._commit("Warning", log_message, log_extra)
+
+    def error(self, log_message: str, log_extra: dict | None = None, details: str | None = None):
+        logger.error(self._compose(log_message, details))
+        self._commit("Error", log_message, log_extra)
+
+
+xlogger = XLogger()

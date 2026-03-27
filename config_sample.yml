@@ -244,3 +244,12 @@ developer:
   # For realtime process priority, run as administrator or sudo.
   # Otherwise, the priority will be set to high.
   realtime_process_priority: false
+
+  # Enable extremely verbose seqlog logging, requires a running Seq server
+  seqlog: false
+
+  # Seq server url:port
+  seqlog_server_url: http://localhost:5341
+
+  # Seq server API key (default: None)
+  seqlog_api_key:
