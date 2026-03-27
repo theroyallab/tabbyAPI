@@ -20,7 +20,7 @@ from rich.progress import (
 from common.utils import unwrap
 
 _w = os.getenv("TABBY_LOG_CONSOLE_WIDTH")
-_default_console_width = int(_w) if _w.isnumeric() else None
+_default_console_width = int(_w) if _w is not None and _w.isnumeric() else None
 RICH_CONSOLE = Console(width=_default_console_width)
 LOG_LEVEL = os.getenv("TABBY_LOG_LEVEL", "INFO")
 

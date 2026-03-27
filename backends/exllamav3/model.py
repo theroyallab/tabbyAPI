@@ -927,7 +927,9 @@ class ExllamaV3Container(BaseModelContainer):
             params.frequency_penalty,
             params.presence_penalty,
             penalty_range,
-            max(repetition_decay, 1),  # TODO: Allow decay = 0 when exl3 kernel fix is pushed (v0.0.27)
+            max(
+                repetition_decay, 1
+            ),  # TODO: Allow decay = 0 when exl3 kernel fix is pushed (v0.0.27)
         )
 
         # Apply temperature first to builder
