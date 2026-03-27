@@ -60,7 +60,7 @@ class ToolCallProcessor:
             try:
                 dumped_tool_calls.append(tool_call_obj.model_dump())
             except (json.JSONDecodeError, AttributeError) as e:
-                xlogger.warning(f"Error processing tool call:", str(e), details=str(e))
+                xlogger.warning("Error processing tool call:", str(e), details=str(e))
         return dumped_tool_calls
 
     @staticmethod

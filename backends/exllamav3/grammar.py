@@ -42,7 +42,7 @@ class ExLlamaV3Grammar:
             xlogger.error(
                 "Skipping because the JSON schema couldn't be parsed. "
                 "Please read the above error for more information.",
-                { "schema": schema, "exception": traceback.format_exc() }
+                {"schema": schema, "exception": traceback.format_exc()},
             )
             return
 

@@ -46,7 +46,7 @@ class ExLlamaV2Grammar:
             xlogger.error(
                 "Skipping because the JSON schema couldn't be parsed. "
                 "Please read the above error for more information.",
-                { "schema": schema, "exception": traceback.format_exc() }
+                {"schema": schema, "exception": traceback.format_exc()},
             )
 
             return
@@ -74,7 +74,7 @@ class ExLlamaV2Grammar:
             xlogger.error(
                 "Skipping because the regex pattern couldn't be parsed. "
                 "Please read the above error for more information.",
-                { "pattern": pattern, "exception": traceback.format_exc() }
+                {"pattern": pattern, "exception": traceback.format_exc()},
             )
 
             return
@@ -107,7 +107,7 @@ class ExLlamaV2Grammar:
             xlogger.error(
                 "Skipping because the KBNF string couldn't be parsed. "
                 "Please read the above error for more information.",
-                { "kbnf_string": kbnf_string, "exception": traceback.format_exc() }
+                {"kbnf_string": kbnf_string, "exception": traceback.format_exc()},
             )
 
             return

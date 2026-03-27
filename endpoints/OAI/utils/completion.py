@@ -172,8 +172,7 @@ async def load_inline_model(model_name: str, request: Request):
     # Skip if the model is a dummy
     if is_dummy_model:
         xlogger.warning(
-            f"Dummy model {str(model_name)} provided. "
-            f"Skipping inline load."
+            f"Dummy model {str(model_name)} provided. Skipping inline load."
         )
         return
 
@@ -208,10 +207,7 @@ async def stream_generate_completion(
     try:
         xlogger.info(
             f"Received streaming completion streaming request {request.state.id}",
-            {
-                "data": data.model_dump(mode="json"),
-                "model_path": str(model_path)
-            }
+            {"data": data.model_dump(mode="json"), "model_path": str(model_path)},
         )
 
         for idx in range(0, data.n):
@@ -248,7 +244,9 @@ async def stream_generate_completion(
             # Check if all tasks are completed
             if all(task.done() for task in gen_tasks) and gen_queue.empty():
                 yield "[DONE]"
-                xlogger.info(f"Finished streaming completion request {request.state.id}")
+                xlogger.info(
+                    f"Finished streaming completion request {request.state.id}"
+                )
                 break
     except CancelledError:
         # Get out if the request gets disconnected
@@ -274,10 +272,7 @@ async def generate_completion(
     try:
         xlogger.info(
             f"Received completion request {request.state.id}",
-            {
-                "data": data.model_dump(mode="json"),
-                "model_path": str(model_path)
-            }
+            {"data": data.model_dump(mode="json"), "model_path": str(model_path)},
         )
 
         for idx in range(0, data.n):

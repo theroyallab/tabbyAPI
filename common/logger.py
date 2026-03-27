@@ -192,12 +192,12 @@ class XLogger:
                 **log_extra,
             }
             try:
-                data = json.dumps(event, default = str) + "\n"
+                data = json.dumps(event, default=str) + "\n"
             except Exception as e:
                 data = "## Failed to serialize log data: " + str(e)
             r = requests.post(
                 self.seqlog_url + "/ingest/clef",
-                data = data,
+                data=data,
                 headers=self.headers,
                 timeout=2,
             )
@@ -209,22 +209,47 @@ class XLogger:
     def _compose(self, log_message, details):
         return (log_message + " " + details) if details else log_message
 
-    def verbose(self, log_message: str, log_extra: dict | None = None, details: str | None = None):
+    def verbose(
+        self,
+        log_message: str,
+        log_extra: dict | None = None,
+        details: str | None = None,
+    ):
         self._commit("Verbose", log_message, log_extra)
 
-    def debug(self, log_message: str, log_extra: dict | None = None, details: str | None = None):
+    def debug(
+        self,
+        log_message: str,
+        log_extra: dict | None = None,
+        details: str | None = None,
+    ):
         logger.debug(self._compose(log_message, details))
         self._commit("Debug", log_message, log_extra)
 
-    def info(self, log_message: str, log_extra: dict | None = None, details: str | None = None):
+    def info(
+        self,
+        log_message: str,
+        log_extra: dict | None = None,
+        details: str | None = None,
+    ):
         logger.info(self._compose(log_message, details))
         self._commit("Information", log_message, log_extra)
 
-    def warning(self, log_message: str, log_extra: dict | None = None, details: str | None = None):
+    def warning(
+        self,
+        log_message: str,
+        log_extra: dict | None = None,
+        details: str | None = None,
+    ):
         logger.warning(self._compose(log_message, details))
         self._commit("Warning", log_message, log_extra)
 
-    def error(self, log_message: str, log_extra: dict | None = None, details: str | None = None):
+    def error(
+        self,
+        log_message: str,
+        log_extra: dict | None = None,
+        details: str | None = None,
+    ):
         logger.error(self._compose(log_message, details))
         self._commit("Error", log_message, log_extra)
 

@@ -22,7 +22,6 @@ from exllamav3 import (
 )
 from exllamav3.cache import CacheLayer_quant
 from backends.exllamav3.grammar import ExLlamaV3Grammar
-from loguru import logger
 
 from backends.base_model_container import BaseModelContainer
 from backends.exllamav3.sampler import ExllamaV3SamplerBuilder
@@ -115,7 +114,7 @@ class ExllamaV3Container(BaseModelContainer):
                 "hf_config": _hf.model_dump(mode="json") if _hf else {},
                 "tokenizer_config": _tok.model_dump(mode="json") if _tok else {},
                 "generation_config": _gen.model_dump(mode="json") if _gen else {},
-            }
+            },
         )
 
         self = cls()
@@ -321,7 +320,7 @@ class ExllamaV3Container(BaseModelContainer):
         if self.prompt_template:
             xlogger.info(
                 f'Using template "{self.prompt_template.name}" for chat completions.',
-                {"raw": self.prompt_template.raw_template}
+                {"raw": self.prompt_template.raw_template},
             )
         else:
             xlogger.warning(
@@ -916,7 +915,7 @@ class ExllamaV3Container(BaseModelContainer):
 
         xlogger.verbose(
             f"Starting generation, ID: {request_id}",
-            {"request_id": request_id, "params": params.model_dump(mode="json")}
+            {"request_id": request_id, "params": params.model_dump(mode="json")},
         )
 
         sampler_builder = ExllamaV3SamplerBuilder()
@@ -1104,7 +1103,7 @@ class ExllamaV3Container(BaseModelContainer):
                 "FATAL ERROR with generation. "
                 "Attempting to recreate the generator. "
                 "If this fails, please restart the server.\n",
-                {"exception": str(ex)}
+                {"exception": str(ex)},
             )
             asyncio.ensure_future(self.create_generator())
 

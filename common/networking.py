@@ -126,7 +126,7 @@ async def log_request(request: Request):
 
             log_message.append(f"Body: {dict(body)}")
 
-    xlogger.info("Request", dict(request), details = "\n".join(log_message))
+    xlogger.info("Request", dict(request), details="\n".join(log_message))
 
 
 def get_global_depends():

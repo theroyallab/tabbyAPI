@@ -126,7 +126,7 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
             "model_inline_config": model_inline_config,
             "overrides": overrides,
             "merged_kwargs": merged_kwargs,
-        }
+        },
     )
     return merged_kwargs
 

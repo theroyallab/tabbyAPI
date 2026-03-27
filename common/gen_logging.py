@@ -26,7 +26,7 @@ def broadcast_status():
 def log_generation_params(**kwargs):
     """Logs generation parameters to console."""
     if config.logging.log_generation_params:
-        xlogger.info(f"Generation options:", kwargs, details = f"{kwargs}\n")
+        xlogger.info("Generation options:", kwargs, details=f"{kwargs}\n")
 
 
 def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str] = None):
@@ -40,10 +40,11 @@ def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str] = No
 
         if negative_prompt:
             xlogger.info(
-                f"Negative Prompt:",
+                "Negative Prompt:",
                 {"negative_prompt": negative_prompt},
                 details=f"\n{negative_prompt}\n",
             )
+
 
 def log_response(request_id: str, response: str):
     """Logs the response to console."""
@@ -51,7 +52,7 @@ def log_response(request_id: str, response: str):
         xlogger.info(
             f"Response (ID: {request_id}):",
             {"response": response},
-            details = f"\n{response if response else 'Empty'}\n",
+            details=f"\n{response if response else 'Empty'}\n",
         )
 
 
@@ -95,10 +96,10 @@ def log_metrics(
             "new_tokens": prompt_tokens - cached_tokens,
             "cached_tokens": cached_tokens,
             "prompt_tokens": prompt_tokens,
-            "prompt_tokens_per_second": metrics.get('prompt_tokens_per_sec'),
-            "gen_tokens_per_second": metrics.get('gen_tokens_per_sec'),
+            "prompt_tokens_per_second": metrics.get("prompt_tokens_per_sec"),
+            "gen_tokens_per_second": metrics.get("gen_tokens_per_sec"),
             "context_len": context_len,
             "max_seq_len": max_seq_len,
         },
-        details = "(" + ", ".join(itemization) + ") " + " ".join(extra_parts)
+        details="(" + ", ".join(itemization) + ") " + " ".join(extra_parts),
     )

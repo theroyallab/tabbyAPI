@@ -374,10 +374,7 @@ async def overrides_from_file(preset_name: str):
             preset = yaml.load(contents)
             overrides_from_dict(preset)
 
-            xlogger.info(
-                "Applied sampler overrides from file.",
-                {"preset": preset}
-            )
+            xlogger.info("Applied sampler overrides from file.", {"preset": preset})
     else:
         error_message = (
             f'Sampler override file named "{preset_name}" was not found. '

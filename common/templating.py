@@ -257,9 +257,7 @@ async def find_prompt_template(template_name, model_dir: pathlib.Path):
                 return prompt_template
         except TemplateLoadError as e:
             xlogger.warning(
-                f"TemplateLoadError",
-                {"exception": str(e)},
-                details = f"{str(e)}"
+                "TemplateLoadError", {"exception": str(e)}, details=f"{str(e)}"
             )
             continue
         except Exception:

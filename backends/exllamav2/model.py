@@ -24,7 +24,6 @@ from exllamav2.generator import (
     ExLlamaV2DynamicJobAsync,
 )
 from itertools import zip_longest
-from loguru import logger
 from typing import Dict, List, Optional
 
 from backends.base_model_container import BaseModelContainer
@@ -120,7 +119,7 @@ class ExllamaV2Container(BaseModelContainer):
                 "hf_config": _hf.model_dump(mode="json") if _hf else {},
                 "tokenizer_config": _tok.model_dump(mode="json") if _tok else {},
                 "generation_config": _gen.model_dump(mode="json") if _gen else {},
-            }
+            },
         )
 
         # Create a new instance as a "fake self"
@@ -314,7 +313,7 @@ class ExllamaV2Container(BaseModelContainer):
         if self.prompt_template:
             xlogger.info(
                 f'Using template "{self.prompt_template.name}" for chat completions.',
-                {"raw": self.prompt_template.raw_template}
+                {"raw": self.prompt_template.raw_template},
             )
         else:
             xlogger.warning(
@@ -1490,7 +1489,7 @@ class ExllamaV2Container(BaseModelContainer):
                 "FATAL ERROR with generation. "
                 "Attempting to recreate the generator. "
                 "If this fails, please restart the server.\n",
-                {"exception": str(ex)}
+                {"exception": str(ex)},
             )
             asyncio.ensure_future(self.create_generator())
 

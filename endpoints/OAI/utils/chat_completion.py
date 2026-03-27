@@ -391,8 +391,8 @@ async def stream_generate_chat_completion(
             {
                 "prompt": prompt,
                 "data": data.model_dump(mode="json"),
-                "model_path": str(model_path)
-            }
+                "model_path": str(model_path),
+            },
         )
 
         for idx in range(0, data.n):
@@ -515,8 +515,8 @@ async def generate_chat_completion(
             {
                 "prompt": prompt,
                 "data": data.model_dump(mode="json"),
-                "model_path": str(model_path)
-            }
+                "model_path": str(model_path),
+            },
         )
 
         for idx in range(0, data.n):
@@ -578,7 +578,9 @@ async def generate_tool_calls(
         if gen["stop_str"] != tool_start:
             continue
 
-        xlogger.info(f"Detected tool call in chat completion request {request.state.id}")
+        xlogger.info(
+            f"Detected tool call in chat completion request {request.state.id}"
+        )
 
         # Append the existing generation text if present
         precursor_text = gen.get("full_text")
