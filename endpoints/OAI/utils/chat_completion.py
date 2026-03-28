@@ -84,6 +84,21 @@ def _start_in_reasoning_mode(prompt: str) -> bool:
     return True
 
 
+def _serialize_stream_chunk(chunk) -> str:
+    """Serialize a streaming chunk with OpenAI-compatible field handling.
+
+    Uses exclude_none=True to strip irrelevant null fields (tool_calls,
+    tool_call_id, logprobs, usage) while ensuring finish_reason is always
+    present on each choice (as null when not set), matching OpenAI's
+    observed streaming behavior.
+    """
+    d = chunk.model_dump(exclude_none=True)
+    for choice in d.get("choices", []):
+        if "finish_reason" not in choice:
+            choice["finish_reason"] = None
+    return json.dumps(d, ensure_ascii=False)
+
+
 def _create_response(
     request_id: str,
     generations: List[dict],
