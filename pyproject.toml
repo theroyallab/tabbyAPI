@@ -147,7 +147,7 @@ exclude = [
 extend-exclude = ["*_test_.py"]
 
 # Same as Black.
-line-length = 88
+line-length = 100
 indent-width = 4
 
 # Assume Python 3.10
