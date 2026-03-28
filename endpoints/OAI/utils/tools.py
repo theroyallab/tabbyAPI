@@ -81,12 +81,12 @@ def _strip_think_blocks(text: str) -> str:
 
     if text != original:
         if THINK_UNCLOSED_RE.search(original):
-            logger.warning(
+            xlogger.warning(
                 "XML Parser: Stripped unclosed <think> block "
                 "(possible quantization degradation)"
             )
         else:
-            logger.debug("XML Parser: Stripped <think> block(s) from output")
+            xlogger.debug("XML Parser: Stripped <think> block(s) from output")
 
     return text
 
@@ -246,7 +246,7 @@ class ToolCallProcessor:
             )
 
         result = [ToolCall(**tool_call) for tool_call in tool_calls]
-        logger.debug(f"JSON Parser: Successfully parsed {len(result)} tool call(s)")
+        xlogger.debug(f"JSON Parser: Successfully parsed {len(result)} tool call(s)")
         return result
 
     # ------------------------------------------------------------------
@@ -265,7 +265,7 @@ class ToolCallProcessor:
           - Multi-line parameter values
           - Missing </parameter> closing tags
         """
-        logger.debug(f"XML Parser: Parsing tool calls ({len(raw_text)} chars)")
+        xlogger.debug(f"XML Parser: Parsing tool calls ({len(raw_text)} chars)")
 
         # Stage 1: Strip think blocks
         text = _strip_think_blocks(raw_text)
@@ -273,7 +273,7 @@ class ToolCallProcessor:
         # Stage 2: Check for incomplete XML at end (generation cutoff)
         stripped_end = text.rstrip()
         if stripped_end.endswith(("<", "</", "<parameter", "<function")):
-            logger.warning(
+            xlogger.warning(
                 f"XML Parser: Detected incomplete XML tag at end: "
                 f"...{stripped_end[-80:]}"
             )
@@ -297,14 +297,14 @@ class ToolCallProcessor:
             pos = func_match.start()
             is_wrapped = any(start <= pos < end for start, end in wrapped_positions)
             if not is_wrapped:
-                logger.debug(
+                xlogger.debug(
                     "XML Parser: Found bare <function> block without "
                     "<tool_call> wrapper"
                 )
                 function_blocks.append((func_match.group(1), func_match.group(2)))
 
         if not function_blocks:
-            logger.warning("XML Parser: No <function=...> blocks found")
+            xlogger.warning("XML Parser: No <function=...> blocks found")
             return []
 
         # Stage 4: Parse each function block into a ToolCall
@@ -327,7 +327,7 @@ class ToolCallProcessor:
             )
             tool_calls.append(tool_call)
 
-        logger.debug(f"XML Parser: Successfully parsed {len(tool_calls)} tool call(s)")
+        xlogger.debug(f"XML Parser: Successfully parsed {len(tool_calls)} tool call(s)")
         return tool_calls
 
     # ------------------------------------------------------------------
@@ -343,15 +343,15 @@ class ToolCallProcessor:
           2. JSON inside <tool_call> wrappers (Qwen3-Instruct style)
           3. XML with <function=...> tags (Qwen3-Coder style)
         """
-        logger.debug("Auto Parser: Attempting format auto-detection")
+        xlogger.debug("Auto Parser: Attempting format auto-detection")
 
         # Attempt 1: Pure JSON array
         try:
             result = ToolCallProcessor.from_json(raw_text)
-            logger.debug("Auto Parser: Detected JSON format")
+            xlogger.debug("Auto Parser: Detected JSON format")
             return result
         except (json.JSONDecodeError, ValueError, KeyError) as e:
-            logger.debug(f"Auto Parser: Not JSON ({e}), trying next format")
+            xlogger.debug(f"Auto Parser: Not JSON ({e}), trying next format")
 
         # Attempt 2: JSON inside <tool_call> wrappers (Qwen3-Instruct)
         try:
@@ -374,20 +374,23 @@ class ToolCallProcessor:
                                 ToolCall(function=Tool(name=name, arguments=arguments))
                             )
             if all_tool_calls:
-                logger.debug(
+                xlogger.debug(
                     "Auto Parser: Detected JSON-inside-tool_call "
                     f"format ({len(all_tool_calls)} call(s))"
                 )
                 return all_tool_calls
         except (json.JSONDecodeError, ValueError, KeyError) as e:
-            logger.debug(f"Auto Parser: Not JSON-in-tool_call ({e}), trying XML")
+            xlogger.debug(
+                f"Auto Parser: Not JSON-in-tool_call trying XML",
+                str(e), details=f"({e})",
+            )
 
         # Attempt 3: XML format (Qwen3-Coder style)
         result = ToolCallProcessor.from_xml(raw_text)
         if result:
-            logger.debug("Auto Parser: Detected XML format")
+            xlogger.debug("Auto Parser: Detected XML format")
         else:
-            logger.warning("Auto Parser: All format detection attempts failed")
+            xlogger.warning("Auto Parser: All format detection attempts failed")
         return result
 
     # ------------------------------------------------------------------
@@ -414,9 +417,10 @@ class ToolCallProcessor:
             else:
                 return ToolCallProcessor.from_json(tool_calls_str)
         except Exception as e:
-            logger.error(
-                f"ToolCallProcessor.parse: Failed to parse tool calls "
-                f"(format={format}): {e}"
+            xlogger.error(
+                "ToolCallProcessor.parse: Failed to parse tool calls",
+                {"format": format, "e": str(e)},
+                details = f"(format={format}): {e}"
             )
             return []
 
@@ -431,7 +435,7 @@ class ToolCallProcessor:
         """Filter parsed tool calls to only those matching a function name."""
         filtered = [tc for tc in tool_calls if tc.function.name == function_name]
         if not filtered:
-            logger.warning(
+            xlogger.warning(
                 f"filter_by_name: No tool calls matched '{function_name}' "
                 f"(had {len(tool_calls)} call(s))"
             )
@@ -489,7 +493,7 @@ class ToolCallProcessor:
         # Parse tool calls from the full text
         tool_calls = ToolCallProcessor.from_xml(text)
 
-        logger.debug(
+        xlogger.debug(
             f"extract_content_and_tools: Found {len(tool_calls)} tool "
             f"call(s), content={'yes' if content else 'no'} "
             f"({len(content)} chars)"
