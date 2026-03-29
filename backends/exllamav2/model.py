@@ -112,7 +112,7 @@ class ExllamaV2Container(BaseModelContainer):
         _hf = hf_model.hf_config
         _tok = hf_model.tokenizer_config
         _gen = hf_model.generation_config
-        xlogger.verbose(
+        xlogger.debug(
             "Creating ExLlamaV2 model instance",
             {
                 "kwargs": kwargs,

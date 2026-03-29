@@ -49,7 +49,7 @@ def handle_request_error(message: str, exc_info: bool = True):
 
     # Log the error and provided message to the console
     if trace and exc_info:
-        xlogger.error(trace, {"message": message})
+        xlogger.error("Error", {"trace": trace, "message": message}, details=trace)
 
     logger.error(f"Sent to request: {message}")
 

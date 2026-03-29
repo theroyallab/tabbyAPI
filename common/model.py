@@ -119,7 +119,7 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
     # No need to preserve the original overrides dict
     merged_kwargs = deep_merge_dict(overrides, kwargs)
 
-    xlogger.verbose(
+    xlogger.debug(
         "Applying load defaults",
         {
             "kwargs": kwargs,

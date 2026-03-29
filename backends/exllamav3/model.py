@@ -107,7 +107,7 @@ class ExllamaV3Container(BaseModelContainer):
         _hf = hf_model.hf_config
         _tok = hf_model.tokenizer_config
         _gen = hf_model.generation_config
-        xlogger.verbose(
+        xlogger.debug(
             "Creating ExLlamaV3 model instance",
             {
                 "kwargs": kwargs,
@@ -913,7 +913,7 @@ class ExllamaV3Container(BaseModelContainer):
         """
         chunk_tokens: torch.Tensor | tuple[torch.Tensor, torch.Tensor]
 
-        xlogger.verbose(
+        xlogger.debug(
             f"Starting generation, ID: {request_id}",
             {"request_id": request_id, "params": params.model_dump(mode="json")},
         )
@@ -1096,7 +1096,7 @@ class ExllamaV3Container(BaseModelContainer):
                     yield generation
 
                 if result.get("eos"):
-                    xlogger.verbose("EOS result received from generator", result)
+                    xlogger.debug("EOS result received from generator", result)
                     finish_chunk = self.handle_finish_chunk(
                         result, request_id, full_response
                     )

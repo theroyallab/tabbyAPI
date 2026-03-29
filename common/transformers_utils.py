@@ -148,7 +148,7 @@ class HFModel:
             self.generation_config = await GenerationConfig.from_directory(
                 model_directory
             )
-            xlogger.verbose("Found generation config file in model directory")
+            xlogger.debug("Found generation config file in model directory")
         except Exception:
             xlogger.warning(
                 "Generation config file not found in model directory, skipping."
@@ -158,7 +158,7 @@ class HFModel:
             self.tokenizer_config = await TokenizerConfig.from_directory(
                 model_directory
             )
-            xlogger.verbose("Found tokenizer config file in model directory")
+            xlogger.debug("Found tokenizer config file in model directory")
         except Exception:
             xlogger.warning(
                 "Tokenizer config file not found in model directory, skipping."
