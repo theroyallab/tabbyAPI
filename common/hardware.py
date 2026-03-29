@@ -10,8 +10,7 @@ def hardware_supports_flash_attn(gpu_device_list: list[int]):
     """
 
     min_compute_capability = min(
-        torch.cuda.get_device_capability(device=device_idx)[0]
-        for device_idx in gpu_device_list
+        torch.cuda.get_device_capability(device=device_idx)[0] for device_idx in gpu_device_list
     )
 
     if torch.version.hip or min_compute_capability < 8:

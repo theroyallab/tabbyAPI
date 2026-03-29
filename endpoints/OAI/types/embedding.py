@@ -29,9 +29,7 @@ class EmbeddingObject(BaseModel):
     embedding: Union[List[float], str] = Field(
         ..., description="Embedding values as a list of floats."
     )
-    index: int = Field(
-        ..., description="Index of the input text corresponding to the embedding."
-    )
+    index: int = Field(..., description="Index of the input text corresponding to the embedding.")
 
 
 class EmbeddingsResponse(BaseModel):

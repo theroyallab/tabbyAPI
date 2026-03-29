@@ -29,9 +29,7 @@ class ConfigOverrideConfig(BaseConfigModel):
     """Model for overriding a provided config file."""
 
     # TODO: convert this to a pathlib.path?
-    config: Optional[str] = Field(
-        None, description="Path to an overriding config.yml file"
-    )
+    config: Optional[str] = Field(None, description="Path to an overriding config.yml file")
 
     _metadata: Metadata = PrivateAttr(Metadata(include_in_config=False))
 
@@ -46,9 +44,7 @@ class NetworkConfig(BaseConfigModel):
             "Use 0.0.0.0 to expose on all network adapters."
         ),
     )
-    port: Optional[int] = Field(
-        5000, description="The port to host on (default: 5000)."
-    )
+    port: Optional[int] = Field(5000, description="The port to host on (default: 5000).")
     disable_auth: Optional[bool] = Field(
         False,
         description=(
@@ -60,8 +56,7 @@ class NetworkConfig(BaseConfigModel):
     disable_fetch_requests: Optional[bool] = Field(
         False,
         description=(
-            "Disable fetching external content in response to requests,"
-            "such as images from URLs."
+            "Disable fetching external content in response to requests,such as images from URLs."
         ),
     )
     send_tracebacks: Optional[bool] = Field(
@@ -74,8 +69,7 @@ class NetworkConfig(BaseConfigModel):
     api_servers: Optional[List[Literal["oai", "kobold"]]] = Field(
         ["OAI"],
         description=(
-            'Select API servers to enable (default: ["OAI"]).\n'
-            "Possible values: OAI, Kobold."
+            'Select API servers to enable (default: ["OAI"]).\nPossible values: OAI, Kobold.'
         ),
     )
 
@@ -102,8 +96,7 @@ class LoggingConfig(BaseConfigModel):
     log_requests: Optional[bool] = Field(
         False,
         description=(
-            "Enable request logging (default: False).\n"
-            "NOTE: Only use this for debugging!"
+            "Enable request logging (default: False).\nNOTE: Only use this for debugging!"
         ),
     )
 
@@ -175,8 +168,7 @@ class ModelConfig(BaseConfigModel):
     max_seq_len: Optional[int] = Field(
         None,
         description=(
-            "Max sequence length (default: 4096).\n"
-            "Set to -1 to fetch from the model's config.json"
+            "Max sequence length (default: 4096).\nSet to -1 to fetch from the model's config.json"
         ),
         ge=-1,
     )
@@ -296,9 +288,7 @@ class ModelConfig(BaseConfigModel):
     )
     vision: Optional[bool] = Field(
         False,
-        description=(
-            "Enables vision support if the model supports it. (default: False)"
-        ),
+        description=("Enables vision support if the model supports it. (default: False)"),
     )
     reasoning: bool = Field(
         False,
@@ -334,8 +324,7 @@ class DraftModelConfig(BaseConfigModel):
     draft_model_name: Optional[str] = Field(
         None,
         description=(
-            "An initial draft model to load.\n"
-            "Ensure the model is in the model directory."
+            "An initial draft model to load.\nEnsure the model is in the model directory."
         ),
     )
     draft_rope_scale: Optional[float] = Field(
@@ -465,9 +454,7 @@ class DeveloperConfig(BaseConfigModel):
     )
     seqlog: Optional[bool] = Field(
         False,
-        description=(
-            "Enable extremely verbose seqlog logging, requires a running Seq server"
-        ),
+        description=("Enable extremely verbose seqlog logging, requires a running Seq server"),
     )
     seqlog_server_url: Optional[str] = Field(
         "http://localhost:5341",

@@ -41,9 +41,7 @@ def handle_request_error(message: str, exc_info: bool = True):
     trace = traceback.format_exc()
     send_trace = config.network.send_tracebacks
 
-    error_message = TabbyRequestErrorMessage(
-        message=message, trace=trace if send_trace else None
-    )
+    error_message = TabbyRequestErrorMessage(message=message, trace=trace if send_trace else None)
 
     request_error = TabbyRequestError(error=error_message)
 

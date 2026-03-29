@@ -183,8 +183,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         available_backends = list(_BACKEND_REGISTRY.keys())
         if backend in available_backends:
             raise ValueError(
-                f"Backend '{backend}' selected, but required dependencies "
-                "are not installed."
+                f"Backend '{backend}' selected, but required dependencies are not installed."
             )
         else:
             raise ValueError(
@@ -270,9 +269,7 @@ async def load_embedding_model(model_path: pathlib.Path, **kwargs):
         loaded_model_name = embeddings_container.model_dir.name
 
         if loaded_model_name == model_path.name and embeddings_container.loaded:
-            raise ValueError(
-                f'Embeddings model "{loaded_model_name}" is already loaded! Aborting.'
-            )
+            raise ValueError(f'Embeddings model "{loaded_model_name}" is already loaded! Aborting.')
 
         xlogger.info("Unloading existing embeddings model.")
         await unload_embedding_model()

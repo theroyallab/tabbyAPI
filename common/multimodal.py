@@ -27,9 +27,7 @@ class MultimodalEmbeddingWrapper(BaseModel):
                 model.container.vision_model, ExLlamaV2VisionTower
             ):
                 self.type = "ExLlamaV2MMEmbedding"
-            elif dependencies.exllamav3 and isinstance(
-                model.container.vision_model, Model
-            ):
+            elif dependencies.exllamav3 and isinstance(model.container.vision_model, Model):
                 self.type = "MMEmbedding"
 
         # Create the embedding

@@ -7,9 +7,5 @@ from common.health import UnhealthyEvent
 class HealthCheckResponse(BaseModel):
     """System health status"""
 
-    status: Literal["healthy", "unhealthy"] = Field(
-        "healthy", description="System health status"
-    )
-    issues: list[UnhealthyEvent] = Field(
-        default_factory=list, description="List of issues"
-    )
+    status: Literal["healthy", "unhealthy"] = Field("healthy", description="System health status")
+    issues: list[UnhealthyEvent] = Field(default_factory=list, description="List of issues")

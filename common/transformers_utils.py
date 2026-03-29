@@ -57,9 +57,7 @@ class HuggingFaceConfig(BaseModel):
         """Create an instance from a generation config file."""
 
         hf_config_path = model_directory / "config.json"
-        async with aiofiles.open(
-            hf_config_path, "r", encoding="utf8"
-        ) as hf_config_json:
+        async with aiofiles.open(hf_config_path, "r", encoding="utf8") as hf_config_json:
             contents = await hf_config_json.read()
             hf_config_dict = json.loads(contents)
             return cls.model_validate(hf_config_dict)
@@ -83,10 +81,7 @@ class HuggingFaceConfig(BaseModel):
             return []
 
     def get_max_position_embeddings(self, default: int | None = 4096) -> int:
-        if (
-            self.text_config is not None
-            and self.text_config.max_position_embeddings is not None
-        ):
+        if self.text_config is not None and self.text_config.max_position_embeddings is not None:
             return self.text_config.max_position_embeddings
         elif self.max_position_embeddings is not None:
             return self.max_position_embeddings
@@ -140,29 +135,19 @@ class HFModel:
         try:
             self.hf_config = await HuggingFaceConfig.from_directory(model_directory)
         except Exception as exc:
-            raise ValueError(
-                f"Failed to load config.json from {model_directory}"
-            ) from exc
+            raise ValueError(f"Failed to load config.json from {model_directory}") from exc
 
         try:
-            self.generation_config = await GenerationConfig.from_directory(
-                model_directory
-            )
+            self.generation_config = await GenerationConfig.from_directory(model_directory)
             xlogger.debug("Found generation config file in model directory")
         except Exception:
-            xlogger.warning(
-                "Generation config file not found in model directory, skipping."
-            )
+            xlogger.warning("Generation config file not found in model directory, skipping.")
 
         try:
-            self.tokenizer_config = await TokenizerConfig.from_directory(
-                model_directory
-            )
+            self.tokenizer_config = await TokenizerConfig.from_directory(model_directory)
             xlogger.debug("Found tokenizer config file in model directory")
         except Exception:
-            xlogger.warning(
-                "Tokenizer config file not found in model directory, skipping."
-            )
+            xlogger.warning("Tokenizer config file not found in model directory, skipping.")
 
         return self
 

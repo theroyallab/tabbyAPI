@@ -78,9 +78,7 @@ def _log_formatter(record: dict):
 
     fmt = ""
     if len(lines) > 1:
-        fmt = "\n".join(
-            [f"{colored_time} {colored_level}{separator}{line}" for line in lines]
-        )
+        fmt = "\n".join([f"{colored_time} {colored_level}{separator}{line}" for line in lines])
     else:
         fmt = f"{colored_time} {colored_level}{separator}{message}"
 
@@ -91,9 +89,7 @@ def _log_formatter(record: dict):
 # Uvicorn log portions inspired from https://github.com/encode/uvicorn/discussions/2027#discussioncomment-6432362
 class UvicornLoggingHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
-        logger.opt(exception=record.exc_info).log(
-            record.levelname, self.format(record).rstrip()
-        )
+        logger.opt(exception=record.exc_info).log(record.levelname, self.format(record).rstrip())
 
 
 # Uvicorn config for logging. Passed into run when creating all loggers in server
@@ -145,9 +141,7 @@ class XLogger:
     def _get_timestamp_now(self):
         return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-    def setup(
-        self, seqlog_url: str = "http://localhost:5341", api_key: str | None = None
-    ):
+    def setup(self, seqlog_url: str = "http://localhost:5341", api_key: str | None = None):
         self.seqlog_url = seqlog_url.rstrip("/")
         self.headers = {"Content-Type": "application/vnd.serilog.clef"}
         if api_key:
@@ -157,10 +151,7 @@ class XLogger:
         try:
             r = requests.post(
                 self.seqlog_url + "/ingest/clef",
-                data=(
-                    f'{{"@t":"{self._get_timestamp_now()}",'
-                    f'"@m":"TabbyAPI startup probe"}}\n'
-                ),
+                data=(f'{{"@t":"{self._get_timestamp_now()}","@m":"TabbyAPI startup probe"}}\n'),
                 headers=self.headers,
                 timeout=2,
             )

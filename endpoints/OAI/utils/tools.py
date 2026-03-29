@@ -205,9 +205,7 @@ class ToolCallProcessor:
         end = cleaned.rfind("]")
         if start != -1 and end != -1 and end > start:
             try:
-                return ToolCallProcessor._normalize_tool_calls(
-                    json.loads(cleaned[start : end + 1])
-                )
+                return ToolCallProcessor._normalize_tool_calls(json.loads(cleaned[start : end + 1]))
             except (json.JSONDecodeError, ValueError):
                 pass
 
@@ -222,9 +220,7 @@ class ToolCallProcessor:
             except (json.JSONDecodeError, ValueError):
                 pass
 
-        raise json.JSONDecodeError(
-            "Could not extract valid JSON from payload", payload, 0
-        )
+        raise json.JSONDecodeError("Could not extract valid JSON from payload", payload, 0)
 
     # ------------------------------------------------------------------
     # JSON parsing
@@ -241,9 +237,7 @@ class ToolCallProcessor:
 
         tool_calls = ToolCallProcessor._safe_json_loads(tool_calls_str)
         for tool_call in tool_calls:
-            tool_call["function"]["arguments"] = json.dumps(
-                tool_call["function"]["arguments"]
-            )
+            tool_call["function"]["arguments"] = json.dumps(tool_call["function"]["arguments"])
 
         result = [ToolCall(**tool_call) for tool_call in tool_calls]
         xlogger.debug(f"JSON Parser: Successfully parsed {len(result)} tool call(s)")
@@ -274,16 +268,13 @@ class ToolCallProcessor:
         stripped_end = text.rstrip()
         if stripped_end.endswith(("<", "</", "<parameter", "<function")):
             xlogger.warning(
-                f"XML Parser: Detected incomplete XML tag at end: "
-                f"...{stripped_end[-80:]}"
+                f"XML Parser: Detected incomplete XML tag at end: ...{stripped_end[-80:]}"
             )
             text = re.sub(r"<[^>]*$", "", text)
 
         # Stage 3: Extract function blocks
         # First, find all wrapped <tool_call>...</tool_call> blocks
-        wrapped_positions = [
-            (m.start(), m.end()) for m in TOOL_CALL_BLOCK_RE.finditer(text)
-        ]
+        wrapped_positions = [(m.start(), m.end()) for m in TOOL_CALL_BLOCK_RE.finditer(text)]
 
         # Collect function blocks from inside wrapped regions
         function_blocks = []
@@ -297,10 +288,7 @@ class ToolCallProcessor:
             pos = func_match.start()
             is_wrapped = any(start <= pos < end for start, end in wrapped_positions)
             if not is_wrapped:
-                xlogger.debug(
-                    "XML Parser: Found bare <function> block without "
-                    "<tool_call> wrapper"
-                )
+                xlogger.debug("XML Parser: Found bare <function> block without <tool_call> wrapper")
                 function_blocks.append((func_match.group(1), func_match.group(2)))
 
         if not function_blocks:
@@ -322,9 +310,7 @@ class ToolCallProcessor:
 
             arguments_json = json.dumps(params, ensure_ascii=False)
 
-            tool_call = ToolCall(
-                function=Tool(name=func_name, arguments=arguments_json)
-            )
+            tool_call = ToolCall(function=Tool(name=func_name, arguments=arguments_json))
             tool_calls.append(tool_call)
 
         xlogger.debug(f"XML Parser: Successfully parsed {len(tool_calls)} tool call(s)")
@@ -381,8 +367,9 @@ class ToolCallProcessor:
                 return all_tool_calls
         except (json.JSONDecodeError, ValueError, KeyError) as e:
             xlogger.debug(
-                f"Auto Parser: Not JSON-in-tool_call trying XML",
-                str(e), details=f"({e})",
+                "Auto Parser: Not JSON-in-tool_call trying XML",
+                str(e),
+                details=f"({e})",
             )
 
         # Attempt 3: XML format (Qwen3-Coder style)
@@ -429,9 +416,7 @@ class ToolCallProcessor:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def filter_by_name(
-        tool_calls: List[ToolCall], function_name: str
-    ) -> List[ToolCall]:
+    def filter_by_name(tool_calls: List[ToolCall], function_name: str) -> List[ToolCall]:
         """Filter parsed tool calls to only those matching a function name."""
         filtered = [tc for tc in tool_calls if tc.function.name == function_name]
         if not filtered:

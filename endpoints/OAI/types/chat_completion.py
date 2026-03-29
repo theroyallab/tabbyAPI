@@ -72,9 +72,7 @@ class ChatCompletionRequest(CommonCompletionRequest):
 
     tools: Optional[List[ToolSpec]] = None
     functions: Optional[List[Dict]] = None
-    tool_choice: Optional[
-        Union[Literal["none", "auto", "required"], NamedToolChoice]
-    ] = None
+    tool_choice: Optional[Union[Literal["none", "auto", "required"], NamedToolChoice]] = None
     parallel_tool_calls: Optional[bool] = True
 
     # Chat completions requests do not have a BOS token preference. Backend

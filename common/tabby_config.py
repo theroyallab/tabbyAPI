@@ -53,9 +53,7 @@ class TabbyConfig(TabbyConfigModel):
             elif hasattr(self.draft_model, field):
                 self.draft_model_defaults[field] = getattr(config.draft_model, field)
             else:
-                logger.error(
-                    f"invalid item {field} in config option `model.use_as_default`"
-                )
+                logger.error(f"invalid item {field} in config option `model.use_as_default`")
 
     def _from_file(self, config_path: pathlib.Path):
         """loads config from a given file path"""
@@ -102,9 +100,7 @@ class TabbyConfig(TabbyConfigModel):
             )
 
         if legacy:
-            logger.warning(
-                "Legacy config.yml file detected. Attempting auto-migration."
-            )
+            logger.warning("Legacy config.yml file detected. Attempting auto-migration.")
 
             # Create a temporary base config model
             new_cfg = TabbyConfigModel.model_validate(cfg)
@@ -159,9 +155,7 @@ class TabbyConfig(TabbyConfigModel):
 
         for field_name in TabbyConfigModel.model_fields.keys():
             section_config = {}
-            for sub_field_name in getattr(
-                TabbyConfigModel(), field_name
-            ).model_fields.keys():
+            for sub_field_name in getattr(TabbyConfigModel(), field_name).model_fields.keys():
                 setting = getenv(f"TABBY_{field_name}_{sub_field_name}".upper(), None)
                 if setting is not None:
                     section_config[sub_field_name] = setting
@@ -220,9 +214,7 @@ def pydantic_model_to_yaml(model: BaseModel, indentation: int = 0) -> CommentedM
             if not value._metadata.include_in_config:
                 continue
 
-            yaml_data[field_name] = pydantic_model_to_yaml(
-                value, indentation=indentation + 2
-            )
+            yaml_data[field_name] = pydantic_model_to_yaml(value, indentation=indentation + 2)
             comment = getdoc(value)
         elif isinstance(value, list) and len(value) > 0:
             # If the field is a list
@@ -233,17 +225,13 @@ def pydantic_model_to_yaml(model: BaseModel, indentation: int = 0) -> CommentedM
                 # Do not add comments for these items
 
                 for item in value:
-                    yaml_list.append(
-                        pydantic_model_to_yaml(item, indentation=indentation + 2)
-                    )
+                    yaml_list.append(pydantic_model_to_yaml(item, indentation=indentation + 2))
             else:
                 # If the field is a normal list, prefer the YAML flow style
 
                 yaml_list.fa.set_flow_style()
                 yaml_list += [
-                    PreservedScalarString(element)
-                    if isinstance(element, str)
-                    else element
+                    PreservedScalarString(element) if isinstance(element, str) else element
                     for element in value
                 ]
 

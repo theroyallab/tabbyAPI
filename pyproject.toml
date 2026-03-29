@@ -237,3 +237,7 @@ skip-magic-trailing-comma = false
 
 # Like Black, automatically detect the appropriate line ending.
 line-ending = "auto"
+
+# Don't format/validate test scripts
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ALL"]

@@ -87,9 +87,7 @@ async def check_generate(data: CheckGenerateRequest) -> GenerateResponse:
     return response
 
 
-@kai_router.get(
-    "/model", dependencies=[Depends(check_api_key), Depends(check_model_container)]
-)
+@kai_router.get("/model", dependencies=[Depends(check_api_key), Depends(check_model_container)])
 async def current_model() -> CurrentModelResponse:
     """Fetches the current model and who owns it."""
 

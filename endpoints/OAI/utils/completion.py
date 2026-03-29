@@ -38,9 +38,7 @@ def _parse_gen_request_id(n: int, request_id: str, task_idx: int):
         return request_id
 
 
-def _create_response(
-    request_id: str, generations: Union[dict, List[dict]], model_name: str = ""
-):
+def _create_response(request_id: str, generations: Union[dict, List[dict]], model_name: str = ""):
     """Create a completion response from the provided choices."""
 
     # Convert the single choice object into a list
@@ -130,11 +128,7 @@ async def load_inline_model(model_name: str, request: Request):
     """Load a model from the data.model parameter"""
 
     # Return if the model container already exists and the model is fully loaded
-    if (
-        model.container
-        and model.container.model_dir.name == model_name
-        and model.container.loaded
-    ):
+    if model.container and model.container.model_dir.name == model_name and model.container.loaded:
         return
 
     # Return if inline loading is disabled
@@ -148,17 +142,14 @@ async def load_inline_model(model_name: str, request: Request):
 
         return
 
-    is_dummy_model = (
-        config.model.use_dummy_models and model_name in config.model.dummy_model_names
-    )
+    is_dummy_model = config.model.use_dummy_models and model_name in config.model.dummy_model_names
 
     # Error if an invalid key is passed
     # If a dummy model is provided, don't error
     if get_key_permission(request) != "admin":
         if not is_dummy_model:
             error_message = handle_request_error(
-                f"Unable to switch model to {model_name} because "
-                + "an admin key isn't provided",
+                f"Unable to switch model to {model_name} because " + "an admin key isn't provided",
                 exc_info=False,
             ).error.message
 
@@ -171,9 +162,7 @@ async def load_inline_model(model_name: str, request: Request):
 
     # Skip if the model is a dummy
     if is_dummy_model:
-        xlogger.warning(
-            f"Dummy model {str(model_name)} provided. Skipping inline load."
-        )
+        xlogger.warning(f"Dummy model {str(model_name)} provided. Skipping inline load.")
         return
 
     model_path = pathlib.Path(config.model.model_dir)
@@ -181,9 +170,7 @@ async def load_inline_model(model_name: str, request: Request):
 
     # Model path doesn't exist
     if not model_path.exists():
-        xlogger.warning(
-            f"Could not find model path {str(model_path)}. Skipping inline model load."
-        )
+        xlogger.warning(f"Could not find model path {str(model_path)}. Skipping inline model load.")
 
         return
 
@@ -257,16 +244,12 @@ async def stream_generate_completion(
             # Check if all tasks are completed
             if all(task.done() for task in gen_tasks) and gen_queue.empty():
                 yield "[DONE]"
-                xlogger.info(
-                    f"Finished streaming completion request {request.state.id}"
-                )
+                xlogger.info(f"Finished streaming completion request {request.state.id}")
                 break
     except CancelledError:
         # Get out if the request gets disconnected
 
-        handle_request_disconnect(
-            f"Completion generation {request.state.id} cancelled by user."
-        )
+        handle_request_disconnect(f"Completion generation {request.state.id} cancelled by user.")
     except Exception:
         yield get_generator_error(
             f"Completion {request.state.id} aborted. Please check the server console."
@@ -276,9 +259,7 @@ async def stream_generate_completion(
         disconnect_task.cancel()
 
 
-async def generate_completion(
-    data: CompletionRequest, request: Request, model_path: pathlib.Path
-):
+async def generate_completion(data: CompletionRequest, request: Request, model_path: pathlib.Path):
     """Non-streaming generate for completions"""
 
     gen_tasks: List[asyncio.Task] = []

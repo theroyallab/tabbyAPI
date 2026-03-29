@@ -44,9 +44,7 @@ def setup():
     "/v1/completions",
     dependencies=[Depends(check_api_key)],
 )
-async def completion_request(
-    request: Request, data: CompletionRequest
-) -> CompletionResponse:
+async def completion_request(request: Request, data: CompletionRequest) -> CompletionResponse:
     """
     Generates a completion from a prompt.
 
@@ -82,9 +80,7 @@ async def completion_request(
             ping=maxsize,
         )
     else:
-        generate_task = asyncio.create_task(
-            generate_completion(data, request, model_path)
-        )
+        generate_task = asyncio.create_task(generate_completion(data, request, model_path))
 
         response = await run_with_request_disconnect(
             request,
@@ -133,9 +129,7 @@ async def chat_completion_request(
 
     if data.stream and not disable_request_streaming:
         return EventSourceResponse(
-            stream_generate_chat_completion(
-                prompt, embeddings, data, request, model_path
-            ),
+            stream_generate_chat_completion(prompt, embeddings, data, request, model_path),
             ping=maxsize,
         )
     else:

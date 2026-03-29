@@ -167,9 +167,7 @@ class BaseModelContainer(abc.ABC):
         pass
 
     # Optional methods
-    async def load_loras(
-        self, lora_directory: pathlib.Path, **kwargs
-    ) -> Dict[str, List[str]]:
+    async def load_loras(self, lora_directory: pathlib.Path, **kwargs) -> Dict[str, List[str]]:
         """
         Loads LoRA adapters. Base implementation does nothing or raises error.
 
@@ -184,9 +182,7 @@ class BaseModelContainer(abc.ABC):
         logger.warning("LoRA loading not implemented for this backend.")  # type: ignore
         return {
             "success": [],
-            "failure": [
-                lora.get("name", "unknown") for lora in kwargs.get("loras", [])
-            ],
+            "failure": [lora.get("name", "unknown") for lora in kwargs.get("loras", [])],
         }
 
     def get_loras(self) -> List[Any]:

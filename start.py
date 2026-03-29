@@ -214,10 +214,7 @@ if __name__ == "__main__":
         if start_options.get("first_run_done"):
             first_run = False
     else:
-        print(
-            "It looks like you're running TabbyAPI for the first time. "
-            "Getting things ready..."
-        )
+        print("It looks like you're running TabbyAPI for the first time. Getting things ready...")
 
     # Set variables that rely on start options
     first_run = not start_options.get("first_run_done")
@@ -261,10 +258,7 @@ if __name__ == "__main__":
             do_start_options_write = True
 
         if args.update_deps:
-            print(
-                f"Dependencies updated. Please run TabbyAPI with `start.{script_ext}`. "
-                "Exiting."
-            )
+            print(f"Dependencies updated. Please run TabbyAPI with `start.{script_ext}`. Exiting.")
             sys.exit(0)
         else:
             print(
@@ -296,17 +290,12 @@ if __name__ == "__main__":
 
         # Create a config if it doesn't exist
         # This is not necessary to run TabbyAPI, but is new user proof
-        config_path = (
-            pathlib.Path(args.config) if args.config else pathlib.Path("config.yml")
-        )
+        config_path = pathlib.Path(args.config) if args.config else pathlib.Path("config.yml")
         if not config_path.exists():
             sample_config_path = pathlib.Path("config_sample.yml")
             copyfile(sample_config_path, config_path)
 
-            print(
-                "A config.yml wasn't found.\n"
-                f"Created one at {str(config_path.resolve())}"
-            )
+            print(f"A config.yml wasn't found.\nCreated one at {str(config_path.resolve())}")
 
         print("Starting TabbyAPI...")
         entrypoint(args, parser)

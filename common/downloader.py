@@ -56,9 +56,7 @@ async def _download_file(
             )
 
         # Create progress task with appropriate total (None for indeterminate)
-        download_task = progress.add_task(
-            f"[cyan]Downloading {filename}", total=repo_item.size
-        )
+        download_task = progress.add_task(f"[cyan]Downloading {filename}", total=repo_item.size)
 
         # Chunk limit is 2 MB
         async with aiofiles.open(str(filepath), "wb") as f:
@@ -77,9 +75,7 @@ def _get_repo_info(repo_id, revision, token):
     token = token or None
 
     api_client = HfApi()
-    repo_tree = api_client.list_repo_tree(
-        repo_id, revision=revision, token=token, recursive=True
-    )
+    repo_tree = api_client.list_repo_tree(repo_id, revision=revision, token=token, recursive=True)
 
     return [
         RepoItem(
@@ -104,9 +100,7 @@ def _get_download_folder(repo_id: str, repo_type: str, folder_name: Optional[str
     return download_path
 
 
-def _check_exclusions(
-    filename: str, include_patterns: List[str], exclude_patterns: List[str]
-):
+def _check_exclusions(filename: str, include_patterns: List[str], exclude_patterns: List[str]):
     include_result = any(fnmatch(filename, pattern) for pattern in include_patterns)
     exclude_result = any(fnmatch(filename, pattern) for pattern in exclude_patterns)
 
@@ -131,9 +125,7 @@ async def hf_repo_download(
     # Auto-detect repo type if it isn't provided
     if not repo_type:
         lora_filter = filter(
-            lambda repo_item: repo_item.path.endswith(
-                ("adapter_config.json", "adapter_model.bin")
-            ),
+            lambda repo_item: repo_item.path.endswith(("adapter_config.json", "adapter_model.bin")),
             file_list,
         )
 

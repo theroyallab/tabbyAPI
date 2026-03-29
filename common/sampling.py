@@ -25,9 +25,7 @@ class BaseSamplerRequest(BaseModel):
 
     max_tokens: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("max_tokens"),
-        validation_alias=AliasChoices(
-            "max_tokens", "max_completion_tokens", "max_length"
-        ),
+        validation_alias=AliasChoices("max_tokens", "max_completion_tokens", "max_length"),
         description="Aliases: max_length",
         examples=[150],
         ge=0,
@@ -97,13 +95,9 @@ class BaseSamplerRequest(BaseModel):
         examples=[1.0],
     )
 
-    top_a: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("top_a", 0.0)
-    )
+    top_a: Optional[float] = Field(default_factory=lambda: get_default_sampler_value("top_a", 0.0))
 
-    min_p: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("min_p", 0.0)
-    )
+    min_p: Optional[float] = Field(default_factory=lambda: get_default_sampler_value("min_p", 0.0))
 
     tfs: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("tfs", 1.0),
@@ -158,9 +152,7 @@ class BaseSamplerRequest(BaseModel):
             "repetition_penalty_range",
             "rep_pen_range",
         ),
-        description=(
-            "Aliases: repetition_range, repetition_penalty_range, rep_pen_range"
-        ),
+        description=("Aliases: repetition_range, repetition_penalty_range, rep_pen_range"),
     )
 
     repetition_decay: Optional[int] = Field(
@@ -321,9 +313,7 @@ class BaseSamplerRequest(BaseModel):
         try:
             return json.loads(v) if isinstance(v, str) else v
         except Exception:
-            xlogger.warning(
-                "Could not parse DRY sequence breakers. Using an empty array."
-            )
+            xlogger.warning("Could not parse DRY sequence breakers. Using an empty array.")
             return []  # Return empty list if parsing fails
 
     @model_validator(mode="after")

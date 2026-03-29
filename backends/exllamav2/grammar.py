@@ -97,11 +97,7 @@ class ExLlamaV2Grammar:
             # Validate KBNF and create formatter
             f = FormatterBuilder()
             f.append_line(
-                f"""{
-                    f.extractor(
-                        lambda nonterminal: CFGExtractor(nonterminal, kbnf_string)
-                    )
-                }"""
+                f"""{f.extractor(lambda nonterminal: CFGExtractor(nonterminal, kbnf_string))}"""
             )
         except Exception:
             xlogger.error(
@@ -151,9 +147,7 @@ def _create_formatter_filter(
     """
 
     vocab = _create_cached_engine_vocabulary(tokenizer)
-    f = formatter_builder.build(
-        vocab, lambda tokens: tokenizer.decode(torch.tensor(tokens))
-    )
+    f = formatter_builder.build(vocab, lambda tokens: tokenizer.decode(torch.tensor(tokens)))
     return FormatterFilter(model, tokenizer, f)
 
 

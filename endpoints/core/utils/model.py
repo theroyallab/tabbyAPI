@@ -84,13 +84,9 @@ async def stream_model_load(
     load_data = data.model_dump(exclude_none=True)
 
     # Set the draft model directory
-    load_data.setdefault("draft_model", {})["draft_model_dir"] = (
-        config.draft_model.draft_model_dir
-    )
+    load_data.setdefault("draft_model", {})["draft_model_dir"] = config.draft_model.draft_model_dir
 
-    load_status = model.load_model_gen(
-        model_path, skip_wait=data.skip_queue, **load_data
-    )
+    load_status = model.load_model_gen(model_path, skip_wait=data.skip_queue, **load_data)
     try:
         async for module, modules, model_type in load_status:
             if module != 0:
@@ -116,8 +112,7 @@ async def stream_model_load(
         # Get out if the request gets disconnected
 
         handle_request_disconnect(
-            "Model load cancelled by user. "
-            "Please make sure to run unload to free up resources."
+            "Model load cancelled by user. Please make sure to run unload to free up resources."
         )
     except Exception as exc:
         yield get_generator_error(str(exc))

@@ -63,9 +63,7 @@ async def healthcheck(response: Response) -> HealthCheckResponse:
     if not healthy:
         response.status_code = 503
 
-    return HealthCheckResponse(
-        status="healthy" if healthy else "unhealthy", issues=issues
-    )
+    return HealthCheckResponse(status="healthy" if healthy else "unhealthy", issues=issues)
 
 
 @router.get("/.well-known/serviceinfo")
@@ -133,9 +131,7 @@ async def current_model() -> ModelCard:
     return get_current_model()
 
 
-@router.get(
-    "/props", dependencies=[Depends(check_api_key), Depends(check_model_container)]
-)
+@router.get("/props", dependencies=[Depends(check_api_key), Depends(check_model_container)])
 async def model_props() -> ModelPropsResponse:
     """
     Returns specific properties of a model for clients.
@@ -290,9 +286,7 @@ async def load_lora(data: LoraLoadRequest) -> LoraLoadResponse:
 
         raise HTTPException(400, error_message)
 
-    load_result = await model.load_loras(
-        lora_dir, **data.model_dump(), skip_wait=data.skip_queue
-    )
+    load_result = await model.load_loras(lora_dir, **data.model_dump(), skip_wait=data.skip_queue)
 
     return LoraLoadResponse(
         success=unwrap(load_result.get("success"), []),
@@ -441,9 +435,7 @@ async def encode_tokens(data: TokenEncodeRequest) -> TokenEncodeResponse:
 
         raise HTTPException(422, error_message)
 
-    raw_tokens = model.container.encode_tokens(
-        text, embeddings=mm_embeddings, **data.get_params()
-    )
+    raw_tokens = model.container.encode_tokens(text, embeddings=mm_embeddings, **data.get_params())
     tokens = unwrap(raw_tokens, [])
     response = TokenEncodeResponse(tokens=tokens, length=len(tokens))
 
@@ -557,9 +549,7 @@ async def list_sampler_overrides(request: Request) -> SamplerOverrideListRespons
     else:
         presets = []
 
-    return SamplerOverrideListResponse(
-        presets=presets, **sampling.overrides_container.model_dump()
-    )
+    return SamplerOverrideListResponse(presets=presets, **sampling.overrides_container.model_dump())
 
 
 @router.post(

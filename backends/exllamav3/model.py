@@ -143,8 +143,7 @@ class ExllamaV3Container(BaseModelContainer):
         else:
             if "vision" in self.config.model_classes:
                 xlogger.info(
-                    "The provided model has vision capabilities, vision is disabled "
-                    "in config."
+                    "The provided model has vision capabilities, vision is disabled in config."
                 )
 
         # Prepare the draft model config if necessary
@@ -161,9 +160,7 @@ class ExllamaV3Container(BaseModelContainer):
             self.use_draft_model = False
 
         if self.use_draft_model:
-            draft_model_path = pathlib.Path(
-                unwrap(draft_args.get("draft_model_dir"), "models")
-            )
+            draft_model_path = pathlib.Path(unwrap(draft_args.get("draft_model_dir"), "models"))
             draft_model_path = draft_model_path / draft_model_name
             self.draft_gpu_split = unwrap(draft_args.get("draft_gpu_split"), [])
             self.draft_model_dir = draft_model_path
@@ -192,9 +189,7 @@ class ExllamaV3Container(BaseModelContainer):
                 tp_backend = unwrap(kwargs.get("tensor_parallel_backend"), "native")
 
                 if tp_backend == "nccl" and not exllama_supports_nccl():
-                    unsupported_message = (
-                        "NCCL is not available. Falling back to native backend."
-                    )
+                    unsupported_message = "NCCL is not available. Falling back to native backend."
                     xlogger.warning(unsupported_message)
                     tp_backend = "native"
 
@@ -214,22 +209,16 @@ class ExllamaV3Container(BaseModelContainer):
                 self.autosplit_reserve = None
 
                 gpu_device_list = [
-                    device_idx
-                    for device_idx, memory in enumerate(self.gpu_split)
-                    if memory > 0
+                    device_idx for device_idx, memory in enumerate(self.gpu_split) if memory > 0
                 ]
             elif gpu_split_auto and not self.use_tp:
                 # Otherwise fallback to autosplit settings
                 self.gpu_split_auto = gpu_split_auto
 
-                autosplit_reserve_megabytes = unwrap(
-                    kwargs.get("autosplit_reserve"), [96]
-                )
+                autosplit_reserve_megabytes = unwrap(kwargs.get("autosplit_reserve"), [96])
 
                 # Reserve VRAM for each GPU
-                self.autosplit_reserve = [
-                    value / 1024 for value in autosplit_reserve_megabytes
-                ]
+                self.autosplit_reserve = [value / 1024 for value in autosplit_reserve_megabytes]
 
         if not hardware_supports_flash_attn(gpu_device_list):
             gpu_unsupported_message = (
@@ -245,15 +234,11 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Determine max_seq_len and cache_size
         max_seq_len_user = kwargs.get("max_seq_len")
-        max_seq_len_model = self.hf_model.hf_config.get_max_position_embeddings(
-            default=None
-        )
+        max_seq_len_model = self.hf_model.hf_config.get_max_position_embeddings(default=None)
         max_seq_len_default = 8192
 
         if max_seq_len_model and not max_seq_len_user:
-            xlogger.info(
-                f"Using default max_seq_len from model: {max_seq_len_model} tokens."
-            )
+            xlogger.info(f"Using default max_seq_len from model: {max_seq_len_model} tokens.")
             max_seq_len = max_seq_len_model
         elif max_seq_len_user:
             xlogger.info(f"Using configured max_seq_len: {max_seq_len_user} tokens.")
@@ -296,9 +281,7 @@ class ExllamaV3Container(BaseModelContainer):
         if self.use_draft_model:
             # Set draft cache mode
             self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
-            self.draft_cache = self.create_cache(
-                self.draft_cache_mode, self.draft_model
-            )
+            self.draft_cache = self.create_cache(self.draft_cache_mode, self.draft_model)
 
         # Max batch size
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"), 256)
@@ -436,8 +419,7 @@ class ExllamaV3Container(BaseModelContainer):
         # Immediately abort all jobs if asked
         if skip_wait:
             xlogger.warning(
-                "Immediately terminating all jobs. "
-                "Clients will have their requests cancelled.\n"
+                "Immediately terminating all jobs. Clients will have their requests cancelled.\n"
             )
 
             for job in self.active_job_ids.values():
@@ -641,9 +623,7 @@ class ExllamaV3Container(BaseModelContainer):
         return (
             self.tokenizer.encode(
                 text,
-                add_bos=unwrap(
-                    kwargs.get("add_bos_token"), self.hf_model.add_bos_token()
-                ),
+                add_bos=unwrap(kwargs.get("add_bos_token"), self.hf_model.add_bos_token()),
                 encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
                 embeddings=mm_embeddings_content,
             )
@@ -669,9 +649,7 @@ class ExllamaV3Container(BaseModelContainer):
             decode_special_tokens=unwrap(kwargs.get("decode_special_tokens"), True),
         )[0]
 
-    def get_special_tokens(
-        self, add_bos_token: bool = True, ban_eos_token: bool = False
-    ):
+    def get_special_tokens(self, add_bos_token: bool = True, ban_eos_token: bool = False):
         """
         Gets special tokens used by the model/tokenizer.
 
@@ -759,18 +737,12 @@ class ExllamaV3Container(BaseModelContainer):
             for generation in generations:
                 joined_generation["text"] += unwrap(generation.get("text"), "")
                 joined_generation["offset"].append(unwrap(generation.get("offset"), -1))
-                joined_generation["token_probs"].update(
-                    unwrap(generation.get("token_probs"), {})
-                )
+                joined_generation["token_probs"].update(unwrap(generation.get("token_probs"), {}))
 
                 # Include empty logprob dicts for index preservation
-                joined_generation["logprobs"].append(
-                    unwrap(generation.get("logprobs"), {})
-                )
+                joined_generation["logprobs"].append(unwrap(generation.get("logprobs"), {}))
 
-            joined_generation["prompt_tokens"] = unwrap(
-                generations[-1].get("prompt_tokens"), 0
-            )
+            joined_generation["prompt_tokens"] = unwrap(generations[-1].get("prompt_tokens"), 0)
             joined_generation["generated_tokens"] = unwrap(
                 generations[-1].get("generated_tokens"), 0
             )
@@ -1016,8 +988,7 @@ class ExllamaV3Container(BaseModelContainer):
         # Check total length of prompt against max context length
         if context_len > self.max_seq_len:
             raise ValueError(
-                f"Prompt length {context_len} is greater than "
-                f"max_seq_len {self.max_seq_len}"
+                f"Prompt length {context_len} is greater than max_seq_len {self.max_seq_len}"
             )
 
         # Log prompt to console. Add the BOS token if specified
@@ -1097,9 +1068,7 @@ class ExllamaV3Container(BaseModelContainer):
 
                 if result.get("eos"):
                     xlogger.debug("EOS result received from generator", result)
-                    finish_chunk = self.handle_finish_chunk(
-                        result, request_id, full_response
-                    )
+                    finish_chunk = self.handle_finish_chunk(result, request_id, full_response)
 
                     # Save the final result for metrics logging
                     metrics_result = finish_chunk

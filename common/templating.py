@@ -168,9 +168,7 @@ class PromptTemplate:
             template_path = template_path.with_suffix(".jinja")
 
         if template_path.exists():
-            async with aiofiles.open(
-                template_path, "r", encoding="utf8"
-            ) as raw_template_stream:
+            async with aiofiles.open(template_path, "r", encoding="utf8") as raw_template_stream:
                 contents = await raw_template_stream.read()
                 return cls(
                     name=template_name,
@@ -178,14 +176,10 @@ class PromptTemplate:
                 )
         else:
             # Let the user know if the template file isn't found
-            raise TemplateLoadError(
-                f'Chat template "{template_name}" not found in files.'
-            )
+            raise TemplateLoadError(f'Chat template "{template_name}" not found in files.')
 
     @classmethod
-    async def from_model_json(
-        cls, json_path: pathlib.Path, key: str, name: Optional[str] = None
-    ):
+    async def from_model_json(cls, json_path: pathlib.Path, key: str, name: Optional[str] = None):
         """Get a template from a JSON file. Requires a key and template name"""
         if not json_path.exists():
             raise TemplateLoadError(f'Model JSON path "{json_path}" not found.')
@@ -218,8 +212,7 @@ class PromptTemplate:
                     return PromptTemplate(name=name, raw_template=selected_template)
                 else:
                     raise TemplateLoadError(
-                        f'Chat template with name "{name}" not found '
-                        "in model templates list."
+                        f'Chat template with name "{name}" not found in model templates list.'
                     )
             else:
                 # Can safely assume the chat template is the old style
@@ -272,9 +265,7 @@ async def find_prompt_template(template_name, model_dir: pathlib.Path):
     # Find the template in the model directory if it exists
     model_dir_template_path = model_dir / "tabby_template.jinja"
     if model_dir_template_path.exists():
-        find_template_functions[:0] = [
-            lambda: PromptTemplate.from_file(model_dir_template_path)
-        ]
+        find_template_functions[:0] = [lambda: PromptTemplate.from_file(model_dir_template_path)]
 
     # Add lookup from prompt template name if provided
     # TODO: Possibly link to the TokenizerConfig class
@@ -295,9 +286,7 @@ async def find_prompt_template(template_name, model_dir: pathlib.Path):
             if prompt_template is not None:
                 return prompt_template
         except TemplateLoadError as e:
-            xlogger.warning(
-                "TemplateLoadError", {"exception": str(e)}, details=f"{str(e)}"
-            )
+            xlogger.warning("TemplateLoadError", {"exception": str(e)}, details=f"{str(e)}")
             continue
         except Exception:
             xlogger.error(traceback.format_exc())
