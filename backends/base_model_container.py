@@ -13,6 +13,7 @@ from common.multimodal import MultimodalEmbeddingWrapper
 from common.sampling import BaseSamplerRequest
 from common.templating import PromptTemplate
 from common.transformers_utils import HFModel
+from common.config_models import ToolConfig
 from endpoints.core.types.model import ModelCard
 
 
@@ -22,6 +23,7 @@ class BaseModelContainer(abc.ABC):
     # Exposed model information
     model_dir: pathlib.Path = pathlib.Path("models")
     prompt_template: Optional[PromptTemplate] = None
+    tool_config: Optional[ToolConfig] = None
 
     # HF Model instance
     hf_model: HFModel

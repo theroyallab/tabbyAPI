@@ -4,14 +4,15 @@ import traceback
 import aiofiles
 import json
 import pathlib
-from dataclasses import dataclass, field
+from ruamel.yaml import YAML
 from datetime import datetime
 from importlib.metadata import version as package_version
-from typing import List, Optional
+from typing import Optional
 from jinja2 import Template, TemplateError
 from jinja2.ext import loopcontrols
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from common.logger import xlogger
+from common.config_models import ToolConfig
 from markupsafe import Markup
 from packaging import version
 
@@ -28,16 +29,6 @@ class TemplateLoadError(Exception):
 VALID_TOOL_CALL_FORMATS = {"json", "xml", "auto"}
 
 
-@dataclass
-class TemplateMetadata:
-    """Represents the parsed metadata from a template."""
-
-    stop_strings: List[str] = field(default_factory=list)
-    tool_start: Optional[str] = None
-    tool_end: Optional[str] = None
-    tool_call_format: str = "json"
-
-
 class PromptTemplate:
     """A template for chat completion prompts."""
 
@@ -50,7 +41,6 @@ class PromptTemplate:
         enable_async=True,
         extensions=[loopcontrols],
     )
-    metadata: Optional[TemplateMetadata] = None
 
     @staticmethod
     def _tojson_compat(value, indent=None, ensure_ascii=True):
@@ -67,55 +57,6 @@ class PromptTemplate:
                 separators=(",", ": "),
             )
         )
-
-    async def extract_metadata(self, template_vars: dict):
-        """
-        Returns deserialized template metadata from a chat template.
-
-        NOTE: Requires all template vars to be passed in since the template
-        is run once to make a module and errors can result.
-        """
-
-        # No need to extract new metadata if it already exists
-        # This might be removed if stored metadata becomes arbitrary
-        if self.metadata:
-            return self.metadata
-
-        template_metadata = TemplateMetadata()
-
-        template_module = await self.template.make_module_async(template_vars)
-
-        if hasattr(template_module, "stop_strings"):
-            if isinstance(template_module.stop_strings, list):
-                template_metadata.stop_strings += template_module.stop_strings
-            else:
-                xlogger.warning(
-                    "Skipping append of stopping strings from chat template "
-                    "because stop_strings isn't a list."
-                )
-
-        if hasattr(template_module, "tool_start"):
-            if isinstance(template_module.tool_start, str):
-                template_metadata.tool_start = template_module.tool_start
-
-        if hasattr(template_module, "tool_end"):
-            if isinstance(template_module.tool_end, str):
-                template_metadata.tool_end = template_module.tool_end
-
-        if hasattr(template_module, "tool_call_format"):
-            fmt = template_module.tool_call_format
-            if isinstance(fmt, str) and fmt in VALID_TOOL_CALL_FORMATS:
-                template_metadata.tool_call_format = fmt
-                logger.debug(f"Template tool_call_format: {fmt}")
-            else:
-                logger.warning(
-                    f"Invalid tool_call_format '{fmt}' in template, "
-                    f"defaulting to 'json'. "
-                    f"Valid values: {VALID_TOOL_CALL_FORMATS}"
-                )
-
-        self.metadata = template_metadata
-        return template_metadata
 
     async def render(self, template_vars: dict):
         """Get a prompt from a template and a list of messages."""
@@ -297,3 +238,34 @@ async def find_prompt_template(template_name, model_dir: pathlib.Path):
             continue
 
     return None
+
+
+def get_all_tool_formats():
+    """Fetches all tool formats from the tool_formats directory"""
+
+    tool_formats_directory = pathlib.Path("tool_formats")
+    return tool_formats_directory.glob("*.yaml")
+
+
+async def tool_config_from_file(tool_format_name: Optional[str]):
+    """Fetches a tool config from a file"""
+    if not tool_format_name:
+        return ToolConfig.model_validate({})
+
+    preset_path = pathlib.Path(f"tool_formats/{tool_format_name}.yml")
+    if preset_path.exists():
+        async with aiofiles.open(preset_path, "r", encoding="utf8") as raw_preset:
+            contents = await raw_preset.read()
+
+            # Create a temporary YAML parser
+            yaml = YAML(typ="safe")
+            cfg = yaml.load(contents)
+
+            xlogger.info(f"Loaded tool config {tool_format_name}", {"tool_config": cfg})
+            return ToolConfig.model_validate(cfg)
+    else:
+        xlogger.error(
+            f'Tool format name "{tool_format_name}" was not found. '
+            + "Make sure it's located in the tool_formats folder."
+        )
+        return ToolConfig.model_validate({})

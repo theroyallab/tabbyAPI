@@ -166,6 +166,10 @@ model:
   # The end token for reasoning conetnt (default: "</think>")
   reasoning_end_token: "</think>"
 
+  # Tool format. See tool_formats/ for supported formats. If left blank,
+  # tool calls from the model will not be parsed by the server.
+  tool_format:
+
 # Options for draft models (speculative decoding)
 # This will use more VRAM!
 draft_model:

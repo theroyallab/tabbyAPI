@@ -39,9 +39,10 @@ from common.logger import xlogger
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.optional_dependencies import check_package_version
 from common.sampling import BaseSamplerRequest
-from common.templating import PromptTemplate, find_prompt_template
+from common.templating import PromptTemplate, find_prompt_template, tool_config_from_file
 from common.transformers_utils import HFModel
 from common.utils import coalesce, unwrap
+from endpoints.OAI.types.chat_completion import ChatCompletionLogprob, ChatCompletionLogprobLeaf
 from endpoints.core.types.model import ModelCard, ModelCardParameters
 
 
@@ -298,6 +299,9 @@ class ExllamaV3Container(BaseModelContainer):
         self.prompt_template = await find_prompt_template(
             kwargs.get("prompt_template"), model_directory
         )
+
+        # Tool calling
+        self.tool_config = await tool_config_from_file(kwargs.get("tool_format"))
 
         # Catch all for template lookup errors
         if self.prompt_template:
@@ -668,21 +672,6 @@ class ExllamaV3Container(BaseModelContainer):
             "unk_token": self.tokenizer.unk_token,
         }
 
-    def get_logprobs(self, token_ids: torch.Tensor, token_probs: torch.Tensor):
-        top_tokens = [
-            self.tokenizer.get_id_to_piece_list(True)[index]
-            for index in token_ids.flatten().tolist()
-        ]
-
-        top_values = torch.log(token_probs).flatten().tolist()
-
-        # Cannot return -inf in JSON
-        cleaned_values = [
-            -1000 if value == float("-inf") else value for value in top_values
-        ]
-
-        return dict(zip_longest(top_tokens, cleaned_values))
-
     async def generate(
         self,
         request_id: str,
@@ -719,7 +708,6 @@ class ExllamaV3Container(BaseModelContainer):
             "text": "",
             "prompt_tokens": 0,
             "generation_tokens": 0,
-            "tool_calls": None,
             "offset": [],
             "token_probs": {},
             "logprobs": [],
@@ -800,24 +788,51 @@ class ExllamaV3Container(BaseModelContainer):
             del self.active_job_ids[request_id]
 
     def handle_logprobs(self, result: dict, generation: dict):
-        top_tokens = unwrap(
-            result.get("top_k_tokens"),
-            torch.empty((1, 0, 1), dtype=torch.long),
-        )
+        """
+        Translate EXL3 logprobs to OAI format
 
-        top_probs = unwrap(
-            result.get("top_k_probs"),
-            torch.empty((1, 0, 1), dtype=torch.float),
-        )
+        # TODO: Maybe handle token bytes
+        """
 
-        if top_tokens.numel() > 0 and top_probs.numel() > 0:
-            logprobs = self.get_logprobs(top_tokens, top_probs)
-            generation["logprobs"] = logprobs
+        # Get ids and probs: [1, num]
+        token_probs = result.get("token_probs")
+        token_ids = result.get("token_ids")
+        if token_ids is None or token_ids.numel() == 0 or token_probs is None:
+            return
+        token_logprobs = token_probs.log()
 
-            # The first logprob is the selected token prob
-            generation["token_probs"] = {
-                token: logprobs[token] for token in list(logprobs.keys())[:1]
-            }
+        # Optionally get top-k tokens and probs: [1, num, K]
+        top_tokens = result.get("top_k_tokens")
+        top_probs = result.get("top_k_probs")
+        if top_tokens is not None and top_probs is not None:
+            top_logprobs = top_probs.log()
+        else:
+            top_logprobs = None
+
+        # Iterate over sequence
+        vocab = self.tokenizer.get_id_to_piece_list(True)
+        content = []
+        for i in range(token_ids.shape[-1]):
+            # Prob for sampled token
+            _token_id = token_ids[0, i].item()
+            _token_str = vocab[_token_id]
+            _logprob = token_logprobs[0, i].item()
+            c = ChatCompletionLogprob(token=_token_str, token_id=_token_id, logprob=_logprob)
+
+            # Top-K choices for token position
+            if top_logprobs is not None:
+                _top_tokens = top_tokens[0, i].tolist()
+                _top_logprobs = top_logprobs[0, i].tolist()
+                c.top_logprobs = [
+                    ChatCompletionLogprobLeaf(
+                        token=vocab[t], token_id=t, logprob=-1000.0 if p == float("-inf") else p
+                    )
+                    for t, p in zip_longest(_top_tokens, _top_logprobs)
+                ]
+
+            content.append(c)
+
+        generation["logprobs_content"] = content
 
     def handle_finish_chunk(self, result: dict, request_id: str, full_text: str):
         eos_reason = result.get("eos_reason")
@@ -1009,7 +1024,8 @@ class ExllamaV3Container(BaseModelContainer):
             stop_conditions=stop_conditions,
             banned_strings=params.banned_strings,
             embeddings=mm_embeddings_content,
-            return_top_tokens=params.logprobs,
+            return_top_tokens=params.top_logprobs,
+            return_probs=bool(params.logprobs) or bool(params.top_logprobs),
             max_rq_tokens=self.max_rq_tokens,
             filters=grammar_handler.filters,
         )

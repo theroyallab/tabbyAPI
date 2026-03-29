@@ -56,40 +56,9 @@ PARAMETER_RE = re.compile(
     re.DOTALL,
 )
 
-# Think block patterns
-THINK_BLOCK_RE = re.compile(r"<think>.*?</think>\s*", re.DOTALL)
-THINK_UNCLOSED_RE = re.compile(r"<think>(?!.*</think>).*$", re.DOTALL)
-
 # Markdown code fence patterns
 CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*", re.MULTILINE)
 CODE_FENCE_END_RE = re.compile(r"\s*```\s*$", re.MULTILINE)
-
-
-def _strip_think_blocks(text: str) -> str:
-    """Strip <think>...</think> blocks from text.
-
-    Handles both complete and unclosed blocks (quantization can cause
-    the model to never close a think tag).
-    """
-    original = text
-
-    # Complete blocks first
-    text = THINK_BLOCK_RE.sub("", text)
-
-    # Unclosed block (think started but never closed — strip to end)
-    text = THINK_UNCLOSED_RE.sub("", text)
-
-    if text != original:
-        if THINK_UNCLOSED_RE.search(original):
-            xlogger.warning(
-                "XML Parser: Stripped unclosed <think> block "
-                "(possible quantization degradation)"
-            )
-        else:
-            xlogger.debug("XML Parser: Stripped <think> block(s) from output")
-
-    return text
-
 
 def _coerce_param_value(raw: str) -> Any:
     """Coerce a raw parameter value string to the appropriate Python type.
@@ -262,7 +231,7 @@ class ToolCallProcessor:
         xlogger.debug(f"XML Parser: Parsing tool calls ({len(raw_text)} chars)")
 
         # Stage 1: Strip think blocks
-        text = _strip_think_blocks(raw_text)
+        text = raw_text
 
         # Stage 2: Check for incomplete XML at end (generation cutoff)
         stripped_end = text.rstrip()
@@ -385,29 +354,29 @@ class ToolCallProcessor:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def parse(tool_calls_str: str, format: str = "json") -> List[ToolCall]:
+    def parse(tool_calls_str: str, tool_format: str = "json") -> List[ToolCall]:
         """Dispatch tool call parsing to the appropriate format handler.
 
         Args:
             tool_calls_str: Raw tool call text from model generation.
-            format: One of ``"json"``, ``"xml"``, ``"auto"``.
+            tool_format: One of ``"json"``, ``"xml"``, ``"auto"``.
 
         Returns:
             List of parsed ToolCall objects.  Empty list on parse failure
             (never raises).
         """
         try:
-            if format == "xml":
+            if tool_format == "xml":
                 return ToolCallProcessor.from_xml(tool_calls_str)
-            elif format == "auto":
+            elif tool_format == "auto":
                 return ToolCallProcessor.from_auto(tool_calls_str)
             else:
                 return ToolCallProcessor.from_json(tool_calls_str)
         except Exception as e:
             xlogger.error(
                 "ToolCallProcessor.parse: Failed to parse tool calls",
-                {"format": format, "e": str(e)},
-                details = f"(format={format}): {e}"
+                {"tool_format": tool_format, "e": str(e)},
+                details=f"(format={tool_format}): {e}",
             )
             return []
 
@@ -442,7 +411,7 @@ class ToolCallProcessor:
         Returns:
             Tuple of (remaining_content, tool_calls).
         """
-        text = _strip_think_blocks(raw_text)
+        text = raw_text
 
         # Collect all XML regions to exclude from content
         xml_regions = []
@@ -479,9 +448,9 @@ class ToolCallProcessor:
         tool_calls = ToolCallProcessor.from_xml(text)
 
         xlogger.debug(
-            f"extract_content_and_tools: Found {len(tool_calls)} tool "
-            f"call(s), content={'yes' if content else 'no'} "
-            f"({len(content)} chars)"
+            f"extract_content_and_tools: Found {len(tool_calls)} tool call(s)",
+            {"tool_calls": tool_calls},
+            details=f" content={'yes' if content else 'no'} ({len(content)} chars)",
         )
 
         return content, tool_calls

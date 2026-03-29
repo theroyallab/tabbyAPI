@@ -46,7 +46,7 @@ from common.health import HealthManager
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.optional_dependencies import check_package_version
 from common.sampling import BaseSamplerRequest
-from common.templating import PromptTemplate, find_prompt_template
+from common.templating import PromptTemplate, find_prompt_template, tool_config_from_file
 from common.transformers_utils import HFModel
 from common.utils import calculate_rope_alpha, coalesce, unwrap
 from endpoints.core.types.model import ModelCard, ModelCardParameters
@@ -299,6 +299,9 @@ class ExllamaV2Container(BaseModelContainer):
         self.prompt_template = await find_prompt_template(
             kwargs.get("prompt_template"), model_directory
         )
+
+        # Tool calling
+        self.tool_config = await tool_config_from_file(kwargs.get("tool_format"))
 
         # Catch all for template lookup errors
         if self.prompt_template:

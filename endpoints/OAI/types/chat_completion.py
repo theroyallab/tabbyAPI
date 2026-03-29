@@ -7,10 +7,17 @@ from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
 from endpoints.OAI.types.tools import NamedToolChoice, ToolSpec, ToolCall
 
 
+class ChatCompletionLogprobLeaf(BaseModel):
+    token: str
+    token_id: Optional[int] = None  # not standard but widely adopted
+    logprob: float
+
+
 class ChatCompletionLogprob(BaseModel):
     token: str
+    token_id: Optional[int] = None  # not standard but widely adopted
     logprob: float
-    top_logprobs: Optional[List["ChatCompletionLogprob"]] = Field(default_factory=list)
+    top_logprobs: Optional[List[ChatCompletionLogprobLeaf]] = Field(default_factory=list)
 
 
 class ChatCompletionLogprobs(BaseModel):

@@ -267,6 +267,12 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
+    # Valid for OAI requests
+    top_logprobs: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("top_logprobs", 0),
+        ge=0,
+    )
+
     adaptive_target: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("adaptive_target", 1.0)
     )
@@ -318,6 +324,10 @@ class BaseSamplerRequest(BaseModel):
 
     @model_validator(mode="after")
     def after_validate(self):
+        # For OAI requests, logprobs is a boolean and top_logprobs is integer
+        # if self.logprobs and self.top_logprobs:
+        #     self.logprobs = self.top_logprobs
+
         # FIXME: find a better way to register this
         # Maybe make a function to assign values to the
         # model if they do not exist post creation
