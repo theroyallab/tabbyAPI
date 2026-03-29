@@ -8,6 +8,7 @@ from common.auth import check_api_key
 from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, run_with_request_disconnect
 from common.tabby_config import config
+from common.logger import xlogger
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionRequest,
@@ -50,6 +51,9 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
 
     If stream = true, this returns an SSE stream.
     """
+
+    raw_json = await request.json()
+    xlogger.debug("[ENDPOINT] /v1/completions", {"raw": raw_json})
 
     if data.model:
         inline_load_task = asyncio.create_task(load_inline_model(data.model, request))
@@ -103,6 +107,9 @@ async def chat_completion_request(
 
     If stream = true, this returns an SSE stream.
     """
+
+    raw_json = await request.json()
+    xlogger.debug("[ENDPOINT] /v1/chat/completions", {"raw": raw_json})
 
     if data.model:
         await load_inline_model(data.model, request)
