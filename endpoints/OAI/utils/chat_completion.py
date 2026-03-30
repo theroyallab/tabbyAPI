@@ -483,6 +483,9 @@ async def _chat_stream_collector(
                 # Track output phase. No nesting is expected, except tools may occur in
                 # reasoning content
                 if tag:
+                    if tag == t_tool_end:  # include outer tool tags in output
+                        delta_tool += tag
+                        full_tool += tag
                     if not in_tool:
                         if tag == t_think_start:
                             post_reasoning_whitespace = False
@@ -492,6 +495,8 @@ async def _chat_stream_collector(
                             in_reasoning = False
                     if tag == t_tool_start:
                         in_tool = True
+                        delta_tool += tag    # include outer tool tags in output
+                        full_tool += tag
                     elif tag == t_tool_end:
                         in_tool = False
 
