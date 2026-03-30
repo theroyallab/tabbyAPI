@@ -281,7 +281,7 @@ async def format_messages_with_template(
                 if isinstance(args, str):
                     try:
                         func["arguments"] = json.loads(args)
-                        xlogger.debug("Parsed tool call", {"func": func})
+                        # xlogger.debug("Parsed tool call", {"func": func})
                     except (json.JSONDecodeError, ValueError):
                         xlogger.warning(
                             "Failed to parse tool_call arguments JSON "
