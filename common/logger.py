@@ -7,6 +7,8 @@ import os
 import requests
 import json
 from datetime import datetime, timezone
+import re
+from collections.abc import Mapping, Sequence, Set
 
 from loguru import logger
 from rich.console import Console
@@ -131,6 +133,50 @@ def setup_logger():
 Extended logging via Seq.
 """
 
+_DATA_URL_RE = re.compile(r"^(data:)([^;,]+)?(?:;[^,]*)?(;base64),(.*)$", re.DOTALL)
+
+def _sanitize_for_logging(obj, max_string_length=4096, head=256, tail=256):
+
+    def truncate_string(s: str) -> str:
+        if len(s) <= max_string_length:
+            return s
+
+        if head + tail >= len(s):
+            return s
+
+        omitted = len(s) - head - tail
+        return f"{s[:head]} [<- {omitted:,} chars truncated ->] {s[-tail:]}"
+
+    def sanitize_string(s: str) -> str:
+        m = _DATA_URL_RE.match(s)
+        if m:
+            prefix1, mime_type, prefix3, payload = m.groups()
+            mime_type = mime_type or "application/octet-stream"
+            prefix = f"{prefix1}{mime_type}{prefix3}"
+            return f"{prefix} [<- {len(payload):,} chars truncated ->]"
+
+        return truncate_string(s)
+
+    def walk(value):
+        if isinstance(value, str):
+            return sanitize_string(value)
+
+        if isinstance(value, Mapping):
+            return {k: walk(v) for k, v in value.items()}
+
+        if isinstance(value, tuple):
+            return tuple(walk(v) for v in value)
+
+        if isinstance(value, Set) and not isinstance(value, (str, bytes, bytearray)):
+            return {walk(v) for v in value}
+
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return [walk(v) for v in value]
+
+        return value
+
+    return walk(obj)
+
 
 class XLogger:
     def __init__(self):
@@ -176,6 +222,7 @@ class XLogger:
                 log_extra = {}
             elif not isinstance(log_extra, dict):
                 log_extra = {"extra": str(log_extra)}
+            log_extra = _sanitize_for_logging(log_extra)
             event = {
                 "@t": self._get_timestamp_now(),
                 "@m": log_message,
