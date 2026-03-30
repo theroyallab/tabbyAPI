@@ -79,6 +79,7 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
 
     # Initialize overrides dict
     overrides = {"draft_model": {}}
+    model_inline_config = None
 
     if override_config_path.exists():
         async with aiofiles.open(
