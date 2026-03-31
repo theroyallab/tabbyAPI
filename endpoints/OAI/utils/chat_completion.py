@@ -360,6 +360,10 @@ def _parse_tool_calls(
 ) -> list:
     """
     Parse collected tool calls and convert to OAI format.
+
+    Insert tool indices as well. (These are not choice indices; OAI enumerates the tool
+    calls within each individual choice for the sake of streaming incomplete tool arg
+    deltas, which we don't do here.)
     """
 
     parsed = parse_toolcalls(text, tool_format)
@@ -424,13 +428,8 @@ async def _chat_stream_collector(
     t_think_end = mc.reasoning_end_token if use_think else None
 
     # Regex to identify tool/think tags that may or may not arrive with other text
-    split_re = re.compile(
-        "|".join(
-            re.escape(s)
-            for s in [t_tool_start, t_tool_end, t_think_start, t_think_end]
-            if (s and s is not disabled)
-        )
-    )
+    splits = [re.escape(s) for s in [t_tool_start, t_tool_end, t_think_start, t_think_end] if s]
+    split_re = re.compile("|".join(splits)) if splits else None
 
     # Collect logprobs
     collected_logprobs = []
@@ -455,10 +454,13 @@ async def _chat_stream_collector(
 
             while text:
                 # Find + identify tag and split text into before and after parts
-                match = split_re.search(text)
-                if match:
-                    i, j = match.span()
-                    sub, text, tag = text[:i], text[j:], match[0]
+                if split_re:
+                    match = split_re.search(text)
+                    if match:
+                        i, j = match.span()
+                        sub, text, tag = text[:i], text[j:], match[0]
+                    else:
+                        sub, text, tag = text, "", None
                 else:
                     sub, text, tag = text, "", None
 
