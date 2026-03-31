@@ -135,12 +135,9 @@ Extended logging via Seq.
 
 _DATA_URL_RE = re.compile(r"^(data:)([^;,]+)?(?:;[^,]*)?(;base64),(.*)$", re.DOTALL)
 
-def _sanitize_for_logging(obj, max_string_length=4096, head=256, tail=256):
+def _sanitize_for_logging(obj, head=1024, tail=1024):
 
     def truncate_string(s: str) -> str:
-        if len(s) <= max_string_length:
-            return s
-
         if head + tail >= len(s):
             return s
 
