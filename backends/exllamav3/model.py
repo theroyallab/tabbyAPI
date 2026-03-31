@@ -39,11 +39,12 @@ from common.logger import xlogger
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.optional_dependencies import check_package_version
 from common.sampling import BaseSamplerRequest
-from common.templating import PromptTemplate, find_prompt_template, tool_config_from_file
+from common.templating import PromptTemplate, find_prompt_template
 from common.transformers_utils import HFModel
 from common.utils import coalesce, unwrap
 from endpoints.OAI.types.chat_completion import ChatCompletionLogprob, ChatCompletionLogprobLeaf
 from endpoints.core.types.model import ModelCard, ModelCardParameters
+from endpoints.OAI.utils.tools import is_supported_format
 
 
 class ExllamaV3Container(BaseModelContainer):
@@ -301,7 +302,12 @@ class ExllamaV3Container(BaseModelContainer):
         )
 
         # Tool calling
-        self.tool_config = await tool_config_from_file(kwargs.get("tool_format"))
+        self.tool_format = kwargs.get("tool_format")
+        if self.tool_format and not is_supported_format(self.tool_format):
+            xlogger.warning(f"Unrecognized tool_format in config: {self.tool_format}")
+            self.tool_format = None
+        if self.tool_format:
+            xlogger.info(f"Using tool format: {self.tool_format}")
 
         # Catch all for template lookup errors
         if self.prompt_template:

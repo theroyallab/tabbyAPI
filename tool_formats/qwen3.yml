@@ -1,3 +1,0 @@
-tool_call_format: "xml"
-tool_start: "<tool_call>"
-tool_end: "</tool_call>"

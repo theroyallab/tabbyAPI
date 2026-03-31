@@ -30,8 +30,10 @@ from endpoints.OAI.types.chat_completion import (
 )
 from endpoints.OAI.types.common import UsageStats
 from endpoints.OAI.utils.completion import _parse_gen_request_id
-from endpoints.OAI.utils.tools import ToolCallProcessor
-
+from endpoints.OAI.utils.tools import (
+    get_toolcall_tags,
+    parse_toolcalls,
+)
 
 def _start_in_reasoning_mode(prompt: str) -> bool:
     """
@@ -360,9 +362,9 @@ def _parse_tool_calls(
     Parse collected tool calls and convert to OAI format.
     """
 
-    parsed = ToolCallProcessor.parse(text, tool_format)
+    parsed = parse_toolcalls(text, tool_format)
     for tc_idx, p in enumerate(parsed):
-        p.index = tc_idx  # Local to the stream
+        p.index = tc_idx
     dumped = [p.model_dump(mode="json") for p in parsed]
 
     if len(parsed):
@@ -371,7 +373,6 @@ def _parse_tool_calls(
             {"tool_format": tool_format, "parsed": parsed, "dumped": dumped},
             details=f"(format={tool_format})",
         )
-
     return dumped
 
 
@@ -411,16 +412,16 @@ async def _chat_stream_collector(
 
     in_reasoning = start_in_reasoning_mode
     in_tool = False
-    disabled = object()
 
-    tool_format = mc.tool_config.tool_call_format
-    use_tool = params.tool_choice != "none" and tool_format and mc.tool_config.tool_start
-    t_tool_start = mc.tool_config.tool_start if use_tool else disabled
-    t_tool_end = mc.tool_config.tool_end if use_tool else disabled
+    tool_format = mc.tool_format
+    t_tool_start, t_tool_end = get_toolcall_tags(tool_format)
+    use_tool = params.tool_choice != "none" and bool(t_tool_start)
+    t_tool_start = t_tool_start if use_tool else None
+    t_tool_end = t_tool_end if use_tool else None
 
-    use_think = mc.reasoning and mc.reasoning_start_token
-    t_think_start = mc.reasoning_start_token if use_think else disabled
-    t_think_end = mc.reasoning_end_token if use_think else disabled
+    use_think = mc.reasoning and bool(mc.reasoning_start_token)
+    t_think_start = mc.reasoning_start_token if use_think else None
+    t_think_end = mc.reasoning_end_token if use_think else None
 
     # Regex to identify tool/think tags that may or may not arrive with other text
     split_re = re.compile(

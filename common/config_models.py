@@ -308,20 +308,13 @@ class ModelConfig(BaseConfigModel):
     tool_format: Optional[str] = Field(
         None,
         description=(
-            "Tool format. See tool_formats/ for supported formats. If left blank, \n"
+            "Tool format, e.g. 'qwen3_coder'. See docs for supported formats. If left blank, \n"
             "tool calls from the model will not be parsed by the server."
         ),
     )
 
     _metadata: Metadata = PrivateAttr(Metadata())
     model_config = ConfigDict(protected_namespaces=())
-
-
-class ToolConfig(BaseModel):
-    tool_call_format: Optional[str] = Field(None)
-    tool_start: Optional[str] = Field(None)
-    tool_end: Optional[str] = Field(None)
-    stop_strings: Optional[list[str]] = Field([])
 
 
 class DraftModelConfig(BaseConfigModel):

@@ -34,6 +34,29 @@ class ToolCall(BaseModel):
     responses (where OpenAI does not include it) via ``exclude_none=True``,
     while being set explicitly for streaming deltas where it is required
     by strict validators like the Vercel AI SDK.
+
+    TOOL_CALL_SCHEMA:
+     {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "function": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "arguments": {
+                            # Converted to OAI's string in post process
+                            "type": "object"
+                        },
+                    },
+                    "required": ["name", "arguments"],
+                },
+            },
+            "required": ["function"],
+        },
+    }
     """
 
     id: str = Field(default_factory=lambda: f"call_{uuid4().hex[:24]}")

@@ -12,7 +12,6 @@ from jinja2 import Template, TemplateError
 from jinja2.ext import loopcontrols
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from common.logger import xlogger
-from common.config_models import ToolConfig
 from markupsafe import Markup
 from packaging import version
 
@@ -238,34 +237,3 @@ async def find_prompt_template(template_name, model_dir: pathlib.Path):
             continue
 
     return None
-
-
-def get_all_tool_formats():
-    """Fetches all tool formats from the tool_formats directory"""
-
-    tool_formats_directory = pathlib.Path("tool_formats")
-    return tool_formats_directory.glob("*.yaml")
-
-
-async def tool_config_from_file(tool_format_name: Optional[str]):
-    """Fetches a tool config from a file"""
-    if not tool_format_name:
-        return ToolConfig.model_validate({})
-
-    preset_path = pathlib.Path(f"tool_formats/{tool_format_name}.yml")
-    if preset_path.exists():
-        async with aiofiles.open(preset_path, "r", encoding="utf8") as raw_preset:
-            contents = await raw_preset.read()
-
-            # Create a temporary YAML parser
-            yaml = YAML(typ="safe")
-            cfg = yaml.load(contents)
-
-            xlogger.info(f"Loaded tool config {tool_format_name}", {"tool_config": cfg})
-            return ToolConfig.model_validate(cfg)
-    else:
-        xlogger.error(
-            f'Tool format name "{tool_format_name}" was not found. '
-            + "Make sure it's located in the tool_formats folder."
-        )
-        return ToolConfig.model_validate({})
