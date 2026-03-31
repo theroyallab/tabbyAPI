@@ -218,7 +218,7 @@ def _compose_serialize_stream_usage_chunk(
     model_name: Optional[str] = None,
 ) -> (str, dict):
     """
-    Compose a chat completion stream chunk from generation
+    Compose a usage chunk to send at the end of a strema
     """
 
     # Make sure we don't break some client with empty choices list
@@ -392,7 +392,7 @@ async def _chat_stream_collector(
 
     In streaming mode, emits chunks of text to be emitted as deltas to the client, divided into
     reasoning/content/tool phases. Tool calls are parsed together at the end of stream, so the
-    last chunk contains fully parsed tool calls.
+    last chunk contains all tool calls collected for the turn.
 
     In non-streaming mode, collects everything with the same logic but then emits a single
     response packet at the end, to be combined with any other choices (for n>1 requests) and
@@ -422,7 +422,7 @@ async def _chat_stream_collector(
     t_think_start = mc.reasoning_start_token if use_think else disabled
     t_think_end = mc.reasoning_end_token if use_think else disabled
 
-    # Regex to identify tool/think tags that may not arrive with other text
+    # Regex to identify tool/think tags that may or may not arrive with other text
     split_re = re.compile(
         "|".join(
             re.escape(s)
@@ -694,7 +694,7 @@ async def generate_chat_completion(
             },
         )
 
-        # Determine if we're streaming content or reasoning_content to start with
+        # Determine if we're generating content or reasoning_content to start with
         start_in_reasoning_mode = model.container.reasoning and _start_in_reasoning_mode(prompt)
 
         # Create a stream collector for each choice
