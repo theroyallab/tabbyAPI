@@ -409,6 +409,10 @@ def get_default_sampler_value(key, fallback=None):
 def apply_forced_sampler_overrides(params: BaseSamplerRequest):
     """Forcefully applies overrides if specified by the user"""
 
+    # Tolerate older OAI standard for logprobs
+    if isinstance(params.logprobs, int) and params.logprobs > 1:
+        params.top_logprobs = params.logprobs
+
     for var, value in overrides_container.overrides.items():
         override = deepcopy(value.get("override"))
         original_value = getattr(params, var, None)

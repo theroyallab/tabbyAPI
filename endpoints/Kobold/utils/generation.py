@@ -60,6 +60,8 @@ async def _stream_collector(data: GenerateRequest, request: Request):
         )
 
         async for generation in generator:
+            if generation is None:
+                continue
             if disconnect_task.done():
                 raise CancelledError()
 

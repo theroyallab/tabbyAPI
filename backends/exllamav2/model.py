@@ -930,6 +930,8 @@ class ExllamaV2Container(BaseModelContainer):
             abort_event,
             mm_embeddings,
         ):
+            if generation is None:
+                continue
             generations.append(generation)
 
         joined_generation = {

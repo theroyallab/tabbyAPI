@@ -1,12 +1,9 @@
 """Vision utilities for ExLlamaV3."""
 
-from async_lru import alru_cache
-
 from common import model
 from common.optional_dependencies import dependencies
 from common.image_util import get_image
 from common.logger import xlogger
-from hashlib import blake2b
 
 # Since this is used outside the Exl3 backend, the dependency
 # may be optional
@@ -20,8 +17,10 @@ from typing import OrderedDict as OrderedDictType
 _EMBEDDING_CACHE_CAPACITY = 32
 _embedding_cache: OrderedDictType[bytes, tuple[str, "MMEmbedding"]] = OrderedDict()
 
+
 def _image_key_128(s: str) -> bytes:
     return blake2b(s.encode("utf-8"), digest_size=16).digest()
+
 
 async def get_image_embedding_exl3(url: str) -> "MMEmbedding":
     key = _image_key_128(url)
@@ -53,10 +52,11 @@ async def get_image_embedding_exl3(url: str) -> "MMEmbedding":
             "metadata": embedding.metadata,
             "token_length": embedding.mm_length,
             "cache_size": len(_embedding_cache),
-        }
+        },
     )
 
     return embedding
+
 
 def clear_image_embedding_cache():
     _embedding_cache.clear()

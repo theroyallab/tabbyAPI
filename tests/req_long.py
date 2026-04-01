@@ -1,3 +1,6 @@
+import random
+import string
+
 import yaml
 from _common import *
 
@@ -6,31 +9,23 @@ MODEL = "/mnt/str/models/qwen3.5-35b-a3b/exl3/4.09bpw/"
 
 oai_request = {
     "model": MODEL,
-    "template_vars": {
-        "enable_thinking": False,
-    },
     "messages": [
         {
             "role": "user",
-            "content": "Write a Haiku about fish, and start each line with a fish-related emoji.",
+            "content": "".join(random.choices(string.ascii_letters, k=4))
+            + "All work and no play. " * 5000,
         }
     ],
-    "logprobs": True,
-    "top_logprobs": 7,
+    "max_tokens": 500,
     "stream_options": {"include_usage": True},
-    # "max_tokens": 200,
 }
 
-oai_request_2 = {
+non_tool_request = {
     "model": MODEL,
     "template_vars": {
-        "enable_thinking": True,
+        "enable_thinking": False,
     },
-    "messages": [{"role": "user", "content": "What is the mass of a water molecule, in kg?"}],
-    "logprobs": True,
-    "top_logprobs": 5,
-    "stream_options": {"include_usage": True},
-    # "max_tokens": 200,
+    "messages": [{"role": "user", "content": "Hello."}],
 }
 
 
@@ -39,12 +34,13 @@ def main():
         tokens = yaml.safe_load(f)
         api_key = tokens["admin_key"]
 
+    test_chat_streaming(api_key, BASE_URL, non_tool_request.copy(), n=1)
     test_chat_request(api_key, BASE_URL, oai_request.copy(), n=1)
     test_chat_request(api_key, BASE_URL, oai_request.copy(), n=2)
+    test_chat_request(api_key, BASE_URL, oai_request.copy(), n=4)
     test_chat_streaming(api_key, BASE_URL, oai_request.copy(), n=1)
     test_chat_streaming(api_key, BASE_URL, oai_request.copy(), n=2)
-    test_chat_streaming(api_key, BASE_URL, oai_request.copy(), n=1, rawdump=True)
-    test_chat_request(api_key, BASE_URL, oai_request_2.copy(), n=1)
+    test_chat_streaming(api_key, BASE_URL, oai_request.copy(), n=4)
 
 
 if __name__ == "__main__":

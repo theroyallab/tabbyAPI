@@ -4,7 +4,6 @@ import traceback
 import aiofiles
 import json
 import pathlib
-from ruamel.yaml import YAML
 from datetime import datetime
 from importlib.metadata import version as package_version
 from typing import Optional

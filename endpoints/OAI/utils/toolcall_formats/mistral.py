@@ -10,7 +10,8 @@ Raw format (single call):
     [TOOL_CALLS]get_weather[ARGS]{"location": "Paris", "format": "celsius"}
 
 Raw format (parallel calls):
-    [TOOL_CALLS]read[ARGS]{"filePath": "/path/file1.jpg"}[TOOL_CALLS]read[ARGS]{"filePath": "/path/file2.jpg"}
+    [TOOL_CALLS]read[ARGS]{"filePath": "/path/x.jpg"}
+    [TOOL_CALLS]read[ARGS]{"filePath": "/path/y.jpg"}
 
 The model emits [TOOL_CALLS] followed by the function name as plain text,
 then [ARGS] followed by a JSON object of arguments. For parallel calls the
@@ -23,11 +24,12 @@ There is no end token; the sequence ends at EOS.
 TOOLCALL_START = "[TOOL_CALLS]"
 TOOLCALL_END = None
 
-_TOOLCALL_PAIR = re.compile(r"\[TOOL_CALLS]\s*(\S+?)\s*\[ARGS]\s*(\{.*?)(?=\[TOOL_CALLS]|$)",re.DOTALL)
+_TOOLCALL_PAIR = re.compile(
+    r"\[TOOL_CALLS]\s*(\S+?)\s*\[ARGS]\s*(\{.*?)(?=\[TOOL_CALLS]|$)", re.DOTALL
+)
 
 
 def parse_toolcalls(text: str) -> list[ToolCall]:
-
     matches = _TOOLCALL_PAIR.findall(text)
     if not matches:
         return []
@@ -43,7 +45,7 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
             arguments = json.loads(raw_args)
         except json.JSONDecodeError as e:
             xlogger.warning(
-                f"mistral: Failed to parse tool call arguments",
+                "mistral: Failed to parse tool call arguments",
                 {
                     "exception": str(e),
                     "function": func_name,
@@ -54,7 +56,7 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
 
         if not isinstance(arguments, dict):
             xlogger.warning(
-                f"mistral: Arguments is not a dict",
+                "mistral: Arguments is not a dict",
                 {"function": func_name, "arguments": arguments},
             )
             continue

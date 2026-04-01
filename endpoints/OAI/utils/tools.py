@@ -1,11 +1,9 @@
 """Tool call processing utilities for OAI server."""
 
-import json
-import re
 from common.logger import xlogger
-from typing import Any, List, Tuple
+from typing import List
 
-from endpoints.OAI.types.tools import ToolCall, Tool
+from endpoints.OAI.types.tools import ToolCall
 from endpoints.OAI.utils.toolcall_formats import (
     qwen3_coder,
     minimax_m2,
@@ -26,6 +24,7 @@ ALL_TOOLCALL_FORMATS = {
     "qwen3_coder": qwen3_coder,
     "qwen3_5": qwen3_coder,
 }
+
 
 def _get_parser(tool_format: str):
     if not tool_format:
@@ -70,6 +69,6 @@ def parse_toolcalls(tool_calls_str: str, tool_format: str) -> List[ToolCall]:
         xlogger.error(
             "ToolCallProcessor.parse: Failed to parse tool calls",
             {"tool_format": tool_format, "e": str(e)},
-            details = f"(format={tool_format}): {e}",
+            details=f"(format={tool_format}): {e}",
         )
         return []

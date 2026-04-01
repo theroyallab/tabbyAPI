@@ -5,6 +5,7 @@ import re
 CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*", re.MULTILINE)
 CODE_FENCE_END_RE = re.compile(r"\s*```\s*$", re.MULTILINE)
 
+
 def coerce_param_value(raw: str) -> any:
     """Coerce a raw parameter value string to the appropriate Python type.
 

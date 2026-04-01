@@ -33,7 +33,6 @@ _PARAM = re.compile(r'<parameter\s+name="([^"]+)"[^>]*>(.*?)</parameter>', re.DO
 
 
 def parse_toolcalls(text: str) -> list[ToolCall]:
-
     outer_matches = list(_OUTER.finditer(text))
 
     results = []

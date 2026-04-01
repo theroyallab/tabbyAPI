@@ -1,5 +1,6 @@
 import re
 import json
+from itertools import zip_longest
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
 from endpoints.OAI.utils.toolcall_formats.common import coerce_param_value
@@ -35,7 +36,6 @@ _ARG_VALUE = re.compile(r"<arg_value>(.*?)</arg_value>", re.DOTALL)
 
 
 def parse_toolcalls(text: str) -> list[ToolCall]:
-
     outer_matches = list(_OUTER.finditer(text))
 
     results = []
@@ -55,7 +55,7 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
         values = [m.group(1).strip() for m in _ARG_VALUE.finditer(inner)]
 
         args: dict[str, any] = {}
-        for key, val in zip(keys, values):
+        for key, val in zip_longest(keys, values):
             args[key] = coerce_param_value(val)
 
         args_json = json.dumps(args, ensure_ascii=False)

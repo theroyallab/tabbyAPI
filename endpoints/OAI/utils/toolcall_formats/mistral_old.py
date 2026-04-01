@@ -7,7 +7,7 @@ from endpoints.OAI.types.tools import ToolCall, Tool
 Mistral family, v2-v7 - JSON list
 
 Raw format:
-    [TOOL_CALLS] 
+    [TOOL_CALLS]
     [
         {"name": "__FUNCTION_NAME_1__", "arguments": {"key": "value"}, "id": "__CALL_ID_1__"},
         {"name": "__FUNCTION_NAME_2__", "arguments": {"key": "value"}, "id": "__CALL_ID_2__"}
@@ -29,7 +29,6 @@ _TOOLCALL_BLOCK = re.compile(r"\[TOOL_CALLS]\s*(\[.*])", re.DOTALL)
 
 
 def parse_toolcalls(text: str) -> list[ToolCall]:
-
     match = _TOOLCALL_BLOCK.search(text)
     if not match:
         return []
@@ -40,7 +39,7 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
         calls = json.loads(raw_json)
     except json.JSONDecodeError as e:
         xlogger.warning(
-            f"mistral_old: Failed to parse tool call JSON",
+            "mistral_old: Failed to parse tool call JSON",
             {"exception": str(e), "raw_text": text, "raw_json": raw_json},
         )
         return []
@@ -61,12 +60,12 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
                 arguments = json.loads(arguments)
             except json.JSONDecodeError:
                 pass
-        args_json = json.dumps(arguments, ensure_ascii = False)
-        func = Tool(name = func_name, arguments = args_json)
+        args_json = json.dumps(arguments, ensure_ascii=False)
+        func = Tool(name=func_name, arguments=args_json)
         if "id" in call:
-            results.append(ToolCall(id = call["id"], function = func))
+            results.append(ToolCall(id=call["id"], function=func))
         else:
-            results.append(ToolCall(function = func))
+            results.append(ToolCall(function=func))
 
     xlogger.debug(
         f"mistral_old: Parsed {len(results)} tool calls",

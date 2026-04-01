@@ -14,9 +14,8 @@ from common import model
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import (
     get_generator_error,
-    handle_request_disconnect,
     handle_request_error,
-    request_disconnect_loop,
+    DisconnectHandler,
 )
 from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import (
@@ -24,9 +23,7 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionMessage,
     ChatCompletionRequest,
     ChatCompletionRespChoice,
-    # ChatCompletionStreamChunk,
     ChatCompletionResponse,
-    # ChatCompletionStreamChoice,
 )
 from endpoints.OAI.types.common import UsageStats
 from endpoints.OAI.utils.completion import _parse_gen_request_id
@@ -34,6 +31,8 @@ from endpoints.OAI.utils.tools import (
     get_toolcall_tags,
     parse_toolcalls,
 )
+from endpoints.OAI.utils.common_ import aggregate_usage_stats, get_usage_stats
+
 
 def _start_in_reasoning_mode(prompt: str) -> bool:
     """
@@ -63,57 +62,6 @@ def _start_in_reasoning_mode(prompt: str) -> bool:
     if re.search(tags_pattern, prompt[i:]):
         return False
     return True
-
-
-def _get_usage_stats(
-    generation: dict,
-) -> UsageStats | None:
-    """
-    Collect usage stats from generation if it is a finish chunk
-    """
-    if "finish_reason" not in generation:
-        return None
-
-    prompt_tokens = generation.get("prompt_tokens", 0)
-    completion_tokens = generation.get("gen_tokens", 0)
-    usage_stats = UsageStats(
-        prompt_tokens=prompt_tokens,
-        prompt_time=generation.get("prompt_time"),
-        prompt_tokens_per_sec=generation.get("prompt_tokens_per_sec"),
-        completion_tokens=completion_tokens,
-        completion_time=generation.get("gen_time"),
-        completion_tokens_per_sec=generation.get("gen_tokens_per_sec"),
-        total_tokens=prompt_tokens + completion_tokens,
-        total_time=generation.get("total_time"),
-    )
-    return usage_stats
-
-
-def _aggregate_usage_stats(usage_stats_list: list[UsageStats]) -> UsageStats:
-    if len(usage_stats_list) == 1:
-        return usage_stats_list[0]
-
-    usl = usage_stats_list
-    prompt_tokens = usl[0].prompt_tokens
-    prompt_time = usl[0].prompt_time
-    prompt_tokens_per_sec = usl[0].prompt_tokens_per_sec
-    completion_tokens = sum(us.completion_tokens for us in usl)
-    completion_time = max(us.completion_time for us in usl)
-    completion_tokens_per_sec = completion_tokens / (completion_time + 1e-20)
-    total_tokens = prompt_tokens + completion_tokens
-    total_time = prompt_time + completion_time
-
-    usage_stats = UsageStats(
-        prompt_tokens=prompt_tokens,
-        prompt_time=prompt_time,
-        prompt_tokens_per_sec=prompt_tokens_per_sec,
-        completion_tokens=completion_tokens,
-        completion_time=completion_time,
-        completion_tokens_per_sec=completion_tokens_per_sec,
-        total_tokens=total_tokens,
-        total_time=total_time,
-    )
-    return usage_stats
 
 
 def _compose_response(
@@ -150,7 +98,7 @@ def _compose_response(
         choices=choices,
         model=model_name,
         usage=(
-            _aggregate_usage_stats([_get_usage_stats(g) for g in generations])
+            aggregate_usage_stats([get_usage_stats(g) for g in generations])
             if return_usage
             else None
         ),
@@ -208,7 +156,7 @@ def _compose_serialize_stream_chunk(
     s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
 
     # Check if no data
-    is_empty = not delta
+    is_empty = not delta and not (finish_reason and not suppress_finish)
     return s, data, finish_reason, is_empty
 
 
@@ -386,10 +334,10 @@ async def _chat_stream_collector(
     request_id: str,
     prompt: str,
     params: ChatCompletionRequest,
-    abort_event: asyncio.Event,
     start_in_reasoning_mode: bool,
     mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
     streaming_mode: bool = True,
+    disconnect_handler: DisconnectHandler = None,
 ):
     """
     Starts a request on the backend and collects generations while tracking phase, for a single
@@ -439,12 +387,12 @@ async def _chat_stream_collector(
             request_id,
             prompt,
             params,
-            abort_event,
+            disconnect_handler,
             mm_embeddings,
         )
+        generation = {}
         async for generation in new_generation:
             generation["index"] = task_idx
-
             text = generation.get("text", "")
             finish_reason = generation.get("finish_reason")
             delta_reasoning = ""
@@ -498,7 +446,7 @@ async def _chat_stream_collector(
                             in_reasoning = False
                     if tag == t_tool_start:
                         in_tool = True
-                        delta_tool += tag    # include outer tool tags in output
+                        delta_tool += tag  # include outer tool tags in output
                         full_tool += tag
                     elif tag == t_tool_end:
                         in_tool = False
@@ -560,15 +508,14 @@ async def stream_generate_chat_completion(
     data: ChatCompletionRequest,
     request: Request,
     model_path: pathlib.Path,
+    disconnect_handler: DisconnectHandler,
 ):
     """
     Generator for the generation process.
     """
 
-    abort_event = asyncio.Event()
     gen_queue = asyncio.Queue()
     gen_tasks: List[asyncio.Task] = []
-    disconnect_task = asyncio.create_task(request_disconnect_loop(request))
     return_usage = data.stream_options and data.stream_options.include_usage
 
     try:
@@ -599,33 +546,17 @@ async def stream_generate_chat_completion(
                     request_id,
                     prompt,
                     task_gen_params,
-                    abort_event,
                     start_in_reasoning_mode,
                     mm_embeddings=embeddings,
                     streaming_mode=True,
+                    disconnect_handler=disconnect_handler,
                 )
             )
             gen_tasks.append(gen_task)
 
         # Consumer loop
         while True:
-            # Fast path: items already queued — no task overhead
-            if not gen_queue.empty():
-                generation = gen_queue.get_nowait()
-            else:
-                # Slow path: queue empty — race get against disconnect
-                get_task = asyncio.create_task(gen_queue.get())
-                done, _ = await asyncio.wait(
-                    [get_task, disconnect_task],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                if disconnect_task in done:
-                    get_task.cancel()
-                    raise CancelledError()
-                generation = get_task.result()
-
-            if disconnect_task.done():
-                raise CancelledError()
+            generation = await gen_queue.get()
 
             # Stream collector will push an exception to the queue if it fails
             if isinstance(generation, Exception):
@@ -645,11 +576,11 @@ async def stream_generate_chat_completion(
             if finish_reason:
                 remaining_n -= 1
                 if return_usage:
-                    usage_stats_list.append(_get_usage_stats(generation))
+                    usage_stats_list.append(get_usage_stats(generation))
                     if remaining_n == 0:
                         usage_chunk, usage_chunk_dict = _compose_serialize_stream_usage_chunk(
                             request.state.id,
-                            _aggregate_usage_stats(usage_stats_list),
+                            aggregate_usage_stats(usage_stats_list),
                             generation["index"],
                             finish_reason,
                             model_path.name,
@@ -667,15 +598,14 @@ async def stream_generate_chat_completion(
                 break
 
     except CancelledError:
-        handle_request_disconnect("Chat streaming completion generation cancelled by user.")
+        raise
 
     except Exception as e:
         xlogger.error("Error during chat completion", str(e), details=f"\n{str(e)}")
         yield get_generator_error("Chat completion aborted. Please check the server console.")
 
     finally:
-        abort_event.set()
-        disconnect_task.cancel()
+        await disconnect_handler.cleanup()
 
 
 async def generate_chat_completion(
@@ -684,10 +614,9 @@ async def generate_chat_completion(
     data: ChatCompletionRequest,
     request: Request,
     model_path: pathlib.Path,
+    disconnect_handler: DisconnectHandler,
 ):
-    abort_event = asyncio.Event()
     gen_tasks: List[asyncio.Task] = []
-    disconnect_task = asyncio.create_task(request_disconnect_loop(request))
     return_usage = data.stream_options and data.stream_options.include_usage
 
     try:
@@ -714,26 +643,15 @@ async def generate_chat_completion(
                     request_id,
                     prompt,
                     task_gen_params,
-                    abort_event,
                     start_in_reasoning_mode,
                     mm_embeddings=embeddings,
                     streaming_mode=False,
+                    disconnect_handler=disconnect_handler,
                 )
             )
             gen_tasks.append(gen_task)
 
-        # Wait for results or disconnect task
-        done, pending = await asyncio.wait(
-            [*gen_tasks, disconnect_task],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        if disconnect_task in done:
-            abort_event.set()
-            for task in pending:
-                task.cancel()
-            raise CancelledError()
-        if pending - {disconnect_task}:
-            await asyncio.wait(pending - {disconnect_task})
+        await asyncio.wait([*gen_tasks])
 
         # Create response
         generations = []
@@ -742,23 +660,17 @@ async def generate_chat_completion(
             if isinstance(r, Exception):
                 raise r
             generations.append(r)
-        response = _compose_response(
-            request.state.id,
-            generations,
-            model_path.name,
-            return_usage,
-        )
+        response = _compose_response(request.state.id, generations, model_path.name, return_usage)
 
         xlogger.info(f"Finished chat completion request {request.state.id}", {"response": response})
         return response
 
     except CancelledError:
-        handle_request_disconnect("Chat completion generation cancelled by user.")
+        raise
 
     except Exception as exc:
         error_message = handle_request_error(
-            f"Chat completion {request.state.id} aborted. "
-            "Maybe the model was unloaded? "
+            f"Chat completion {request.state.id} aborted. Maybe the model was unloaded? "
             "Please check the server console."
         ).error.message
 
@@ -766,5 +678,4 @@ async def generate_chat_completion(
         raise HTTPException(503, error_message) from exc
 
     finally:
-        abort_event.set()
-        disconnect_task.cancel()
+        await disconnect_handler.cleanup()

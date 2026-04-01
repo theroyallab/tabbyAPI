@@ -1,4 +1,6 @@
 import asyncio
+from asyncio import CancelledError, InvalidStateError
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
 from sys import maxsize
@@ -6,7 +8,7 @@ from sys import maxsize
 from common import model
 from common.auth import check_api_key
 from common.model import check_embeddings_container, check_model_container
-from common.networking import handle_request_error, run_with_request_disconnect
+from common.networking import handle_request_error, DisconnectHandler, run_with_request_disconnect
 from common.tabby_config import config
 from common.logger import xlogger
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
@@ -15,6 +17,7 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionResponse,
 )
 from endpoints.OAI.types.embedding import EmbeddingsRequest, EmbeddingsResponse
+from endpoints.OAI.utils.common_ import load_inline_model
 from endpoints.OAI.utils.chat_completion import (
     apply_chat_template,
     generate_chat_completion,
@@ -22,7 +25,6 @@ from endpoints.OAI.utils.chat_completion import (
 )
 from endpoints.OAI.utils.completion import (
     generate_completion,
-    load_inline_model,
     stream_generate_completion,
 )
 from endpoints.OAI.utils.embeddings import get_embeddings
@@ -56,42 +58,35 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
     xlogger.debug("[ENDPOINT] /v1/completions", {"raw": raw_json})
 
     if data.model:
-        inline_load_task = asyncio.create_task(load_inline_model(data.model, request))
-
-        await run_with_request_disconnect(
-            request,
-            inline_load_task,
-            disconnect_message=f"Model switch for generation {request.state.id} "
-            + "cancelled by user.",
-        )
+        await load_inline_model(data.model, request)
     else:
         await check_model_container()
-
     model_path = model.container.model_dir
 
-    if isinstance(data.prompt, list):
-        data.prompt = "\n".join(data.prompt)
-
-    disable_request_streaming = config.developer.disable_request_streaming
+    # Prepare raw prompt (will be str or list[str])
+    prompt = data.prompt
 
     # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":
         data.json_schema = {"type": "object"}
 
-    if data.stream and not disable_request_streaming:
-        return EventSourceResponse(
-            stream_generate_completion(data, request, model_path),
-            ping=maxsize,
-        )
-    else:
-        generate_task = asyncio.create_task(generate_completion(data, request, model_path))
+    try:
+        disconnect_handler = DisconnectHandler(request, "/v1/completions")
+        await disconnect_handler.poll()
 
-        response = await run_with_request_disconnect(
-            request,
-            generate_task,
-            disconnect_message=f"Completion {request.state.id} cancelled by user.",
-        )
-        return response
+        if data.stream and not config.developer.disable_request_streaming:
+            return EventSourceResponse(
+                stream_generate_completion(prompt, data, request, model_path, disconnect_handler),
+                ping=maxsize,
+            )
+        else:
+            response = await generate_completion(
+                prompt, data, request, model_path, disconnect_handler
+            )
+            return response
+
+    except (CancelledError, InvalidStateError) as ex:
+        raise HTTPException(422, "/v1/completions request cancelled by user.") from ex
 
 
 # Chat completions endpoint
@@ -115,41 +110,40 @@ async def chat_completion_request(
         await load_inline_model(data.model, request)
     else:
         await check_model_container()
+    model_path = model.container.model_dir
 
+    # Prepare raw prompt
     if model.container.prompt_template is None:
         error_message = handle_request_error(
             "Chat completions are disabled because a prompt template is not set.",
             exc_info=False,
         ).error.message
-
         raise HTTPException(422, error_message)
-
-    model_path = model.container.model_dir
-
-    prompt, embeddings = await apply_chat_template(data)
+    prompt, mm_embeddings = await apply_chat_template(data)
 
     # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":
         data.json_schema = {"type": "object"}
 
-    disable_request_streaming = config.developer.disable_request_streaming
+    try:
+        disconnect_handler = DisconnectHandler(request, "/v1/chat/completions")
+        await disconnect_handler.poll()
 
-    if data.stream and not disable_request_streaming:
-        return EventSourceResponse(
-            stream_generate_chat_completion(prompt, embeddings, data, request, model_path),
-            ping=maxsize,
-        )
-    else:
-        generate_task = asyncio.create_task(
-            generate_chat_completion(prompt, embeddings, data, request, model_path)
-        )
+        if data.stream and not config.developer.disable_request_streaming:
+            return EventSourceResponse(
+                stream_generate_chat_completion(
+                    prompt, mm_embeddings, data, request, model_path, disconnect_handler
+                ),
+                ping=maxsize,
+            )
+        else:
+            response = await generate_chat_completion(
+                prompt, mm_embeddings, data, request, model_path, disconnect_handler
+            )
+            return response
 
-        response = await run_with_request_disconnect(
-            request,
-            generate_task,
-            disconnect_message=f"Chat completion {request.state.id} cancelled by user.",
-        )
-        return response
+    except (CancelledError, InvalidStateError) as ex:
+        raise HTTPException(422, "/v1/chat/completions request cancelled by user.") from ex
 
 
 # Embeddings endpoint
@@ -162,7 +156,7 @@ async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsRes
     response = await run_with_request_disconnect(
         request,
         embeddings_task,
-        f"Embeddings request {request.state.id} cancelled by user.",
+        f"Embeddings request {request.state.id} cancelled",
     )
 
     return response

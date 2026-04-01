@@ -2,6 +2,8 @@ import asyncio
 import gc
 import pathlib
 import re
+from asyncio import CancelledError
+
 import torch
 from itertools import zip_longest
 from typing import (
@@ -37,6 +39,7 @@ from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
 from common.logger import xlogger
 from common.multimodal import MultimodalEmbeddingWrapper
+from common.networking import DisconnectHandler
 from common.optional_dependencies import check_package_version
 from common.sampling import BaseSamplerRequest
 from common.templating import PromptTemplate, find_prompt_template
@@ -708,6 +711,8 @@ class ExllamaV3Container(BaseModelContainer):
             abort_event,
             mm_embeddings,
         ):
+            if generation is None:
+                continue
             generations.append(generation)
 
         joined_generation = {
@@ -748,7 +753,7 @@ class ExllamaV3Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
+        disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """
@@ -758,7 +763,7 @@ class ExllamaV3Container(BaseModelContainer):
             request_id: Unique identifier for the generation request.
             prompt: The input prompt string.
             params: Sampling and generation parameters.
-            abort_event: An asyncio Event to signal cancellation.
+            disconnect_handler: Disconnect context
             mm_embeddings: Optional multimodal embeddings.
 
         Yields:
@@ -785,7 +790,7 @@ class ExllamaV3Container(BaseModelContainer):
                 request_id=request_id,
                 prompt=prompt,
                 params=params,
-                abort_event=abort_event,
+                disconnect_handler=disconnect_handler,
                 mm_embeddings=mm_embeddings,
             ):
                 yield generation_chunk
@@ -896,7 +901,7 @@ class ExllamaV3Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
+        disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
     ):
         """
@@ -1036,6 +1041,7 @@ class ExllamaV3Container(BaseModelContainer):
             filters=grammar_handler.filters,
         )
         self.active_job_ids[request_id] = job
+        await disconnect_handler.add_cleanup_task(id(job), job.cancel, ())
 
         generated_tokens = 0
         full_response = ""
@@ -1044,10 +1050,7 @@ class ExllamaV3Container(BaseModelContainer):
         # Get the generation status once it's ready
         try:
             async for result in job:
-                # Abort if the event is set while streaming
-                if abort_event and abort_event.is_set():
-                    await job.cancel()
-                    break
+                await disconnect_handler.poll()
 
                 chunk = unwrap(result.get("text"), "")
                 if chunk:
@@ -1091,6 +1094,7 @@ class ExllamaV3Container(BaseModelContainer):
                 if result.get("eos"):
                     xlogger.debug("EOS result received from generator", result)
                     finish_chunk = self.handle_finish_chunk(result, request_id, full_response)
+                    await disconnect_handler.finish(id(job))
 
                     # Save the final result for metrics logging
                     metrics_result = finish_chunk
@@ -1098,8 +1102,9 @@ class ExllamaV3Container(BaseModelContainer):
                     yield finish_chunk
                     break
 
-        except asyncio.CancelledError:
-            await job.cancel()
+        except CancelledError:
+            raise
+
         except Exception as ex:
             # Create a new generator since the current state is broken
             # No need to wait for this to finish

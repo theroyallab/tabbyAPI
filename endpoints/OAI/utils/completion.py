@@ -5,30 +5,30 @@ Also serves as a common module for completions and chat completions.
 """
 
 import asyncio
+import json
 import pathlib
 from asyncio import CancelledError
+from time import time
+
 from fastapi import HTTPException, Request
 from common.logger import xlogger
-from typing import List, Optional, Union
+from typing import List, Optional
 
 from common import model
-from common.auth import get_key_permission
-from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import (
     get_generator_error,
-    handle_request_disconnect,
     handle_request_error,
-    request_disconnect_loop,
+    DisconnectHandler,
 )
-from common.tabby_config import config
-from common.utils import unwrap
+from endpoints.OAI.types.chat_completion import ChatCompletionLogprobs
 from endpoints.OAI.types.completion import (
     CompletionRequest,
     CompletionResponse,
     CompletionRespChoice,
-    CompletionLogProbs,
+    chat_logprobs_to_completion_logprobs,
 )
 from endpoints.OAI.types.common import UsageStats
+from endpoints.OAI.utils.common_ import aggregate_usage_stats, get_usage_stats
 
 
 def _parse_gen_request_id(n: int, request_id: str, task_idx: int):
@@ -38,258 +38,368 @@ def _parse_gen_request_id(n: int, request_id: str, task_idx: int):
         return request_id
 
 
-def _create_response(request_id: str, generations: Union[dict, List[dict]], model_name: str = ""):
-    """Create a completion response from the provided choices."""
+def _compose_response(
+    request_id: str,
+    generations: List[dict],
+    model_name: Optional[str],
+    return_usage,
+) -> CompletionResponse:
+    """
+    Compose a completion response from generations collected in non-streaming mode.
+    """
 
-    # Convert the single choice object into a list
-    if not isinstance(generations, list):
-        generations = [generations]
+    choices = []
+    for generation in generations:
+        # Collected logprobs are in chat completion format, convert them here
+        logprobs = generation.get("logprob_response")
+        if logprobs:
+            logprobs = chat_logprobs_to_completion_logprobs(logprobs)
 
-    choices: List[CompletionRespChoice] = []
-    for index, generation in enumerate(generations):
-        logprob_response = None
-
-        token_probs = unwrap(generation.get("token_probs"), {})
-        if token_probs:
-            logprobs = unwrap(generation.get("logprobs"), [])
-            offset = unwrap(generation.get("offset"), [])
-
-            logprob_response = CompletionLogProbs(
-                text_offset=offset if isinstance(offset, list) else [offset],
-                token_logprobs=token_probs.values(),
-                tokens=token_probs.keys(),
-                top_logprobs=logprobs if isinstance(logprobs, list) else [logprobs],
+        choices.append(
+            CompletionRespChoice(
+                index=generation.get("index"),
+                finish_reason=generation.get("finish_reason", "stop"),
+                logprobs=logprobs,
+                text=generation.get("content"),
             )
-
-        # The index can be located in the generation itself
-        choice = CompletionRespChoice(
-            index=unwrap(generation.get("index"), index),
-            finish_reason=generation.get("finish_reason"),
-            text=unwrap(generation.get("text"), ""),
-            logprobs=logprob_response,
         )
-
-        choices.append(choice)
-
-    final_generation = generations[-1]
-    prompt_tokens = unwrap(final_generation.get("prompt_tokens"), 0)
-    completion_tokens = unwrap(final_generation.get("gen_tokens"), 0)
 
     response = CompletionResponse(
         id=f"cmpl-{request_id}",
         choices=choices,
         model=model_name,
-        usage=UsageStats(
-            prompt_tokens=prompt_tokens,
-            prompt_time=final_generation.get("prompt_time"),
-            prompt_tokens_per_sec=final_generation.get("prompt_tokens_per_sec"),
-            completion_tokens=completion_tokens,
-            completion_time=final_generation.get("gen_time"),
-            completion_tokens_per_sec=final_generation.get("gen_tokens_per_sec"),
-            total_tokens=prompt_tokens + completion_tokens,
-            total_time=final_generation.get("total_time"),
+        usage=(
+            aggregate_usage_stats([get_usage_stats(g) for g in generations])
+            if return_usage
+            else None
         ),
     )
-
     return response
+
+
+def _compose_serialize_stream_chunk(
+    request_id: str,
+    generation: Optional[dict] = None,
+    model_name: Optional[str] = None,
+    suppress_finish: bool = False,
+) -> (str, dict, str):
+    """
+    Compose a chat completion stream chunk from generation produced by _chat_stream_collector
+
+    TODO: Should maybe Pydantic, but need way to selectively avoid None fields in models to comply
+          with the spec and de facto standards
+    """
+
+    finish_reason = generation.get("finish_reason") or None
+    delta_content = generation.get("delta_content")
+    logprobs = generation.get("logprob_response")
+
+    choice = {
+        "index": generation.get("index"),
+        "text": delta_content,
+        "finish_reason": finish_reason if not suppress_finish else None,
+    }
+
+    if logprobs:
+        choice["logprobs"] = chat_logprobs_to_completion_logprobs(logprobs).model_dump()
+
+    # Only one choice in a streaming chunk
+    choices = [choice]
+    data = {
+        "id": f"chatcmpl-{request_id}",
+        "object": "text_completion",
+        "choices": choices,
+        "created": int(time()),
+    }
+
+    if model_name:
+        data["model_name"] = model_name
+
+    # Serialize
+    s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
+
+    # Check if no data
+    is_empty = not delta_content and not (finish_reason and not suppress_finish)
+    return s, data, finish_reason, is_empty
+
+
+def _compose_serialize_stream_usage_chunk(
+    request_id: str,
+    usage_stats: UsageStats,
+    usage_index: int,
+    last_finish_reason: str,
+    model_name: Optional[str] = None,
+) -> (str, dict):
+    """
+    Compose a usage chunk to send at the end of a strema
+    """
+
+    # Make sure we don't break some client with empty choices list
+    choice = {
+        "index": usage_index,
+        "text": "",
+        "finish_reason": last_finish_reason,
+    }
+    choices = [choice]
+    data = {
+        "id": f"chatcmpl-{request_id}",
+        "object": "text_completion",
+        "choices": choices,
+        "created": int(time()),
+        "usage": usage_stats.model_dump(mode="json"),
+    }
+
+    if model_name:
+        data["model_name"] = model_name
+
+    # Serialize
+    s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
+    return s, data
 
 
 async def _stream_collector(
     task_idx: int,
-    gen_queue: asyncio.Queue,
+    gen_queue: asyncio.Queue | None,
     request_id: str,
     prompt: str,
     params: CompletionRequest,
-    abort_event: asyncio.Event,
-    mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+    streaming_mode: bool = True,
+    disconnect_handler: DisconnectHandler = None,
 ):
-    """Collects a stream and places results in a common queue"""
+    """
+    Starts a request on the backend and collects generations. Only single phase.
+
+    In streaming mode, emits chunks of text to be emitted as deltas to the client.
+
+    In non-streaming mode, collects everything with the same logic but then emits a single
+    response packet at the end, to be combined with any other choices (for n>1 requests) and
+    sent together to the client.
+    """
+
+    mc = model.container
+    full_content = ""
+    collected_logprobs = []
 
     try:
-        new_generation = model.container.stream_generate(
+        new_generation = mc.stream_generate(
             request_id,
             prompt,
             params,
-            abort_event,
-            mm_embeddings,
+            disconnect_handler,
+            None,
         )
+        generation = {}
         async for generation in new_generation:
             generation["index"] = task_idx
+            delta_content = generation.get("text", "")
+            full_content += delta_content
+            finish_reason = generation.get("finish_reason")
 
-            await gen_queue.put(generation)
+            if "logprobs_content" in generation:
+                collected_logprobs += generation["logprobs_content"]
 
-            if "finish_reason" in generation:
+            # Add the output and emit
+            if streaming_mode:
+                if len(collected_logprobs):
+                    generation["logprob_response"] = ChatCompletionLogprobs(
+                        content=collected_logprobs
+                    )
+                    collected_logprobs = []
+                generation["delta_content"] = delta_content
+                await gen_queue.put(generation)
+
+            # End
+            if finish_reason:
                 break
+
+        # In non-streaming mode, return everything as a single result
+        if not streaming_mode:
+            has_content = bool(full_content.strip())
+            if len(collected_logprobs):
+                generation["logprob_response"] = ChatCompletionLogprobs(content=collected_logprobs)
+            generation["content"] = full_content if has_content else ""
+            return generation
+
     except Exception as e:
-        await gen_queue.put(e)
-
-
-async def load_inline_model(model_name: str, request: Request):
-    """Load a model from the data.model parameter"""
-
-    # Return if the model container already exists and the model is fully loaded
-    if model.container and model.container.model_dir.name == model_name and model.container.loaded:
-        return
-
-    # Return if inline loading is disabled
-    # Also warn if an admin key is used
-    if not config.model.inline_model_loading:
-        if get_key_permission(request) == "admin":
-            xlogger.warning(
-                f"Unable to switch model to {model_name} because "
-                '"inline_model_loading" is not True in config.yml.'
-            )
-
-        return
-
-    is_dummy_model = config.model.use_dummy_models and model_name in config.model.dummy_model_names
-
-    # Error if an invalid key is passed
-    # If a dummy model is provided, don't error
-    if get_key_permission(request) != "admin":
-        if not is_dummy_model:
-            error_message = handle_request_error(
-                f"Unable to switch model to {model_name} because " + "an admin key isn't provided",
-                exc_info=False,
-            ).error.message
-
-            raise HTTPException(401, error_message)
+        if gen_queue:
+            await gen_queue.put(e)
         else:
-            return
-
-    # Start inline loading
-    # Past here, user is assumed to be admin
-
-    # Skip if the model is a dummy
-    if is_dummy_model:
-        xlogger.warning(f"Dummy model {str(model_name)} provided. Skipping inline load.")
-        return
-
-    model_path = pathlib.Path(config.model.model_dir)
-    model_path = model_path / model_name
-
-    # Model path doesn't exist
-    if not model_path.exists():
-        xlogger.warning(f"Could not find model path {str(model_path)}. Skipping inline model load.")
-
-        return
-
-    # Load the model and also add draft dir
-    await model.load_model(
-        model_path,
-        draft_model=config.draft_model.model_dump(include={"draft_model_dir"}),
-    )
+            return e
 
 
 async def stream_generate_completion(
-    data: CompletionRequest, request: Request, model_path: pathlib.Path
+    prompts: str | list[str],
+    data: CompletionRequest,
+    request: Request,
+    model_path: pathlib.Path,
+    disconnect_handler: DisconnectHandler,
 ):
-    """Streaming generation for completions."""
+    """
+    Generator for the generation process.
+    """
 
-    abort_event = asyncio.Event()
+    if isinstance(prompts, str):
+        prompts = [prompts]
+
     gen_queue = asyncio.Queue()
     gen_tasks: List[asyncio.Task] = []
-    disconnect_task = asyncio.create_task(request_disconnect_loop(request))
+    return_usage = data.stream_options and data.stream_options.include_usage
 
     try:
         xlogger.info(
-            f"Received streaming completion streaming request {request.state.id}",
-            {"data": data.model_dump(mode="json"), "model_path": str(model_path)},
+            f"Received completion streaming request {request.state.id}",
+            {
+                "prompts": prompts,
+                "data": data.model_dump(mode="json"),
+                "model_path": str(model_path),
+            },
         )
 
-        for idx in range(0, data.n):
-            task_gen_params = data.model_copy(deep=True)
-            request_id = _parse_gen_request_id(data.n, request.state.id, idx)
+        # For aggregating usage
+        usage_stats_list = []
 
-            gen_task = asyncio.create_task(
-                _stream_collector(
-                    idx,
-                    gen_queue,
-                    request_id,
-                    data.prompt,
-                    task_gen_params,
-                    abort_event,
+        # Spec wants us to repeat each batch item n times
+        total_n = data.n * len(prompts)
+        remaining_n = total_n
+        for p_idx, prompt in enumerate(prompts):
+            for n_idx in range(0, data.n):
+                idx = p_idx * data.n + n_idx
+
+                task_gen_params = data.model_copy(deep=True)
+                task_gen_params.max_tokens += idx * 5
+                request_id = _parse_gen_request_id(total_n, request.state.id, idx)
+
+                gen_task = asyncio.create_task(
+                    _stream_collector(
+                        idx,
+                        gen_queue,
+                        request_id,
+                        prompt,
+                        task_gen_params,
+                        streaming_mode=True,
+                        disconnect_handler=disconnect_handler,
+                    )
                 )
-            )
-
-            gen_tasks.append(gen_task)
+                gen_tasks.append(gen_task)
 
         # Consumer loop
         while True:
-            # Fast path: items already queued — no task overhead
-            if not gen_queue.empty():
-                generation = gen_queue.get_nowait()
-            else:
-                # Slow path: queue empty — race get against disconnect
-                get_task = asyncio.create_task(gen_queue.get())
-                done, _ = await asyncio.wait(
-                    [get_task, disconnect_task],
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                if disconnect_task in done:
-                    get_task.cancel()
-                    raise CancelledError()
-                generation = get_task.result()
-
-            if disconnect_task.done():
-                raise CancelledError()
+            generation = await gen_queue.get()
 
             # Stream collector will push an exception to the queue if it fails
             if isinstance(generation, Exception):
                 raise generation
 
-            response = _create_response(request.state.id, generation, model_path.name)
-            yield response.model_dump_json()
+            # Create and serialize chunk
+            chunk, _, finish_reason, is_empty = _compose_serialize_stream_chunk(
+                request.state.id,
+                generation,
+                model_path.name,
+                return_usage and remaining_n == 1,
+            )
+            if not is_empty:
+                yield chunk
+
+            # Send usage chunk on completing last choice
+            if finish_reason:
+                remaining_n -= 1
+                if return_usage:
+                    usage_stats_list.append(get_usage_stats(generation))
+                    if remaining_n == 0:
+                        usage_chunk, usage_chunk_dict = _compose_serialize_stream_usage_chunk(
+                            request.state.id,
+                            aggregate_usage_stats(usage_stats_list),
+                            generation["index"],
+                            finish_reason,
+                            model_path.name,
+                        )
+                        yield usage_chunk
+                        xlogger.debug(
+                            f"Sent UsageStats for request {request.state.id}",
+                            usage_chunk_dict,
+                        )
 
             # Check if all tasks are completed
             if all(task.done() for task in gen_tasks) and gen_queue.empty():
+                xlogger.info(f"Finished completion streaming request {request.state.id}")
                 yield "[DONE]"
-                xlogger.info(f"Finished streaming completion request {request.state.id}")
                 break
+
     except CancelledError:
-        # Get out if the request gets disconnected
+        raise
 
-        handle_request_disconnect(f"Completion generation {request.state.id} cancelled by user.")
-    except Exception:
-        yield get_generator_error(
-            f"Completion {request.state.id} aborted. Please check the server console."
-        )
+    except Exception as e:
+        xlogger.error("Error during completion", str(e), details=f"\n{str(e)}")
+        yield get_generator_error("Completion aborted. Please check the server console.")
+
     finally:
-        abort_event.set()
-        disconnect_task.cancel()
+        await disconnect_handler.cleanup()
 
 
-async def generate_completion(data: CompletionRequest, request: Request, model_path: pathlib.Path):
+async def generate_completion(
+    prompts: str | list[str],
+    data: CompletionRequest,
+    request: Request,
+    model_path: pathlib.Path,
+    disconnect_handler: DisconnectHandler,
+):
     """Non-streaming generate for completions"""
 
     gen_tasks: List[asyncio.Task] = []
+    return_usage = data.stream_options and data.stream_options.include_usage
+
+    if isinstance(prompts, str):
+        prompts = [prompts]
 
     try:
         xlogger.info(
             f"Received completion request {request.state.id}",
-            {"data": data.model_dump(mode="json"), "model_path": str(model_path)},
+            {
+                "prompts": prompts,
+                "data": data.model_dump(mode="json"),
+                "model_path": str(model_path),
+            },
         )
 
-        for idx in range(0, data.n):
-            task_gen_params = data.model_copy(deep=True)
-            request_id = _parse_gen_request_id(data.n, request.state.id, idx)
+        # Spec wants us to repeat each batch item n times
+        total_n = data.n * len(prompts)
+        for p_idx, prompt in enumerate(prompts):
+            for n_idx in range(0, data.n):
+                idx = p_idx * data.n + n_idx
 
-            gen_tasks.append(
-                asyncio.create_task(
-                    model.container.generate(
+                task_gen_params = data.model_copy(deep=True)
+                request_id = _parse_gen_request_id(total_n, request.state.id, idx)
+
+                gen_task = asyncio.create_task(
+                    _stream_collector(
+                        idx,
+                        None,
                         request_id,
-                        data.prompt,
+                        prompt,
                         task_gen_params,
+                        streaming_mode=False,
+                        disconnect_handler=disconnect_handler,
                     )
                 )
-            )
+                gen_tasks.append(gen_task)
 
-        generations = await asyncio.gather(*gen_tasks)
-        response = _create_response(request.state.id, generations, model_path.name)
+        await asyncio.wait([*gen_tasks])
 
-        xlogger.info(f"Finished completion request {request.state.id}")
+        # Create response
+        generations = []
+        for task in gen_tasks:
+            r = task.result()
+            if isinstance(r, Exception):
+                raise r
+            generations.append(r)
+        response = _compose_response(request.state.id, generations, model_path.name, return_usage)
 
+        xlogger.info(f"Finished completion request {request.state.id}", {"response": response})
         return response
+
+    except CancelledError:
+        raise
+
     except Exception as exc:
         error_message = handle_request_error(
             f"Completion {request.state.id} aborted. Maybe the model was unloaded? "
@@ -298,3 +408,6 @@ async def generate_completion(data: CompletionRequest, request: Request, model_p
 
         # Server error if there's a generation exception
         raise HTTPException(503, error_message) from exc
+
+    finally:
+        await disconnect_handler.cleanup()
