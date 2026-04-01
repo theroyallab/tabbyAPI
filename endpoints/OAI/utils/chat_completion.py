@@ -548,7 +548,10 @@ async def _chat_stream_collector(
             return generation
 
     except Exception as e:
-        await gen_queue.put(e)
+        if gen_queue:
+            await gen_queue.put(e)
+        else:
+            return e
 
 
 async def stream_generate_chat_completion(
@@ -733,7 +736,12 @@ async def generate_chat_completion(
             await asyncio.wait(pending - {disconnect_task})
 
         # Create response
-        generations = [task.result() for task in gen_tasks]
+        generations = []
+        for task in gen_tasks:
+            r = task.result()
+            if isinstance(r, Exception):
+                raise r
+            generations.append(r)
         response = _compose_response(
             request.state.id,
             generations,
