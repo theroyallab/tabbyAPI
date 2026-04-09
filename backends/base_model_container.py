@@ -43,6 +43,7 @@ class BaseModelContainer(abc.ABC):
     reasoning: bool
     reasoning_start_token: Optional[str]
     reasoning_end_token: Optional[str]
+    force_enable_thinking: Optional[str]
 
     # Required methods
     @classmethod

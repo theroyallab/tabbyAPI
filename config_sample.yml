@@ -156,6 +156,12 @@ model:
   # Enables vision support if the model supports it. (default: False)
   vision: false
 
+  # Force-enable reasoning in template args
+  # Injects the enable_thinking: True into the model's template arguments. This doesn't
+  # force reasoning or affect how reasoning content is parsed, but some clients will
+  # not explicitly enable this and some models need it to properly enter reasoning mode.
+  force_enable_thinking: false
+
   # Enable reasoning parser (default: False).
   # Do NOT enable this if the model is not a reasoning model (e.g. deepseek-r1 series)
   reasoning: false

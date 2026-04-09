@@ -376,6 +376,7 @@ class ExllamaV2Container(BaseModelContainer):
         self.reasoning = kwargs.get("reasoning", False)
         self.reasoning_start_token = kwargs.get("reasoning_start_token", "<think>")
         self.reasoning_end_token = kwargs.get("reasoning_end_token", "</think>")
+        self.force_enable_thinking = kwargs.get("force_enable_thinking", False)
 
         # Return the created instance
         return self

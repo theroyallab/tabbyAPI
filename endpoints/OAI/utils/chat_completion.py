@@ -265,6 +265,8 @@ async def apply_chat_template(data: ChatCompletionRequest):
                 "functions": data.functions,
             }
         )
+        if model.container.force_enable_thinking:
+            data.template_vars.update({"enable_thinking": True})
 
         prompt, mm_embeddings, template_vars = await format_messages_with_template(
             data.messages, data.template_vars

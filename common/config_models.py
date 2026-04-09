@@ -290,6 +290,15 @@ class ModelConfig(BaseConfigModel):
         False,
         description=("Enables vision support if the model supports it. (default: False)"),
     )
+    force_enable_thinking: bool = Field(
+        False,
+        description=(
+            "Force-enable reasoning in template args\n"
+            "Injects the enable_thinking: True into the model's template arguments. This doesn't\n"
+            "force reasoning or affect how reasoning content is parsed, but some clients will\n"
+            "not explicitly enable this and some models need it to properly enter reasoning mode."
+        ),
+    )
     reasoning: bool = Field(
         False,
         description=(
