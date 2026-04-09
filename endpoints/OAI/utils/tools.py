@@ -10,9 +10,11 @@ from endpoints.OAI.utils.toolcall_formats import (
     glm4_5,
     mistral_old,
     mistral,
+    gemma4,
 )
 
 ALL_TOOLCALL_FORMATS = {
+    "gemma4": gemma4,
     "glm4_5": glm4_5,
     "glm4_6": glm4_5,
     "glm4_7": glm4_5,
