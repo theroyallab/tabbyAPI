@@ -2,67 +2,77 @@ import re
 import json
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
-from endpoints.OAI.utils.toolcall_formats.common import coerce_param_value
 
 """
-Gemma 4 family - special-token tool call protocol
+Gemma-4 - pseudo-JSON syntax
 
 Raw format:
-    <|tool_call>call:__FUNCTION_NAME__{__KEY_1__:__VAL_1__,__KEY_2__:__VAL_2__,...}<tool_call|>
-
-String values are wrapped in <|"|>...<|"|> escape tokens; other values
-(numbers, bools) appear bare. Multiple <|tool_call>...<tool_call|> blocks
-may appear for parallel tool calls.
-
-Note the asymmetric outer delimiters: opening is <|tool_call> (pipe on the
-left only), closing is <tool_call|> (pipe on the right only). These are
-literal Gemma 4 special tokens, not balanced XML.
+    <|tool_call>call:function_name{
+        key1:<|"|>value1<|"|>,
+        key2:true,
+        nested:{inner:<|"|>value<|"|>}
+    }<tool_call|>
 """
 
 TOOLCALL_START = "<|tool_call>"
 TOOLCALL_END = "<tool_call|>"
 
-_OUTER = re.compile(r"<\|tool_call>(.*?)<tool_call\|>", re.DOTALL)
-_HEAD = re.compile(r"^\s*call:([^\s{]+)\s*\{(.*)\}\s*$", re.DOTALL)
+_CALL_PATTERN = re.compile(r"<\|tool_call>call:\s*([a-zA-Z0-9_.-]+)\s*\{(.*?)\}<tool_call\|>", re.DOTALL)
+_STRING_PATTERN = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|<\|"\|>(.*?)<\|"\|>', re.DOTALL)
+_KEY_PATTERN = re.compile(r'([a-zA-Z0-9_]+)\s*:')
 
-# One pass over the args body. Each match is a single key/value pair where
-# the value is EITHER a <|"|>...<|"|> string (captured in `strval`) OR a
-# bare token up to the next comma or end-of-body (captured in `bareval`).
-_ARG = re.compile(
-    r"""
-    \s* ([^\s:,{}]+) \s* :       \s*        # key
-    (?:
-        <\|"\|> (?P<strval> .*?) <\|"\|>    # quoted string value
-      |
-        (?P<bareval> [^,]*?)                # bare value (lazy, up to comma/end)
-    )
-    \s* (?: , | \Z )
-    """,
-    re.DOTALL | re.VERBOSE,
-)
+
+def _gemma_to_json(raw_args: str) -> dict:
+    if not raw_args or not raw_args.strip():
+        return {}
+
+    strings = []
+
+    def repl_string(match):
+        s = match.group(0)
+        # If it's a Gemma custom string <|"|>...<|"|>
+        if s.startswith('<|"|>'):
+            # Dump the inner content using C-optimized dumps to handle JSON escaping natively
+            s = json.dumps(match.group(2))
+
+        strings.append(s)
+        # Use a token containing symbols (@) so _KEY_PATTERN won't accidentally match it
+        return f'@STR_{len(strings) - 1}@'
+
+    # 1. Protect all strings (standard and Gemma)
+    text = _STRING_PATTERN.sub(repl_string, raw_args)
+
+    # 2. Quote bare keys (e.g., key: -> "key":)
+    text = _KEY_PATTERN.sub(r'"\1":', text)
+
+    # 3. Restore strings directly into the raw JSON text
+    text = re.sub(r'@STR_(\d+)@', lambda m: strings[int(m.group(1))], text)
+
+    # 4. Ensure wrapped in braces
+    text = text.strip()
+    if not text.startswith('{'):
+        text = f"{{{text}}}"
+
+    # 5. Native parse (acts as structural validation + converts true/false/null safely)
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        xlogger.debug("gemma4: JSON decoding failed for raw args", {"text": text, "error": str(e)})
+        return {}
 
 
 def parse_toolcalls(text: str) -> list[ToolCall]:
     results = []
-    for om in _OUTER.finditer(text):
-        head = _HEAD.match(om.group(1))
-        if not head:
-            continue
-        func_name = head.group(1).strip()
-        if not func_name:
-            continue
 
-        args: dict[str, any] = {}
-        for am in _ARG.finditer(head.group(2)):
-            key = am.group(1)
-            if am.group("strval") is not None:
-                args[key] = am.group("strval")  # already a str
-            else:
-                args[key] = coerce_param_value(am.group("bareval").strip())
+    for m in _CALL_PATTERN.finditer(text):
+        func_name = m.group(1)
+        raw_args = m.group(2)
 
-        results.append(
-            ToolCall(function=Tool(name=func_name, arguments=json.dumps(args, ensure_ascii=False)))
-        )
+        args_dict = _gemma_to_json(raw_args)
+
+        # Standardize strictly to JSON for endpoints wrapper
+        args_json = json.dumps(args_dict, ensure_ascii = False)
+        results.append(ToolCall(function = Tool(name = func_name, arguments = args_json)))
 
     xlogger.debug(
         f"gemma4: Parsed {len(results)} tool calls",
