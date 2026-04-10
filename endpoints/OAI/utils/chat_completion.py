@@ -281,11 +281,15 @@ async def apply_chat_template(data: ChatCompletionRequest):
                     "Could not add response prefix because add_generation_prompt is False"
                 )
 
-        # Removes the starting BOS token if the model adds one
-        # This is to prevent add_bos_token from adding multiple bos tokens
+        # Make sure we have the right number of BOS tokens
         bos_token = template_vars.get("bos_token")
-        if bos_token and model.container.hf_model.add_bos_token() and prompt.startswith(bos_token):
-            prompt = prompt.removeprefix(bos_token)
+        if bos_token:
+            # Tokenizer + template might result in double BOS
+            if prompt.startswith(bos_token + bos_token):
+                prompt = prompt.removeprefix(bos_token)
+            # BOS might be explicitly disabled in tokenizer config
+            if prompt.startswith(bos_token) and not model.container.hf_model.add_bos_token():
+                prompt = prompt.removeprefix(bos_token)
 
         return prompt, mm_embeddings
 
