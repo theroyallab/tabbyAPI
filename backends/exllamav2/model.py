@@ -44,6 +44,7 @@ from common.logger import xlogger
 from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
 from common.multimodal import MultimodalEmbeddingWrapper
+from common.networking import DisconnectHandler
 from common.optional_dependencies import check_package_version
 from common.sampling import BaseSamplerRequest
 from common.templating import PromptTemplate, find_prompt_template
@@ -147,11 +148,11 @@ class ExllamaV2Container(BaseModelContainer):
         # Set vision state and error if vision isn't supported on the current model
         self.use_vision = unwrap(kwargs.get("vision"), False)
         if self.use_vision and not self.config.vision_model_type:
-            raise ValueError(
+            xlogger.warning(
                 "The provided model does not have vision capabilities that are "
-                "supported by ExllamaV2. "
-                "Please reload with vision disabled."
+                "supported by ExllamaV2. Vision input is disabled."
             )
+            self.use_vision = False
 
         # Prepare the draft model config if necessary
         draft_args = unwrap(kwargs.get("draft_model"), {})
@@ -919,7 +920,7 @@ class ExllamaV2Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
+        disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
     ):
         """Generate a response to a prompt."""
@@ -928,7 +929,7 @@ class ExllamaV2Container(BaseModelContainer):
             request_id,
             prompt,
             params,
-            abort_event,
+            disconnect_handler,
             mm_embeddings,
         ):
             if generation is None:
@@ -976,7 +977,7 @@ class ExllamaV2Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
+        disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
     ):
         try:
@@ -999,7 +1000,7 @@ class ExllamaV2Container(BaseModelContainer):
                 request_id=request_id,
                 prompt=prompt,
                 params=params,
-                abort_event=abort_event,
+                disconnect_handler=disconnect_handler,
                 mm_embeddings=mm_embeddings,
             ):
                 yield generation_chunk
@@ -1234,7 +1235,7 @@ class ExllamaV2Container(BaseModelContainer):
         request_id: str,
         prompt: str,
         params: BaseSamplerRequest,
-        abort_event: Optional[asyncio.Event] = None,
+        disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
     ):
         """
@@ -1381,6 +1382,7 @@ class ExllamaV2Container(BaseModelContainer):
             identifier=request_id,
             embeddings=mm_embeddings_content,
         )
+        await disconnect_handler.add_cleanup_task(id(job), job.cancel, ())
 
         # Assign the active job to the request ID
         self.active_job_ids[request_id] = job
@@ -1397,9 +1399,7 @@ class ExllamaV2Container(BaseModelContainer):
         try:
             async for result in job:
                 # Abort if the event is set while streaming
-                if abort_event and abort_event.is_set():
-                    await job.cancel()
-                    break
+                await disconnect_handler.poll()
 
                 stage = result.get("stage")
                 result_id = result.get("identifier")
@@ -1433,8 +1433,8 @@ class ExllamaV2Container(BaseModelContainer):
                     # Yield a finish chunk when generation is finished
                     if result.get("eos"):
                         log_response(request_id, full_response)
-
                         finish_chunk = self.handle_finish_chunk(result, request_id, full_response)
+                        await disconnect_handler.finish(id(job))
 
                         # Save the final result for metrics logging
                         metrics_result = finish_chunk
@@ -1442,7 +1442,9 @@ class ExllamaV2Container(BaseModelContainer):
                         yield finish_chunk
                         break
         except asyncio.CancelledError:
-            await job.cancel()
+            if not job.cancelled:
+                await job.cancel()
+
         except Exception as ex:
             # Create a new generator since the current state is broken
             # No need to wait for this to finish
