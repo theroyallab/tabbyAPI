@@ -1104,7 +1104,8 @@ class ExllamaV3Container(BaseModelContainer):
                     break
 
         except CancelledError:
-            raise
+            if not job.cancelled:
+                await job.cancel()
 
         except Exception as ex:
             # Create a new generator since the current state is broken

@@ -93,13 +93,15 @@ def _compose_response(
             )
         )
 
+    usl = [get_usage_stats(g) for g in generations]
+    usl = [u for u in usl if u is not None]
     response = ChatCompletionResponse(
         id=f"cmpl-{request_id}",
         choices=choices,
         model=model_name,
         usage=(
-            aggregate_usage_stats([get_usage_stats(g) for g in generations])
-            if return_usage
+            aggregate_usage_stats(usl)
+            if return_usage and usl
             else None
         ),
     )
