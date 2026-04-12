@@ -319,7 +319,7 @@ class ModelConfig(BaseConfigModel):
         description=(
             "Suppress this text whenever it appears in the beginning of a reasoning block "
             "(default: None)."
-        )
+        ),
     )
     tool_format: Optional[str] = Field(
         None,

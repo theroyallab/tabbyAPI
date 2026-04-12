@@ -421,10 +421,10 @@ async def _chat_stream_collector(
                 elif in_reasoning:
                     if t_suppress:
                         if t_suppress.startswith(sub):
-                            t_suppress = t_suppress[len(sub):]
+                            t_suppress = t_suppress[len(sub) :]
                             sub = ""
                         elif sub.startswith(t_suppress):
-                            sub = sub[len(t_suppress):]
+                            sub = sub[len(t_suppress) :]
                             t_suppress = ""
                     delta_reasoning += sub
                     full_reasoning += sub
