@@ -166,10 +166,10 @@ model:
   # Do NOT enable this if the model is not a reasoning model (e.g. deepseek-r1 series)
   reasoning: false
 
-  # The start token for reasoning conetnt (default: "<think>")
+  # The start token for reasoning content (default: "<think>")
   reasoning_start_token: "<think>"
 
-  # The end token for reasoning conetnt (default: "</think>")
+  # The end token for reasoning content (default: "</think>")
   reasoning_end_token: "</think>"
 
   # Suppress this text whenever it appears in the beginning of a reasoning block (default: None)
