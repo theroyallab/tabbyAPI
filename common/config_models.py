@@ -314,6 +314,13 @@ class ModelConfig(BaseConfigModel):
         "</think>",
         description="End token for the reasoning parser (default: </think>).",
     )
+    reasoning_suppress_header: str = Field(
+        None,
+        description=(
+            "Suppress this text whenever it appears in the beginning of a reasoning block "
+            "(default: None)."
+        )
+    )
     tool_format: Optional[str] = Field(
         None,
         description=(

@@ -374,6 +374,8 @@ async def _chat_stream_collector(
     use_think = mc.reasoning and bool(mc.reasoning_start_token)
     t_think_start = mc.reasoning_start_token if use_think else None
     t_think_end = mc.reasoning_end_token if use_think else None
+    t_suppress_header = mc.reasoning_suppress_header if use_think else None
+    t_suppress = t_suppress_header
 
     # Regex to identify tool/think tags that may or may not arrive with other text
     splits = [re.escape(s) for s in [t_tool_start, t_tool_end, t_think_start, t_think_end] if s]
@@ -417,6 +419,13 @@ async def _chat_stream_collector(
                     delta_tool += sub
                     full_tool += sub
                 elif in_reasoning:
+                    if t_suppress:
+                        if t_suppress.startswith(sub):
+                            t_suppress = t_suppress[len(sub):]
+                            sub = ""
+                        elif sub.startswith(t_suppress):
+                            sub = sub[len(t_suppress):]
+                            t_suppress = ""
                     delta_reasoning += sub
                     full_reasoning += sub
                 else:
@@ -441,6 +450,7 @@ async def _chat_stream_collector(
                         if tag == t_think_start:
                             post_reasoning_whitespace = False
                             in_reasoning = True
+                            t_suppress = t_suppress_header
                         elif tag == t_think_end:
                             post_reasoning_whitespace = True
                             in_reasoning = False

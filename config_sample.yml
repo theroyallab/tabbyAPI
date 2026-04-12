@@ -172,6 +172,9 @@ model:
   # The end token for reasoning conetnt (default: "</think>")
   reasoning_end_token: "</think>"
 
+  # Suppress this text whenever it appears in the beginning of a reasoning block (default: None)
+  reasoning_suppress_header:
+
   # Tool format, e.g. 'qwen3_coder'. See docs for supported formats. If left blank,
   # tool calls from the model will not be parsed by the server.
   tool_format:
