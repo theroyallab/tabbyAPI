@@ -99,11 +99,7 @@ def _compose_response(
         id=f"cmpl-{request_id}",
         choices=choices,
         model=model_name,
-        usage=(
-            aggregate_usage_stats(usl)
-            if return_usage and usl
-            else None
-        ),
+        usage=(aggregate_usage_stats(usl) if return_usage and usl else None),
     )
     return response
 

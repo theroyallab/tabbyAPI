@@ -17,9 +17,11 @@ Raw format:
 TOOLCALL_START = "<|tool_call>"
 TOOLCALL_END = "<tool_call|>"
 
-_CALL_PATTERN = re.compile(r"<\|tool_call>call:\s*([a-zA-Z0-9_.-]+)\s*\{(.*?)\}<tool_call\|>", re.DOTALL)
+_CALL_PATTERN = re.compile(
+    r"<\|tool_call>call:\s*([a-zA-Z0-9_.-]+)\s*\{(.*?)\}<tool_call\|>", re.DOTALL
+)
 _STRING_PATTERN = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|<\|"\|>(.*?)<\|"\|>', re.DOTALL)
-_KEY_PATTERN = re.compile(r'([a-zA-Z0-9_]+)\s*:')
+_KEY_PATTERN = re.compile(r"([a-zA-Z0-9_]+)\s*:")
 
 
 def _gemma_to_json(raw_args: str) -> dict:
@@ -37,7 +39,7 @@ def _gemma_to_json(raw_args: str) -> dict:
 
         strings.append(s)
         # Use a token containing symbols (@) so _KEY_PATTERN won't accidentally match it
-        return f'@STR_{len(strings) - 1}@'
+        return f"@STR_{len(strings) - 1}@"
 
     # 1. Protect all strings (standard and Gemma)
     text = _STRING_PATTERN.sub(repl_string, raw_args)
@@ -46,11 +48,11 @@ def _gemma_to_json(raw_args: str) -> dict:
     text = _KEY_PATTERN.sub(r'"\1":', text)
 
     # 3. Restore strings directly into the raw JSON text
-    text = re.sub(r'@STR_(\d+)@', lambda m: strings[int(m.group(1))], text)
+    text = re.sub(r"@STR_(\d+)@", lambda m: strings[int(m.group(1))], text)
 
     # 4. Ensure wrapped in braces
     text = text.strip()
-    if not text.startswith('{'):
+    if not text.startswith("{"):
         text = f"{{{text}}}"
 
     # 5. Native parse (acts as structural validation + converts true/false/null safely)
@@ -71,8 +73,8 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
         args_dict = _gemma_to_json(raw_args)
 
         # Standardize strictly to JSON for endpoints wrapper
-        args_json = json.dumps(args_dict, ensure_ascii = False)
-        results.append(ToolCall(function = Tool(name = func_name, arguments = args_json)))
+        args_json = json.dumps(args_dict, ensure_ascii=False)
+        results.append(ToolCall(function=Tool(name=func_name, arguments=args_json)))
 
     xlogger.debug(
         f"gemma4: Parsed {len(results)} tool calls",
