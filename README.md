@@ -24,11 +24,15 @@
 
 > [!IMPORTANT]
 >
->  In addition to the README, please read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started) page for information about getting started!
+> In addition to the README, please read the [Wiki](https://github.com/theroyallab/tabbyAPI/wiki/1.-Getting-Started) page for information about getting started!
 
 > [!NOTE]
 > 
->  Need help? Join the [Discord Server](https://discord.gg/sYQxnuD7Fj) and get the `Tabby` role. Please be nice when asking questions.
+> Need help? Join the [Discord Server](https://discord.gg/sYQxnuD7Fj) and get the `Tabby` role. Please be nice when asking questions.
+
+> [!NOTE]
+> 
+> Tool calling support has been revamped and now no longer relies on modified Jinja templates. [See the docs for more.](docs/10.-Tool-Calling.md)
 
 > [!NOTE]
 > 
@@ -80,13 +84,11 @@ And much more. If something is missing here, PR it in!
 
 TabbyAPI uses Exllama as a powerful and fast backend for model inference, loading, etc. Therefore, the following types of models are supported:
 
-- Exl2 (Highly recommended)
+- Exl2/GPTQ (deprecated, will be removed in the near future)
 
 - Exl3 (Highly recommended)
 
-- GPTQ
-
-- FP16 (using Exllamav2's loader)
+- FP16
 
 In addition, TabbyAPI supports parallel batching using paged attention for Nvidia Ampere GPUs and higher.
 
