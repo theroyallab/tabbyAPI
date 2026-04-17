@@ -4,9 +4,6 @@ import sys
 from common.logger import xlogger
 from types import FrameType
 
-from common import model
-
-
 SHUTTING_DOWN: bool = False
 
 
@@ -31,6 +28,8 @@ def signal_handler(*_):
 
 
 async def signal_handler_async():
+    from common import model
+
     """
     Internal signal handler. Runs all async code to shut down the program.
 

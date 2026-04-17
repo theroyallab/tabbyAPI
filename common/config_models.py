@@ -453,6 +453,20 @@ class EmbeddingsConfig(BaseConfigModel):
     )
 
 
+class MemoryConfig(BaseConfigModel):
+    """Options for development and experimentation"""
+
+    cuda_malloc_async: Optional[bool] = Field(
+        True,
+        description=(
+            "Use cudaMallocAsync backend in Torch (default: True).\n"
+            "Enabling this is generally preferable, but it may cause issues with certain\n"
+            "workloads. Try disabling it if you experience intermittent OoM errors. If\n"
+            "False, Torch will use the allocator defined by the system env"
+        ),
+    )
+
+
 class DeveloperConfig(BaseConfigModel):
     """Options for development and experimentation"""
 
@@ -515,6 +529,9 @@ class TabbyConfigModel(BaseModel):
     )
     sampling: Optional[SamplingConfig] = Field(
         default_factory=SamplingConfig.model_construct,
+    )
+    memory: Optional[MemoryConfig] = Field(
+        default_factory=MemoryConfig.model_construct,
     )
     developer: Optional[DeveloperConfig] = Field(
         default_factory=DeveloperConfig.model_construct,

@@ -2,15 +2,15 @@ import argparse
 import asyncio
 import json
 import traceback
-from common.logger import xlogger
 
-from common.downloader import hf_repo_download
+from common.logger import xlogger
 from common.tabby_config import generate_config_file
 from common.utils import unwrap
-from endpoints.server import export_openapi
 
 
 def download_action(args: argparse.Namespace):
+    from common.downloader import hf_repo_download
+
     try:
         asyncio.run(
             hf_repo_download(
@@ -33,6 +33,8 @@ def config_export_action(args: argparse.Namespace):
 
 
 def openapi_export_action(args: argparse.Namespace):
+    from endpoints.server import export_openapi
+
     export_path = unwrap(args.export_path, "openapi.json")
     openapi_json = export_openapi()
 

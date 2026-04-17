@@ -79,7 +79,7 @@ async def load_auth_keys(disable_from_config: bool):
 
     logger.info(
         f"Your API key is: {AUTH_KEYS.api_key}\n"
-        f"Your admin key is: {AUTH_KEYS.admin_key}\n\n"
+        f"Your admin key is: {AUTH_KEYS.admin_key}\n"
         "If these keys get compromised, make sure to delete api_tokens.yml "
         "and restart the server. Have fun!"
     )

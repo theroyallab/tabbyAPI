@@ -3,8 +3,6 @@
 # Set this env var for cuda malloc async before torch is initalized
 import os
 
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "backend:cudaMallocAsync"
-
 import argparse
 import asyncio
 import pathlib
@@ -13,7 +11,7 @@ import signal
 from loguru import logger
 from typing import Optional
 
-from common import gen_logging, sampling, model
+from common import gen_logging, sampling
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
 from common.actions import run_subcommand
@@ -22,10 +20,12 @@ from common.networking import is_port_in_use
 from common.optional_dependencies import dependencies
 from common.signals import signal_handler
 from common.tabby_config import config
-from endpoints.server import start_api
 
 
 async def entrypoint_async():
+    from common import model
+    from endpoints.server import start_api
+
     """Async entry function for program startup"""
 
     host = config.network.host
@@ -131,6 +131,25 @@ def entrypoint(
             seqlog_url=config.developer.seqlog_server_url,
             api_key=config.developer.seqlog_api_key,
         )
+
+    # We need to configure the allocator before importing Torch
+    if config.memory.cuda_malloc_async:
+        env_key1 = "PYTORCH_ALLOC_CONF"
+        env_key2 = "PYTORCH_CUDA_ALLOC_CONF"
+        new_alloc_config = "backend:cudaMallocAsync"
+        prev_alloc_config = os.environ.get(env_key1, os.environ.get(env_key2))
+        os.environ[env_key1] = new_alloc_config
+        os.environ[env_key2] = new_alloc_config
+        import sys
+
+        if "torch" in sys.modules and prev_alloc_config != new_alloc_config:
+            xlogger.warning(
+                "`torch` was imported before config could be loaded. Unable to configure "
+                "allocator backend, using existing env setting: "
+                + (prev_alloc_config or "(Torch default)")
+            )
+        else:
+            xlogger.info("Configured backend: cudaMallocAsync")
 
     # branch to default paths if required
     if run_subcommand(args):

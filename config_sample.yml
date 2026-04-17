@@ -244,6 +244,15 @@ embeddings:
   # An initial embedding model to load on the infinity backend.
   embedding_model_name:
 
+# Global memory settings
+memory:
+
+  # Use cudaMallocAsync backend in Torch (default: True).
+  # Enabling this is generally preferable, but it may cause issues with certain
+  # workloads. Try disabling it if you experience intermittent OoM errors. If
+  # False, Torch will use the allocator defined by the system env
+  cuda_malloc_async: True
+
 # Options for development and experimentation
 developer:
   # Skip Exllamav2 version check (default: False).
