@@ -247,6 +247,9 @@ embeddings:
 # Global memory settings
 memory:
 
+  # Max size of recurrent cache in system memory, in MB (default: 4096)
+  sysmem_recurrent_cache: 4096
+
   # Use cudaMallocAsync backend in Torch (default: True).
   # Enabling this is generally preferable, but it may cause issues with certain
   # workloads. Try disabling it if you experience intermittent OoM errors. If

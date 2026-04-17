@@ -13,7 +13,6 @@ from typing import (
     List,
     Optional,
 )
-
 from exllamav3 import (
     AsyncGenerator,
     AsyncJob,
@@ -42,6 +41,7 @@ from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import DisconnectHandler
 from common.optional_dependencies import check_package_version
 from common.sampling import BaseSamplerRequest
+from common.tabby_config import config
 from common.templating import PromptTemplate, find_prompt_template
 from common.transformers_utils import HFModel
 from common.utils import coalesce, unwrap
@@ -552,6 +552,7 @@ class ExllamaV3Container(BaseModelContainer):
                 tokenizer=self.tokenizer,
                 max_batch_size=self.max_batch_size,
                 max_chunk_size=self.chunk_size,
+                recurrent_cache_size=config.memory.sysmem_recurrent_cache * 1024**2,
             )
 
             # Update the state of the container var

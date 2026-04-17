@@ -456,6 +456,10 @@ class EmbeddingsConfig(BaseConfigModel):
 class MemoryConfig(BaseConfigModel):
     """Options for development and experimentation"""
 
+    sysmem_recurrent_cache: Optional[int] = Field(
+        4096,
+        description=("Max size of recurrent cache in system memory, in MB (default: 4096)"),
+    )
     cuda_malloc_async: Optional[bool] = Field(
         True,
         description=(
