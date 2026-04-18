@@ -37,6 +37,9 @@ urls = {
     "Chat completions": "http://{host}:{port}/v1/chat/completions",
 }
 
+# Block when model is still loading while second inline load request comes in
+load_lock: asyncio.Lock = asyncio.Lock()
+
 
 def setup():
     return router
@@ -57,11 +60,13 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
     raw_json = await request.json()
     xlogger.debug("[ENDPOINT] /v1/completions", {"raw": raw_json})
 
+    await load_lock.acquire()
     if data.model:
         await load_inline_model(data.model, request)
     else:
         await check_model_container()
     model_path = model.container.model_dir
+    load_lock.release()
 
     # Prepare raw prompt (will be str or list[str])
     prompt = data.prompt
@@ -106,11 +111,13 @@ async def chat_completion_request(
     raw_json = await request.json()
     xlogger.debug("[ENDPOINT] /v1/chat/completions", {"raw": raw_json})
 
+    await load_lock.acquire()
     if data.model:
         await load_inline_model(data.model, request)
     else:
         await check_model_container()
     model_path = model.container.model_dir
+    load_lock.release()
 
     # Prepare raw prompt
     if model.container.prompt_template is None:
