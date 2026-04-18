@@ -25,6 +25,7 @@ ALL_TOOLCALL_FORMATS = {
     "mistral": mistral,
     "qwen3_coder": qwen3_coder,
     "qwen3_5": qwen3_coder,
+    "step3_5": qwen3_coder,
 }
 
 
