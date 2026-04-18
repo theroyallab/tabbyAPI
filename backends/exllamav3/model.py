@@ -522,6 +522,13 @@ class ExllamaV3Container(BaseModelContainer):
         else:
             xlogger.info("Loading with a manual GPU split (or a one GPU setup)")
 
+        # TODO: Smarter estimation of autosplit_max_batch_size
+        load_kwargs = {}
+        import inspect
+
+        if "max_batch_size" in inspect.signature(self.model.load_gen).parameters:
+            load_kwargs["max_batch_size"] = 2
+
         for value in self.model.load_gen(
             tensor_p=self.use_tp,
             tp_backend=self.tp_backend,
@@ -529,6 +536,7 @@ class ExllamaV3Container(BaseModelContainer):
             use_per_device=self.gpu_split,
             callback=progress_callback,
             max_chunk_size=self.chunk_size,
+            **load_kwargs,
         ):
             if value:
                 yield value
