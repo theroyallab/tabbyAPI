@@ -528,6 +528,7 @@ class ExllamaV3Container(BaseModelContainer):
             reserve_per_device=self.autosplit_reserve,
             use_per_device=self.gpu_split,
             callback=progress_callback,
+            max_chunk_size=self.chunk_size,
         ):
             if value:
                 yield value
