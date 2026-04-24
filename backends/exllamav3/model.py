@@ -500,6 +500,7 @@ class ExllamaV3Container(BaseModelContainer):
         if self.use_vision:
             for value in self.vision_model.load_gen(
                 reserve_per_device=self.autosplit_reserve,
+                use_per_device=self.gpu_split,
                 callback=progress_callback,
             ):
                 if value:
@@ -508,6 +509,7 @@ class ExllamaV3Container(BaseModelContainer):
         if self.use_draft_model:
             for value in self.draft_model.load_gen(
                 reserve_per_device=self.autosplit_reserve,
+                use_per_device=self.gpu_split,
                 callback=progress_callback,
             ):
                 if value:
