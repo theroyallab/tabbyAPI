@@ -769,6 +769,7 @@ class ExllamaV3Container(BaseModelContainer):
         params: BaseSamplerRequest,
         disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        filter_trigger: str = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """
         Generates a response iteratively (streaming) for a given prompt.
@@ -779,6 +780,8 @@ class ExllamaV3Container(BaseModelContainer):
             params: Sampling and generation parameters.
             disconnect_handler: Disconnect context
             mm_embeddings: Optional multimodal embeddings.
+            filter_trigger: Delay filters (from params) until trigger text.
+                Must map to single token.
 
         Yields:
             Generation chunks
@@ -806,6 +809,7 @@ class ExllamaV3Container(BaseModelContainer):
                 params=params,
                 disconnect_handler=disconnect_handler,
                 mm_embeddings=mm_embeddings,
+                filter_trigger=filter_trigger,
             ):
                 yield generation_chunk
         finally:
@@ -917,6 +921,7 @@ class ExllamaV3Container(BaseModelContainer):
         params: BaseSamplerRequest,
         disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        filter_trigger: str = None,
     ):
         """
         Create generator function for prompt completion.
@@ -1038,7 +1043,18 @@ class ExllamaV3Container(BaseModelContainer):
         )
 
         if params.json_schema:
-            grammar_handler.add_json_schema_filter(params.json_schema, self.tokenizer)
+            if filter_trigger is not None:
+                trigger_token_id = self.tokenizer.single_id(filter_trigger)
+                if trigger_token_id is None:
+                    xlogger.warning(
+                        "Unable to set trigger token for filters: no token ID for "
+                        f"`{filter_trigger}`."
+                    )
+            else:
+                trigger_token_id = None
+            grammar_handler.add_json_schema_filter(
+                params.json_schema, self.tokenizer, trigger_token_id=trigger_token_id
+            )
 
         generation = {}
         job = AsyncJob(

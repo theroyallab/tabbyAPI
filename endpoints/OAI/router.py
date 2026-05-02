@@ -75,6 +75,10 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
     if data.response_format.type == "json":
         data.json_schema = {"type": "object"}
 
+    # Also accept specific schema from response_format
+    if data.response_format.type == "json_schema":
+        data.json_schema = data.response_format.json_schema
+
     try:
         disconnect_handler = DisconnectHandler(request, "/v1/completions")
         await disconnect_handler.poll()
@@ -131,6 +135,10 @@ async def chat_completion_request(
     # Set an empty JSON schema if the request wants a JSON response
     if data.response_format.type == "json":
         data.json_schema = {"type": "object"}
+
+    # Also accept specific schema from response_format
+    if data.response_format.type == "json_schema":
+        data.json_schema = data.response_format.json_schema
 
     try:
         disconnect_handler = DisconnectHandler(request, "/v1/chat/completions")

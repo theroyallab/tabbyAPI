@@ -231,6 +231,7 @@ class BaseModelContainer(abc.ABC):
         params: BaseSamplerRequest,
         abort_event: Optional[asyncio.Event] = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        filter_trigger: str = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """
         Generates a response iteratively (streaming) for a given prompt.
@@ -241,6 +242,8 @@ class BaseModelContainer(abc.ABC):
             params: Sampling and generation parameters.
             abort_event: An asyncio Event to signal cancellation.
             mm_embeddings: Optional multimodal embeddings.
+            filter_trigger: Delay filters (from params) until trigger text.
+                Must map to single token.
 
         Yields:
             Generation chunks

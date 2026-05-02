@@ -47,7 +47,7 @@ class ChatCompletionRespChoice(BaseModel):
     index: int = 0
     finish_reason: Optional[str] = None
 
-    # let's us understand why it stopped and if we need to generate a tool_call
+    # Lets us understand why it stopped and if we need to generate a tool_call
     stop_str: Optional[str] = None
     message: ChatCompletionMessage
     logprobs: Optional[ChatCompletionLogprobs] = None
@@ -85,6 +85,9 @@ class ChatCompletionRequest(CommonCompletionRequest):
     # Chat completions requests do not have a BOS token preference. Backend
     # respects the tokenization config for the individual model.
     add_bos_token: Optional[bool] = None
+
+    # Accept json_schema as top-level argument
+    json_schema: Optional[object] = None
 
     @field_validator("add_bos_token", mode="after")
     def force_bos_token(cls, v):

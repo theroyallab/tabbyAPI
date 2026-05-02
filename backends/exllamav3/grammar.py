@@ -23,12 +23,17 @@ class ExLlamaV3Grammar:
         self,
         schema: dict,
         tokenizer: Tokenizer,
+        trigger_token_id: int = None,
     ):
         """Adds an ExllamaV3 filter based on a JSON schema."""
 
         leading_character = "[" if schema.get("type") == "array" else "{"
 
         try:
+            # Get named schema nested in from OAI response format config
+            if "schema" in schema and "name" in schema:
+                schema = schema["schema"]
+
             # Add fields required by formatron if not present
             if "$id" not in schema:
                 schema["$id"] = "https://example.com/example.json"
@@ -37,6 +42,7 @@ class ExLlamaV3Grammar:
 
             # Validate schema and create formatter
             schema = json_schema.create_schema(schema)
+
         except Exception:
             traceback.print_exc()
             xlogger.error(
@@ -49,10 +55,21 @@ class ExLlamaV3Grammar:
         f = FormatterBuilder()
         f.append_line(f"{f.json(schema)}")
         self.filters.append(
-            FormatronFilter(tokenizer, eos_after_completed=True, formatter_builder=f)
+            FormatronFilter(
+                tokenizer,
+                eos_after_completed=True,
+                formatter_builder=f,
+                trigger_token=trigger_token_id,
+            )
         )
 
         # Additional constraint to force leading character
         f = FormatterBuilder()
         f.append_line(leading_character)
-        self.filters.append(FormatronFilter(tokenizer, formatter_builder=f))
+        self.filters.append(
+            FormatronFilter(
+                tokenizer,
+                formatter_builder=f,
+                trigger_token=trigger_token_id,
+            )
+        )

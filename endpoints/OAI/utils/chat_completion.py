@@ -350,8 +350,6 @@ async def _chat_stream_collector(
     In non-streaming mode, collects everything with the same logic but then emits a single
     response packet at the end, to be combined with any other choices (for n>1 requests) and
     sent together to the client.
-
-    TODO: Integrate JSON constraint with trigger token (esp. for models without a tool_end token)
     """
 
     mc = model.container
@@ -391,6 +389,7 @@ async def _chat_stream_collector(
             params,
             disconnect_handler,
             mm_embeddings,
+            filter_trigger=t_think_end if in_reasoning else None,
         )
         generation = {}
         async for generation in new_generation:

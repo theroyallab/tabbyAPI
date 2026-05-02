@@ -980,6 +980,7 @@ class ExllamaV2Container(BaseModelContainer):
         params: BaseSamplerRequest,
         disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+        filter_trigger: str = None,
     ):
         try:
             # Wait for load lock to be freed before processing
