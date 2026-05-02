@@ -199,11 +199,11 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     # Add possible types of models that can be loaded
     model_type = [ModelType.MODEL]
 
-    if new_container.use_vision:
-        model_type.insert(0, ModelType.VISION)
-
     if new_container.use_draft_model:
         model_type.insert(0, ModelType.DRAFT)
+
+    if new_container.use_vision:
+        model_type.insert(0, ModelType.VISION)
 
     load_status = new_container.load_gen(load_progress, **kwargs)
 
