@@ -26,8 +26,13 @@ WORKDIR /app
 # Get requirements
 COPY pyproject.toml .
 
-# Install packages specified in pyproject.toml cu12, extras
-RUN pip install --no-cache-dir .[cu12,extras]
+# Install cu12 group first — pins torch+cu128, exllamav2/v3+cu128, flash_attn+cu128.
+# The 'extras' group (infinity-emb, sentence-transformers) is installed separately
+# with --no-deps so pip cannot resolve xformers transitively and pull a cu130 wheel,
+# which would cause libcudart.so.13 ImportError on driver 590.x (cu128-only hosts).
+# See: https://github.com/theroyallab/tabbyAPI/issues/414
+RUN pip install --no-cache-dir .[cu12]
+RUN pip install --no-cache-dir --no-deps .[extras]
 
 RUN rm pyproject.toml
 
