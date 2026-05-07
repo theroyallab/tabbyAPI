@@ -156,26 +156,49 @@ class ExllamaV3Container(BaseModelContainer):
         # Prepare the draft model config if necessary
         draft_args = unwrap(kwargs.get("draft_model"), {})
         draft_model_name = draft_args.get("draft_model_name")
-        self.use_draft_model = draft_args and draft_model_name
+        draft_arch_override = draft_args.get("draft_arch_override")
+        self._draft_args = draft_args
 
-        # Always disable draft if params are incorrectly configured
-        if draft_args and draft_model_name is None:
+        # Two ways to enable a draft model:
+        #   1) Separate dir+name (regular draft, any arch).
+        #   2) MTP head loaded from the main model's checkpoint: set draft_arch_override
+        #      (e.g. "Qwen3_5MTPDraftModel") and leave draft_model_name unset.
+        self.use_draft_model = bool(draft_args) and bool(draft_model_name or draft_arch_override)
+
+        # Misconfiguration: draft section present but no way to locate weights
+        if draft_args and not draft_model_name and not draft_arch_override:
             xlogger.warning(
-                "Draft model is disabled because a model name "
-                "wasn't provided. Please check your config.yml!"
+                "Draft model section is set but neither draft_model_name nor "
+                "draft_arch_override is provided. Disabling draft model. "
+                "Set draft_model_name to load from a separate directory, or "
+                "draft_arch_override (e.g. Qwen3_5MTPDraftModel) to load the "
+                "MTP head from the main model directory."
             )
             self.use_draft_model = False
 
         if self.use_draft_model:
-            draft_model_path = pathlib.Path(unwrap(draft_args.get("draft_model_dir"), "models"))
-            draft_model_path = draft_model_path / draft_model_name
+            if draft_model_name:
+                # Separate draft model directory
+                draft_model_path = pathlib.Path(unwrap(draft_args.get("draft_model_dir"), "models"))
+                draft_model_path = draft_model_path / draft_model_name
+            else:
+                # MTP from the same dir as the main model — checkpoint has both trunk and
+                # mtp.* tensors; arch_override picks just the MTP weights via Qwen3_5MTPDraftConfig.
+                draft_model_path = model_directory
+                xlogger.info("Loading draft model from main model directory (self-spec)")
+
             self.draft_gpu_split = unwrap(draft_args.get("draft_gpu_split"), [])
             self.draft_model_dir = draft_model_path
-            self.draft_config = Config.from_directory(str(draft_model_path.resolve()))
+            self.draft_config = Config.from_directory(
+                str(draft_model_path.resolve()),
+                arch_override=draft_arch_override,
+            )
             self.draft_model = Model.from_config(self.draft_config)
             default_ndt = self.draft_model.caps.get("default_draft_size", 4)
             self.draft_num_tokens = draft_args.get("draft_num_tokens", default_ndt)
             xlogger.info(f"Using draft model: {str(draft_model_path.resolve())}")
+            if draft_arch_override:
+                xlogger.info(f"Draft arch override: {draft_arch_override}")
         else:
             self.draft_model = None
             self.draft_cache = None

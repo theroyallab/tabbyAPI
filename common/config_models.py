@@ -357,7 +357,9 @@ class DraftModelConfig(BaseConfigModel):
     draft_model_name: Optional[str] = Field(
         None,
         description=(
-            "An initial draft model to load.\nEnsure the model is in the model directory."
+            "An initial draft model to load.\nEnsure the model is in the model directory.\n"
+            "Leave blank when using draft_arch_override to load an MTP head from the\n"
+            "main model directory (self-spec)."
         ),
     )
     draft_rope_scale: Optional[float] = Field(
@@ -398,6 +400,18 @@ class DraftModelConfig(BaseConfigModel):
             "Recurrent (linear or sliding attention) models use more VRAM for longer drafts.\n"
             "This overhead multiplies with the max batch size, so for models with long drafts\n"
             "(e.g. DFlash with 15 tokens by default) shorter drafts may be preferable."
+        ),
+    )
+    draft_arch_override: Optional[str] = Field(
+        None,
+        description=(
+            "Override the architecture string read from the draft model's config.json.\n"
+            "Use 'Qwen3_5MTPDraftModel' to load only the MTP head. Two ways:\n"
+            "  - With draft_model_name: load the MTP head from a separate directory\n"
+            "    (e.g. point draft_model_name at the original BF16 Qwen3.6 repo).\n"
+            "  - Without draft_model_name: load the MTP head from the SAME directory\n"
+            "    as the main model, when that checkpoint already contains the mtp.*\n"
+            "    tensors alongside the regular trunk weights."
         ),
     )
 
