@@ -949,6 +949,8 @@ class ExllamaV3Container(BaseModelContainer):
             "finish_reason": finish_reason,
             "stop_str": stop_str,
             "full_text": full_text,
+            "accepted_draft_tokens": result.get("accepted_draft_tokens", 0),
+            "rejected_draft_tokens": result.get("rejected_draft_tokens", 0),
         }
 
         return finish_chunk

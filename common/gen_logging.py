@@ -82,6 +82,16 @@ def log_metrics(
 
     itemization.append(f"Generate: {metrics.get('gen_tokens_per_sec')} T/s")
 
+    # Add draft token acceptance rate if available
+    accepted_draft = metrics.get("accepted_draft_tokens", 0)
+    rejected_draft = metrics.get("rejected_draft_tokens", 0)
+    total_draft = accepted_draft + rejected_draft
+    if total_draft > 0:
+        acceptance_rate = round(accepted_draft / total_draft * 100, 1)
+        itemization.append(
+            f"Draft: {accepted_draft}/{total_draft} accepted ({acceptance_rate}% acceptance)"
+        )
+
     # Add context (original token count)
     if context_len:
         itemization.append(f"Context: {context_len} tokens")
