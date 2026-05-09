@@ -88,7 +88,7 @@ TabbyAPI uses Exllama as a powerful and fast backend for model inference, loadin
 
 - Exl3 (Highly recommended)
 
-- FP16
+- FP16/BF16
 
 In addition, TabbyAPI supports parallel batching using paged attention for Nvidia Ampere GPUs and higher.
 
