@@ -46,4 +46,4 @@ EXPOSE 5000
 ENTRYPOINT ["python3"]
 
 # Run main.py when the container launches
-CMD ["main.py"]
+CMD ["main.py", "--host", "0.0.0.0"]
