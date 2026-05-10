@@ -60,6 +60,19 @@ For a step-by-step guide, choose the format that works best for you:
 
 🎥 Watch the [Video Guide](https://www.youtube.com/watch?v=03jYz0ijbUU) – A hands-on walkthrough to get you up and running quickly.
 
+### Docker
+
+TabbyAPI publishes a CUDA image to GitHub Container Registry. Install Docker and the NVIDIA container toolkit, then start the published image with your models directory mounted into the container:
+
+```bash
+docker pull ghcr.io/theroyallab/tabbyapi:latest
+docker run --gpus all --name tabbyapi -p 5000:5000 -v /path/to/models:/app/models ghcr.io/theroyallab/tabbyapi:latest
+```
+
+Replace `/path/to/models` with the folder that contains your local model directories. The API is exposed on `http://localhost:5000`.
+
+For Docker Compose, custom config mounts, or building the image locally, see the [Docker instructions](docs/01.-Getting-Started.md#docker).
+
 ## Features
 
 - OpenAI compatible API
