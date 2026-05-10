@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   tabbyapi:
     # Uncomment this to build a docker image from source
