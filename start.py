@@ -173,7 +173,7 @@ def run_pip(command: List[str]):
     if has_uv:
         command.insert(0, "uv")
 
-    subprocess.run(command)
+    subprocess.run(command, check=True)
 
 
 if __name__ == "__main__":
@@ -198,8 +198,11 @@ if __name__ == "__main__":
     add_start_args(parser)
     args, _ = parser.parse_known_args()
 
-    # Log pip version
-    run_pip(["pip", "-V"])
+    # Log pip/uv version
+    if has_uv:
+        subprocess.run(["uv", "-V"])
+    else:
+        subprocess.run(["pip", "-V"])
 
     script_ext = "bat" if platform.system() == "Windows" else "sh"
     do_start_options_write = False
@@ -248,8 +251,13 @@ if __name__ == "__main__":
 
         # pip install .[features]
         print(f"Running install command: {' '.join(install_command)}")
-        run_pip(install_command)
-        print()
+
+        try:
+            run_pip(install_command)
+            print()
+        except subprocess.CalledProcessError:
+            print("\nDependency installation failed. Please check the logs and run again.\n")
+            sys.exit(1)
 
         if first_run:
             start_options["first_run_done"] = True
