@@ -225,7 +225,7 @@ class ModelConfig(BaseConfigModel):
     gpu_split: List[float] = Field(
         default_factory=list,
         description=(
-            "An integer array of GBs of VRAM to split between GPUs (default: []).\n"
+            "Array of VRAM sizes to split between GPUs, in GB (default: []).\n"
             "Used with tensor parallelism."
         ),
     )
@@ -377,7 +377,7 @@ class DraftModelConfig(BaseConfigModel):
     draft_gpu_split: List[float] = Field(
         default_factory=list,
         description=(
-            "An integer array of GBs of VRAM to split between GPUs (default: []).\n"
+            "Array of VRAM sizes to split between GPUs, in GB (default: []).\n"
             "If this isn't filled in, the draft model is autosplit."
         ),
     )

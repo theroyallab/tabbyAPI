@@ -112,7 +112,7 @@ model:
   # Represented as an array of MB per GPU.
   autosplit_reserve: [96]
 
-  # An integer array of GBs of VRAM to split between GPUs (default: []).
+  # Array of VRAM sizes to split between GPUs, in GB (default: []).
   # Used with tensor parallelism.
   gpu_split: []
 
@@ -204,7 +204,7 @@ draft_model:
   # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
   draft_cache_mode: FP16
 
-  # An integer array of GBs of VRAM to split between GPUs (default: []).
+  # Array of VRAM sizes to split between GPUs, in GB (default: []).
   # If this isn't filled in, the draft model is autosplit.
   draft_gpu_split: []
 
