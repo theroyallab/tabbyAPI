@@ -141,9 +141,11 @@ model:
   # Used by EXL3 models only.
   output_chunking: true
 
-  # Set the maximum number of prompts to process at one time (default: None/Automatic).
-  # Automatically calculated if left blank.
-  # NOTE: Only available for Nvidia ampere (30 series) and above GPUs.
+  # Set the maximum number of generation jobs that can run concurrently
+  # The default maximum batch size for transformer architectures is 32. Recurrent
+  # models with linear or sliding attention use more VRAM to support larger batches,
+  # so the default value is reduced to 4. If you do not require concurrency at all, you
+  # can reduce it further to minimize VRAM overhead.
   max_batch_size:
 
   # Set the prompt template for this model. (default: None)
@@ -207,6 +209,12 @@ draft_model:
   # Array of VRAM sizes to split between GPUs, in GB (default: []).
   # If this isn't filled in, the draft model is autosplit.
   draft_gpu_split: []
+
+  # Number of tokens to draft per iteration (default: draft model default)
+  # Recurrent (linear or sliding attention) models use more VRAM for longer drafts.
+  # This overhead multiplies with the max batch size, so for models with long drafts
+  # (e.g. DFlash with 15 tokens by default) shorter drafts may be preferable.
+  draft_num_tokens:
 
 # Options for Sampling
 sampling:

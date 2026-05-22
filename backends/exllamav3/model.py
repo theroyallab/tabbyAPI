@@ -48,6 +48,7 @@ from common.utils import coalesce, unwrap
 from endpoints.OAI.types.chat_completion import ChatCompletionLogprob, ChatCompletionLogprobLeaf
 from endpoints.core.types.model import ModelCard, ModelCardParameters
 from endpoints.OAI.utils.tools import is_supported_format
+import inspect
 
 
 class ExllamaV3Container(BaseModelContainer):
@@ -93,6 +94,7 @@ class ExllamaV3Container(BaseModelContainer):
     chunk_size: int = 2048
     max_rq_tokens: Optional[int] = 2048
     max_batch_size: Optional[int] = None
+    draft_num_tokens: Optional[int] = None
 
     # Required methods
     @classmethod
@@ -171,10 +173,13 @@ class ExllamaV3Container(BaseModelContainer):
             self.draft_model_dir = draft_model_path
             self.draft_config = Config.from_directory(str(draft_model_path.resolve()))
             self.draft_model = Model.from_config(self.draft_config)
+            default_ndt = self.draft_model.caps.get("default_draft_size", 4)
+            self.draft_num_tokens = draft_args.get("draft_num_tokens", default_ndt)
             xlogger.info(f"Using draft model: {str(draft_model_path.resolve())}")
         else:
             self.draft_model = None
             self.draft_cache = None
+            self.draft_num_tokens = 0
 
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
@@ -277,6 +282,10 @@ class ExllamaV3Container(BaseModelContainer):
         self.max_seq_len = max_seq_len
         self.cache_size = cache_size
 
+        # Max batch size
+        default_mbs = 4 if self.model.caps.get("recurrent_states") else 128
+        self.max_batch_size = unwrap(kwargs.get("max_batch_size"), default_mbs)
+
         # Create cache
         cache_mode_default = "FP16"
         self.cache_mode = unwrap(kwargs.get("cache_mode"), cache_mode_default)
@@ -287,9 +296,6 @@ class ExllamaV3Container(BaseModelContainer):
             # Set draft cache mode
             self.draft_cache_mode = unwrap(draft_args.get("draft_cache_mode"), "FP16")
             self.draft_cache = self.create_cache(self.draft_cache_mode, self.draft_model)
-
-        # Max batch size
-        self.max_batch_size = unwrap(kwargs.get("max_batch_size"), 256)
 
         # Make sure chunk size is >= 256, keep near or below max seq len
         user_chunk_size = unwrap(kwargs.get("chunk_size"), 2048)
@@ -377,6 +383,13 @@ class ExllamaV3Container(BaseModelContainer):
 
         split_cache_mode = re.search(r"^([2-8])\s*,\s*([2-8])$", raw_cache_mode)
 
+        batch_draft_args = {}
+        if "max_batch_size" in inspect.signature(Cache.__init__).parameters:
+            batch_draft_args = {
+                "max_batch_size": self.max_batch_size,
+                "max_history": self.draft_num_tokens,
+            }
+
         if split_cache_mode:
             draft_k_bits = int(split_cache_mode.group(1))
             draft_v_bits = int(split_cache_mode.group(2))
@@ -386,9 +399,14 @@ class ExllamaV3Container(BaseModelContainer):
                 layer_type=CacheLayer_quant,
                 k_bits=draft_k_bits,
                 v_bits=draft_v_bits,
+                **batch_draft_args,
             )
         else:
-            cache = Cache(model, max_num_tokens=self.cache_size)
+            cache = Cache(
+                model,
+                max_num_tokens=self.cache_size,
+                **batch_draft_args,
+            )
 
         return cache
 
@@ -524,12 +542,9 @@ class ExllamaV3Container(BaseModelContainer):
         else:
             xlogger.info("Loading with a manual GPU split (or a one GPU setup)")
 
-        # TODO: Smarter estimation of autosplit_max_batch_size
         load_kwargs = {}
-        import inspect
-
         if "max_batch_size" in inspect.signature(self.model.load_gen).parameters:
-            load_kwargs["max_batch_size"] = 2
+            load_kwargs["max_batch_size"] = self.max_batch_size
 
         for value in self.model.load_gen(
             tensor_p=self.use_tp,
@@ -564,6 +579,7 @@ class ExllamaV3Container(BaseModelContainer):
                 max_batch_size=self.max_batch_size,
                 max_chunk_size=self.chunk_size,
                 recurrent_cache_size=config.memory.sysmem_recurrent_cache * 1024**2,
+                num_draft_tokens=self.draft_num_tokens,
             )
 
             # Update the state of the container var

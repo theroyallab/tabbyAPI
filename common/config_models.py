@@ -269,10 +269,11 @@ class ModelConfig(BaseConfigModel):
     max_batch_size: Optional[int] = Field(
         None,
         description=(
-            "Set the maximum number of prompts to process at one time "
-            "(default: None/Automatic).\n"
-            "Automatically calculated if left blank.\n"
-            "NOTE: Only available for Nvidia ampere (30 series) and above GPUs."
+            "Set the maximum number of generation jobs that can run concurrently\n"
+            "The default maximum batch size for transformer architectures is 32. Recurrent\n"
+            "models with linear or sliding attention use more VRAM to support larger batches,\n"
+            "so the default value is reduced to 4. If you do not require concurrency at all, you\n"
+            "can reduce it further to minimize VRAM overhead."
         ),
         ge=1,
     )
@@ -379,6 +380,15 @@ class DraftModelConfig(BaseConfigModel):
         description=(
             "Array of VRAM sizes to split between GPUs, in GB (default: []).\n"
             "If this isn't filled in, the draft model is autosplit."
+        ),
+    )
+    draft_num_tokens: Optional[int] = Field(
+        None,
+        description=(
+            "Number of tokens to draft per iteration (default: draft model default)\n"
+            "Recurrent (linear or sliding attention) models use more VRAM for longer drafts.\n"
+            "This overhead multiplies with the max batch size, so for models with long drafts\n"
+            "(e.g. DFlash with 15 tokens by default) shorter drafts may be preferable."
         ),
     )
 
