@@ -44,7 +44,7 @@ def get_user_choice(question: str, options_dict: dict):
 def get_install_features(lib_name: str = None):
     """Fetches the appropriate requirements file depending on the GPU"""
     install_features = None
-    possible_features = ["cu12", "amd"]
+    possible_features = ["cu12", "cu13", "amd"]
 
     if not lib_name:
         has_nvidia = which("nvidia-smi") is not None
@@ -61,7 +61,8 @@ def get_install_features(lib_name: str = None):
         else:
             gpu_lib_choices = {
                 "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu12"},
-                "B": {"pretty": "AMD", "internal": "amd"},
+                "B": {"pretty": "NVIDIA Cuda 13.x", "internal": "cu13"},
+                "C": {"pretty": "AMD", "internal": "amd"},
             }
             print(
                 "WARNING: Auto-detection failed. "
@@ -152,7 +153,7 @@ def add_start_args(parser: argparse.ArgumentParser):
     start_group.add_argument(
         "--gpu-lib",
         type=str,
-        help="Select GPU library. Options: cu121, cu118, amd",
+        help="Select GPU library. Options: cu12, cu13, amd",
     )
 
 

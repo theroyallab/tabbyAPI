@@ -4,6 +4,7 @@ services:
     #build:
     #  context: ..
     #  dockerfile: ./docker/Dockerfile
+    #  # For CUDA 13.x builds, use ./docker/Dockerfile.cu13
 
     # Comment this to build a docker image from source
     image: ghcr.io/theroyallab/tabbyapi:latest

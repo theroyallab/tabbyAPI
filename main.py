@@ -155,7 +155,7 @@ def entrypoint(
     if run_subcommand(args):
         return
 
-    # Check exllamav2 version and give a descriptive error if it's too old
+    # Check inference dependencies and give a descriptive error if they are missing
     # Skip if launching unsafely
     if config.developer.unsafe_launch:
         logger.warning(
@@ -172,6 +172,8 @@ def entrypoint(
             "using the following command:\n\n"
             "For CUDA 12.1:\n"
             "pip install --upgrade .[cu12]\n\n"
+            "For CUDA 13.x:\n"
+            "pip install --upgrade .[cu13]\n\n"
             "For ROCm:\n"
             "pip install --upgrade .[amd]\n\n"
         )

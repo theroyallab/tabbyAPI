@@ -182,7 +182,7 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
 
     if not container_class:
         available_backends = list(_BACKEND_REGISTRY.keys())
-        if backend in available_backends:
+        if backend in {"exllamav2", "exllamav3"}:
             raise ValueError(
                 f"Backend '{backend}' selected, but required dependencies are not installed."
             )
