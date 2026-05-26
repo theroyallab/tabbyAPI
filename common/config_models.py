@@ -99,6 +99,15 @@ class LoggingConfig(BaseConfigModel):
             "Enable request logging (default: False).\nNOTE: Only use this for debugging!"
         ),
     )
+    log_chat_completion_requests: Optional[bool] = Field(
+        False,
+        description=(
+            "Write every /v1/chat/completions request to logs/debug/ as JSON (default: False).\n"
+            "PRIVACY WARNING: Enabling this creates a comprehensive request log, including the "
+            "full message history and generation parameters. API keys are redacted, but prompts "
+            "and user-provided content are preserved for bug-report reproduction."
+        ),
+    )
 
 
 class ModelConfig(BaseConfigModel):

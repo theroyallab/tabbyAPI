@@ -7,6 +7,7 @@ from sys import maxsize
 
 from common import model
 from common.auth import check_api_key
+from common.debug_requests import log_chat_completion_request
 from common.model import check_embeddings_container, check_model_container
 from common.networking import handle_request_error, DisconnectHandler, run_with_request_disconnect
 from common.tabby_config import config
@@ -101,7 +102,7 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
 # Chat completions endpoint
 @router.post(
     "/v1/chat/completions",
-    dependencies=[Depends(check_api_key)],
+    dependencies=[Depends(check_api_key), Depends(log_chat_completion_request)],
 )
 async def chat_completion_request(
     request: Request, data: ChatCompletionRequest

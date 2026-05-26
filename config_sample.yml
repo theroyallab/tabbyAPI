@@ -43,6 +43,12 @@ logging:
   # NOTE: Only use this for debugging!
   log_requests: false
 
+  # Write every /v1/chat/completions request to logs/debug/ as JSON (default: False).
+  # PRIVACY WARNING: Enabling this creates a comprehensive request log, including the
+  # full message history and generation parameters. API keys are redacted, but prompts
+  # and user-provided content are preserved for bug-report reproduction.
+  log_chat_completion_requests: false
+
 # Options for model overrides and loading
 # Please read the comments to understand how arguments are handled
 # between initial and API loads
