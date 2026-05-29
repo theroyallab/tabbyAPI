@@ -22,6 +22,13 @@ jobs:
       contents: read
       packages: write
       # 
+    strategy:
+      matrix:
+        include:
+          - dockerfile: ./docker/Dockerfile
+            tag: latest
+          - dockerfile: ./docker/Dockerfile.cu13
+            tag: cu13
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -39,14 +46,14 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           # This is needed to add the `latest` tag to the newly built image
-          tags: type=raw,value=latest
+          tags: type=raw,value=${{ matrix.tag }}
       # This step uses the `docker/build-push-action` action to build the image, based on your repository's `Dockerfile`. If the build succeeds, it pushes the image to GitHub Packages.
       # It uses the `context` parameter to define the build's context as the set of files located in the specified path. For more information, see "[Usage](https://github.com/docker/build-push-action#usage)" in the README of the `docker/build-push-action` repository.
       # It uses the `tags` and `labels` parameters to tag and label the image with the output from the "meta" step.
       - name: Build and push Docker image
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85
         with:
-          file: ./docker/Dockerfile
+          file: ${{ matrix.dockerfile }}
           # target: production # Might need it in the future when we have multistage builds
           push: true
           tags: ${{ steps.meta.outputs.tags }}
