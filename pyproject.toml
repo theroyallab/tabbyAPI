@@ -73,7 +73,7 @@ cu12 = [
     "triton-windows ; platform_system == 'Windows'",
 
     # Flash Linear Attention
-    "flash-linear-attention >= 0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "flash-linear-attention >= 0.5.0 ; (platform_system == 'Linux' and platform_machine == 'x86_64') or platform_system == 'Windows'",
 
     # xformers (cu128 wheels from the PyTorch index)
     "xformers @ https://download.pytorch.org/whl/cu128/xformers-0.0.33-cp39-abi3-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64'",
@@ -125,7 +125,7 @@ cu13 = [
     "triton-windows ; platform_system == 'Windows' and python_version >= '3.12'",
 
     # Flash Linear Attention
-    "flash-linear-attention >= 0.5.0 ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version >= '3.12'",
+    "flash-linear-attention >= 0.5.0 ; python_version >= '3.12' and ((platform_system == 'Linux' and platform_machine == 'x86_64') or platform_system == 'Windows')",
 
     # Exl3
     "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v0.0.38/exllamav3-0.0.38%2Bcu132.torch2.11.0-cp314-cp314-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.14'",
