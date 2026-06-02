@@ -1027,6 +1027,10 @@ class ExllamaV3Container(BaseModelContainer):
 
         stop_conditions += eos_tokens
 
+        # Include stop conditions deduced by backend tokenizer
+        stop_conditions += self.config.eos_token_id_list
+        stop_conditions = list(set(stop_conditions))
+
         input_ids = [
             self.tokenizer.encode(
                 prompt,
