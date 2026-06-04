@@ -1,6 +1,7 @@
 """Construct a model of all optional dependencies"""
 
 import importlib.util
+from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 from common.logger import xlogger
 from packaging import version
@@ -39,6 +40,18 @@ def is_installed(package_name: str) -> bool:
     return spec is not None
 
 
+def is_torch_cuda_13() -> bool:
+    """Check whether the installed Torch wheel targets CUDA 13."""
+
+    try:
+        torch_version = package_version("torch")
+    except PackageNotFoundError:
+        return False
+
+    _, _, local_version = torch_version.partition("+")
+    return local_version.startswith("cu13")
+
+
 def get_installed_deps() -> DependenciesModel:
     """Check if optional dependencies are installed by looping over the fields."""
 
@@ -48,6 +61,9 @@ def get_installed_deps() -> DependenciesModel:
 
     for field_name in fields.keys():
         installed_deps[field_name] = is_installed(field_name)
+
+    if installed_deps.get("exllamav2") and is_torch_cuda_13():
+        installed_deps["exllamav2"] = False
 
     return DependenciesModel(**installed_deps)
 
