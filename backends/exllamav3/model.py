@@ -172,7 +172,7 @@ class ExllamaV3Container(BaseModelContainer):
             self.draft_gpu_split = unwrap(draft_args.get("draft_gpu_split"), [])
             self.draft_model_dir = draft_model_path
             self.draft_config = Config.from_directory(str(draft_model_path.resolve()))
-            self.draft_model = Model.from_config(self.draft_config)
+            self.draft_model = Model.from_config(self.draft_config,component=("mtp" if (self.draft_model_dir==self.model_dir) else "text")) #TODO: expose this in a sane way, as a config or something 
             default_ndt = self.draft_model.caps.get("default_draft_size", 4)
             self.draft_num_tokens = draft_args.get("draft_num_tokens", default_ndt)
             xlogger.info(f"Using draft model: {str(draft_model_path.resolve())}")
