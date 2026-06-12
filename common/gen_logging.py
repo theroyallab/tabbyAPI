@@ -89,6 +89,16 @@ def log_metrics(
         if context_len > max_seq_len:
             extra_parts.append("<-- Not accurate (truncated)")
 
+    # Add draft metrics
+    if "draft_accept" in metrics:
+        accept = metrics.get("draft_accept")
+        reject = metrics.get("draft_reject", 1)
+        total_draft = accept + reject
+        accept_rate = accept / total_draft
+        itemization.append(
+            f"Draft: {accept} / {total_draft} tokens accepted ({accept_rate * 100:.2f}%)"
+        )
+
     # Print output
     xlogger.info(
         initial_response,

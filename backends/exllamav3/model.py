@@ -946,6 +946,10 @@ class ExllamaV3Container(BaseModelContainer):
         queue_time = result.get("time_enqueued")
         total_time = round(queue_time + prompt_time + gen_time, 2)
 
+        # Drafting
+        accepted_draft_tokens = result.get("accepted_draft_tokens")
+        rejected_draft_tokens = result.get("rejected_draft_tokens")
+
         finish_chunk = {
             "request_id": request_id,
             "prompt_tokens": prompt_tokens,
@@ -961,6 +965,15 @@ class ExllamaV3Container(BaseModelContainer):
             "stop_str": stop_str,
             "full_text": full_text,
         }
+
+        # TODO: Add extended draft stats in backend
+        if accepted_draft_tokens is not None:
+            finish_chunk.update(
+                {
+                    "draft_accept": accepted_draft_tokens,
+                    "draft_reject": rejected_draft_tokens,
+                }
+            )
 
         return finish_chunk
 
