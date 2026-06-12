@@ -349,6 +349,14 @@ class DraftModelConfig(BaseConfigModel):
     This will use more VRAM!
     """
 
+    draft_mode: Optional[Literal["model", "disabled", "mtp", "ngram"]] = Field(
+        "model",
+        description=(
+            "Drafting mode (default: model).\n"
+            "Options: model, disabled, mtp, ngram.\n"
+            "In `model` mode, drafting is disabled if no draft_model_name is provided."
+        ),
+    )
     # TODO: convert this to a pathlib.path?
     draft_model_dir: Optional[str] = Field(
         "models",
@@ -398,6 +406,13 @@ class DraftModelConfig(BaseConfigModel):
             "Recurrent (linear or sliding attention) models use more VRAM for longer drafts.\n"
             "This overhead multiplies with the max batch size, so for models with long drafts\n"
             "(e.g. DFlash with 15 tokens by default) shorter drafts may be preferable."
+        ),
+    )
+    ngram_match_min: Optional[int] = Field(
+        2,
+        description=(
+            "Minimum match length for exllamav3 n-gram drafting (default: 2).\n"
+            "Only used when draft_mode is ngram."
         ),
     )
 

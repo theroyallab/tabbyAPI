@@ -190,6 +190,11 @@ model:
 # Options for draft models (speculative decoding)
 # This will use more VRAM!
 draft_model:
+  # Drafting mode for exllamav3 (default: model).
+  # Options: model, disabled, mtp, ngram.
+  # In `model` mode, drafting is disabled if no draft_model_name is provided.
+  draft_mode: model
+
   # Directory to look for draft models (default: models)
   draft_model_dir: models
 
@@ -221,6 +226,10 @@ draft_model:
   # This overhead multiplies with the max batch size, so for models with long drafts
   # (e.g. DFlash with 15 tokens by default) shorter drafts may be preferable.
   draft_num_tokens:
+
+  # Minimum match length for exllamav3 n-gram drafting (default: 2).
+  # Only used when draft_mode is ngram.
+  ngram_match_min: 2
 
 # Options for Sampling
 sampling:

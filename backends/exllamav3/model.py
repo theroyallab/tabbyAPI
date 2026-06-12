@@ -96,6 +96,7 @@ class ExllamaV3Container(BaseModelContainer):
     max_rq_tokens: Optional[int] = 2048
     max_batch_size: Optional[int] = None
     draft_num_tokens: Optional[int] = None
+    ngram_match_min: int = 0
 
     # Required methods
     @classmethod
@@ -156,31 +157,52 @@ class ExllamaV3Container(BaseModelContainer):
 
         # Prepare the draft model config if necessary
         draft_args = unwrap(kwargs.get("draft_model"), {})
+        draft_mode = unwrap(draft_args.get("draft_mode"), "model")
+        if draft_mode not in {"model", "disabled", "mtp", "ngram"}:
+            raise ValueError(f"Unknown exllamav3 draft mode: {draft_mode}")
         draft_model_name = draft_args.get("draft_model_name")
-        self.use_draft_model = draft_args and draft_model_name
+        self.use_draft_model = draft_mode == "mtp" or (
+            draft_mode == "model" and bool(draft_model_name)
+        )
+        self.ngram_match_min = (
+            unwrap(draft_args.get("ngram_match_min"), 2) if draft_mode == "ngram" else 0
+        )
+        if draft_mode == "ngram" and self.ngram_match_min <= 0:
+            raise ValueError("ngram_match_min must be greater than 0 for n-gram drafting")
+        self.draft_num_tokens = (
+            draft_args.get("draft_num_tokens")
+            if self.use_draft_model or self.ngram_match_min
+            else None
+        )
 
         # Always disable draft if params are incorrectly configured
-        if draft_args and draft_model_name is None:
+        if draft_mode == "model" and draft_args and draft_model_name is None:
             xlogger.warning(
                 "Draft model is disabled because a model name "
                 "wasn't provided. Please check your config.yml!"
             )
-            self.use_draft_model = False
 
         if self.use_draft_model:
-            draft_model_path = pathlib.Path(unwrap(draft_args.get("draft_model_dir"), "models"))
-            draft_model_path = draft_model_path / draft_model_name
             self.draft_gpu_split = unwrap(draft_args.get("draft_gpu_split"), [])
-            self.draft_model_dir = draft_model_path
-            self.draft_config = Config.from_directory(str(draft_model_path.resolve()))
-            self.draft_model = Model.from_config(self.draft_config)
-            default_ndt = self.draft_model.caps.get("default_draft_size", 4)
-            self.draft_num_tokens = draft_args.get("draft_num_tokens", default_ndt)
-            xlogger.info(f"Using draft model: {str(draft_model_path.resolve())}")
+            if draft_mode == "mtp":
+                self.draft_model_dir = self.model_dir
+                self.draft_config = self.config
+                self.draft_model = Model.from_config(self.draft_config, component="mtp")
+                xlogger.info("Using main model MTP component for drafting")
+            else:
+                draft_model_path = pathlib.Path(unwrap(draft_args.get("draft_model_dir"), "models"))
+                draft_model_path = draft_model_path / draft_model_name
+                self.draft_model_dir = draft_model_path
+                self.draft_config = Config.from_directory(str(draft_model_path.resolve()))
+                self.draft_model = Model.from_config(self.draft_config)
+                xlogger.info(f"Using draft model: {str(draft_model_path.resolve())}")
         else:
             self.draft_model = None
             self.draft_cache = None
-            self.draft_num_tokens = 0
+            if self.ngram_match_min:
+                xlogger.info(
+                    f"Using n-gram drafting with minimum match length {self.ngram_match_min}"
+                )
 
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
@@ -386,9 +408,19 @@ class ExllamaV3Container(BaseModelContainer):
 
         batch_draft_args = {}
         if "max_batch_size" in inspect.signature(Cache.__init__).parameters:
+            if self.draft_model:
+                default_draft_tokens = self.draft_model.caps.get("default_draft_size", 4)
+            elif self.ngram_match_min:
+                default_draft_tokens = 4
+            else:
+                default_draft_tokens = 0
             batch_draft_args = {
                 "max_batch_size": self.max_batch_size,
-                "max_history": self.draft_num_tokens,
+                "max_history": (
+                    self.draft_num_tokens
+                    if self.draft_num_tokens is not None
+                    else default_draft_tokens
+                ),
             }
 
         if split_cache_mode:
@@ -581,6 +613,7 @@ class ExllamaV3Container(BaseModelContainer):
                 max_chunk_size=self.chunk_size,
                 recurrent_cache_size=config.memory.sysmem_recurrent_cache * 1024**2,
                 num_draft_tokens=self.draft_num_tokens,
+                ngram_match_min=self.ngram_match_min,
             )
 
             # Update the state of the container var
