@@ -5,6 +5,7 @@ from loguru import logger
 from sse_starlette.event import ServerSentEvent
 
 from common import model
+from common.errors import ContextLengthExceededError
 from common.networking import (
     get_generator_error,
     handle_request_disconnect,
@@ -116,6 +117,9 @@ async def get_generation(data: GenerateRequest, request: Request):
 
         response = _create_response(full_text)
         return response
+    except ContextLengthExceededError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise HTTPException(400, error_message) from exc
     except Exception as exc:
         error_message = handle_request_error(
             f"Completion {request.state.id} aborted. Maybe the model was unloaded? "

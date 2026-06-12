@@ -10,9 +10,11 @@ from typing import (
     Optional,
 )
 from common.multimodal import MultimodalEmbeddingWrapper
+from common.errors import ContextLengthExceededError
 from common.sampling import BaseSamplerRequest
 from common.templating import PromptTemplate
 from common.transformers_utils import HFModel
+from common.utils import unwrap
 from endpoints.core.types.model import ModelCard
 
 
@@ -197,6 +199,27 @@ class BaseModelContainer(abc.ABC):
         """
 
         return []
+
+    def validate_context_length(
+        self,
+        prompt: str,
+        params: BaseSamplerRequest,
+        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+    ):
+        """Validate a prompt before starting a streaming HTTP response."""
+
+        context_len = len(
+            self.encode_tokens(
+                prompt,
+                add_bos_token=unwrap(params.add_bos_token, self.hf_model.add_bos_token()),
+                embeddings=mm_embeddings,
+            )
+        )
+        max_seq_len = self.model_info().parameters.max_seq_len
+        if context_len > max_seq_len:
+            raise ContextLengthExceededError(
+                f"Prompt length {context_len} is greater than max_seq_len {max_seq_len}"
+            )
 
     @abc.abstractmethod
     async def generate(

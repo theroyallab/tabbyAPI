@@ -13,8 +13,11 @@ from ruamel.yaml import YAML
 from typing import Dict, Optional
 
 from backends.base_model_container import BaseModelContainer
+from common.errors import ContextLengthExceededError
 from common.logger import get_loading_progress_bar
+from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import handle_request_error
+from common.sampling import BaseSamplerRequest
 from common.tabby_config import config
 from common.optional_dependencies import dependencies
 from common.transformers_utils import HFModel
@@ -317,3 +320,21 @@ async def check_embeddings_container():
         ).error.message
 
         raise HTTPException(503, error_message)
+
+
+def check_context_length(
+    prompts: str | list[str],
+    params: BaseSamplerRequest,
+    mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+):
+    """Reject oversized prompts before a streaming response commits HTTP 200."""
+
+    if isinstance(prompts, str):
+        prompts = [prompts]
+
+    try:
+        for prompt in prompts:
+            container.validate_context_length(prompt, params, mm_embeddings)
+    except ContextLengthExceededError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise HTTPException(400, error_message) from exc

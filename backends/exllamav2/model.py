@@ -40,6 +40,7 @@ from common.gen_logging import (
     log_prompt,
     log_response,
 )
+from common.errors import ContextLengthExceededError
 from common.logger import xlogger
 from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
@@ -901,6 +902,34 @@ class ExllamaV2Container(BaseModelContainer):
             "unk_token": self.tokenizer.unk_token,
         }
 
+    def validate_context_length(
+        self,
+        prompt: str,
+        params: BaseSamplerRequest,
+        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+    ):
+        prompts = [prompt]
+        if params.cfg_scale not in [None, 1.0] and self.paged:
+            prompts.append(unwrap(params.negative_prompt, self.tokenizer.bos_token))
+
+        context_lengths = [
+            len(
+                self.encode_tokens(
+                    current_prompt,
+                    add_bos_token=unwrap(params.add_bos_token, self.hf_model.add_bos_token()),
+                    embeddings=mm_embeddings,
+                )
+            )
+            for current_prompt in prompts
+        ]
+        context_len = max(context_lengths)
+        if context_len > self.config.max_seq_len:
+            preamble = "Negative prompt" if context_lengths.index(context_len) == 1 else "Prompt"
+            raise ContextLengthExceededError(
+                f"{preamble} length {context_len} is greater than "
+                f"max_seq_len {self.config.max_seq_len}"
+            )
+
     def get_logprobs(self, token_ids: torch.Tensor, token_probs: torch.Tensor):
         top_tokens = [
             self.tokenizer.extended_id_to_piece.get(
@@ -1338,7 +1367,7 @@ class ExllamaV2Container(BaseModelContainer):
         if context_to_check > self.config.max_seq_len:
             preamble = "Negative prompt" if negative_context_len > context_len else "Prompt"
 
-            raise ValueError(
+            raise ContextLengthExceededError(
                 f"{preamble} length {context_to_check} is greater than "
                 f"max_seq_len {self.config.max_seq_len}"
             )

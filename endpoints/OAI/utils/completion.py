@@ -11,6 +11,7 @@ from asyncio import CancelledError
 from time import time
 
 from fastapi import HTTPException, Request
+from common.errors import ContextLengthExceededError
 from common.logger import xlogger
 from typing import List, Optional
 
@@ -399,6 +400,10 @@ async def generate_completion(
 
     except CancelledError:
         raise
+
+    except ContextLengthExceededError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise HTTPException(400, error_message) from exc
 
     except Exception as exc:
         error_message = handle_request_error(

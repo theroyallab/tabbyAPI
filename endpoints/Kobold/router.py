@@ -58,6 +58,7 @@ async def generate(request: Request, data: GenerateRequest) -> GenerateResponse:
     dependencies=[Depends(check_api_key), Depends(check_model_container)],
 )
 async def generate_stream(request: Request, data: GenerateRequest) -> GenerateResponse:
+    model.check_context_length(data.prompt, data)
     response = EventSourceResponse(stream_generation(data, request), ping=maxsize)
 
     return response

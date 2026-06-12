@@ -7,6 +7,7 @@ from asyncio import CancelledError
 from typing import List, Optional
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
+from common.errors import ContextLengthExceededError
 from common.logger import xlogger
 import re
 
@@ -676,6 +677,10 @@ async def generate_chat_completion(
 
     except CancelledError:
         raise
+
+    except ContextLengthExceededError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise HTTPException(400, error_message) from exc
 
     except Exception as exc:
         error_message = handle_request_error(

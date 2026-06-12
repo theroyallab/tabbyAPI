@@ -36,6 +36,7 @@ from common.gen_logging import (
 )
 from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
+from common.errors import validate_context_requirements
 from common.logger import xlogger
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import DisconnectHandler
@@ -745,6 +746,34 @@ class ExllamaV3Container(BaseModelContainer):
             "unk_token": self.tokenizer.unk_token,
         }
 
+    def validate_context_length(
+        self,
+        prompt: str,
+        params: BaseSamplerRequest,
+        mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+    ):
+        context_len = len(
+            self.encode_tokens(
+                prompt,
+                add_bos_token=unwrap(params.add_bos_token, self.hf_model.add_bos_token()),
+                embeddings=mm_embeddings,
+            )
+        )
+        generator = self.generator.generator
+        allocation_boundary = (
+            generator.recurrent_checkpoint_interval
+            if generator.recurrent_cache is not None
+            else 256
+        )
+        validate_context_requirements(
+            context_len,
+            self.max_seq_len,
+            unwrap(params.max_tokens, 0),
+            self.cache.max_num_tokens,
+            self.max_rq_tokens,
+            allocation_boundary,
+        )
+
     async def generate(
         self,
         request_id: str,
@@ -1097,11 +1126,21 @@ class ExllamaV3Container(BaseModelContainer):
         if max_tokens <= 0:
             max_tokens = self.max_seq_len - context_len - 1
 
-        # Check total length of prompt against max context length
-        if context_len > self.max_seq_len:
-            raise ValueError(
-                f"Prompt length {context_len} is greater than max_seq_len {self.max_seq_len}"
-            )
+        # Validate the initial job before the generator's page-allocation assertion
+        generator = self.generator.generator
+        allocation_boundary = (
+            generator.recurrent_checkpoint_interval
+            if generator.recurrent_cache is not None
+            else 256
+        )
+        validate_context_requirements(
+            context_len,
+            self.max_seq_len,
+            max_tokens,
+            self.cache.max_num_tokens,
+            self.max_rq_tokens,
+            allocation_boundary,
+        )
 
         # Log prompt to console. Add the BOS token if specified
         log_prompt(

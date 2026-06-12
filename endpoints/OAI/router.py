@@ -85,6 +85,7 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
         await disconnect_handler.poll()
 
         if data.stream and not config.developer.disable_request_streaming:
+            model.check_context_length(prompt, data)
             return EventSourceResponse(
                 stream_generate_completion(prompt, data, request, model_path, disconnect_handler),
                 ping=maxsize,
@@ -146,6 +147,7 @@ async def chat_completion_request(
         await disconnect_handler.poll()
 
         if data.stream and not config.developer.disable_request_streaming:
+            model.check_context_length(prompt, data, mm_embeddings)
             return EventSourceResponse(
                 stream_generate_chat_completion(
                     prompt, mm_embeddings, data, request, model_path, disconnect_handler
