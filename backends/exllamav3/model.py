@@ -84,6 +84,7 @@ class ExllamaV3Container(BaseModelContainer):
     # Class-specific vars
     gpu_split: Optional[List[float]] = None
     gpu_split_auto: bool = True
+    draft_gpu_split: Optional[List[float]] = None
     autosplit_reserve: Optional[List[float]] = [96 / 1024]
     use_tp: bool = False
     tp_backend: str = "native"
@@ -518,7 +519,7 @@ class ExllamaV3Container(BaseModelContainer):
         if self.use_vision:
             for value in self.vision_model.load_gen(
                 reserve_per_device=self.autosplit_reserve,
-                use_per_device=self.gpu_split,
+                use_per_device=self.gpu_split or None,
                 callback=progress_callback,
             ):
                 if value:
@@ -527,7 +528,7 @@ class ExllamaV3Container(BaseModelContainer):
         if self.use_draft_model:
             for value in self.draft_model.load_gen(
                 reserve_per_device=self.autosplit_reserve,
-                use_per_device=self.draft_gpu_split,
+                use_per_device=self.draft_gpu_split or None,
                 callback=progress_callback,
             ):
                 if value:
