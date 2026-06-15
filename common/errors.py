@@ -1,5 +1,40 @@
+from fastapi import HTTPException, Request
+from fastapi.responses import JSONResponse
+
+
 class ContextLengthExceededError(ValueError):
     """Raised when a tokenized prompt exceeds the loaded model's context limit."""
+
+
+class ContextLengthHTTPException(HTTPException):
+    """HTTP error for OpenAI-compatible context overflow responses."""
+
+    def __init__(self, message: str):
+        super().__init__(status_code=400, detail=message)
+
+
+def context_length_error_content(message: str) -> dict:
+    """Build an OpenAI-compatible context overflow error."""
+
+    return {
+        "error": {
+            "message": message,
+            "type": "invalid_request_error",
+            "param": None,
+            "code": "context_length_exceeded",
+        }
+    }
+
+
+async def context_length_exception_handler(
+    request: Request, exc: ContextLengthHTTPException
+) -> JSONResponse:
+    """Return the OpenAI error shape expected by compatible clients."""
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=context_length_error_content(exc.detail),
+    )
 
 
 def validate_context_requirements(
@@ -14,7 +49,8 @@ def validate_context_requirements(
 
     if context_len > max_seq_len:
         raise ContextLengthExceededError(
-            f"Prompt length {context_len} is greater than max_seq_len {max_seq_len}"
+            f"Prompt length {context_len} exceeds the available context size "
+            f"of {max_seq_len} tokens"
         )
 
     if max_tokens <= 0:

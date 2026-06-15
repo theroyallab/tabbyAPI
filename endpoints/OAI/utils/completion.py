@@ -11,12 +11,13 @@ from asyncio import CancelledError
 from time import time
 
 from fastapi import HTTPException, Request
-from common.errors import ContextLengthExceededError
+from common.errors import ContextLengthExceededError, ContextLengthHTTPException
 from common.logger import xlogger
 from typing import List, Optional
 
 from common import model
 from common.networking import (
+    get_context_length_generator_error,
     get_generator_error,
     handle_request_error,
     DisconnectHandler,
@@ -329,6 +330,9 @@ async def stream_generate_completion(
     except CancelledError:
         raise
 
+    except ContextLengthExceededError as exc:
+        yield get_context_length_generator_error(str(exc))
+
     except Exception as e:
         xlogger.error("Error during completion", str(e), details=f"\n{str(e)}")
         yield get_generator_error("Completion aborted. Please check the server console.")
@@ -403,7 +407,7 @@ async def generate_completion(
 
     except ContextLengthExceededError as exc:
         error_message = handle_request_error(str(exc), exc_info=False).error.message
-        raise HTTPException(400, error_message) from exc
+        raise ContextLengthHTTPException(error_message) from exc
 
     except Exception as exc:
         error_message = handle_request_error(

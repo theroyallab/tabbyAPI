@@ -36,7 +36,7 @@ from common.gen_logging import (
 )
 from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
-from common.errors import validate_context_requirements
+from common.errors import ContextLengthExceededError, validate_context_requirements
 from common.logger import xlogger
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import DisconnectHandler
@@ -1254,6 +1254,11 @@ class ExllamaV3Container(BaseModelContainer):
             asyncio.ensure_future(self.create_generator())
 
             await HealthManager.add_unhealthy_event(ex)
+
+            if isinstance(ex, AssertionError) and "cannot be enqueued" in str(ex):
+                raise ContextLengthExceededError(
+                    f"{str(ex)}. The request exceeds the available context size."
+                ) from ex
 
             raise ex
         finally:

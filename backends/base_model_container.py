@@ -218,7 +218,8 @@ class BaseModelContainer(abc.ABC):
         max_seq_len = self.model_info().parameters.max_seq_len
         if context_len > max_seq_len:
             raise ContextLengthExceededError(
-                f"Prompt length {context_len} is greater than max_seq_len {max_seq_len}"
+                f"Prompt length {context_len} exceeds the available context size "
+                f"of {max_seq_len} tokens"
             )
 
     @abc.abstractmethod

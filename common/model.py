@@ -13,7 +13,7 @@ from ruamel.yaml import YAML
 from typing import Dict, Optional
 
 from backends.base_model_container import BaseModelContainer
-from common.errors import ContextLengthExceededError
+from common.errors import ContextLengthExceededError, ContextLengthHTTPException
 from common.logger import get_loading_progress_bar
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import handle_request_error
@@ -337,4 +337,4 @@ def check_context_length(
             container.validate_context_length(prompt, params, mm_embeddings)
     except ContextLengthExceededError as exc:
         error_message = handle_request_error(str(exc), exc_info=False).error.message
-        raise HTTPException(400, error_message) from exc
+        raise ContextLengthHTTPException(error_message) from exc
