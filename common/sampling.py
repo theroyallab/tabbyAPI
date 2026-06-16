@@ -281,6 +281,23 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("adaptive_decay", 0.9)
     )
 
+    loop_detect_window: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("loop_detect_window", 800),
+        description=(
+            "ExLlamaV3 only. Stops generation when the last N tokens are made "
+            "up of a repeating pattern. Set 0 or null to disable."
+        ),
+        ge=0,
+    )
+
+    def get_stop_on_loop(self) -> tuple[int, int] | None:
+        """Get ExLlamaV3 loop detection parameters."""
+
+        if self.loop_detect_window and self.loop_detect_window > 1:
+            return self.loop_detect_window, 2
+
+        return None
+
     @field_validator("top_k", mode="before")
     def convert_top_k(cls, v):
         """Fixes instance if Top-K is -1."""

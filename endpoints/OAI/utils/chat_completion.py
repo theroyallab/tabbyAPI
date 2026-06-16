@@ -89,6 +89,7 @@ def _compose_response(
             ChatCompletionRespChoice(
                 index=generation.get("index"),
                 finish_reason=generation.get("finish_reason", "stop"),
+                eos_reason=generation.get("eos_reason"),
                 stop_str=generation.get("stop_str"),
                 message=message,
                 logprobs=generation.get("logprob_response"),
@@ -138,6 +139,8 @@ def _compose_serialize_stream_chunk(
         "delta": delta,
         "finish_reason": finish_reason if not suppress_finish else None,
     }
+    if not suppress_finish and finish_reason and generation.get("eos_reason"):
+        choice["eos_reason"] = generation["eos_reason"]
 
     if logprobs:
         choice["logprobs"] = logprobs.model_dump()

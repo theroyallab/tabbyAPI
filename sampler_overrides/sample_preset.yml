@@ -164,3 +164,8 @@ adaptive_target:
 adaptive_decay:
   override: 0.9
   force: false
+
+# MARK: Loop detection
+loop_detect_window:
+  override: 800
+  force: false
