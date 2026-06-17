@@ -926,8 +926,8 @@ class ExllamaV2Container(BaseModelContainer):
         if context_len > self.config.max_seq_len:
             preamble = "Negative prompt" if context_lengths.index(context_len) == 1 else "Prompt"
             raise ContextLengthExceededError(
-                f"{preamble} length {context_len} is greater than "
-                f"max_seq_len {self.config.max_seq_len}"
+                f"{preamble} length {context_len} exceeds the available context size "
+                f"of {self.config.max_seq_len} tokens"
             )
 
     def get_logprobs(self, token_ids: torch.Tensor, token_probs: torch.Tensor):
@@ -1368,8 +1368,8 @@ class ExllamaV2Container(BaseModelContainer):
             preamble = "Negative prompt" if negative_context_len > context_len else "Prompt"
 
             raise ContextLengthExceededError(
-                f"{preamble} length {context_to_check} is greater than "
-                f"max_seq_len {self.config.max_seq_len}"
+                f"{preamble} length {context_to_check} exceeds the available context size "
+                f"of {self.config.max_seq_len} tokens"
             )
 
         # Check total required pages for CFG request to avoid overallocation

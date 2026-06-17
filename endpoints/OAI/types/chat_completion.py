@@ -46,6 +46,7 @@ class ChatCompletionRespChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
     finish_reason: Optional[str] = None
+    eos_reason: Optional[str] = None
 
     # Lets us understand why it stopped and if we need to generate a tool_call
     stop_str: Optional[str] = None
@@ -57,6 +58,7 @@ class ChatCompletionStreamChoice(BaseModel):
     # Index is 0 since we aren't using multiple choices
     index: int = 0
     finish_reason: Optional[str] = None
+    eos_reason: Optional[str] = None
     delta: Union[ChatCompletionMessage, dict] = {}
     logprobs: Optional[ChatCompletionLogprobs] = None
 

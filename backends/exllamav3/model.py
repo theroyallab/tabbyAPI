@@ -36,7 +36,7 @@ from common.gen_logging import (
 )
 from common.hardware import hardware_supports_flash_attn
 from common.health import HealthManager
-from common.errors import validate_context_requirements
+from common.errors import ContextLengthExceededError, validate_context_requirements
 from common.logger import xlogger
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import DisconnectHandler
@@ -955,6 +955,17 @@ class ExllamaV3Container(BaseModelContainer):
                 stop_str = result.get("eos_triggering_token_str")
             elif eos_reason == "stop_string":
                 stop_str = result.get("eos_triggering_string")
+            elif eos_reason == "loop_detected":
+                xlogger.warning(
+                    f"Generation stopped because a token loop was detected, ID: {request_id}",
+                    {
+                        "request_id": request_id,
+                        "eos_reason": eos_reason,
+                        "prompt_tokens": result.get("prompt_tokens"),
+                        "gen_tokens": result.get("new_tokens"),
+                        "result": result,
+                    },
+                )
 
         # Prompt
         prompt_tokens = result.get("prompt_tokens")
@@ -991,6 +1002,7 @@ class ExllamaV3Container(BaseModelContainer):
             "queue_time": round(queue_time, 2),
             "cached_tokens": cached_tokens,
             "finish_reason": finish_reason,
+            "eos_reason": eos_reason,
             "stop_str": stop_str,
             "full_text": full_text,
         }
@@ -1174,6 +1186,7 @@ class ExllamaV3Container(BaseModelContainer):
             return_top_tokens=params.top_logprobs,
             return_probs=bool(params.logprobs) or bool(params.top_logprobs),
             max_rq_tokens=self.max_rq_tokens,
+            stop_on_loop=params.get_stop_on_loop(),
             filters=grammar_handler.filters,
         )
         self.active_job_ids[request_id] = job
@@ -1254,6 +1267,11 @@ class ExllamaV3Container(BaseModelContainer):
             asyncio.ensure_future(self.create_generator())
 
             await HealthManager.add_unhealthy_event(ex)
+
+            if isinstance(ex, AssertionError) and "cannot be enqueued" in str(ex):
+                raise ContextLengthExceededError(
+                    f"{str(ex)}. The request exceeds the available context size."
+                ) from ex
 
             raise ex
         finally:

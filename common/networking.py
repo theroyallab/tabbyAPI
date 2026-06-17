@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from typing import Optional
 from uuid import uuid4
 
+from common.errors import context_length_error_content
 from common.tabby_config import config
 
 
@@ -34,6 +35,13 @@ def get_generator_error(message: str, exc_info: bool = True):
     generator_error = handle_request_error(message, exc_info)
 
     return generator_error.model_dump_json()
+
+
+def get_context_length_generator_error(message: str):
+    """Get an OpenAI-compatible context overflow error for an active stream."""
+
+    handle_request_error(message, exc_info=False)
+    return json.dumps(context_length_error_content(message))
 
 
 def handle_request_error(message: str, exc_info: bool = True):

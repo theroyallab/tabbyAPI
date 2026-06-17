@@ -6,6 +6,7 @@ from loguru import logger
 from typing import Optional
 
 from common.logger import UVICORN_LOG_CONFIG
+from common.errors import ContextLengthHTTPException, context_length_exception_handler
 from common.networking import get_global_depends
 from common.tabby_config import config
 from endpoints.Kobold import router as KoboldRouter
@@ -25,6 +26,7 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
         ),
         dependencies=get_global_depends(),
     )
+    app.add_exception_handler(ContextLengthHTTPException, context_length_exception_handler)
 
     # ALlow CORS requests
     app.add_middleware(
