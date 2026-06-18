@@ -255,16 +255,24 @@ class ExllamaV3Container(BaseModelContainer):
                 self.autosplit_reserve = [value / 1024 for value in autosplit_reserve_megabytes]
 
         if not hardware_supports_flash_attn(gpu_device_list):
-            gpu_unsupported_message = (
-                "Unable to run ExllamaV3 because an unsupported GPU is "
-                "found in this configuration. \n"
-                "All GPUs must be ampere "
-                "(30 series) or newer. AMD GPUs are not supported."
-            )
+            if torch.version.hip:
+                # ROCm/AMD: exllamav3 runs without flash-attn, falling back to
+                # torch SDPA. Unofficial, but functional on supported builds.
+                xlogger.warning(
+                    "Running ExllamaV3 on ROCm/AMD without flash-attn. "
+                    "This is unofficial and performance may be reduced."
+                )
+            else:
+                gpu_unsupported_message = (
+                    "Unable to run ExllamaV3 because an unsupported GPU is "
+                    "found in this configuration. \n"
+                    "All GPUs must be ampere "
+                    "(30 series) or newer. AMD GPUs are not supported."
+                )
 
-            xlogger.warning(gpu_unsupported_message)
+                xlogger.warning(gpu_unsupported_message)
 
-            raise RuntimeError(gpu_unsupported_message)
+                raise RuntimeError(gpu_unsupported_message)
 
         # Determine max_seq_len and cache_size
         max_seq_len_user = kwargs.get("max_seq_len")

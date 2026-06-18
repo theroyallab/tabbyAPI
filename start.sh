@@ -2,35 +2,35 @@
 
 cd "$(dirname "$0")" || exit
 
-if command -v uv >/dev/null 2>&1; then
-    HAS_UV=1
-else
-    HAS_UV=0
-fi
+# NOTE: This deployment uses a hand-managed uv environment: a custom ROCm nightly
+# torch built for this AMD GPU (gfx1151) plus an editable, local exllamav3. The
+# stock start.py auto-runs `uv pip install .[amd]` on first launch, which would
+# clobber that torch stack and replace the local exllamav3 with a release wheel.
+# So we activate the existing venv and launch main.py directly, leaving all
+# dependency management to the manual uv setup.
 
 if [ -n "$CONDA_PREFIX" ]; then
     echo "It looks like you're in a conda environment. Skipping venv check."
-else
-    if [ ! -d "venv" ]; then
-        echo "Venv doesn't exist! Creating one for you."
-
-        if [ "$HAS_UV" -eq 1 ]; then
-            echo "It looks like you're using uv. Running appropriate commands."
-            uv venv venv -p 3.12
-        else
-            python3 -m venv venv
-        fi
-
-        if [ -f "start_options.json" ]; then
-            echo "Removing old start_options.json"
-            rm -rf start_options.json
-        fi
-    fi
-
+elif [ -d "venv" ]; then
     echo "Activating venv"
-
     # shellcheck source=/dev/null
     source venv/bin/activate
+else
+    echo "ERROR: venv not found."
+    echo "This deployment relies on a manually-built ROCm environment rather than"
+    echo "start.py's auto-installer (which would install an incompatible torch and"
+    echo "overwrite the local exllamav3). Create the environment first, e.g.:"
+    echo "  uv venv venv -p 3.12"
+    echo "  uv pip install --extra-index-url https://rocm.nightlies.amd.com/v2/gfx1151/ torch triton"
+    echo "  uv pip install -e ."
+    echo "  EXLLAMA_NOCOMPILE=1 uv pip install -e ../exllamav3 --no-deps --no-build-isolation"
+    exit 1
 fi
 
-python3 start.py "$@"
+# Create a default config on first run (mirrors the old start.py behaviour)
+if [ ! -f "config.yml" ]; then
+    echo "config.yml not found; creating one from config_sample.yml"
+    cp config_sample.yml config.yml
+fi
+
+python3 main.py "$@"
