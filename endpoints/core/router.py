@@ -420,13 +420,18 @@ async def encode_tokens(data: TokenEncodeRequest) -> TokenEncodeResponse:
             raise HTTPException(422, error_message)
 
         template_vars = {
+            **(data.template_vars or {}),
             "add_generation_prompt": False,
         }
 
-        # Don't need template vars again
-        text, mm_embeddings, _ = await format_messages_with_template(
-            data.text, template_vars, data.add_bos_token
+        text, mm_embeddings, rendered_template_vars = await format_messages_with_template(
+            data.text, template_vars
         )
+
+        # Let encode_tokens be the sole authority on whether BOS is added.
+        bos_token = rendered_template_vars.get("bos_token")
+        if bos_token and text.startswith(bos_token):
+            text = text.removeprefix(bos_token)
     else:
         error_message = handle_request_error(
             "Unable to tokenize the provided text. Check your formatting?",
