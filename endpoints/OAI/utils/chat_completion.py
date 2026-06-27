@@ -469,7 +469,7 @@ async def _chat_stream_collector(
             # out of a </think> tag
             if (
                 "logprobs_content" in generation
-                and tag not in [t_think_end, t_tool_end]
+                and tag not in [t for t in (t_think_end, t_tool_end) if t]
                 and not in_reasoning
                 and not in_tool
             ):
