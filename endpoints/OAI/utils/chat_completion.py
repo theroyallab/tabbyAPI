@@ -362,9 +362,10 @@ async def apply_chat_template(data: ChatCompletionRequest):
         if continued_message_text is not None:
             prompt = _cut_prompt_at_continue_tag(prompt, continued_message_text)
 
-        # Append response prefix if present
+        # Append response prefix if present. With continue_final_message it
+        # extends the continued turn.
         if data.response_prefix:
-            if data.add_generation_prompt:
+            if data.add_generation_prompt or data.continue_final_message:
                 prompt += data.response_prefix
             else:
                 xlogger.warning(
