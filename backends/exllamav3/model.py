@@ -1089,6 +1089,12 @@ class ExllamaV3Container(BaseModelContainer):
         if params.adaptive_target < 1.0:
             sampler_builder.adaptive_p(params.adaptive_target, params.adaptive_decay)
 
+        # Fetch EOS tokens from generation_config if they exist
+        eos_tokens = self.hf_model.eos_tokens() or [self.tokenizer.eos_token_id]
+
+        if params.ban_eos_token:
+            sampler_builder.ban_tokens(eos_tokens + self.config.eos_token_id_list)
+
         # Build the sampler
         # Set greedy if temperature is 0
         sampler = sampler_builder.build(params.temperature == 0)
@@ -1110,14 +1116,13 @@ class ExllamaV3Container(BaseModelContainer):
         # Get multimodal embeddings if present
         mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
 
-        # Fetch EOS tokens from generation_config if they exist
-        eos_tokens = self.hf_model.eos_tokens() or [self.tokenizer.eos_token_id]
+        # Treat EOS tokens as stop conditions unless the request bans them
+        if not params.ban_eos_token:
+            stop_conditions += eos_tokens
 
-        stop_conditions += eos_tokens
-
-        # Include stop conditions deduced by backend tokenizer
-        stop_conditions += self.config.eos_token_id_list
-        stop_conditions = list(set(stop_conditions))
+            # Include stop conditions deduced by backend tokenizer
+            stop_conditions += self.config.eos_token_id_list
+            stop_conditions = list(set(stop_conditions))
 
         input_ids = [
             self.tokenizer.encode(

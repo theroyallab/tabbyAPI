@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List
+import torch
 from exllamav3.generator.sampler import (
     CustomSampler,
     SS_Temperature,
@@ -13,6 +14,25 @@ from exllamav3.generator.sampler import (
     SS_Base,
     SS_AdaptiveP,
 )
+from exllamav3.generator.sampler.custom import SS
+
+
+class SS_BanTokens(SS_Base):
+    """Sampling step that masks the given token IDs to negative infinity."""
+
+    def __init__(self, token_ids):
+        self.token_ids = list(token_ids)
+
+    def run(self, state):
+        match state.state:
+            case SS.INIT:
+                state.logits = state.in_logits.to(torch.float, copy=True)
+                state.logits[:, self.token_ids] = float("-inf")
+            case SS.LOGITS:
+                state.logits[:, self.token_ids] = float("-inf")
+            case _:
+                raise ValueError("Sampling logic error")
+        state.state = SS.LOGITS
 
 
 @dataclass
@@ -22,6 +42,7 @@ class ExllamaV3SamplerBuilder:
     """
 
     stack: List[SS_Base] = field(default_factory=list)
+    banned_tokens: List[int] = field(default_factory=list)
 
     def penalties(self, rep_p, freq_p, pres_p, penalty_range, rep_decay):
         self.stack += [
@@ -47,16 +68,23 @@ class ExllamaV3SamplerBuilder:
     def adaptive_p(self, adaptive_target, adaptive_decay):
         self.stack.append(SS_AdaptiveP(adaptive_target, adaptive_decay))
 
+    def ban_tokens(self, token_ids):
+        self.banned_tokens = list(token_ids)
+
     def build(self, greedy):
         """Builds the final sampler from stack."""
 
+        # A ban step runs first so masked tokens stay out of every later step,
+        # including the greedy path that otherwise discards the stack.
+        prefix = [SS_BanTokens(self.banned_tokens)] if self.banned_tokens else []
+
         # Adaptive-P does categorical sampling already
         if len(self.stack) and isinstance(self.stack[-1], SS_AdaptiveP):
-            return CustomSampler(self.stack)
+            return CustomSampler(prefix + self.stack)
 
         # Use greedy if temp is 0
         if greedy:
-            return CustomSampler([SS_Argmax()])
+            return CustomSampler(prefix + [SS_Argmax()])
         else:
             self.stack.append(SS_Sample())
-            return CustomSampler(self.stack)
+            return CustomSampler(prefix + self.stack)
