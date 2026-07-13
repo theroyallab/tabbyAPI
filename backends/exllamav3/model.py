@@ -1092,8 +1092,12 @@ class ExllamaV3Container(BaseModelContainer):
         # Fetch EOS tokens from generation_config if they exist
         eos_tokens = self.hf_model.eos_tokens() or [self.tokenizer.eos_token_id]
 
+        banned_tokens = list(params.banned_tokens or [])
         if params.ban_eos_token:
-            sampler_builder.ban_tokens(eos_tokens + self.config.eos_token_id_list)
+            banned_tokens += eos_tokens + self.config.eos_token_id_list
+
+        if banned_tokens:
+            sampler_builder.ban_tokens(banned_tokens)
 
         # Build the sampler
         # Set greedy if temperature is 0
