@@ -56,6 +56,7 @@ class ExllamaV3Container:
 
     # Exposed model information
     model_dir: pathlib.Path = pathlib.Path("models")
+    draft_model_dir: Optional[pathlib.Path] = None
     prompt_template: Optional[PromptTemplate] = None
     tool_format: Optional[str] = None
 
