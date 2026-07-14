@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from typing import Optional
 
+from common import signals
 from common.logger import UVICORN_LOG_CONFIG
 from common.errors import ContextLengthHTTPException, context_length_exception_handler
 from common.networking import get_global_depends
@@ -94,5 +95,9 @@ async def start_api(host: str, port: int):
         loop=loop,
     )
     server = uvicorn.Server(config)
+
+    # Uvicorn owns SIGINT/SIGTERM while serving and re-raises captured
+    # signals after its graceful shutdown
+    signals.SERVER_SERVING = True
 
     await server.serve()

@@ -96,6 +96,14 @@ async def entrypoint_async():
 
     await start_api(host, port)
 
+    # Uvicorn has finished serving; unload any loaded models so pending
+    # jobs are cancelled and the generator is closed cleanly
+    if model.container:
+        await model.unload_model(skip_wait=True, shutdown=True)
+
+    if model.embeddings_container:
+        await model.unload_embedding_model()
+
 
 def entrypoint(
     args: Optional[argparse.Namespace] = None,
