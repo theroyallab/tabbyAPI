@@ -396,7 +396,7 @@ async def _chat_stream_collector(
             mm_embeddings,
             filter_trigger=t_think_end if in_reasoning else None,
         )
-        generation = {}
+        generation = {"index": task_idx}
         async for generation in new_generation:
             generation["index"] = task_idx
             text = generation.get("text", "")
