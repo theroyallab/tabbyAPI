@@ -81,7 +81,7 @@ model:
   use_as_default: []
 
   # Backend to use for this model (auto-detect if not specified)
-  # Options: exllamav2, exllamav3
+  # Options: exllamav3
   backend:
 
   # Max sequence length (default: min(max_position_embeddings, cache_size)).
@@ -90,13 +90,11 @@ model:
 
   # Size of the key/value cache to allocate, in tokens (default: 4096).
   # Must be a multiple of 256.
-  # ExllamaV2 note: On AMD GPUs and NVIDIA GPUs older than Ampere, this value
-  # is ignored. Please use max_seq_len
   cache_size:
 
   # Enable different cache modes for VRAM savings (default: FP16).
-  # Possible values for exllamav2: 'FP16', 'Q8', 'Q6', 'Q4'.
-  # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
+  # Specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
+  # The legacy values 'FP16', 'Q8', 'Q6', 'Q4' are also accepted.
   cache_mode: FP16
 
   # Load model with tensor parallelism.
@@ -213,8 +211,8 @@ draft_model:
   draft_rope_alpha:
 
   # Cache mode for draft models to save VRAM (default: FP16).
-  # Possible values for exllamav2: 'FP16', 'Q8', 'Q6', 'Q4'.
-  # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
+  # Specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
+  # The legacy values 'FP16', 'Q8', 'Q6', 'Q4' are also accepted.
   draft_cache_mode: FP16
 
   # Array of VRAM sizes to split between GPUs, in GB (default: []).
@@ -281,7 +279,7 @@ memory:
 
 # Options for development and experimentation
 developer:
-  # Skip Exllamav2 version check (default: False).
+  # Skip Exllamav3 version check (default: False).
   # WARNING: It's highly recommended to update your dependencies rather than enabling this flag.
   unsafe_launch: false
 

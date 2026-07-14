@@ -27,7 +27,7 @@ WORKDIR /app
 COPY pyproject.toml .
 
 # Install cu13 group first. This uses torch 2.11.0+cu130 with exllamav3 cu132
-# wheels, flash_attn+cu130, and intentionally does not install exllamav2.
+# wheels and flash_attn+cu130.
 # The 'extras' group (infinity-emb, sentence-transformers) is installed separately
 # with --no-deps so pip cannot resolve xformers transitively and pull incompatible
 # CUDA wheels.

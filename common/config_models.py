@@ -170,8 +170,7 @@ class ModelConfig(BaseConfigModel):
     backend: Optional[str] = Field(
         None,
         description=(
-            "Backend to use for this model (auto-detect if not specified)\n"
-            "Options: exllamav2, exllamav3"
+            "Backend to use for this model (auto-detect if not specified)\nOptions: exllamav3"
         ),
     )
     max_seq_len: Optional[int] = Field(
@@ -195,9 +194,9 @@ class ModelConfig(BaseConfigModel):
         "FP16",
         description=(
             "Enable different cache modes for VRAM savings (default: FP16).\n"
-            f"Possible values for exllamav2: {str(CACHE_SIZES)[15:-1]}.\n"
-            "For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits "
-            "are integers from 2-8 (i.e. 8,8)."
+            "Specify the pair k_bits,v_bits where k_bits and v_bits "
+            "are integers from 2-8 (i.e. 8,8).\n"
+            f"The legacy values {str(CACHE_SIZES)[15:-1]} are also accepted."
         ),
     )
     tensor_parallel: Optional[bool] = Field(
@@ -511,7 +510,7 @@ class DeveloperConfig(BaseConfigModel):
     unsafe_launch: Optional[bool] = Field(
         False,
         description=(
-            "Skip Exllamav2 version check (default: False).\n"
+            "Skip ExLlamav3 version check (default: False).\n"
             "WARNING: It's highly recommended to update your dependencies rather "
             "than enabling this flag."
         ),

@@ -19,7 +19,7 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
 
     app = FastAPI(
         title="TabbyAPI",
-        summary="An OAI compatible exllamav2 API that's both lightweight and fast",
+        summary="An OAI compatible exllamav3 API that's both lightweight and fast",
         description=(
             "This docs page is not meant to send requests! Please use a service "
             "like Postman or a frontend UI."

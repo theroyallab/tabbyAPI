@@ -24,7 +24,6 @@ from exllamav3 import (
 from exllamav3.cache import CacheLayer_quant
 from backends.exllamav3.grammar import ExLlamaV3Grammar
 
-from backends.base_model_container import BaseModelContainer
 from backends.exllamav3.sampler import ExllamaV3SamplerBuilder
 from backends.exllamav3.utils import exllama_supports_nccl
 from backends.exllamav3.vision import clear_image_embedding_cache
@@ -52,12 +51,17 @@ from endpoints.OAI.utils.tools import is_supported_format
 import inspect
 
 
-class ExllamaV3Container(BaseModelContainer):
-    """Abstract base class for model containers."""
+class ExllamaV3Container:
+    """Model container for the ExLlamaV3 backend."""
 
     # Exposed model information
     model_dir: pathlib.Path = pathlib.Path("models")
     prompt_template: Optional[PromptTemplate] = None
+    tool_format: Optional[str] = None
+
+    # Optional features
+    use_draft_model: bool = False
+    use_vision: bool = False
 
     # HF Model instance
     hf_model: HFModel
@@ -496,17 +500,20 @@ class ExllamaV3Container(BaseModelContainer):
         while len(self.active_job_ids) > 0:
             await asyncio.sleep(0.01)
 
-    async def load(self, progress_callback=None, **kwargs):
-        """
-        Loads the model into memory.
+    # TODO: Wire up exllamav3's LoRA support once the API surface for it is decided
+    async def load_loras(self, lora_directory: pathlib.Path, **kwargs) -> Dict[str, List[str]]:
+        """Stub. LoRAs aren't hooked up to the ExLlamaV3 backend yet."""
 
-        Args:
-            progress_callback: Optional callback for progress updates.
-            **kwargs: Additional loading options.
-        """
+        xlogger.error("LoRA loading is not hooked up to the ExLlamaV3 backend yet.")
+        return {
+            "success": [],
+            "failure": [lora.get("name", "unknown") for lora in kwargs.get("loras", [])],
+        }
 
-        async for _ in self.load_gen(progress_callback):
-            pass
+    def get_loras(self) -> List[Any]:
+        """Stub. LoRAs aren't hooked up to the ExLlamaV3 backend yet."""
+
+        return []
 
     async def load_gen(self, progress_callback=None, **kwargs):
         """
@@ -637,6 +644,11 @@ class ExllamaV3Container(BaseModelContainer):
             loras_only: If True, only unload LoRAs.
             **kwargs: Additional unloading options (e.g., shutdown).
         """
+
+        # Nothing to do for LoRA-only unloads until LoRAs are hooked up
+        if loras_only:
+            xlogger.error("LoRA unloading is not hooked up to the ExLlamaV3 backend yet.")
+            return
 
         # Used when shutting down the server
         do_shutdown = kwargs.get("shutdown")

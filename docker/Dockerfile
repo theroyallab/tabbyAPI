@@ -26,7 +26,7 @@ WORKDIR /app
 # Get requirements
 COPY pyproject.toml .
 
-# Install cu12 group first — pins torch+cu128, exllamav2/v3+cu128,
+# Install cu12 group first — pins torch+cu128, exllamav3+cu128,
 # flash_attn+cu128, and flash-linear-attention.
 # The 'extras' group (infinity-emb, sentence-transformers) is installed separately
 # with --no-deps so pip cannot resolve xformers transitively and pull a cu130 wheel,

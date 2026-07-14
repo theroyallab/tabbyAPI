@@ -10,9 +10,8 @@ from enum import Enum
 from fastapi import HTTPException
 from common.logger import xlogger
 from ruamel.yaml import YAML
-from typing import Dict, Optional
+from typing import Optional
 
-from backends.base_model_container import BaseModelContainer
 from common.errors import ContextLengthExceededError, ContextLengthHTTPException
 from common.logger import get_loading_progress_bar
 from common.multimodal import MultimodalEmbeddingWrapper
@@ -23,23 +22,12 @@ from common.optional_dependencies import dependencies
 from common.transformers_utils import HFModel
 from common.utils import deep_merge_dict, unwrap
 
-# Global variables for model container
-container: Optional[BaseModelContainer] = None
-embeddings_container = None
-
-
-_BACKEND_REGISTRY: Dict[str, BaseModelContainer] = {}
-
-if dependencies.exllamav2:
-    from backends.exllamav2.model import ExllamaV2Container
-
-    _BACKEND_REGISTRY["exllamav2"] = ExllamaV2Container
-
-
 if dependencies.exllamav3:
     from backends.exllamav3.model import ExllamaV3Container
 
-    _BACKEND_REGISTRY["exllamav3"] = ExllamaV3Container
+# Global variables for model container
+container: Optional["ExllamaV3Container"] = None
+embeddings_container = None
 
 
 if dependencies.extras:
@@ -60,15 +48,25 @@ def load_progress(module, modules):
     yield module, modules
 
 
-def detect_backend(hf_model: HFModel) -> str:
-    """Determine the appropriate backend based on model files and configuration."""
+def validate_backend(backend: Optional[str], hf_model: HFModel):
+    """Check that the requested model can be loaded with the exllamav3 backend."""
+
+    if backend == "exllamav2":
+        raise ValueError("The exllamav2 backend is no longer supported. Please use exllamav3.")
+    elif backend and backend != "exllamav3":
+        raise ValueError(f"Invalid backend '{backend}'. Available backends: ['exllamav3']")
 
     quant_method = hf_model.quant_method()
+    if quant_method in {"exl2", "gptq"}:
+        raise ValueError(
+            f"Models quantized with '{quant_method}' require the exllamav2 backend, "
+            "which is no longer supported. Please use an exl3 or unquantized model."
+        )
 
-    if quant_method == "exl3":
-        return "exllamav3"
-    else:
-        return "exllamav2"
+    if not dependencies.exllamav3:
+        raise ValueError(
+            "The exllamav3 backend is selected, but required dependencies are not installed."
+        )
 
 
 async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
@@ -179,25 +177,10 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     if max_seq_len == -1:
         kwargs["max_seq_len"] = hf_model.hf_config.get_max_position_embeddings()
 
-    # Create a new container and check if the right dependencies are installed
-    backend = unwrap(kwargs.get("backend"), detect_backend(hf_model))
-    container_class = _BACKEND_REGISTRY.get(backend)
+    # Check model compatibility and dependencies before creating a container
+    validate_backend(kwargs.get("backend"), hf_model)
 
-    if not container_class:
-        available_backends = list(_BACKEND_REGISTRY.keys())
-        if backend in {"exllamav2", "exllamav3"}:
-            raise ValueError(
-                f"Backend '{backend}' selected, but required dependencies are not installed."
-            )
-        else:
-            raise ValueError(
-                f"Invalid backend '{backend}'. Available backends: {available_backends}"
-            )
-
-    xlogger.info(f"Using backend {backend}")
-    new_container: BaseModelContainer = await container_class.create(
-        model_path.resolve(), hf_model, **kwargs
-    )
+    new_container = await ExllamaV3Container.create(model_path.resolve(), hf_model, **kwargs)
 
     # Add possible types of models that can be loaded
     model_type = [ModelType.MODEL]

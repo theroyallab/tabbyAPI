@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import os
 import pathlib
 import platform
 import subprocess
@@ -44,30 +43,22 @@ def get_user_choice(question: str, options_dict: dict):
 def get_install_features(lib_name: str = None):
     """Fetches the appropriate requirements file depending on the GPU"""
     install_features = None
-    possible_features = ["cu12", "cu13", "amd"]
+    possible_features = ["cu12", "cu13"]
 
     if not lib_name:
         has_nvidia = which("nvidia-smi") is not None
-        has_rocm = which("rocm-smi") is not None
-        has_amd = which("amd-smi") is not None
-        has_amd_gpu = has_rocm or has_amd
 
-        if has_nvidia and not has_amd_gpu:
+        if has_nvidia:
             lib_name = "cu12"
             print("Auto-detected NVIDIA GPU. Using CUDA 12.x backend.")
-        elif has_amd_gpu and not has_nvidia:
-            lib_name = "amd"
-            print("Auto-detected AMD GPU. Using AMD backend.")
         else:
             gpu_lib_choices = {
                 "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu12"},
                 "B": {"pretty": "NVIDIA Cuda 13.x", "internal": "cu13"},
-                "C": {"pretty": "AMD", "internal": "amd"},
             }
             print(
                 "WARNING: Auto-detection failed. "
-                "Please ensure you have either an NVIDIA GPU (with nvidia-smi) "
-                "or an AMD GPU (with rocm-smi or amd-smi) installed."
+                "Please ensure you have an NVIDIA GPU (with nvidia-smi) installed."
             )
             user_input = get_user_choice(
                 "Select your GPU. If you don't know, select Cuda 12.x (A)",
@@ -91,20 +82,6 @@ def get_install_features(lib_name: str = None):
             "if you want to change your selection."
         )
         return
-
-    if install_features == "amd":
-        # Exit if using AMD and Windows
-        if platform.system() == "Windows":
-            print(
-                "ERROR: TabbyAPI does not support AMD and Windows. "
-                "Please use Linux and ROCm 6.4. Exiting."
-            )
-            sys.exit(0)
-
-        # Override env vars for ROCm support on non-supported GPUs
-        os.environ["ROCM_PATH"] = "/opt/rocm"
-        os.environ["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
-        os.environ["HCC_AMDGPU_TARGET"] = "gfx1030"
 
     return install_features
 
@@ -148,12 +125,12 @@ def add_start_args(parser: argparse.ArgumentParser):
         "-nw",
         "--nowheel",
         action="store_true",
-        help="Don't upgrade wheel dependencies (exllamav2, torch)",
+        help="Don't upgrade wheel dependencies (exllamav3, torch)",
     )
     start_group.add_argument(
         "--gpu-lib",
         type=str,
-        help="Select GPU library. Options: cu12, cu13, amd",
+        help="Select GPU library. Options: cu12, cu13",
     )
 
 

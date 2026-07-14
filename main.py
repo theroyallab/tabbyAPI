@@ -159,7 +159,7 @@ def entrypoint(
     # Skip if launching unsafely
     if config.developer.unsafe_launch:
         logger.warning(
-            "UNSAFE: Skipping ExllamaV2 version check.\n"
+            "UNSAFE: Skipping ExllamaV3 version check.\n"
             "If you aren't a developer, please keep this off!"
         )
     elif not dependencies.inference:
@@ -170,12 +170,10 @@ def entrypoint(
             f"update_deps.{'bat' if platform.system() == 'Windows' else 'sh'})\n\n"
             "Or you can manually run a requirements update "
             "using the following command:\n\n"
-            "For CUDA 12.1:\n"
+            "For CUDA 12.x:\n"
             "pip install --upgrade .[cu12]\n\n"
             "For CUDA 13.x:\n"
             "pip install --upgrade .[cu13]\n\n"
-            "For ROCm:\n"
-            "pip install --upgrade .[amd]\n\n"
         )
 
         raise SystemExit(install_message)

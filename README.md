@@ -28,6 +28,11 @@
 
 > [!NOTE]
 > 
+> ExLlamaV2 models are no longer supported in the `main` branch. The last commit with ExLlamav2 
+> support is preserved on the `exl2-checkpoint` branch.
+
+> [!NOTE]
+> 
 > Need help? Join the [Discord Server](https://discord.gg/sYQxnuD7Fj) and get the `Tabby` role. Please be nice when asking questions.
 
 > [!NOTE]
@@ -38,9 +43,9 @@
 > 
 > Want to run GGUF models? Take a look at [YALS](https://github.com/theroyallab/YALS), TabbyAPI's sister project.
 
-A FastAPI based application that allows for generating text using an LLM (large language model) using the [Exllamav2](https://github.com/turboderp-org/exllamav2) and [Exllamav3](https://github.com/turboderp-org/exllamav3) backends.
+A FastAPI based application that allows for generating text using an LLM (large language model) using the [Exllamav3](https://github.com/turboderp-org/exllamav3) backend.
 
-TabbyAPI is also the official API backend server for ExllamaV2 and V3.
+TabbyAPI is also the official API backend server for ExllamaV3.
 
 ## Disclaimer
 
@@ -96,8 +101,6 @@ And much more. If something is missing here, PR it in!
 ## Supported Model Types
 
 TabbyAPI uses Exllama as a powerful and fast backend for model inference, loading, etc. Therefore, the following types of models are supported:
-
-- Exl2/GPTQ (deprecated, will be removed in the near future)
 
 - Exl3 (Highly recommended)
 

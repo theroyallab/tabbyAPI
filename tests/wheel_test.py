@@ -12,20 +12,12 @@ if find_spec("flash_attn") is not None:
 else:
     print("Flash attention 2 is not found in your environment.")
 
-if find_spec("exllamav2") is not None:
-    print(f"Exllamav2 on version {version('exllamav2')} successfully imported")
-    successful_packages.append("exllamav2")
-else:
-    print("Exllamav2 is not found in your environment.")
-
 if find_spec("exllamav3") is not None:
     print(f"Exllamav3 on version {version('exllamav3')} successfully imported")
     successful_packages.append("exllamav3")
 else:
     print("Exllamav3 is not found in your environment.")
-
-if find_spec("exllamav2") is None and find_spec("exllamav3") is None:
-    errored_packages.append("exllamav2/exllamav3")
+    errored_packages.append("exllamav3")
 
 if find_spec("torch") is not None:
     print(f"Torch on version {version('torch')} successfully imported")
