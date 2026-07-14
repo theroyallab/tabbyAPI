@@ -1,6 +1,7 @@
 """Vision utilities for ExLlamaV3."""
 
-from common import model
+from typing import TYPE_CHECKING
+
 from common.optional_dependencies import dependencies
 from common.image_util import get_image
 from common.logger import xlogger
@@ -9,6 +10,9 @@ from common.logger import xlogger
 # may be optional
 if dependencies.exllamav3:
     from exllamav3.tokenizer import MMEmbedding
+
+if TYPE_CHECKING:
+    from backends.exllamav3.model import ExllamaV3Container
 
 from collections import OrderedDict
 from hashlib import blake2b
@@ -22,7 +26,7 @@ def _image_key_128(s: str) -> bytes:
     return blake2b(s.encode("utf-8"), digest_size=16).digest()
 
 
-async def get_image_embedding_exl3(url: str) -> "MMEmbedding":
+async def get_image_embedding_exl3(container: "ExllamaV3Container", url: str) -> "MMEmbedding":
     key = _image_key_128(url)
 
     cached = _embedding_cache.get(key)
@@ -33,8 +37,8 @@ async def get_image_embedding_exl3(url: str) -> "MMEmbedding":
             return embedding
 
     image = await get_image(url)
-    embedding = model.container.vision_model.get_image_embeddings(
-        tokenizer=model.container.tokenizer,
+    embedding = container.vision_model.get_image_embeddings(
+        tokenizer=container.tokenizer,
         image=image,
         text_alias=None,
     )

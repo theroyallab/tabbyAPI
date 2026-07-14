@@ -214,7 +214,7 @@ async def format_messages_with_template(
                 if content.type == "text":
                     concatenated_content += content.text
                 elif content.type == "image_url" and mm_embeddings:
-                    await mm_embeddings.add(content.image_url.url)
+                    await mm_embeddings.add(model.container, content.image_url.url)
                     concatenated_content += mm_embeddings.text_alias[-1]
 
             # Convert the message content into a concatenated string
