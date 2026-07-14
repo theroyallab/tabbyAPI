@@ -71,10 +71,10 @@ class ExllamaV3Container:
     # The bool is a master switch for accepting requests
     # The lock keeps load tasks sequential
     # The condition notifies any waiting tasks
-    active_job_ids: Dict[str, Any] = {}
+    active_job_ids: Dict[str, Any]
     loaded: bool = False
-    load_lock: asyncio.Lock = asyncio.Lock()
-    load_condition: asyncio.Condition = asyncio.Condition()
+    load_lock: asyncio.Lock
+    load_condition: asyncio.Condition
 
     # Exl3 vars
     model: Optional[Model] = None
@@ -91,7 +91,7 @@ class ExllamaV3Container:
     gpu_split: Optional[List[float]] = None
     gpu_split_auto: bool = True
     draft_gpu_split: Optional[List[float]] = None
-    autosplit_reserve: Optional[List[float]] = [96 / 1024]
+    autosplit_reserve: Optional[List[float]]
     use_tp: bool = False
     tp_backend: str = "native"
     max_seq_len: int = 4096
@@ -103,6 +103,14 @@ class ExllamaV3Container:
     max_batch_size: Optional[int] = None
     draft_num_tokens: Optional[int] = None
     ngram_match_min: int = 0
+
+    def __init__(self):
+        # Mutable state must be created per instance. A class-level default
+        # would be a single object shared by every container.
+        self.active_job_ids = {}
+        self.load_lock = asyncio.Lock()
+        self.load_condition = asyncio.Condition()
+        self.autosplit_reserve = [96 / 1024]
 
     # Required methods
     @classmethod

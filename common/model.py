@@ -5,6 +5,7 @@ Containers exist as a common interface for backends.
 """
 
 import aiofiles
+import asyncio
 import pathlib
 from enum import Enum
 from fastapi import HTTPException
@@ -28,6 +29,10 @@ if dependencies.exllamav3:
 # Global variables for model container
 container: Optional["ExllamaV3Container"] = None
 embeddings_container = None
+
+# Serializes model loads and swaps. The container's load_lock is per-instance
+# and can't order operations that span two containers.
+load_lock = asyncio.Lock()
 
 
 if dependencies.extras:
@@ -145,80 +150,81 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     """Generator to load a model"""
     global container
 
-    # Check if the model is already loaded
-    if container and container.model:
-        loaded_model_name = container.model_dir.name
+    async with load_lock:
+        # Check if the model is already loaded
+        if container and container.model:
+            loaded_model_name = container.model_dir.name
 
-        if loaded_model_name == model_path.name and container.loaded:
-            xlogger.info(f'Model "{loaded_model_name}" is already loaded')
-            return
+            if loaded_model_name == model_path.name and container.loaded:
+                xlogger.info(f'Model "{loaded_model_name}" is already loaded')
+                return
 
-        if container.loaded:
-            xlogger.info("Unloading existing model.")
-            await unload_model()
+            if container.loaded:
+                xlogger.info("Unloading existing model.")
+                await unload_model()
 
-    # Reset to prepare for a new container
-    container = None
+        # Reset to prepare for a new container
+        container = None
 
-    # Model_dir is already provided
-    if "model_dir" in kwargs:
-        kwargs.pop("model_dir")
+        # Model_dir is already provided
+        if "model_dir" in kwargs:
+            kwargs.pop("model_dir")
 
-    # Merge with config and inline defaults
-    # TODO: Figure out a way to do this with Pydantic validation
-    # and ModelLoadRequest. Pydantic doesn't have async validators
-    kwargs = await apply_load_defaults(model_path, **kwargs)
+        # Merge with config and inline defaults
+        # TODO: Figure out a way to do this with Pydantic validation
+        # and ModelLoadRequest. Pydantic doesn't have async validators
+        kwargs = await apply_load_defaults(model_path, **kwargs)
 
-    # Fetch the extra HF configuration options
-    hf_model = await HFModel.from_directory(model_path)
+        # Fetch the extra HF configuration options
+        hf_model = await HFModel.from_directory(model_path)
 
-    # Override the max sequence length based on user
-    max_seq_len = kwargs.get("max_seq_len")
-    if max_seq_len == -1:
-        kwargs["max_seq_len"] = hf_model.hf_config.get_max_position_embeddings()
+        # Override the max sequence length based on user
+        max_seq_len = kwargs.get("max_seq_len")
+        if max_seq_len == -1:
+            kwargs["max_seq_len"] = hf_model.hf_config.get_max_position_embeddings()
 
-    # Check model compatibility and dependencies before creating a container
-    validate_backend(kwargs.get("backend"), hf_model)
+        # Check model compatibility and dependencies before creating a container
+        validate_backend(kwargs.get("backend"), hf_model)
 
-    new_container = await ExllamaV3Container.create(model_path.resolve(), hf_model, **kwargs)
+        new_container = await ExllamaV3Container.create(model_path.resolve(), hf_model, **kwargs)
 
-    # Add possible types of models that can be loaded
-    model_type = [ModelType.MODEL]
+        # Add possible types of models that can be loaded
+        model_type = [ModelType.MODEL]
 
-    if new_container.use_draft_model:
-        model_type.insert(0, ModelType.DRAFT)
+        if new_container.use_draft_model:
+            model_type.insert(0, ModelType.DRAFT)
 
-    if new_container.use_vision:
-        model_type.insert(0, ModelType.VISION)
+        if new_container.use_vision:
+            model_type.insert(0, ModelType.VISION)
 
-    load_status = new_container.load_gen(load_progress, **kwargs)
+        load_status = new_container.load_gen(load_progress, **kwargs)
 
-    progress = get_loading_progress_bar()
-    progress.start()
+        progress = get_loading_progress_bar()
+        progress.start()
 
-    try:
-        index = 0
-        async for module, modules in load_status:
-            current_model_type = model_type[index].value
-            if module == 0:
-                loading_task = progress.add_task(
-                    f"[cyan]Loading {current_model_type} modules", total=modules
-                )
-            else:
-                progress.advance(loading_task)
-
-            yield module, modules, current_model_type
-
-            if module == modules:
-                # Switch to model progress if the draft model is loaded
-                if index == len(model_type):
-                    progress.stop()
+        try:
+            index = 0
+            async for module, modules in load_status:
+                current_model_type = model_type[index].value
+                if module == 0:
+                    loading_task = progress.add_task(
+                        f"[cyan]Loading {current_model_type} modules", total=modules
+                    )
                 else:
-                    index += 1
+                    progress.advance(loading_task)
 
-        container = new_container
-    finally:
-        progress.stop()
+                yield module, modules, current_model_type
+
+                if module == modules:
+                    # Switch to model progress if the draft model is loaded
+                    if index == len(model_type):
+                        progress.stop()
+                    else:
+                        index += 1
+
+            container = new_container
+        finally:
+            progress.stop()
 
 
 async def load_model(model_path: pathlib.Path, **kwargs):
