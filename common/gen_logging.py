@@ -94,7 +94,7 @@ def log_metrics(
         accept = metrics.get("draft_accept")
         reject = metrics.get("draft_reject", 1)
         total_draft = accept + reject
-        accept_rate = accept / total_draft
+        accept_rate = accept / total_draft if total_draft > 0 else 0.0
         itemization.append(
             f"Draft: {accept} / {total_draft} tokens accepted ({accept_rate * 100:.2f}%)"
         )
