@@ -196,6 +196,12 @@ model:
   # tool calls from the model will not be parsed by the server.
   tool_format:
 
+  # Parse responses in the Harmony message format (gpt-oss models).
+  # Auto-detected from the model's special tokens by default; set to true or false
+  # to override. Setting 'tool_format: harmony' is equivalent to setting this to true.
+  # When active, supersedes the reasoning and tool format settings.
+  harmony:
+
 # Options for draft models (speculative decoding)
 # This will use more VRAM!
 draft_model:

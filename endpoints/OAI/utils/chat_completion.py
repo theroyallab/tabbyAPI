@@ -31,7 +31,12 @@ from endpoints.OAI.types.chat_completion import (
 )
 from endpoints.OAI.types.common import UsageStats
 from endpoints.OAI.utils.completion import _parse_gen_request_id
-from endpoints.OAI.utils.stream_parser import CONTENT, REASONING, TagStreamParser
+from endpoints.OAI.utils.stream_parser import (
+    CONTENT,
+    REASONING,
+    HarmonyStreamParser,
+    TagStreamParser,
+)
 from endpoints.OAI.utils.tools import (
     get_toolcall_tags,
     parse_toolcalls,
@@ -103,6 +108,10 @@ def _resolve_start_in_reasoning(prompt: str, data: ChatCompletionRequest) -> boo
     """Determine whether generation starts inside a reasoning block."""
 
     mc = model.container
+    if mc.harmony:
+        # Harmony message headers determine the channel; there is no
+        # ambiguity for the parser to resolve
+        return False
     if not mc.reasoning:
         return False
 
@@ -510,20 +519,27 @@ async def _chat_stream_collector(
     full_content = ""
     full_tool = ""
 
-    tool_format = mc.tool_format
-    t_tool_start, t_tool_end = get_toolcall_tags(tool_format)
-    use_tool = params.tool_choice != "none" and bool(t_tool_start)
+    if mc.harmony:
+        # Harmony messages carry their own channel structure, superseding the
+        # reasoning and tool format settings
+        tool_format = "harmony"
+        use_think = False
+        parser = HarmonyStreamParser()
+    else:
+        tool_format = mc.tool_format
+        t_tool_start, t_tool_end = get_toolcall_tags(tool_format)
+        use_tool = params.tool_choice != "none" and bool(t_tool_start)
 
-    use_think = mc.reasoning and bool(mc.reasoning_start_token)
+        use_think = mc.reasoning and bool(mc.reasoning_start_token)
 
-    parser = TagStreamParser(
-        reasoning_start=mc.reasoning_start_token if use_think else None,
-        reasoning_end=mc.reasoning_end_token if use_think else None,
-        tool_start=t_tool_start if use_tool else None,
-        tool_end=t_tool_end if use_tool else None,
-        start_in_reasoning=start_in_reasoning_mode,
-        tool_calls_in_reasoning=mc.tool_calls_in_reasoning,
-    )
+        parser = TagStreamParser(
+            reasoning_start=mc.reasoning_start_token if use_think else None,
+            reasoning_end=mc.reasoning_end_token if use_think else None,
+            tool_start=t_tool_start if use_tool else None,
+            tool_end=t_tool_end if use_tool else None,
+            start_in_reasoning=start_in_reasoning_mode,
+            tool_calls_in_reasoning=mc.tool_calls_in_reasoning,
+        )
 
     # Collect logprobs
     collected_logprobs = []
@@ -563,12 +579,7 @@ async def _chat_stream_collector(
 
             # Collect logprobs in content span only, skipping chunks that
             # contain a phase transition
-            if (
-                "logprobs_content" in generation
-                and not parser.saw_tag
-                and not parser.in_reasoning
-                and not parser.in_tool
-            ):
+            if "logprobs_content" in generation and not parser.saw_tag and parser.in_content:
                 collected_logprobs += generation["logprobs_content"]
 
             # Add the output and emit

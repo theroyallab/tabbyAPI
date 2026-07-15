@@ -85,6 +85,7 @@ class ExllamaV3Container:
     draft_model_dir: Optional[pathlib.Path] = None
     prompt_template: Optional[PromptTemplate] = None
     tool_format: Optional[str] = None
+    harmony: bool = False
 
     # Optional features
     use_draft_model: bool = False
@@ -406,6 +407,35 @@ class ExllamaV3Container:
                 f"Invalid start_in_reasoning value '{self.start_in_reasoning}', using 'auto'."
             )
             self.start_in_reasoning = "auto"
+
+        # Harmony message format (gpt-oss). The channel structure is baked
+        # into the checkpoint's special tokens, so auto-detect from the
+        # tokenizer unless overridden in config. Supersedes the reasoning
+        # and tool format settings above.
+        harmony = kwargs.get("harmony")
+        if self.tool_format == "harmony":
+            # Harmony isn't a tag-based tool format; selecting it as one
+            # enables full Harmony parsing
+            if harmony is False:
+                xlogger.warning(
+                    "tool_format: harmony has no effect when harmony is set to "
+                    "false; tool calls will not be parsed."
+                )
+            else:
+                harmony = True
+        if harmony is None:
+            harmony = all(
+                self.tokenizer.single_id(token) is not None
+                for token in ("<|channel|>", "<|message|>", "<|call|>", "<|return|>")
+            )
+        self.harmony = bool(harmony)
+        if self.harmony:
+            xlogger.info("Using the Harmony format for reasoning and tool call parsing.")
+            if self.reasoning or (self.tool_format and self.tool_format != "harmony"):
+                xlogger.warning(
+                    "Harmony supersedes the reasoning and tool format settings "
+                    "in the model config; they will be ignored."
+                )
 
         return self
 

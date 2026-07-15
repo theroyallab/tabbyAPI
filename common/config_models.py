@@ -355,6 +355,16 @@ class ModelConfig(BaseConfigModel):
             "tool calls from the model will not be parsed by the server."
         ),
     )
+    harmony: Optional[bool] = Field(
+        None,
+        description=(
+            "Parse responses in the Harmony message format (gpt-oss models).\n"
+            "Auto-detected from the model's special tokens by default; set to\n"
+            "true or false to override. Setting 'tool_format: harmony' is\n"
+            "equivalent to setting this to true. When active, supersedes the\n"
+            "reasoning and tool format settings."
+        ),
+    )
 
     _metadata: Metadata = PrivateAttr(Metadata())
     model_config = ConfigDict(protected_namespaces=())

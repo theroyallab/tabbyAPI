@@ -164,7 +164,7 @@ class ContextLengthErrorTests(unittest.IsolatedAsyncioTestCase):
             return error
 
         original_container = model.container
-        model.container = SimpleNamespace(reasoning=False)
+        model.container = SimpleNamespace(reasoning=False, harmony=False)
         try:
             with patch.object(chat_completion, "_chat_stream_collector", collector):
                 with self.assertRaises(HTTPException) as raised:

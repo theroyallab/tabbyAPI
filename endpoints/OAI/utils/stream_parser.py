@@ -57,6 +57,11 @@ class TagStreamParser:
         self._tag_re = re.compile("|".join(re.escape(t) for t in tags)) if tags else None
         self._max_hold = max((len(t) - 1 for t in tags), default=0)
 
+    @property
+    def in_content(self) -> bool:
+        """True while text is being routed to the content channel."""
+        return not self.in_reasoning and not self.in_tool
+
     def feed(self, text: str) -> List[Tuple[str, str]]:
         """Consume a chunk of generated text, returning (channel, text) events."""
 
@@ -151,6 +156,154 @@ class TagStreamParser:
         elif tag == self.tool_end:
             events.append((TOOL, tag))
             self.in_tool = False
+
+
+class HarmonyStreamParser:
+    """
+    Splits generated text in the Harmony format (gpt-oss) into
+    reasoning/content/tool channels.
+
+    Generation begins after the prompt's `<|start|>assistant`, so parsing
+    starts inside a message header. Each message is `{header}<|message|>{body}`
+    where the body ends with `<|end|>` (another message follows), `<|return|>`
+    (end of the response) or `<|call|>` (tool call). The header carries the
+    channel and, for tool calls, a recipient:
+
+        <|channel|>analysis<|message|>...reasoning...<|end|>
+        <|start|>assistant<|channel|>final<|message|>...content...<|return|>
+        <|channel|>commentary to=functions.name <|constrain|>json<|message|>{...}<|call|>
+
+    Routing: analysis -> reasoning, final -> content, commentary with a
+    recipient -> tool, commentary without one (a user-visible preamble)
+    -> content.
+
+    Tool messages are emitted on the tool channel as
+    `{header}<|message|>{body}<|call|>`, to be parsed with the "harmony" tool
+    format. `<|return|>` and `<|call|>` are stop tokens, so the delimiter that
+    ends the last message usually never arrives in the text; finish() closes
+    an open tool message.
+    """
+
+    _HEADER = "header"
+    _BODY = "body"
+
+    def __init__(self):
+        self._state = self._HEADER
+        self._header = ""
+        self._channel = None
+        self._pending = ""
+
+        # True if any structural token was matched during the last feed() call
+        self.saw_tag = False
+
+        tokens = ["<|start|>", "<|message|>", "<|end|>", "<|return|>", "<|call|>"]
+        self._tokens = tokens
+        self._token_re = re.compile("|".join(re.escape(t) for t in tokens))
+        self._max_hold = max(len(t) for t in tokens) - 1
+
+    @property
+    def in_reasoning(self) -> bool:
+        return self._state == self._BODY and self._channel == REASONING
+
+    @property
+    def in_tool(self) -> bool:
+        return self._state == self._BODY and self._channel == TOOL
+
+    @property
+    def in_content(self) -> bool:
+        """True while text is being routed to the content channel."""
+        return self._state == self._BODY and self._channel == CONTENT
+
+    def feed(self, text: str) -> List[Tuple[str, str]]:
+        """Consume a chunk of generated text, returning (channel, text) events."""
+
+        self.saw_tag = False
+        events = []
+        self._pending += text
+
+        while self._pending:
+            match = self._token_re.search(self._pending)
+            if match:
+                i, j = match.span()
+                self._route(self._pending[:i], events)
+                self._pending = self._pending[j:]
+                self._handle_token(match[0], events)
+                self.saw_tag = True
+            else:
+                # Hold back any suffix that is a prefix of a structural token
+                hold = self._partial_token_len()
+                emit_len = len(self._pending) - hold
+                self._route(self._pending[:emit_len], events)
+                self._pending = self._pending[emit_len:]
+                break
+
+        return _merge_events(events)
+
+    def finish(self) -> List[Tuple[str, str]]:
+        """
+        Flush held text at the end of generation. An open tool message is
+        terminated: generation stopped at the `<|call|>` stop token, which is
+        not part of the text.
+        """
+
+        events = []
+        self._route(self._pending, events)
+        self._pending = ""
+        if self.in_tool:
+            events.append((TOOL, "<|call|>"))
+            self._state = self._HEADER
+            self._header = ""
+        return _merge_events(events)
+
+    def _partial_token_len(self) -> int:
+        """Length of the longest pending suffix that could still become a token."""
+
+        limit = min(self._max_hold, len(self._pending))
+        for k in range(limit, 0, -1):
+            tail = self._pending[-k:]
+            for token in self._tokens:
+                if token.startswith(tail):
+                    return k
+        return 0
+
+    def _route(self, text: str, events: list):
+        """Append text to the header or the currently active channel."""
+
+        if not text:
+            return
+
+        if self._state == self._HEADER:
+            self._header += text
+        else:
+            events.append((self._channel, text))
+
+    def _handle_token(self, token: str, events: list):
+        if token == "<|message|>":
+            if self._state == self._HEADER:
+                self._channel = self._resolve_channel(self._header)
+                if self._channel == TOOL:
+                    events.append((TOOL, self._header + "<|message|>"))
+                self._state = self._BODY
+            return
+
+        # <|start|>, <|end|>, <|return|>, <|call|> all begin a new message
+        # header. A stray <|start|> or end token inside a header discards it.
+        if self._state == self._BODY and self._channel == TOOL:
+            events.append((TOOL, "<|call|>"))
+        self._state = self._HEADER
+        self._header = ""
+
+    def _resolve_channel(self, header: str) -> str:
+        channel = re.search(r"<\|channel\|>\s*(\w+)", header)
+        channel = channel.group(1) if channel else None
+        recipient = re.search(r"\bto=\S+", header)
+
+        if channel == "analysis":
+            return REASONING
+        if channel == "commentary" and recipient:
+            return TOOL
+        # "final", commentary preambles, and anything unrecognized
+        return CONTENT
 
 
 def _merge_events(events: List[Tuple[str, str]]) -> List[Tuple[str, str]]:

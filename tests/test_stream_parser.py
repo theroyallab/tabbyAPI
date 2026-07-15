@@ -1,6 +1,6 @@
 import unittest
 
-from endpoints.OAI.utils.stream_parser import TagStreamParser
+from endpoints.OAI.utils.stream_parser import HarmonyStreamParser, TagStreamParser
 
 
 def collect(parser, chunks):
@@ -143,6 +143,151 @@ class TagStreamParserTests(unittest.TestCase):
         out = collect(p, chunks)
         self.assertEqual(out["reasoning"], "I think so\n")
         self.assertEqual(out["content"], "\n\nYes, 4.")
+
+
+class HarmonyStreamParserTests(unittest.TestCase):
+    # Generation begins after the prompt's "<|start|>assistant", so the text
+    # opens with a message header. <|return|> and <|call|> are stop tokens
+    # and never appear in the text.
+
+    def test_reasoning_then_final(self):
+        p = HarmonyStreamParser()
+        out = collect(
+            p,
+            [
+                "<|channel|>analysis<|message|>Let me think.",
+                "<|end|>",
+                "<|start|>assistant<|channel|>final<|message|>",
+                "The answer is 4.",
+            ],
+        )
+        self.assertEqual(out["reasoning"], "Let me think.")
+        self.assertEqual(out["content"], "The answer is 4.")
+        self.assertEqual(out["tool"], "")
+
+    def test_single_chunk(self):
+        p = HarmonyStreamParser()
+        out = collect(
+            p,
+            [
+                "<|channel|>analysis<|message|>hmm<|end|>"
+                "<|start|>assistant<|channel|>final<|message|>ok"
+            ],
+        )
+        self.assertEqual(out["reasoning"], "hmm")
+        self.assertEqual(out["content"], "ok")
+
+    def test_tool_call(self):
+        p = HarmonyStreamParser()
+        out = collect(
+            p,
+            [
+                "<|channel|>analysis<|message|>Need the weather.<|end|>",
+                "<|start|>assistant<|channel|>commentary",
+                " to=functions.get_weather <|constrain|>json",
+                "<|message|>",
+                '{"location": ',
+                '"Tokyo"}',
+            ],
+        )
+        self.assertEqual(out["reasoning"], "Need the weather.")
+        self.assertEqual(out["content"], "")
+        # finish() terminates the open tool message; the header keeps the
+        # role text that followed <|start|>
+        self.assertEqual(
+            out["tool"],
+            "assistant<|channel|>commentary to=functions.get_weather <|constrain|>json"
+            '<|message|>{"location": "Tokyo"}<|call|>',
+        )
+
+    def test_recipient_before_channel(self):
+        # The chat template renders the recipient before the channel
+        p = HarmonyStreamParser()
+        out = collect(
+            p,
+            ["<|channel|>analysis<|message|>x<|end|>"]
+            + ["<|start|>assistant to=functions.f<|channel|>commentary json<|message|>{}"],
+        )
+        self.assertIn("to=functions.f", out["tool"])
+        self.assertTrue(out["tool"].endswith("<|message|>{}<|call|>"))
+
+    def test_commentary_preamble_is_content(self):
+        p = HarmonyStreamParser()
+        out = collect(
+            p,
+            [
+                "<|channel|>commentary<|message|>Fetching the data now.<|end|>",
+                "<|start|>assistant<|channel|>final<|message|>Done.",
+            ],
+        )
+        self.assertEqual(out["content"], "Fetching the data now.Done.")
+        self.assertEqual(out["tool"], "")
+
+    def test_structural_token_split_across_chunks(self):
+        p = HarmonyStreamParser()
+        out = collect(
+            p,
+            ["<|channel|>analysis<|mess", "age|>a<|e", "nd|><|start|>assistant"]
+            + ["<|channel|>final<|message|>b"],
+        )
+        self.assertEqual(out["reasoning"], "a")
+        self.assertEqual(out["content"], "b")
+
+    def test_channel_properties_and_saw_tag(self):
+        p = HarmonyStreamParser()
+        self.assertFalse(p.in_reasoning or p.in_tool or p.in_content)
+        p.feed("<|channel|>analysis<|message|>")
+        self.assertTrue(p.saw_tag)
+        self.assertTrue(p.in_reasoning)
+        p.feed("thinking")
+        self.assertFalse(p.saw_tag)
+        p.feed("<|end|><|start|>assistant<|channel|>final<|message|>hello")
+        self.assertTrue(p.in_content)
+
+    def test_finish_without_tool_message(self):
+        p = HarmonyStreamParser()
+        p.feed("<|channel|>final<|message|>done")
+        self.assertEqual(p.finish(), [])
+
+    def test_truncation_mid_header_discards_header(self):
+        # max_new_tokens can cut generation before <|message|>
+        p = HarmonyStreamParser()
+        out = collect(p, ["<|channel|>anal"])
+        self.assertEqual(out, {"reasoning": "", "content": "", "tool": ""})
+
+
+class HarmonyToolcallFormatTests(unittest.TestCase):
+    def parse(self, text):
+        from endpoints.OAI.utils.toolcall_formats.harmony import parse_toolcalls
+
+        return parse_toolcalls(text)
+
+    def test_parse_tool_call(self):
+        calls = self.parse(
+            "<|channel|>commentary to=functions.get_weather <|constrain|>json"
+            '<|message|>{"location": "Tokyo"}<|call|>'
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "get_weather")
+        self.assertEqual(calls[0].function.arguments, '{"location": "Tokyo"}')
+
+    def test_parse_recipient_before_channel(self):
+        calls = self.parse(
+            "assistant to=functions.f<|channel|>commentary json<|message|>{}<|call|>"
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "f")
+        self.assertEqual(calls[0].function.arguments, "{}")
+
+    def test_invalid_json_passed_through(self):
+        calls = self.parse(
+            '<|channel|>commentary to=functions.f <|constrain|>json<|message|>{"a": <|call|>'
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.arguments, '{"a":')
+
+    def test_no_recipient_no_call(self):
+        self.assertEqual(self.parse("<|channel|>commentary<|message|>preamble<|call|>"), [])
 
 
 if __name__ == "__main__":
