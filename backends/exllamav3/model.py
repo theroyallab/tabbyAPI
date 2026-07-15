@@ -1192,6 +1192,8 @@ class ExllamaV3Container:
             sampler=sampler,
             input_ids=input_ids,
             max_new_tokens=max_tokens,
+            min_new_tokens=unwrap(params.min_tokens, 0),
+            token_healing=unwrap(params.token_healing, False),
             stop_conditions=stop_conditions,
             banned_strings=params.banned_strings,
             embeddings=mm_embeddings_content,

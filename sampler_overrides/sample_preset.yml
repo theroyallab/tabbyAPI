@@ -25,10 +25,6 @@ banned_strings:
 token_healing:
   override: false
   force: false
-speculative_ngram:
-  override: false
-  force: false
-
 # Commented out because the default is dynamically scaled
 #generate_window:
   #override: 512
@@ -148,14 +144,6 @@ allowed_tokens:
   override: []
   force: false
   additive: false
-
-# MARK: CFG scale
-cfg_scale:
-  override: 1.0
-  force: false
-negative_prompt:
-  override:
-  force: false
 
 # MARK: Adaptive-P
 adaptive_target:

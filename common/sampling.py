@@ -19,6 +19,28 @@ from typing import Dict, List, Optional, Union
 from common.utils import filter_none_values, unwrap
 
 
+# Params that are accepted for API compatibility but not implemented by the
+# exllamav3 backend, mapped to the neutral value that leaves them inactive.
+# Requests that activate any of these get a warning and the param is ignored.
+UNSUPPORTED_PARAMS = {
+    "ban_eos_token": False,
+    "banned_tokens": [],
+    "allowed_tokens": [],
+    "smoothing_factor": 0.0,
+    "top_a": 0.0,
+    "tfs": 1.0,
+    "typical": 1.0,
+    "skew": 0.0,
+    "xtc_probability": 0.0,
+    "dry_multiplier": 0.0,
+    "mirostat_mode": 0,
+    "logit_bias": None,
+    "temp_exponent": 1.0,
+    "regex_pattern": None,
+    "grammar_string": None,
+}
+
+
 # Common class for sampler params
 class BaseSamplerRequest(BaseModel):
     """Common class for sampler params that are used in APIs"""
@@ -212,10 +234,6 @@ class BaseSamplerRequest(BaseModel):
         examples=[{"1": 10, "2": 50}],
     )
 
-    negative_prompt: Optional[str] = Field(
-        default_factory=lambda: get_default_sampler_value("negative_prompt")
-    )
-
     json_schema: Optional[object] = Field(
         default_factory=lambda: get_default_sampler_value("json_schema"),
     )
@@ -226,17 +244,6 @@ class BaseSamplerRequest(BaseModel):
 
     grammar_string: Optional[str] = Field(
         default_factory=lambda: get_default_sampler_value("grammar_string"),
-    )
-
-    speculative_ngram: Optional[bool] = Field(
-        default_factory=lambda: get_default_sampler_value("speculative_ngram"),
-    )
-
-    cfg_scale: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("cfg_scale", 1.0),
-        validation_alias=AliasChoices("cfg_scale", "guidance_scale"),
-        description="Aliases: guidance_scale",
-        examples=[1.0],
     )
 
     max_temp: Optional[float] = Field(
@@ -356,7 +363,32 @@ class BaseSamplerRequest(BaseModel):
         if self.min_tokens and self.max_tokens and self.min_tokens > self.max_tokens:
             raise ValidationError("min tokens cannot be more then max tokens")
 
+        self.warn_unsupported_params()
+
         return self
+
+    def warn_unsupported_params(self):
+        """Warn when the request activates params the backend doesn't implement."""
+
+        active = [
+            name
+            for name, neutral in UNSUPPORTED_PARAMS.items()
+            if getattr(self, name) and getattr(self, name) != neutral
+        ]
+
+        # Dynamic temperature is only in effect when the bounds differ
+        if (
+            self.min_temp is not None
+            and self.max_temp is not None
+            and self.min_temp != self.max_temp
+        ):
+            active.append("min_temp/max_temp")
+
+        if active:
+            xlogger.warning(
+                "Ignoring sampler params not supported by the exllamav3 backend: "
+                + ", ".join(active)
+            )
 
 
 class SamplerOverridesContainer(BaseModel):
@@ -431,6 +463,10 @@ def apply_forced_sampler_overrides(params: BaseSamplerRequest):
         params.top_logprobs = params.logprobs
 
     for var, value in overrides_container.overrides.items():
+        if var not in BaseSamplerRequest.model_fields:
+            xlogger.warning(f'Skipping unknown sampler override key "{var}"')
+            continue
+
         override = deepcopy(value.get("override"))
         original_value = getattr(params, var, None)
 
