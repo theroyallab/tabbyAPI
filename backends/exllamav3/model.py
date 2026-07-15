@@ -48,7 +48,6 @@ from common.utils import coalesce, unwrap
 from endpoints.OAI.types.chat_completion import ChatCompletionLogprob, ChatCompletionLogprobLeaf
 from endpoints.core.types.model import ModelCard, ModelCardParameters
 from endpoints.OAI.utils.tools import is_supported_format
-import inspect
 
 
 class ExllamaV3Container:
@@ -143,7 +142,7 @@ class ExllamaV3Container:
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "0.0.7")
+        check_package_version("exllamav3", "0.0.43")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
@@ -420,22 +419,18 @@ class ExllamaV3Container:
 
         split_cache_mode = re.search(r"^([2-8])\s*,\s*([2-8])$", raw_cache_mode)
 
-        batch_draft_args = {}
-        if "max_batch_size" in inspect.signature(Cache.__init__).parameters:
-            if self.draft_model:
-                default_draft_tokens = self.draft_model.caps.get("default_draft_size", 4)
-            elif self.ngram_match_min:
-                default_draft_tokens = 4
-            else:
-                default_draft_tokens = 0
-            batch_draft_args = {
-                "max_batch_size": self.max_batch_size,
-                "max_history": (
-                    self.draft_num_tokens
-                    if self.draft_num_tokens is not None
-                    else default_draft_tokens
-                ),
-            }
+        if self.draft_model:
+            default_draft_tokens = self.draft_model.caps.get("default_draft_size", 4)
+        elif self.ngram_match_min:
+            default_draft_tokens = 4
+        else:
+            default_draft_tokens = 0
+        batch_draft_args = {
+            "max_batch_size": self.max_batch_size,
+            "max_history": (
+                self.draft_num_tokens if self.draft_num_tokens is not None else default_draft_tokens
+            ),
+        }
 
         if split_cache_mode:
             draft_k_bits = int(split_cache_mode.group(1))
@@ -592,10 +587,6 @@ class ExllamaV3Container:
         else:
             xlogger.info("Loading with a manual GPU split (or a one GPU setup)")
 
-        load_kwargs = {}
-        if "max_batch_size" in inspect.signature(self.model.load_gen).parameters:
-            load_kwargs["max_batch_size"] = self.max_batch_size
-
         for value in self.model.load_gen(
             tensor_p=self.use_tp,
             tp_backend=self.tp_backend,
@@ -603,7 +594,7 @@ class ExllamaV3Container:
             use_per_device=self.gpu_split,
             callback=progress_callback,
             max_chunk_size=self.chunk_size,
-            **load_kwargs,
+            max_batch_size=self.max_batch_size,
         ):
             if value:
                 yield value
