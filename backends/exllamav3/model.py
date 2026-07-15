@@ -50,6 +50,33 @@ from endpoints.core.types.model import ModelCard, ModelCardParameters
 from endpoints.OAI.utils.tools import is_supported_format
 
 
+def _merge_stream_results(results: List[dict]) -> dict:
+    """
+    Merge consecutive streaming results from a job into a single result.
+
+    The last result provides all scalar fields (including EOS metrics when
+    present); text and per-token tensors are concatenated in order.
+    """
+
+    merged = dict(results[-1])
+    merged["text"] = "".join(unwrap(r.get("text"), "") for r in results)
+
+    # Concatenate per-token tensors along their token dimension
+    for key, dim in (
+        ("token_ids", -1),
+        ("token_probs", -1),
+        ("top_k_tokens", 1),
+        ("top_k_probs", 1),
+    ):
+        tensors = [r[key] for r in results if r.get(key) is not None]
+        if len(tensors) > 1 and isinstance(tensors[0], torch.Tensor):
+            merged[key] = torch.cat(tensors, dim=dim)
+        elif tensors:
+            merged[key] = tensors[0]
+
+    return merged
+
+
 class ExllamaV3Container:
     """Model container for the ExLlamaV3 backend."""
 
@@ -1235,6 +1262,29 @@ class ExllamaV3Container:
             async for result in job:
                 await disconnect_handler.poll()
 
+                # The generator can produce several results per iteration
+                # (speculative decoding), while this consumer may only get one
+                # scheduling slot per iteration whenever an await above or
+                # downstream actually suspends. Merge everything already
+                # queued so streaming keeps pace with generation instead of
+                # backing up until the generator goes idle.
+                if result.get("stage") == "streaming" and not result.get("eos"):
+                    span = [result]
+                    while not job.queue.empty():
+                        nxt = job.queue.get_nowait()
+                        if isinstance(nxt, Exception):
+                            raise nxt
+                        if not isinstance(nxt, dict):
+                            # Cancellation sentinel: stop consuming
+                            raise CancelledError("Job cancelled while draining results")
+                        if nxt.get("stage") != "streaming":
+                            continue
+                        span.append(nxt)
+                        if nxt.get("eos"):
+                            break
+                    if len(span) > 1:
+                        result = _merge_stream_results(span)
+
                 chunk = unwrap(result.get("text"), "")
                 if chunk:
                     chunk_tokens = result.get("token_ids", self.tokenizer.encode(chunk))
@@ -1243,7 +1293,7 @@ class ExllamaV3Container:
                     # Extract token IDs as a plain list for downstream consumers
                     if isinstance(chunk_tokens, torch.Tensor):
                         token_id_list = chunk_tokens.flatten().tolist()
-                        generated_tokens += chunk_tokens.size(dim=0)
+                        generated_tokens += len(token_id_list)
                     elif isinstance(chunk_tokens, tuple):
                         first = chunk_tokens[0]
                         if isinstance(first, torch.Tensor):
