@@ -1,85 +1,78 @@
-import json
-from loguru import logger
+"""Tool call processing utilities for OAI server."""
+
+from common.logger import xlogger
 from typing import List
 
 from endpoints.OAI.types.tools import ToolCall
+from endpoints.OAI.utils.toolcall_formats import (
+    qwen3_coder,
+    minimax_m2,
+    glm4_5,
+    mistral_old,
+    mistral,
+    gemma4,
+)
 
-
-TOOL_CALL_SCHEMA = {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "type": "array",
-    "items": {
-        "type": "object",
-        "properties": {
-            "function": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string"},
-                    "arguments": {
-                        # Converted to OAI's string in post process
-                        "type": "object"
-                    },
-                },
-                "required": ["name", "arguments"],
-            },
-        },
-        "required": ["function"],
-    },
+ALL_TOOLCALL_FORMATS = {
+    "gemma4": gemma4,
+    "glm4_5": glm4_5,
+    "glm4_6": glm4_5,
+    "glm4_7": glm4_5,
+    "minimax_m2": minimax_m2,
+    "minimax_m2_1": minimax_m2,
+    "minimax_m2_5": minimax_m2,
+    "mistral_old": mistral_old,
+    "mistral": mistral,
+    "qwen3_coder": qwen3_coder,
+    "qwen3_5": qwen3_coder,
+    "step3_5": qwen3_coder,
+    "step3_7": qwen3_coder,
 }
 
 
-class ToolCallProcessor:
-    @staticmethod
-    def from_json(tool_calls_str: str) -> List[ToolCall]:
-        """Postprocess tool call JSON to a parseable class"""
+def _get_parser(tool_format: str):
+    if not tool_format:
+        return None
+    parser = ALL_TOOLCALL_FORMATS.get(tool_format)
+    if not parser:
+        xlogger.error(f"Unknown tool format given: {tool_format}")
+    return parser
 
-        tool_calls = json.loads(tool_calls_str)
-        for tool_call in tool_calls:
-            tool_call["function"]["arguments"] = json.dumps(
-                tool_call["function"]["arguments"]
-            )
 
-        return [ToolCall(**tool_call) for tool_call in tool_calls]
+def get_toolcall_tags(tool_format: str):
+    parser = _get_parser(tool_format)
+    if not parser:
+        return None, None
+    return parser.TOOLCALL_START, parser.TOOLCALL_END
 
-    @staticmethod
-    def dump(tool_calls: List[ToolCall]) -> List[dict]:
-        """
-        Convert ToolCall objects to a list of dictionaries.
 
-        Args:
-            tool_calls (List[ToolCall]): List of ToolCall objects to convert
+def is_supported_format(tool_format: str) -> bool:
+    return tool_format in ALL_TOOLCALL_FORMATS
 
-        Returns:
-            List[dict]: List of dictionaries representing the tool calls
-        """
 
-        # Don't use list comprehension here
-        # as that will fail rather than warn
-        dumped_tool_calls = []
-        for tool_call_obj in tool_calls:
-            try:
-                dumped_tool_calls.append(tool_call_obj.model_dump())
-            except (json.JSONDecodeError, AttributeError) as e:
-                logger.warning(f"Error processing tool call: {e}")
-        return dumped_tool_calls
+def parse_toolcalls(tool_calls_str: str, tool_format: str) -> List[ToolCall]:
+    """
+    Dispatch tool call parsing to the appropriate format handler.
 
-    @staticmethod
-    def to_json(tool_calls: List[ToolCall]) -> str:
-        """
-        Convert ToolCall objects to JSON string representation.
+    Args:
+        tool_calls_str: Raw tool call text from model generation.
+        tool_format: See below
 
-        Args:
-            tool_calls (List[ToolCall]): List of ToolCall objects to convert
+    Returns:
+        List of parsed ToolCall objects. Empty list on parse failure (never raises).
+    """
 
-        Returns:
-            str: JSON representation of the tool calls
-        """
+    try:
+        parser = _get_parser(tool_format)
+        if not parser:
+            return []
 
-        if not tool_calls:
-            return ""
+        return parser.parse_toolcalls(tool_calls_str)
 
-        # Use the dump method to get the list of dictionaries
-        dumped_tool_calls = ToolCallProcessor.dump(tool_calls)
-
-        # Serialize the dumped array
-        return json.dumps(dumped_tool_calls, indent=2)
+    except Exception as e:
+        xlogger.error(
+            "ToolCallProcessor.parse: Failed to parse tool calls",
+            {"tool_format": tool_format, "e": str(e)},
+            details=f"(format={tool_format}): {e}",
+        )
+        return []

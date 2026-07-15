@@ -2,7 +2,7 @@
 
 import importlib.util
 from importlib.metadata import version as package_version
-from loguru import logger
+from common.logger import xlogger
 from packaging import version
 from pydantic import BaseModel, computed_field
 
@@ -15,9 +15,7 @@ class DependenciesModel(BaseModel):
     """Model of which optional dependencies are installed."""
 
     torch: bool
-    exllamav2: bool
     exllamav3: bool
-    flash_attn: bool
     infinity_emb: bool
     sentence_transformers: bool
 
@@ -29,7 +27,7 @@ class DependenciesModel(BaseModel):
     @computed_field
     @property
     def inference(self) -> bool:
-        return self.torch and (self.exllamav2 or (self.exllamav3 and self.flash_attn))
+        return self.torch and self.exllamav3
 
 
 def is_installed(package_name: str) -> bool:
@@ -60,7 +58,15 @@ def check_package_version(package_name: str, required_version_str: str):
     """
 
     required_version = version.parse(required_version_str)
-    current_version = version.parse(package_version(package_name).split("+")[0])
+
+    # Prefer the version reported by the package itself. Installed metadata
+    # can be stale when running a source checkout from sys.path.
+    try:
+        version_str = importlib.import_module(f"{package_name}.version").__version__
+    except (ImportError, AttributeError):
+        version_str = package_version(package_name)
+
+    current_version = version.parse(version_str.split("+")[0])
 
     unsupported_message = (
         f"ERROR: TabbyAPI requires {package_name} {required_version} "
@@ -71,7 +77,7 @@ def check_package_version(package_name: str, required_version_str: str):
     if current_version < required_version:
         raise RuntimeError(unsupported_message)
     else:
-        logger.info(f"{package_name} version: {current_version}")
+        xlogger.info(f"{package_name} version: {current_version}")
 
 
 dependencies = get_installed_deps()

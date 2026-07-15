@@ -13,9 +13,7 @@ class SamplerOverrideListResponse(SamplerOverridesContainer):
 class SamplerOverrideSwitchRequest(BaseModel):
     """Sampler override switch request"""
 
-    preset: Optional[str] = Field(
-        default=None, description="Pass a sampler override preset name"
-    )
+    preset: Optional[str] = Field(default=None, description="Pass a sampler override preset name")
 
     overrides: Optional[dict] = Field(
         default=None,

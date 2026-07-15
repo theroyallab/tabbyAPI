@@ -29,9 +29,7 @@ class ConfigOverrideConfig(BaseConfigModel):
     """Model for overriding a provided config file."""
 
     # TODO: convert this to a pathlib.path?
-    config: Optional[str] = Field(
-        None, description=("Path to an overriding config.yml file")
-    )
+    config: Optional[str] = Field(None, description="Path to an overriding config.yml file")
 
     _metadata: Metadata = PrivateAttr(Metadata(include_in_config=False))
 
@@ -46,9 +44,7 @@ class NetworkConfig(BaseConfigModel):
             "Use 0.0.0.0 to expose on all network adapters."
         ),
     )
-    port: Optional[int] = Field(
-        5000, description=("The port to host on (default: 5000).")
-    )
+    port: Optional[int] = Field(5000, description="The port to host on (default: 5000).")
     disable_auth: Optional[bool] = Field(
         False,
         description=(
@@ -60,8 +56,7 @@ class NetworkConfig(BaseConfigModel):
     disable_fetch_requests: Optional[bool] = Field(
         False,
         description=(
-            "Disable fetching external content in response to requests,"
-            "such as images from URLs."
+            "Disable fetching external content in response to requests,such as images from URLs."
         ),
     )
     send_tracebacks: Optional[bool] = Field(
@@ -74,9 +69,17 @@ class NetworkConfig(BaseConfigModel):
     api_servers: Optional[List[Literal["oai", "kobold"]]] = Field(
         ["OAI"],
         description=(
-            'Select API servers to enable (default: ["OAI"]).\n'
-            "Possible values: OAI, Kobold."
+            'Select API servers to enable (default: ["OAI"]).\nPossible values: OAI, Kobold.'
         ),
+    )
+    sse_ping_interval: Optional[int] = Field(
+        15,
+        description=(
+            "Seconds between SSE keep-alive pings on streaming responses (default: 15).\n"
+            "Pings are SSE comments, ignored by compliant clients, and prevent\n"
+            "connections from dropping during long prefills. Set to 0 to disable."
+        ),
+        ge=0,
     )
 
     # Converts all strings in the api_servers list to lowercase
@@ -93,17 +96,25 @@ class LoggingConfig(BaseConfigModel):
 
     log_prompt: Optional[bool] = Field(
         False,
-        description=("Enable prompt logging (default: False)."),
+        description="Enable prompt logging (default: False).",
     )
     log_generation_params: Optional[bool] = Field(
         False,
-        description=("Enable generation parameter logging (default: False)."),
+        description="Enable generation parameter logging (default: False).",
     )
     log_requests: Optional[bool] = Field(
         False,
         description=(
-            "Enable request logging (default: False).\n"
-            "NOTE: Only use this for debugging!"
+            "Enable request logging (default: False).\nNOTE: Only use this for debugging!"
+        ),
+    )
+    log_chat_completion_requests: Optional[bool] = Field(
+        False,
+        description=(
+            "Write every /v1/chat/completions request to logs/debug/ as JSON (default: False).\n"
+            "PRIVACY WARNING: Enabling this creates a comprehensive request log, including the "
+            "full message history and generation parameters. API keys are redacted, but prompts "
+            "and user-provided content are preserved for bug-report reproduction."
         ),
     )
 
@@ -168,15 +179,13 @@ class ModelConfig(BaseConfigModel):
     backend: Optional[str] = Field(
         None,
         description=(
-            "Backend to use for this model (auto-detect if not specified)\n"
-            "Options: exllamav2, exllamav3"
+            "Backend to use for this model (auto-detect if not specified)\nOptions: exllamav3"
         ),
     )
     max_seq_len: Optional[int] = Field(
         None,
         description=(
-            "Max sequence length (default: 4096).\n"
-            "Set to -1 to fetch from the model's config.json"
+            "Max sequence length (default: 4096).\nSet to -1 to fetch from the model's config.json"
         ),
         ge=-1,
     )
@@ -184,8 +193,7 @@ class ModelConfig(BaseConfigModel):
         None,
         description=(
             "Size of the prompt cache to allocate (default: max_seq_len).\n"
-            "Must be a multiple of 256 and can't be less than max_seq_len.\n"
-            "For CFG, set this to 2 * max_seq_len."
+            "Must be a multiple of 256 and can't be less than max_seq_len."
         ),
         multiple_of=256,
         gt=0,
@@ -194,9 +202,9 @@ class ModelConfig(BaseConfigModel):
         "FP16",
         description=(
             "Enable different cache modes for VRAM savings (default: FP16).\n"
-            f"Possible values for exllamav2: {str(CACHE_SIZES)[15:-1]}.\n"
-            "For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits "
-            "are integers from 2-8 (i.e. 8,8)."
+            "Specify the pair k_bits,v_bits where k_bits and v_bits "
+            "are integers from 2-8 (i.e. 8,8).\n"
+            f"The legacy values {str(CACHE_SIZES)[15:-1]} are also accepted."
         ),
     )
     tensor_parallel: Optional[bool] = Field(
@@ -233,7 +241,7 @@ class ModelConfig(BaseConfigModel):
     gpu_split: List[float] = Field(
         default_factory=list,
         description=(
-            "An integer array of GBs of VRAM to split between GPUs (default: []).\n"
+            "Array of VRAM sizes to split between GPUs, in GB (default: []).\n"
             "Used with tensor parallelism."
         ),
     )
@@ -277,10 +285,11 @@ class ModelConfig(BaseConfigModel):
     max_batch_size: Optional[int] = Field(
         None,
         description=(
-            "Set the maximum number of prompts to process at one time "
-            "(default: None/Automatic).\n"
-            "Automatically calculated if left blank.\n"
-            "NOTE: Only available for Nvidia ampere (30 series) and above GPUs."
+            "Set the maximum number of generation jobs that can run concurrently\n"
+            "The default maximum batch size for transformer architectures is 32. Recurrent\n"
+            "models with linear or sliding attention use more VRAM to support larger batches,\n"
+            "so the default value is reduced to 4. If you do not require concurrency at all, you\n"
+            "can reduce it further to minimize VRAM overhead."
         ),
         ge=1,
     )
@@ -296,8 +305,54 @@ class ModelConfig(BaseConfigModel):
     )
     vision: Optional[bool] = Field(
         False,
+        description=("Enables vision support if the model supports it. (default: False)"),
+    )
+    force_enable_thinking: bool = Field(
+        False,
         description=(
-            "Enables vision support if the model supports it. (default: False)"
+            "Force-enable reasoning in template args\n"
+            "Injects the enable_thinking: True into the model's template arguments. This doesn't\n"
+            "force reasoning or affect how reasoning content is parsed, but some clients will\n"
+            "not explicitly enable this and some models need it to properly enter reasoning mode."
+        ),
+    )
+    reasoning: bool = Field(
+        False,
+        description=(
+            "Enable the reasoning parser (default: False).\n"
+            "Split response message into reasoning_content and content fields."
+        ),
+    )
+    reasoning_start_token: str = Field(
+        "<think>",
+        description="Start token for the reasoning parser (default: <think>).",
+    )
+    reasoning_end_token: str = Field(
+        "</think>",
+        description="End token for the reasoning parser (default: </think>).",
+    )
+    start_in_reasoning: str = Field(
+        "auto",
+        description=(
+            "Whether generation starts inside a reasoning block (default: auto).\n"
+            "Options: auto, always, never\n"
+            "auto guesses by scanning the end of the templated prompt for an\n"
+            "unclosed reasoning start token."
+        ),
+    )
+    tool_calls_in_reasoning: bool = Field(
+        True,
+        description=(
+            "Parse tool calls that occur inside reasoning content (default: True).\n"
+            "If False, tool call tags inside a reasoning block are treated as\n"
+            "plain reasoning text."
+        ),
+    )
+    tool_format: Optional[str] = Field(
+        None,
+        description=(
+            "Tool format, e.g. 'qwen3_coder'. See docs for supported formats. If left blank, \n"
+            "tool calls from the model will not be parsed by the server."
         ),
     )
 
@@ -311,16 +366,23 @@ class DraftModelConfig(BaseConfigModel):
     This will use more VRAM!
     """
 
+    draft_mode: Optional[Literal["model", "disabled", "mtp", "ngram"]] = Field(
+        "model",
+        description=(
+            "Drafting mode (default: model).\n"
+            "Options: model, disabled, mtp, ngram.\n"
+            "In `model` mode, drafting is disabled if no draft_model_name is provided."
+        ),
+    )
     # TODO: convert this to a pathlib.path?
     draft_model_dir: Optional[str] = Field(
         "models",
-        description=("Directory to look for draft models (default: models)"),
+        description="Directory to look for draft models (default: models)",
     )
     draft_model_name: Optional[str] = Field(
         None,
         description=(
-            "An initial draft model to load.\n"
-            "Ensure the model is in the model directory."
+            "An initial draft model to load.\nEnsure the model is in the model directory."
         ),
     )
     draft_rope_scale: Optional[float] = Field(
@@ -350,8 +412,24 @@ class DraftModelConfig(BaseConfigModel):
     draft_gpu_split: List[float] = Field(
         default_factory=list,
         description=(
-            "An integer array of GBs of VRAM to split between GPUs (default: []).\n"
+            "Array of VRAM sizes to split between GPUs, in GB (default: []).\n"
             "If this isn't filled in, the draft model is autosplit."
+        ),
+    )
+    draft_num_tokens: Optional[int] = Field(
+        None,
+        description=(
+            "Number of tokens to draft per iteration (default: draft model default)\n"
+            "Recurrent (linear or sliding attention) models use more VRAM for longer drafts.\n"
+            "This overhead multiplies with the max batch size, so for models with long drafts\n"
+            "(e.g. DFlash with 15 tokens by default) shorter drafts may be preferable."
+        ),
+    )
+    ngram_match_min: Optional[int] = Field(
+        2,
+        description=(
+            "Minimum match length for exllamav3 n-gram drafting (default: 2).\n"
+            "Only used when draft_mode is ngram."
         ),
     )
 
@@ -385,7 +463,7 @@ class LoraConfig(BaseConfigModel):
 
     # TODO: convert this to a pathlib.path?
     lora_dir: Optional[str] = Field(
-        "loras", description=("Directory to look for LoRAs (default: loras).")
+        "loras", description="Directory to look for LoRAs (default: loras)."
     )
     loras: Optional[List[LoraInstanceModel]] = Field(
         None,
@@ -422,7 +500,25 @@ class EmbeddingsConfig(BaseConfigModel):
     )
     embedding_model_name: Optional[str] = Field(
         None,
-        description=("An initial embedding model to load on the infinity backend."),
+        description="An initial embedding model to load on the infinity backend.",
+    )
+
+
+class MemoryConfig(BaseConfigModel):
+    """Options for development and experimentation"""
+
+    sysmem_recurrent_cache: Optional[int] = Field(
+        4096,
+        description=("Max size of recurrent cache in system memory, in MB (default: 4096)"),
+    )
+    cuda_malloc_async: Optional[bool] = Field(
+        True,
+        description=(
+            "Use cudaMallocAsync backend in Torch (default: True).\n"
+            "Enabling this is generally preferable, but it may cause issues with certain\n"
+            "workloads. Try disabling it if you experience intermittent OoM errors. If\n"
+            "False, Torch will use the allocator defined by the system env"
+        ),
     )
 
 
@@ -432,13 +528,13 @@ class DeveloperConfig(BaseConfigModel):
     unsafe_launch: Optional[bool] = Field(
         False,
         description=(
-            "Skip Exllamav2 version check (default: False).\n"
+            "Skip ExLlamav3 version check (default: False).\n"
             "WARNING: It's highly recommended to update your dependencies rather "
             "than enabling this flag."
         ),
     )
     disable_request_streaming: Optional[bool] = Field(
-        False, description=("Disable API request streaming (default: False).")
+        False, description="Disable API request streaming (default: False)."
     )
     realtime_process_priority: Optional[bool] = Field(
         False,
@@ -448,33 +544,52 @@ class DeveloperConfig(BaseConfigModel):
             "Otherwise, the priority will be set to high."
         ),
     )
+    seqlog: Optional[bool] = Field(
+        False,
+        description=("Enable extremely verbose seqlog logging, requires a running Seq server"),
+    )
+    seqlog_server_url: Optional[str] = Field(
+        "http://localhost:5341",
+        description=("Seq server url:port"),
+    )
+    seqlog_api_key: Optional[str] = Field(
+        None,
+        description=("Seq server API key (default: None)"),
+    )
 
 
 class TabbyConfigModel(BaseModel):
     """Base model for a TabbyConfig."""
 
     config: Optional[ConfigOverrideConfig] = Field(
-        default_factory=ConfigOverrideConfig.model_construct
+        default_factory=ConfigOverrideConfig.model_construct,
     )
     network: Optional[NetworkConfig] = Field(
-        default_factory=NetworkConfig.model_construct
+        default_factory=NetworkConfig.model_construct,
     )
     logging: Optional[LoggingConfig] = Field(
-        default_factory=LoggingConfig.model_construct
+        default_factory=LoggingConfig.model_construct,
     )
-    model: Optional[ModelConfig] = Field(default_factory=ModelConfig.model_construct)
+    model: Optional[ModelConfig] = Field(
+        default_factory=ModelConfig.model_construct,
+    )
     draft_model: Optional[DraftModelConfig] = Field(
-        default_factory=DraftModelConfig.model_construct
+        default_factory=DraftModelConfig.model_construct,
     )
-    lora: Optional[LoraConfig] = Field(default_factory=LoraConfig.model_construct)
+    lora: Optional[LoraConfig] = Field(
+        default_factory=LoraConfig.model_construct,
+    )
     embeddings: Optional[EmbeddingsConfig] = Field(
-        default_factory=EmbeddingsConfig.model_construct
+        default_factory=EmbeddingsConfig.model_construct,
     )
     sampling: Optional[SamplingConfig] = Field(
-        default_factory=SamplingConfig.model_construct
+        default_factory=SamplingConfig.model_construct,
+    )
+    memory: Optional[MemoryConfig] = Field(
+        default_factory=MemoryConfig.model_construct,
     )
     developer: Optional[DeveloperConfig] = Field(
-        default_factory=DeveloperConfig.model_construct
+        default_factory=DeveloperConfig.model_construct,
     )
 
     model_config = ConfigDict(validate_assignment=True, protected_namespaces=())

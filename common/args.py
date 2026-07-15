@@ -33,27 +33,21 @@ def init_argparser(
     If an existing provider is given, use that.
     """
 
-    parser = unwrap(
-        existing_parser, argparse.ArgumentParser(description="TabbyAPI server")
-    )
+    parser = unwrap(existing_parser, argparse.ArgumentParser(description="TabbyAPI server"))
 
     add_subcommands(parser)
 
     # Loop through each top-level field in the config
     for field_name, field_info in TabbyConfigModel.model_fields.items():
         field_type = unwrap_optional_type(field_info.annotation)
-        group = parser.add_argument_group(
-            field_name, description=f"Arguments for {field_name}"
-        )
+        group = parser.add_argument_group(field_name, description=f"Arguments for {field_name}")
 
         # Check if the field_type is a Pydantic model
         if issubclass(field_type, BaseModel):
             for sub_field_name, sub_field_info in field_type.model_fields.items():
                 sub_field_name = sub_field_name.replace("_", "-")
                 sub_field_type = sub_field_info.annotation
-                add_field_to_group(
-                    group, sub_field_name, sub_field_type, sub_field_info
-                )
+                add_field_to_group(group, sub_field_name, sub_field_type, sub_field_info)
         else:
             field_name = field_name.replace("_", "-")
             group.add_argument(f"--{field_name}", help=f"Argument for {field_name}")
@@ -69,9 +63,7 @@ def add_subcommands(parser: argparse.ArgumentParser):
     )
 
     # Calls download action
-    download_parser = actions_subparsers.add_parser(
-        "download", help="Calls the model downloader"
-    )
+    download_parser = actions_subparsers.add_parser("download", help="Calls the model downloader")
     download_parser.add_argument("repo_id", type=str, help="HuggingFace repo ID")
     download_parser.add_argument(
         "--folder-name",
@@ -86,12 +78,8 @@ def add_subcommands(parser: argparse.ArgumentParser):
     download_parser.add_argument(
         "--token", type=str, help="HuggingFace access token for private repos"
     )
-    download_parser.add_argument(
-        "--include", type=str, help="Glob pattern of files to include"
-    )
-    download_parser.add_argument(
-        "--exclude", type=str, help="Glob pattern of files to exclude"
-    )
+    download_parser.add_argument("--include", type=str, help="Glob pattern of files to include")
+    download_parser.add_argument("--exclude", type=str, help="Glob pattern of files to exclude")
 
     # Calls openapi action
     openapi_export_parser = actions_subparsers.add_parser(
@@ -115,9 +103,7 @@ def add_subcommands(parser: argparse.ArgumentParser):
     )
 
 
-def convert_args_to_dict(
-    args: argparse.Namespace, parser: argparse.ArgumentParser
-) -> dict:
+def convert_args_to_dict(args: argparse.Namespace, parser: argparse.ArgumentParser) -> dict:
     """Broad conversion of surface level arg groups to dictionaries"""
 
     arg_groups = {}

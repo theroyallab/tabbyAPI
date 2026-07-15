@@ -5,7 +5,9 @@ from loguru import logger
 from sse_starlette.event import ServerSentEvent
 
 from common import model
+from common.errors import ContextLengthExceededError, ContextLengthHTTPException
 from common.networking import (
+    get_context_length_generator_error,
     get_generator_error,
     handle_request_disconnect,
     handle_request_error,
@@ -60,6 +62,8 @@ async def _stream_collector(data: GenerateRequest, request: Request):
         )
 
         async for generation in generator:
+            if generation is None:
+                continue
             if disconnect_task.done():
                 raise CancelledError()
 
@@ -77,9 +81,7 @@ async def _stream_collector(data: GenerateRequest, request: Request):
         # If the request disconnects, break out
         if not abort_event.is_set():
             abort_event.set()
-            handle_request_disconnect(
-                f"Kobold generation {data.genkey} cancelled by user."
-            )
+            handle_request_disconnect(f"Kobold generation {data.genkey} cancelled by user.")
     finally:
         # Cleanup the cache
         del generation_cache[data.genkey]
@@ -95,9 +97,9 @@ async def stream_generation(data: GenerateRequest, request: Request):
     try:
         async for chunk in _stream_collector(data, request):
             response = _create_stream_chunk(chunk)
-            yield ServerSentEvent(
-                event="message", data=response.model_dump_json(), sep="\n"
-            )
+            yield ServerSentEvent(event="message", data=response.model_dump_json(), sep="\n")
+    except ContextLengthExceededError as exc:
+        yield get_context_length_generator_error(str(exc))
     except Exception:
         yield get_generator_error(
             f"Kobold generation {data.genkey} aborted. Please check the server console."
@@ -118,6 +120,9 @@ async def get_generation(data: GenerateRequest, request: Request):
 
         response = _create_response(full_text)
         return response
+    except ContextLengthExceededError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise ContextLengthHTTPException(error_message) from exc
     except Exception as exc:
         error_message = handle_request_error(
             f"Completion {request.state.id} aborted. Maybe the model was unloaded? "

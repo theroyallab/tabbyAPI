@@ -10,7 +10,7 @@ embeddings function declared async.
 import base64
 from fastapi import Request
 import numpy as np
-from loguru import logger
+from common.logger import xlogger
 
 from common import model
 from endpoints.OAI.types.embedding import (
@@ -38,7 +38,7 @@ def float_list_to_base64(float_array: np.ndarray) -> str:
 async def get_embeddings(data: EmbeddingsRequest, request: Request) -> dict:
     model_path = model.embeddings_container.model_dir
 
-    logger.info(f"Received embeddings request {request.state.id}")
+    xlogger.info(f"Received embeddings request {request.state.id}")
 
     if not isinstance(data.input, list):
         data.input = [data.input]
@@ -63,6 +63,6 @@ async def get_embeddings(data: EmbeddingsRequest, request: Request) -> dict:
         usage=UsageInfo(prompt_tokens=usage, total_tokens=usage),
     )
 
-    logger.info(f"Finished embeddings request {request.state.id}")
+    xlogger.info(f"Finished embeddings request {request.state.id}")
 
     return response

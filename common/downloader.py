@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from huggingface_hub import HfApi, hf_hub_url
 from huggingface_hub.hf_api import RepoFile
 from fnmatch import fnmatch
-from loguru import logger
+from common.logger import xlogger
 from rich.progress import Progress
 from typing import List, Optional
 
@@ -56,9 +56,7 @@ async def _download_file(
             )
 
         # Create progress task with appropriate total (None for indeterminate)
-        download_task = progress.add_task(
-            f"[cyan]Downloading {filename}", total=repo_item.size
-        )
+        download_task = progress.add_task(f"[cyan]Downloading {filename}", total=repo_item.size)
 
         # Chunk limit is 2 MB
         async with aiofiles.open(str(filepath), "wb") as f:
@@ -77,9 +75,7 @@ def _get_repo_info(repo_id, revision, token):
     token = token or None
 
     api_client = HfApi()
-    repo_tree = api_client.list_repo_tree(
-        repo_id, revision=revision, token=token, recursive=True
-    )
+    repo_tree = api_client.list_repo_tree(repo_id, revision=revision, token=token, recursive=True)
 
     return [
         RepoItem(
@@ -104,9 +100,7 @@ def _get_download_folder(repo_id: str, repo_type: str, folder_name: Optional[str
     return download_path
 
 
-def _check_exclusions(
-    filename: str, include_patterns: List[str], exclude_patterns: List[str]
-):
+def _check_exclusions(filename: str, include_patterns: List[str], exclude_patterns: List[str]):
     include_result = any(fnmatch(filename, pattern) for pattern in include_patterns)
     exclude_result = any(fnmatch(filename, pattern) for pattern in exclude_patterns)
 
@@ -131,9 +125,7 @@ async def hf_repo_download(
     # Auto-detect repo type if it isn't provided
     if not repo_type:
         lora_filter = filter(
-            lambda repo_item: repo_item.path.endswith(
-                ("adapter_config.json", "adapter_model.bin")
-            ),
+            lambda repo_item: repo_item.path.endswith(("adapter_config.json", "adapter_model.bin")),
             file_list,
         )
 
@@ -162,13 +154,13 @@ async def hf_repo_download(
 
     download_path.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Saving {repo_id} to {str(download_path)}")
+    xlogger.info(f"Saving {repo_id} to {str(download_path)}")
 
     try:
         client_timeout = aiohttp.ClientTimeout(total=timeout)  # Turn off timeout
         async with aiohttp.ClientSession(timeout=client_timeout) as session:
             tasks = []
-            logger.info(f"Starting download for {repo_id}")
+            xlogger.info(f"Starting download for {repo_id}")
 
             progress = get_progress_bar()
             progress.start()
@@ -187,7 +179,7 @@ async def hf_repo_download(
 
             await asyncio.gather(*tasks)
             progress.stop()
-            logger.info(f"Finished download for {repo_id}")
+            xlogger.info(f"Finished download for {repo_id}")
 
             return download_path
     except (asyncio.CancelledError, Exception) as exc:

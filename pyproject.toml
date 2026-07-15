@@ -13,11 +13,11 @@ py-modules = []
 [project]
 name = "tabbyAPI"
 version = "0.0.1"
-description = "An OAI compatible exllamav2 API that's both lightweight and fast"
+description = "An OAI compatible exllamav3 API that's both lightweight and fast"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi-slim >= 0.115",
-    "pydantic == 2.11.0",
+    "pydantic >= 2.11, < 3",
     "ruamel.yaml",
     "rich",
     "uvicorn >= 0.28.1",
@@ -35,6 +35,7 @@ dependencies = [
     "psutil",
     "httptools >= 0.5.0",
     "pillow",
+    "requests",
 
     # Improved asyncio loops
     "uvloop ; platform_system == 'Linux' and platform_machine == 'x86_64'",
@@ -58,67 +59,56 @@ dev = [
 ]
 cu12 = [
     # Torch (Extra index URLs not support in pyproject.toml)
-    "torch @ https://download.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
-    "torch @ https://download.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
-    "torch @ https://download.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
-    "torch @ https://download.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
-    "torch @ https://download.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp313-cp313-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
-    "torch @ https://download.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp312-cp312-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
-    "torch @ https://download.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp311-cp311-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
-    "torch @ https://download.pytorch.org/whl/cu128/torch-2.8.0%2Bcu128-cp310-cp310-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+    "torch @ https://download.pytorch.org/whl/cu128/torch-2.9.0%2Bcu128-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
+    "torch @ https://download.pytorch.org/whl/cu128/torch-2.9.0%2Bcu128-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
+    "torch @ https://download.pytorch.org/whl/cu128/torch-2.9.0%2Bcu128-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/cu128/torch-2.9.0%2Bcu128-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
+    "torch @ https://download.pytorch.org/whl/cu128/torch-2.9.0%2Bcu128-cp313-cp313-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
+    "torch @ https://download.pytorch.org/whl/cu128/torch-2.9.0%2Bcu128-cp312-cp312-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
+    "torch @ https://download.pytorch.org/whl/cu128/torch-2.9.0%2Bcu128-cp311-cp311-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "torch @ https://download.pytorch.org/whl/cu128/torch-2.9.0%2Bcu128-cp310-cp310-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
 
-    # Exl2
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+cu128.torch2.8.0-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+cu128.torch2.8.0-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+cu128.torch2.8.0-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+cu128.torch2.8.0-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+cu128.torch2.8.0-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+cu128.torch2.8.0-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+cu128.torch2.8.0-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+cu128.torch2.8.0-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+    # Triton
+    "triton ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "triton-windows ; platform_system == 'Windows'",
+
+    # Flash Linear Attention
+    "flash-linear-attention >= 0.5.0 ; (platform_system == 'Linux' and platform_machine == 'x86_64') or platform_system == 'Windows'",
 
     # Exl3
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v0.0.16/exllamav3-0.0.16+cu128.torch2.8.0-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v0.0.16/exllamav3-0.0.16+cu128.torch2.8.0-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v0.0.16/exllamav3-0.0.16+cu128.torch2.8.0-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v0.0.16/exllamav3-0.0.16+cu128.torch2.8.0-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v0.0.16/exllamav3-0.0.16+cu128.torch2.8.0-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v0.0.16/exllamav3-0.0.16+cu128.torch2.8.0-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v0.0.16/exllamav3-0.0.16+cu128.torch2.8.0-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v0.0.16/exllamav3-0.0.16+cu128.torch2.8.0-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
-
-    # Windows FA2 from https://github.com/kingbri1/flash-attention/releases
-    "flash_attn @ https://github.com/kingbri1/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu128torch2.8.0cxx11abiFALSE-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
-    "flash_attn @ https://github.com/kingbri1/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu128torch2.8.0cxx11abiFALSE-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
-    "flash_attn @ https://github.com/kingbri1/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu128torch2.8.0cxx11abiFALSE-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
-    "flash_attn @ https://github.com/kingbri1/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu128torch2.8.0cxx11abiFALSE-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
-
-    # Linux FA2 from https://github.com/kingbri1/flash-attention/releases
-    "flash_attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
-    "flash_attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
-    "flash_attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
-    "flash_attn @ https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3+cu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0+cu128.torch2.9.0-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0+cu128.torch2.9.0-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0+cu128.torch2.9.0-cp311-cp311-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.11'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0+cu128.torch2.9.0-cp310-cp310-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.10'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0+cu128.torch2.9.0-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0+cu128.torch2.9.0-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0+cu128.torch2.9.0-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0+cu128.torch2.9.0-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
 ]
-amd = [
-    # Torch triton for ROCm
-    "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-3.4.0-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
-    "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-3.4.0-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
-    "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-3.4.0-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
-    "pytorch_triton_rocm @ https://download.pytorch.org/whl/pytorch_triton_rocm-3.4.0-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+cu13 = [
+    # Torch (Extra index URLs not support in pyproject.toml)
+    "torch @ https://download.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp314-cp314-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.14'",
+    "torch @ https://download.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
+    "torch @ https://download.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
+    "torch @ https://download.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp314-cp314-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.14'",
+    "torch @ https://download.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp313-cp313-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
+    "torch @ https://download.pytorch.org/whl/cu130/torch-2.11.0%2Bcu130-cp312-cp312-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
 
-    # Torch
-    "torch @ https://download.pytorch.org/whl/rocm6.4/torch-2.8.0%2Brocm6.4-cp313-cp313-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
-    "torch @ https://download.pytorch.org/whl/rocm6.4/torch-2.8.0%2Brocm6.4-cp312-cp312-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
-    "torch @ https://download.pytorch.org/whl/rocm6.4/torch-2.8.0%2Brocm6.4-cp311-cp311-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
-    "torch @ https://download.pytorch.org/whl/rocm6.4/torch-2.8.0%2Brocm6.4-cp310-cp310-manylinux_2_28_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+    # Triton
+    "triton ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version >= '3.12'",
+    "triton-windows ; platform_system == 'Windows' and python_version >= '3.12'",
 
-    # Exl2
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+rocm6.4.torch2.8.0-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+rocm6.4.torch2.8.0-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+rocm6.4.torch2.8.0-cp311-cp311-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.11'",
-    "exllamav2 @ https://github.com/turboderp-org/exllamav2/releases/download/v0.3.2/exllamav2-0.3.2+rocm6.4.torch2.8.0-cp310-cp310-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.10'",
+    # Flash Linear Attention
+    "flash-linear-attention >= 0.5.0 ; python_version >= '3.12' and ((platform_system == 'Linux' and platform_machine == 'x86_64') or platform_system == 'Windows')",
+
+    # Exl3
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0%2Bcu132.torch2.11.0-cp314-cp314-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.14'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0%2Bcu132.torch2.11.0-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0%2Bcu132.torch2.11.0-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0%2Bcu132.torch2.11.0-cp314-cp314-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.14'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0%2Bcu132.torch2.11.0-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.0.0/exllamav3-1.0.0%2Bcu132.torch2.11.0-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
 ]
-
 # MARK: Ruff options
 
 [tool.ruff]
@@ -143,8 +133,11 @@ exclude = [
     "docker",
 ]
 
+# For dev/debug purposes
+extend-exclude = ["*_test_.py"]
+
 # Same as Black.
-line-length = 88
+line-length = 100
 indent-width = 4
 
 # Assume Python 3.10
@@ -234,3 +227,7 @@ skip-magic-trailing-comma = false
 
 # Like Black, automatically detect the appropriate line ending.
 line-ending = "auto"
+
+# Don't format/validate test scripts
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["ALL"]

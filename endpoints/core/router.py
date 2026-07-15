@@ -1,6 +1,5 @@
 import asyncio
 import pathlib
-from sys import maxsize
 from typing import Optional
 from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -11,7 +10,11 @@ from common import model, sampling
 from common.auth import check_admin_key, check_api_key, get_key_permission
 from common.downloader import hf_repo_download
 from common.model import check_embeddings_container, check_model_container
-from common.networking import handle_request_error, run_with_request_disconnect
+from common.networking import (
+    get_sse_ping_interval,
+    handle_request_error,
+    run_with_request_disconnect,
+)
 from common.tabby_config import config
 from common.templating import PromptTemplate, get_all_templates
 from common.utils import unwrap
@@ -63,9 +66,7 @@ async def healthcheck(response: Response) -> HealthCheckResponse:
     if not healthy:
         response.status_code = 503
 
-    return HealthCheckResponse(
-        status="healthy" if healthy else "unhealthy", issues=issues
-    )
+    return HealthCheckResponse(status="healthy" if healthy else "unhealthy", issues=issues)
 
 
 @router.get("/.well-known/serviceinfo")
@@ -133,9 +134,7 @@ async def current_model() -> ModelCard:
     return get_current_model()
 
 
-@router.get(
-    "/props", dependencies=[Depends(check_api_key), Depends(check_model_container)]
-)
+@router.get("/props", dependencies=[Depends(check_api_key), Depends(check_model_container)])
 async def model_props() -> ModelPropsResponse:
     """
     Returns specific properties of a model for clients.
@@ -201,7 +200,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
 
         raise HTTPException(400, error_message)
 
-    return EventSourceResponse(stream_model_load(data, model_path), ping=maxsize)
+    return EventSourceResponse(stream_model_load(data, model_path), ping=get_sse_ping_interval())
 
 
 # Unload model endpoint
@@ -290,9 +289,7 @@ async def load_lora(data: LoraLoadRequest) -> LoraLoadResponse:
 
         raise HTTPException(400, error_message)
 
-    load_result = await model.load_loras(
-        lora_dir, **data.model_dump(), skip_wait=data.skip_queue
-    )
+    load_result = await model.load_loras(lora_dir, **data.model_dump(), skip_wait=data.skip_queue)
 
     return LoraLoadResponse(
         success=unwrap(load_result.get("success"), []),
@@ -426,13 +423,18 @@ async def encode_tokens(data: TokenEncodeRequest) -> TokenEncodeResponse:
             raise HTTPException(422, error_message)
 
         template_vars = {
+            **(data.template_vars or {}),
             "add_generation_prompt": False,
         }
 
-        # Don't need template vars again
-        text, mm_embeddings, _ = await format_messages_with_template(
-            data.text, template_vars, data.add_bos_token
+        text, mm_embeddings, rendered_template_vars = await format_messages_with_template(
+            data.text, template_vars
         )
+
+        # Let encode_tokens be the sole authority on whether BOS is added.
+        bos_token = rendered_template_vars.get("bos_token")
+        if bos_token and text.startswith(bos_token):
+            text = text.removeprefix(bos_token)
     else:
         error_message = handle_request_error(
             "Unable to tokenize the provided text. Check your formatting?",
@@ -441,9 +443,7 @@ async def encode_tokens(data: TokenEncodeRequest) -> TokenEncodeResponse:
 
         raise HTTPException(422, error_message)
 
-    raw_tokens = model.container.encode_tokens(
-        text, embeddings=mm_embeddings, **data.get_params()
-    )
+    raw_tokens = model.container.encode_tokens(text, embeddings=mm_embeddings, **data.get_params())
     tokens = unwrap(raw_tokens, [])
     response = TokenEncodeResponse(tokens=tokens, length=len(tokens))
 
@@ -557,9 +557,7 @@ async def list_sampler_overrides(request: Request) -> SamplerOverrideListRespons
     else:
         presets = []
 
-    return SamplerOverrideListResponse(
-        presets=presets, **sampling.overrides_container.model_dump()
-    )
+    return SamplerOverrideListResponse(presets=presets, **sampling.overrides_container.model_dump())
 
 
 @router.post(

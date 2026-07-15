@@ -1,7 +1,8 @@
 """Tokenization types"""
 
-from pydantic import BaseModel
-from typing import List, Union
+from typing import List, Optional, Union
+
+from pydantic import AliasChoices, BaseModel, Field
 
 from endpoints.OAI.types.chat_completion import ChatCompletionMessage
 
@@ -26,6 +27,11 @@ class TokenEncodeRequest(CommonTokenRequest):
     """Represents a tokenization request."""
 
     text: Union[str, List[ChatCompletionMessage]]
+    template_vars: Optional[dict] = Field(
+        default_factory=dict,
+        validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
+        description="Aliases: chat_template_kwargs",
+    )
 
 
 class TokenEncodeResponse(BaseModel):

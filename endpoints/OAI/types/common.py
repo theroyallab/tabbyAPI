@@ -21,6 +21,7 @@ class UsageStats(BaseModel):
 
 class CompletionResponseFormat(BaseModel):
     type: str = "text"
+    json_schema: Optional[object] = None
 
 
 class ChatCompletionStreamOptions(BaseModel):

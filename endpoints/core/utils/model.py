@@ -1,3 +1,4 @@
+import asyncio
 import pathlib
 from asyncio import CancelledError
 from typing import Optional
@@ -74,6 +75,10 @@ def get_dummy_models():
         return [ModelCard(id="gpt-3.5-turbo")]
 
 
+# Keep strong references to detached load tasks; asyncio only holds weak ones
+_load_tasks: set = set()
+
+
 async def stream_model_load(
     data: ModelLoadRequest,
     model_path: pathlib.Path,
@@ -84,15 +89,38 @@ async def stream_model_load(
     load_data = data.model_dump(exclude_none=True)
 
     # Set the draft model directory
-    load_data.setdefault("draft_model", {})["draft_model_dir"] = (
-        config.draft_model.draft_model_dir
-    )
+    load_data.setdefault("draft_model", {})["draft_model_dir"] = config.draft_model.draft_model_dir
 
-    load_status = model.load_model_gen(
-        model_path, skip_wait=data.skip_queue, **load_data
-    )
+    # Drive the load in a detached task and observe it through a queue,
+    # so a client disconnect doesn't cancel a load in progress
+    progress_queue: asyncio.Queue = asyncio.Queue()
+
+    async def run_load():
+        try:
+            load_status = model.load_model_gen(model_path, skip_wait=data.skip_queue, **load_data)
+            async for progress in load_status:
+                progress_queue.put_nowait(progress)
+
+            progress_queue.put_nowait(None)
+        except Exception as exc:
+            progress_queue.put_nowait(exc)
+
+    load_task = asyncio.create_task(run_load())
+    _load_tasks.add(load_task)
+    load_task.add_done_callback(_load_tasks.discard)
+
     try:
-        async for module, modules, model_type in load_status:
+        while True:
+            progress = await progress_queue.get()
+
+            if progress is None:
+                break
+
+            if isinstance(progress, Exception):
+                yield get_generator_error(str(progress))
+                break
+
+            module, modules, model_type = progress
             if module != 0:
                 response = ModelLoadResponse(
                     model_type=model_type,
@@ -113,11 +141,7 @@ async def stream_model_load(
 
                 yield response.model_dump_json()
     except CancelledError:
-        # Get out if the request gets disconnected
+        # The client disconnected, but the load task keeps running.
+        # A repeated request for the same model returns once this load finishes.
 
-        handle_request_disconnect(
-            "Model load cancelled by user. "
-            "Please make sure to run unload to free up resources."
-        )
-    except Exception as exc:
-        yield get_generator_error(str(exc))
+        handle_request_disconnect("Model load request disconnected. The load will continue.")

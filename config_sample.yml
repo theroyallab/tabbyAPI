@@ -31,6 +31,11 @@ network:
   # Possible values: OAI, Kobold.
   api_servers: ["OAI"]
 
+  # Seconds between SSE keep-alive pings on streaming responses (default: 15).
+  # Pings are SSE comments, ignored by compliant clients, and prevent
+  # connections from dropping during long prefills. Set to 0 to disable.
+  sse_ping_interval: 15
+
 # Options for logging
 logging:
   # Enable prompt logging (default: False).
@@ -42,6 +47,12 @@ logging:
   # Enable request logging (default: False).
   # NOTE: Only use this for debugging!
   log_requests: false
+
+  # Write every /v1/chat/completions request to logs/debug/ as JSON (default: False).
+  # PRIVACY WARNING: Enabling this creates a comprehensive request log, including the
+  # full message history and generation parameters. API keys are redacted, but prompts
+  # and user-provided content are preserved for bug-report reproduction.
+  log_chat_completion_requests: false
 
 # Options for model overrides and loading
 # Please read the comments to understand how arguments are handled
@@ -75,7 +86,7 @@ model:
   use_as_default: []
 
   # Backend to use for this model (auto-detect if not specified)
-  # Options: exllamav2, exllamav3
+  # Options: exllamav3
   backend:
 
   # Max sequence length (default: min(max_position_embeddings, cache_size)).
@@ -84,13 +95,11 @@ model:
 
   # Size of the key/value cache to allocate, in tokens (default: 4096).
   # Must be a multiple of 256.
-  # ExllamaV2 note: On AMD GPUs and NVIDIA GPUs older than Ampere, this value
-  # is ignored. Please use max_seq_len
   cache_size:
 
   # Enable different cache modes for VRAM savings (default: FP16).
-  # Possible values for exllamav2: 'FP16', 'Q8', 'Q6', 'Q4'.
-  # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
+  # Specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
+  # The legacy values 'FP16', 'Q8', 'Q6', 'Q4' are also accepted.
   cache_mode: FP16
 
   # Load model with tensor parallelism.
@@ -112,7 +121,7 @@ model:
   # Represented as an array of MB per GPU.
   autosplit_reserve: [96]
 
-  # An integer array of GBs of VRAM to split between GPUs (default: []).
+  # Array of VRAM sizes to split between GPUs, in GB (default: []).
   # Used with tensor parallelism.
   gpu_split: []
 
@@ -141,9 +150,11 @@ model:
   # Used by EXL3 models only.
   output_chunking: true
 
-  # Set the maximum number of prompts to process at one time (default: None/Automatic).
-  # Automatically calculated if left blank.
-  # NOTE: Only available for Nvidia ampere (30 series) and above GPUs.
+  # Set the maximum number of generation jobs that can run concurrently
+  # The default maximum batch size for transformer architectures is 32. Recurrent
+  # models with linear or sliding attention use more VRAM to support larger batches,
+  # so the default value is reduced to 4. If you do not require concurrency at all, you
+  # can reduce it further to minimize VRAM overhead.
   max_batch_size:
 
   # Set the prompt template for this model. (default: None)
@@ -156,9 +167,43 @@ model:
   # Enables vision support if the model supports it. (default: False)
   vision: false
 
+  # Force-enable reasoning in template args
+  # Injects the enable_thinking: True into the model's template arguments. This doesn't
+  # force reasoning or affect how reasoning content is parsed, but some clients will
+  # not explicitly enable this and some models need it to properly enter reasoning mode.
+  force_enable_thinking: false
+
+  # Enable reasoning parser (default: False).
+  # Do NOT enable this if the model is not a reasoning model (e.g. deepseek-r1 series)
+  reasoning: false
+
+  # The start token for reasoning content (default: "<think>")
+  reasoning_start_token: "<think>"
+
+  # The end token for reasoning content (default: "</think>")
+  reasoning_end_token: "</think>"
+
+  # Whether generation starts inside a reasoning block (default: auto).
+  # Options: auto, always, never
+  # auto guesses by scanning the end of the templated prompt for an unclosed reasoning start token.
+  start_in_reasoning: auto
+
+  # Parse tool calls that occur inside reasoning content (default: True).
+  # If False, tool call tags inside a reasoning block are treated as plain reasoning text.
+  tool_calls_in_reasoning: true
+
+  # Tool format, e.g. 'qwen3_coder'. See docs for supported formats. If left blank,
+  # tool calls from the model will not be parsed by the server.
+  tool_format:
+
 # Options for draft models (speculative decoding)
 # This will use more VRAM!
 draft_model:
+  # Drafting mode for exllamav3 (default: model).
+  # Options: model, disabled, mtp, ngram.
+  # In `model` mode, drafting is disabled if no draft_model_name is provided.
+  draft_mode: model
+
   # Directory to look for draft models (default: models)
   draft_model_dir: models
 
@@ -177,13 +222,23 @@ draft_model:
   draft_rope_alpha:
 
   # Cache mode for draft models to save VRAM (default: FP16).
-  # Possible values for exllamav2: 'FP16', 'Q8', 'Q6', 'Q4'.
-  # For exllamav3, specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
+  # Specify the pair k_bits,v_bits where k_bits and v_bits are integers from 2-8 (i.e. 8,8).
+  # The legacy values 'FP16', 'Q8', 'Q6', 'Q4' are also accepted.
   draft_cache_mode: FP16
 
-  # An integer array of GBs of VRAM to split between GPUs (default: []).
+  # Array of VRAM sizes to split between GPUs, in GB (default: []).
   # If this isn't filled in, the draft model is autosplit.
   draft_gpu_split: []
+
+  # Number of tokens to draft per iteration (default: draft model default)
+  # Recurrent (linear or sliding attention) models use more VRAM for longer drafts.
+  # This overhead multiplies with the max batch size, so for models with long drafts
+  # (e.g. DFlash with 15 tokens by default) shorter drafts may be preferable.
+  draft_num_tokens:
+
+  # Minimum match length for exllamav3 n-gram drafting (default: 2).
+  # Only used when draft_mode is ngram.
+  ngram_match_min: 2
 
 # Options for Sampling
 sampling:
@@ -221,9 +276,21 @@ embeddings:
   # An initial embedding model to load on the infinity backend.
   embedding_model_name:
 
+# Global memory settings
+memory:
+
+  # Max size of recurrent cache in system memory, in MB (default: 4096)
+  sysmem_recurrent_cache: 4096
+
+  # Use cudaMallocAsync backend in Torch (default: True).
+  # Enabling this is generally preferable, but it may cause issues with certain
+  # workloads. Try disabling it if you experience intermittent OoM errors. If
+  # False, Torch will use the allocator defined by the system env
+  cuda_malloc_async: True
+
 # Options for development and experimentation
 developer:
-  # Skip Exllamav2 version check (default: False).
+  # Skip Exllamav3 version check (default: False).
   # WARNING: It's highly recommended to update your dependencies rather than enabling this flag.
   unsafe_launch: false
 
@@ -234,3 +301,12 @@ developer:
   # For realtime process priority, run as administrator or sudo.
   # Otherwise, the priority will be set to high.
   realtime_process_priority: false
+
+  # Enable extremely verbose seqlog logging, requires a running Seq server
+  seqlog: false
+
+  # Seq server url:port
+  seqlog_server_url: http://localhost:5341
+
+  # Seq server API key (default: None)
+  seqlog_api_key:

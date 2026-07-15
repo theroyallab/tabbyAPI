@@ -1,42 +1,34 @@
-"""
-Manages the storage and utility of model containers.
-
-Containers exist as a common interface for backends.
-"""
+"""Manages the lifecycle of the global model container and embeddings container."""
 
 import aiofiles
+import asyncio
 import pathlib
 from enum import Enum
 from fastapi import HTTPException
-from loguru import logger
+from common.logger import xlogger
 from ruamel.yaml import YAML
-from typing import Dict, Optional
+from typing import Optional
 
-from backends.base_model_container import BaseModelContainer
+from common.errors import ContextLengthExceededError, ContextLengthHTTPException
 from common.logger import get_loading_progress_bar
+from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import handle_request_error
+from common.sampling import BaseSamplerRequest
 from common.tabby_config import config
 from common.optional_dependencies import dependencies
 from common.transformers_utils import HFModel
 from common.utils import deep_merge_dict, unwrap
 
-# Global variables for model container
-container: Optional[BaseModelContainer] = None
-embeddings_container = None
-
-
-_BACKEND_REGISTRY: Dict[str, BaseModelContainer] = {}
-
-if dependencies.exllamav2:
-    from backends.exllamav2.model import ExllamaV2Container
-
-    _BACKEND_REGISTRY["exllamav2"] = ExllamaV2Container
-
-
 if dependencies.exllamav3:
     from backends.exllamav3.model import ExllamaV3Container
 
-    _BACKEND_REGISTRY["exllamav3"] = ExllamaV3Container
+# Global variables for model container
+container: Optional["ExllamaV3Container"] = None
+embeddings_container = None
+
+# Serializes model loads and swaps. The container's load_lock is per-instance
+# and can't order operations that span two containers.
+load_lock = asyncio.Lock()
 
 
 if dependencies.extras:
@@ -48,7 +40,6 @@ if dependencies.extras:
 class ModelType(Enum):
     MODEL = "model"
     DRAFT = "draft"
-    EMBEDDING = "embedding"
     VISION = "vision"
 
 
@@ -57,15 +48,25 @@ def load_progress(module, modules):
     yield module, modules
 
 
-def detect_backend(hf_model: HFModel) -> str:
-    """Determine the appropriate backend based on model files and configuration."""
+def validate_backend(backend: Optional[str], hf_model: HFModel):
+    """Check that the requested model can be loaded with the exllamav3 backend."""
+
+    if backend == "exllamav2":
+        raise ValueError("The exllamav2 backend is no longer supported. Please use exllamav3.")
+    elif backend and backend != "exllamav3":
+        raise ValueError(f"Invalid backend '{backend}'. Available backends: ['exllamav3']")
 
     quant_method = hf_model.quant_method()
+    if quant_method in {"exl2", "gptq"}:
+        raise ValueError(
+            f"Models quantized with '{quant_method}' require the exllamav2 backend, "
+            "which is no longer supported. Please use an exl3 or unquantized model."
+        )
 
-    if quant_method == "exl3":
-        return "exllamav3"
-    else:
-        return "exllamav2"
+    if not dependencies.exllamav3:
+        raise ValueError(
+            "The exllamav3 backend is selected, but required dependencies are not installed."
+        )
 
 
 async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
@@ -79,6 +80,7 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
 
     # Initialize overrides dict
     overrides = {"draft_model": {}}
+    model_inline_config = None
 
     if override_config_path.exists():
         async with aiofiles.open(
@@ -95,7 +97,7 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
             if model_inline_config:
                 overrides = {**overrides, **model_inline_config}
             else:
-                logger.warning(
+                xlogger.warning(
                     "Cannot find inline model overrides. "
                     'Make sure they are nested under a "model:" key'
                 )
@@ -118,6 +120,16 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
     # Merge the override and model kwargs
     # No need to preserve the original overrides dict
     merged_kwargs = deep_merge_dict(overrides, kwargs)
+
+    xlogger.debug(
+        "Applying load defaults",
+        {
+            "kwargs": kwargs,
+            "model_inline_config": model_inline_config,
+            "overrides": overrides,
+            "merged_kwargs": merged_kwargs,
+        },
+    )
     return merged_kwargs
 
 
@@ -133,96 +145,85 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     """Generator to load a model"""
     global container
 
-    # Check if the model is already loaded
-    if container and container.model:
-        loaded_model_name = container.model_dir.name
+    async with load_lock:
+        # Check if the model is already loaded
+        if container and container.model:
+            loaded_model_name = container.model_dir.name
 
-        if loaded_model_name == model_path.name and container.loaded:
-            raise ValueError(
-                f'Model "{loaded_model_name}" is already loaded! Aborting.'
-            )
+            if loaded_model_name == model_path.name and container.loaded:
+                xlogger.info(f'Model "{loaded_model_name}" is already loaded')
 
-        logger.info("Unloading existing model.")
-        await unload_model()
+                # Emit a terminal progress event so API clients always
+                # see a "finished" status even when no load was needed
+                yield 1, 1, ModelType.MODEL.value
+                return
 
-    # Reset to prepare for a new container
-    container = None
+            if container.loaded:
+                xlogger.info("Unloading existing model.")
+                await unload_model()
 
-    # Model_dir is already provided
-    if "model_dir" in kwargs:
-        kwargs.pop("model_dir")
+        # Reset to prepare for a new container
+        container = None
 
-    # Merge with config and inline defaults
-    # TODO: Figure out a way to do this with Pydantic validation
-    # and ModelLoadRequest. Pydantic doesn't have async validators
-    kwargs = await apply_load_defaults(model_path, **kwargs)
+        # Model_dir is already provided
+        if "model_dir" in kwargs:
+            kwargs.pop("model_dir")
 
-    # Fetch the extra HF configuration options
-    hf_model = await HFModel.from_directory(model_path)
+        # Merge with config and inline defaults
+        # TODO: Figure out a way to do this with Pydantic validation
+        # and ModelLoadRequest. Pydantic doesn't have async validators
+        kwargs = await apply_load_defaults(model_path, **kwargs)
 
-    # Override the max sequence length based on user
-    max_seq_len = kwargs.get("max_seq_len")
-    if max_seq_len == -1:
-        kwargs["max_seq_len"] = hf_model.hf_config.max_position_embeddings
+        # Fetch the extra HF configuration options
+        hf_model = await HFModel.from_directory(model_path)
 
-    # Create a new container and check if the right dependencies are installed
-    backend = unwrap(kwargs.get("backend"), detect_backend(hf_model))
-    container_class = _BACKEND_REGISTRY.get(backend)
+        # Override the max sequence length based on user
+        max_seq_len = kwargs.get("max_seq_len")
+        if max_seq_len == -1:
+            kwargs["max_seq_len"] = hf_model.hf_config.get_max_position_embeddings()
 
-    if not container_class:
-        available_backends = list(_BACKEND_REGISTRY.keys())
-        if backend in available_backends:
-            raise ValueError(
-                f"Backend '{backend}' selected, but required dependencies "
-                "are not installed."
-            )
-        else:
-            raise ValueError(
-                f"Invalid backend '{backend}'. Available backends: {available_backends}"
-            )
+        # Check model compatibility and dependencies before creating a container
+        validate_backend(kwargs.get("backend"), hf_model)
 
-    logger.info(f"Using backend {backend}")
-    new_container: BaseModelContainer = await container_class.create(
-        model_path.resolve(), hf_model, **kwargs
-    )
+        new_container = await ExllamaV3Container.create(model_path.resolve(), hf_model, **kwargs)
 
-    # Add possible types of models that can be loaded
-    model_type = [ModelType.MODEL]
+        # Add possible types of models that can be loaded
+        model_type = [ModelType.MODEL]
 
-    if new_container.use_vision:
-        model_type.insert(0, ModelType.VISION)
+        if new_container.use_draft_model:
+            model_type.insert(0, ModelType.DRAFT)
 
-    if new_container.use_draft_model:
-        model_type.insert(0, ModelType.DRAFT)
+        if new_container.use_vision:
+            model_type.insert(0, ModelType.VISION)
 
-    load_status = new_container.load_gen(load_progress, **kwargs)
+        load_status = new_container.load_gen(load_progress, **kwargs)
 
-    progress = get_loading_progress_bar()
-    progress.start()
+        progress = get_loading_progress_bar()
+        progress.start()
 
-    try:
-        index = 0
-        async for module, modules in load_status:
-            current_model_type = model_type[index].value
-            if module == 0:
-                loading_task = progress.add_task(
-                    f"[cyan]Loading {current_model_type} modules", total=modules
-                )
-            else:
-                progress.advance(loading_task)
-
-            yield module, modules, current_model_type
-
-            if module == modules:
-                # Switch to model progress if the draft model is loaded
-                if index == len(model_type):
-                    progress.stop()
+        try:
+            index = 0
+            async for module, modules in load_status:
+                current_model_type = model_type[index].value
+                if module == 0:
+                    loading_task = progress.add_task(
+                        f"[cyan]Loading {current_model_type} modules", total=modules
+                    )
                 else:
-                    index += 1
+                    progress.advance(loading_task)
 
-        container = new_container
-    finally:
-        progress.stop()
+                yield module, modules, current_model_type
+
+                if module == modules:
+                    # Switch to model progress if the draft model is loaded
+                    if index == len(model_type):
+                        progress.stop()
+                    else:
+                        index += 1
+
+            container = new_container
+        finally:
+            progress.stop()
 
 
 async def load_model(model_path: pathlib.Path, **kwargs):
@@ -260,11 +261,9 @@ async def load_embedding_model(model_path: pathlib.Path, **kwargs):
         loaded_model_name = embeddings_container.model_dir.name
 
         if loaded_model_name == model_path.name and embeddings_container.loaded:
-            raise ValueError(
-                f'Embeddings model "{loaded_model_name}" is already loaded! Aborting.'
-            )
+            raise ValueError(f'Embeddings model "{loaded_model_name}" is already loaded! Aborting.')
 
-        logger.info("Unloading existing embeddings model.")
+        xlogger.info("Unloading existing embeddings model.")
         await unload_embedding_model()
 
     # Reset to prepare for a new container
@@ -309,3 +308,21 @@ async def check_embeddings_container():
         ).error.message
 
         raise HTTPException(503, error_message)
+
+
+def check_context_length(
+    prompts: str | list[str],
+    params: BaseSamplerRequest,
+    mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
+):
+    """Reject oversized prompts before a streaming response commits HTTP 200."""
+
+    if isinstance(prompts, str):
+        prompts = [prompts]
+
+    try:
+        for prompt in prompts:
+            container.validate_context_length(prompt, params, mm_embeddings)
+    except ContextLengthExceededError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise ContextLengthHTTPException(error_message) from exc

@@ -23,9 +23,7 @@ def filter_none_values(collection: Union[dict, list]) -> Union[dict, list]:
     """Remove None values from a collection."""
 
     if isinstance(collection, dict):
-        return {
-            k: filter_none_values(v) for k, v in collection.items() if v is not None
-        }
+        return {k: filter_none_values(v) for k, v in collection.items() if v is not None}
     elif isinstance(collection, list):
         return [filter_none_values(i) for i in collection if i is not None]
     else:

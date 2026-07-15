@@ -2,7 +2,6 @@
 
 import argparse
 import json
-import os
 import pathlib
 import platform
 import subprocess
@@ -44,20 +43,28 @@ def get_user_choice(question: str, options_dict: dict):
 def get_install_features(lib_name: str = None):
     """Fetches the appropriate requirements file depending on the GPU"""
     install_features = None
-    possible_features = ["cu12", "amd"]
+    possible_features = ["cu12", "cu13"]
 
     if not lib_name:
-        # Ask the user for the GPU lib
-        gpu_lib_choices = {
-            "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu12"},
-            "B": {"pretty": "AMD", "internal": "amd"},
-        }
-        user_input = get_user_choice(
-            "Select your GPU. If you don't know, select Cuda 12.x (A)",
-            gpu_lib_choices,
-        )
+        has_nvidia = which("nvidia-smi") is not None
 
-        lib_name = gpu_lib_choices.get(user_input, {}).get("internal")
+        if has_nvidia:
+            lib_name = "cu12"
+            print("Auto-detected NVIDIA GPU. Using CUDA 12.x backend.")
+        else:
+            gpu_lib_choices = {
+                "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu12"},
+                "B": {"pretty": "NVIDIA Cuda 13.x", "internal": "cu13"},
+            }
+            print(
+                "WARNING: Auto-detection failed. "
+                "Please ensure you have an NVIDIA GPU (with nvidia-smi) installed."
+            )
+            user_input = get_user_choice(
+                "Select your GPU. If you don't know, select Cuda 12.x (A)",
+                gpu_lib_choices,
+            )
+            lib_name = gpu_lib_choices.get(user_input, {}).get("internal")
 
         # Write to start options
         start_options["gpu_lib"] = lib_name
@@ -75,20 +82,6 @@ def get_install_features(lib_name: str = None):
             "if you want to change your selection."
         )
         return
-
-    if install_features == "amd":
-        # Exit if using AMD and Windows
-        if platform.system() == "Windows":
-            print(
-                "ERROR: TabbyAPI does not support AMD and Windows. "
-                "Please use Linux and ROCm 6.4. Exiting."
-            )
-            sys.exit(0)
-
-        # Override env vars for ROCm support on non-supported GPUs
-        os.environ["ROCM_PATH"] = "/opt/rocm"
-        os.environ["HSA_OVERRIDE_GFX_VERSION"] = "10.3.0"
-        os.environ["HCC_AMDGPU_TARGET"] = "gfx1030"
 
     return install_features
 
@@ -132,12 +125,12 @@ def add_start_args(parser: argparse.ArgumentParser):
         "-nw",
         "--nowheel",
         action="store_true",
-        help="Don't upgrade wheel dependencies (exllamav2, torch)",
+        help="Don't upgrade wheel dependencies (exllamav3, torch)",
     )
     start_group.add_argument(
         "--gpu-lib",
         type=str,
-        help="Select GPU library. Options: cu121, cu118, amd",
+        help="Select GPU library. Options: cu12, cu13",
     )
 
 
@@ -158,7 +151,7 @@ def run_pip(command: List[str]):
     if has_uv:
         command.insert(0, "uv")
 
-    subprocess.run(command)
+    subprocess.run(command, check=True)
 
 
 if __name__ == "__main__":
@@ -183,8 +176,11 @@ if __name__ == "__main__":
     add_start_args(parser)
     args, _ = parser.parse_known_args()
 
-    # Log pip version
-    run_pip(["pip", "-V"])
+    # Log pip/uv version
+    if has_uv:
+        subprocess.run(["uv", "-V"])
+    else:
+        subprocess.run(["pip", "-V"])
 
     script_ext = "bat" if platform.system() == "Windows" else "sh"
     do_start_options_write = False
@@ -199,10 +195,7 @@ if __name__ == "__main__":
         if start_options.get("first_run_done"):
             first_run = False
     else:
-        print(
-            "It looks like you're running TabbyAPI for the first time. "
-            "Getting things ready..."
-        )
+        print("It looks like you're running TabbyAPI for the first time. Getting things ready...")
 
     # Set variables that rely on start options
     first_run = not start_options.get("first_run_done")
@@ -236,8 +229,13 @@ if __name__ == "__main__":
 
         # pip install .[features]
         print(f"Running install command: {' '.join(install_command)}")
-        run_pip(install_command)
-        print()
+
+        try:
+            run_pip(install_command)
+            print()
+        except subprocess.CalledProcessError:
+            print("\nDependency installation failed. Please check the logs and run again.\n")
+            sys.exit(1)
 
         if first_run:
             start_options["first_run_done"] = True
@@ -246,10 +244,7 @@ if __name__ == "__main__":
             do_start_options_write = True
 
         if args.update_deps:
-            print(
-                f"Dependencies updated. Please run TabbyAPI with `start.{script_ext}`. "
-                "Exiting."
-            )
+            print(f"Dependencies updated. Please run TabbyAPI with `start.{script_ext}`. Exiting.")
             sys.exit(0)
         else:
             print(
@@ -281,17 +276,12 @@ if __name__ == "__main__":
 
         # Create a config if it doesn't exist
         # This is not necessary to run TabbyAPI, but is new user proof
-        config_path = (
-            pathlib.Path(args.config) if args.config else pathlib.Path("config.yml")
-        )
+        config_path = pathlib.Path(args.config) if args.config else pathlib.Path("config.yml")
         if not config_path.exists():
             sample_config_path = pathlib.Path("config_sample.yml")
             copyfile(sample_config_path, config_path)
 
-            print(
-                "A config.yml wasn't found.\n"
-                f"Created one at {str(config_path.resolve())}"
-            )
+            print(f"A config.yml wasn't found.\nCreated one at {str(config_path.resolve())}")
 
         print("Starting TabbyAPI...")
         entrypoint(args, parser)

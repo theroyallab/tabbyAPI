@@ -5,7 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from typing import Optional
 
+from common import signals
 from common.logger import UVICORN_LOG_CONFIG
+from common.errors import ContextLengthHTTPException, context_length_exception_handler
 from common.networking import get_global_depends
 from common.tabby_config import config
 from endpoints.Kobold import router as KoboldRouter
@@ -18,13 +20,14 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
 
     app = FastAPI(
         title="TabbyAPI",
-        summary="An OAI compatible exllamav2 API that's both lightweight and fast",
+        summary="An OAI compatible exllamav3 API that's both lightweight and fast",
         description=(
             "This docs page is not meant to send requests! Please use a service "
             "like Postman or a frontend UI."
         ),
         dependencies=get_global_depends(),
     )
+    app.add_exception_handler(ContextLengthHTTPException, context_length_exception_handler)
 
     # ALlow CORS requests
     app.add_middleware(
@@ -92,5 +95,9 @@ async def start_api(host: str, port: int):
         loop=loop,
     )
     server = uvicorn.Server(config)
+
+    # Uvicorn owns SIGINT/SIGTERM while serving and re-raises captured
+    # signals after its graceful shutdown
+    signals.SERVER_SERVING = True
 
     await server.serve()

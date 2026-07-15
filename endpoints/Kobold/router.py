@@ -1,10 +1,10 @@
-from sys import maxsize
 from fastapi import APIRouter, Depends, Request
 from sse_starlette import EventSourceResponse
 
 from common import model
 from common.auth import check_api_key
 from common.model import check_model_container
+from common.networking import get_sse_ping_interval
 from common.utils import unwrap
 from endpoints.core.utils.model import get_current_model
 from endpoints.Kobold.types.generation import (
@@ -58,7 +58,8 @@ async def generate(request: Request, data: GenerateRequest) -> GenerateResponse:
     dependencies=[Depends(check_api_key), Depends(check_model_container)],
 )
 async def generate_stream(request: Request, data: GenerateRequest) -> GenerateResponse:
-    response = EventSourceResponse(stream_generation(data, request), ping=maxsize)
+    model.check_context_length(data.prompt, data)
+    response = EventSourceResponse(stream_generation(data, request), ping=get_sse_ping_interval())
 
     return response
 
@@ -87,9 +88,7 @@ async def check_generate(data: CheckGenerateRequest) -> GenerateResponse:
     return response
 
 
-@kai_router.get(
-    "/model", dependencies=[Depends(check_api_key), Depends(check_model_container)]
-)
+@kai_router.get("/model", dependencies=[Depends(check_api_key), Depends(check_model_container)])
 async def current_model() -> CurrentModelResponse:
     """Fetches the current model and who owns it."""
 

@@ -2,7 +2,7 @@
 Functions for logging generation events.
 """
 
-from loguru import logger
+from common.logger import xlogger
 from typing import Optional
 
 from common.tabby_config import config
@@ -18,37 +18,41 @@ def broadcast_status():
         enabled.append("generation params")
 
     if len(enabled) > 0:
-        logger.info("Generation logging is enabled for: " + ", ".join(enabled))
+        xlogger.info("Generation logging is enabled for: " + ", ".join(enabled))
     else:
-        logger.info("Generation logging is disabled")
+        xlogger.info("Generation logging is disabled")
 
 
 def log_generation_params(**kwargs):
     """Logs generation parameters to console."""
     if config.logging.log_generation_params:
-        logger.info(f"Generation options: {kwargs}\n")
+        xlogger.info("Generation options:", kwargs, details=f"{kwargs}\n")
 
 
 def log_prompt(prompt: str, request_id: str, negative_prompt: Optional[str] = None):
     """Logs the prompt to console."""
     if config.logging.log_prompt:
-        formatted_prompt = "\n" + prompt
-        logger.info(
-            f"Prompt (ID: {request_id}): {formatted_prompt if prompt else 'Empty'}\n"
+        xlogger.info(
+            f"Raw prompt (ID: {request_id}):",
+            {"prompt": prompt},
+            details=f"\n{prompt if prompt else 'Empty'}\n",
         )
 
         if negative_prompt:
-            formatted_negative_prompt = "\n" + negative_prompt
-            logger.info(f"Negative Prompt: {formatted_negative_prompt}\n")
+            xlogger.info(
+                "Negative Prompt:",
+                {"negative_prompt": negative_prompt},
+                details=f"\n{negative_prompt}\n",
+            )
 
 
 def log_response(request_id: str, response: str):
     """Logs the response to console."""
     if config.logging.log_prompt:
-        formatted_response = "\n" + response
-        logger.info(
-            f"Response (ID: {request_id}): "
-            f"{formatted_response if response else 'Empty'}\n"
+        xlogger.info(
+            f"Response (ID: {request_id}):",
+            {"response": response},
+            details=f"\n{response if response else 'Empty'}\n",
         )
 
 
@@ -85,7 +89,27 @@ def log_metrics(
         if context_len > max_seq_len:
             extra_parts.append("<-- Not accurate (truncated)")
 
+    # Add draft metrics
+    if "draft_accept" in metrics:
+        accept = metrics.get("draft_accept", 0)
+        reject = metrics.get("draft_reject", 0)
+        total_draft = accept + reject
+        accept_rate = accept / total_draft if total_draft > 0 else 0.0
+        itemization.append(
+            f"Draft: {accept} / {total_draft} tokens accepted ({accept_rate * 100:.2f}%)"
+        )
+
     # Print output
-    logger.info(
-        initial_response + " (" + ", ".join(itemization) + ") " + " ".join(extra_parts)
+    xlogger.info(
+        initial_response,
+        {
+            "new_tokens": prompt_tokens - cached_tokens,
+            "cached_tokens": cached_tokens,
+            "prompt_tokens": prompt_tokens,
+            "prompt_tokens_per_second": metrics.get("prompt_tokens_per_sec"),
+            "gen_tokens_per_second": metrics.get("gen_tokens_per_sec"),
+            "context_len": context_len,
+            "max_seq_len": max_seq_len,
+        },
+        details="(" + ", ".join(itemization) + ") " + " ".join(extra_parts),
     )

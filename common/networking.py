@@ -3,14 +3,26 @@
 import asyncio
 import json
 import socket
+import time
 import traceback
 from fastapi import Depends, HTTPException, Request
 from loguru import logger
+from common.logger import xlogger
 from pydantic import BaseModel
 from typing import Optional
 from uuid import uuid4
 
+from common.errors import context_length_error_content
 from common.tabby_config import config
+
+
+def get_sse_ping_interval() -> int:
+    """SSE keep-alive ping interval in seconds, or effectively never if disabled."""
+
+    from sys import maxsize
+
+    interval = config.network.sse_ping_interval
+    return interval if interval else maxsize
 
 
 class TabbyRequestErrorMessage(BaseModel):
@@ -34,21 +46,26 @@ def get_generator_error(message: str, exc_info: bool = True):
     return generator_error.model_dump_json()
 
 
+def get_context_length_generator_error(message: str):
+    """Get an OpenAI-compatible context overflow error for an active stream."""
+
+    handle_request_error(message, exc_info=False)
+    return json.dumps(context_length_error_content(message))
+
+
 def handle_request_error(message: str, exc_info: bool = True):
     """Log a request error to the console."""
 
     trace = traceback.format_exc()
     send_trace = config.network.send_tracebacks
 
-    error_message = TabbyRequestErrorMessage(
-        message=message, trace=trace if send_trace else None
-    )
+    error_message = TabbyRequestErrorMessage(message=message, trace=trace if send_trace else None)
 
     request_error = TabbyRequestError(error=error_message)
 
     # Log the error and provided message to the console
     if trace and exc_info:
-        logger.error(trace)
+        xlogger.error("Error", {"trace": trace, "message": message}, details=trace)
 
     logger.error(f"Sent to request: {message}")
 
@@ -58,7 +75,65 @@ def handle_request_error(message: str, exc_info: bool = True):
 def handle_request_disconnect(message: str):
     """Wrapper for handling for request disconnection."""
 
-    logger.error(message)
+    xlogger.error(message)
+
+
+class DisconnectHandler:
+    def __init__(
+        self,
+        request: Request,
+        description: str,
+    ):
+        self.request = request
+        self.abort_event = asyncio.Event()
+        self.last_poll = time.time() - 10
+        self.disconnected = False
+        self.cleanup_tasks = {}
+        self.description = description
+
+    async def poll(self):
+        """
+        Poll the request status a maximum of 20 times per second. Once request is disconnected
+        runs scheduled cleanup tasks and raises asyncio.CancelledError. Caller is responsible for
+        forwarding the error back to the endpoint function. The endpoint fn should call poll() at
+        least once before returning a non-canceled response
+        """
+
+        now = time.time()
+        if now < self.last_poll + 0.05:
+            return
+        self.last_poll = now
+
+        # Check if request has disconnected
+        if await self.request.is_disconnected():
+            # Set abort signal
+            if self.abort_event is not None:
+                self.abort_event.set()
+
+            # Trigger any cleanup tasks
+            await self.cleanup()
+
+            # Log and raise
+            if not self.disconnected:
+                xlogger.error(f"Request disconnected: {self.description}")
+                self.disconnected = True
+
+            raise asyncio.CancelledError(f"Request disconnected: {self.description}")
+
+    async def add_cleanup_task(self, key, func, args):
+        # Intentionally strict
+        assert key not in self.cleanup_tasks
+        self.cleanup_tasks[key] = (func, args)
+
+    async def finish(self, key):
+        # Intentionally strict
+        del self.cleanup_tasks[key]
+
+    # Safe to call redundantly, each cleanup task must be called exactly once
+    async def cleanup(self):
+        for func, args in self.cleanup_tasks.values():
+            await func(*args)
+        self.cleanup_tasks = {}
 
 
 async def request_disconnect_loop(request: Request):
@@ -125,7 +200,7 @@ async def log_request(request: Request):
 
             log_message.append(f"Body: {dict(body)}")
 
-    logger.info("\n".join(log_message))
+    xlogger.info("Request", dict(request), details="\n".join(log_message))
 
 
 def get_global_depends():

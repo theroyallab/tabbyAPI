@@ -6,7 +6,7 @@ import pathlib
 from pydantic_core import ValidationError
 from ruamel.yaml import YAML
 from copy import deepcopy
-from loguru import logger
+from common.logger import xlogger
 from pydantic import (
     AliasChoices,
     BaseModel,
@@ -19,15 +19,33 @@ from typing import Dict, List, Optional, Union
 from common.utils import filter_none_values, unwrap
 
 
+# Params that are accepted for API compatibility but not implemented by the
+# exllamav3 backend, mapped to the neutral value that leaves them inactive.
+# Requests that activate any of these get a warning and the param is ignored.
+UNSUPPORTED_PARAMS = {
+    "ban_eos_token": False,
+    "banned_tokens": [],
+    "allowed_tokens": [],
+    "smoothing_factor": 0.0,
+    "top_a": 0.0,
+    "tfs": 1.0,
+    "typical": 1.0,
+    "skew": 0.0,
+    "xtc_probability": 0.0,
+    "dry_multiplier": 0.0,
+    "mirostat_mode": 0,
+    "logit_bias": None,
+    "temp_exponent": 1.0,
+}
+
+
 # Common class for sampler params
 class BaseSamplerRequest(BaseModel):
     """Common class for sampler params that are used in APIs"""
 
     max_tokens: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("max_tokens"),
-        validation_alias=AliasChoices(
-            "max_tokens", "max_completion_tokens", "max_length"
-        ),
+        validation_alias=AliasChoices("max_tokens", "max_completion_tokens", "max_length"),
         description="Aliases: max_length",
         examples=[150],
         ge=0,
@@ -97,13 +115,9 @@ class BaseSamplerRequest(BaseModel):
         examples=[1.0],
     )
 
-    top_a: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("top_a", 0.0)
-    )
+    top_a: Optional[float] = Field(default_factory=lambda: get_default_sampler_value("top_a", 0.0))
 
-    min_p: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("min_p", 0.0)
-    )
+    min_p: Optional[float] = Field(default_factory=lambda: get_default_sampler_value("min_p", 0.0))
 
     tfs: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("tfs", 1.0),
@@ -158,9 +172,7 @@ class BaseSamplerRequest(BaseModel):
             "repetition_penalty_range",
             "rep_pen_range",
         ),
-        description=(
-            "Aliases: repetition_range, repetition_penalty_range, rep_pen_range"
-        ),
+        description=("Aliases: repetition_range, repetition_penalty_range, rep_pen_range"),
     )
 
     repetition_decay: Optional[int] = Field(
@@ -220,10 +232,6 @@ class BaseSamplerRequest(BaseModel):
         examples=[{"1": 10, "2": 50}],
     )
 
-    negative_prompt: Optional[str] = Field(
-        default_factory=lambda: get_default_sampler_value("negative_prompt")
-    )
-
     json_schema: Optional[object] = Field(
         default_factory=lambda: get_default_sampler_value("json_schema"),
     )
@@ -234,17 +242,6 @@ class BaseSamplerRequest(BaseModel):
 
     grammar_string: Optional[str] = Field(
         default_factory=lambda: get_default_sampler_value("grammar_string"),
-    )
-
-    speculative_ngram: Optional[bool] = Field(
-        default_factory=lambda: get_default_sampler_value("speculative_ngram"),
-    )
-
-    cfg_scale: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("cfg_scale", 1.0),
-        validation_alias=AliasChoices("cfg_scale", "guidance_scale"),
-        description="Aliases: guidance_scale",
-        examples=[1.0],
     )
 
     max_temp: Optional[float] = Field(
@@ -275,12 +272,43 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
+    # Valid for OAI requests
+    top_logprobs: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("top_logprobs", 0),
+        ge=0,
+    )
+
+    adaptive_target: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("adaptive_target", 1.0)
+    )
+
+    adaptive_decay: Optional[float] = Field(
+        default_factory=lambda: get_default_sampler_value("adaptive_decay", 0.9)
+    )
+
+    loop_detect_window: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("loop_detect_window", 800),
+        description=(
+            "ExLlamaV3 only. Stops generation when the last N tokens are made "
+            "up of a repeating pattern. Set 0 or null to disable."
+        ),
+        ge=0,
+    )
+
+    def get_stop_on_loop(self) -> tuple[int, int] | None:
+        """Get ExLlamaV3 loop detection parameters."""
+
+        if self.loop_detect_window and self.loop_detect_window > 1:
+            return self.loop_detect_window, 2
+
+        return None
+
     @field_validator("top_k", mode="before")
     def convert_top_k(cls, v):
         """Fixes instance if Top-K is -1."""
 
         if v == -1:
-            logger.warning("Provided a top-k value of -1. Converting to 0 instead.")
+            xlogger.warning("Provided a top-k value of -1. Converting to 0 instead.")
             return 0
 
         return v
@@ -313,13 +341,15 @@ class BaseSamplerRequest(BaseModel):
         try:
             return json.loads(v) if isinstance(v, str) else v
         except Exception:
-            logger.warning(
-                "Could not parse DRY sequence breakers. Using an empty array."
-            )
+            xlogger.warning("Could not parse DRY sequence breakers. Using an empty array.")
             return []  # Return empty list if parsing fails
 
     @model_validator(mode="after")
     def after_validate(self):
+        # For OAI requests, logprobs is a boolean and top_logprobs is integer
+        # if self.logprobs and self.top_logprobs:
+        #     self.logprobs = self.top_logprobs
+
         # FIXME: find a better way to register this
         # Maybe make a function to assign values to the
         # model if they do not exist post creation
@@ -331,7 +361,32 @@ class BaseSamplerRequest(BaseModel):
         if self.min_tokens and self.max_tokens and self.min_tokens > self.max_tokens:
             raise ValidationError("min tokens cannot be more then max tokens")
 
+        self.warn_unsupported_params()
+
         return self
+
+    def warn_unsupported_params(self):
+        """Warn when the request activates params the backend doesn't implement."""
+
+        active = [
+            name
+            for name, neutral in UNSUPPORTED_PARAMS.items()
+            if getattr(self, name) and getattr(self, name) != neutral
+        ]
+
+        # Dynamic temperature is only in effect when the bounds differ
+        if (
+            self.min_temp is not None
+            and self.max_temp is not None
+            and self.min_temp != self.max_temp
+        ):
+            active.append("min_temp/max_temp")
+
+        if active:
+            xlogger.warning(
+                "Ignoring sampler params not supported by the exllamav3 backend: "
+                + ", ".join(active)
+            )
 
 
 class SamplerOverridesContainer(BaseModel):
@@ -366,7 +421,7 @@ async def overrides_from_file(preset_name: str):
             preset = yaml.load(contents)
             overrides_from_dict(preset)
 
-            logger.info("Applied sampler overrides from file.")
+            xlogger.info("Applied sampler overrides from file.", {"preset": preset})
     else:
         error_message = (
             f'Sampler override file named "{preset_name}" was not found. '
@@ -401,7 +456,15 @@ def get_default_sampler_value(key, fallback=None):
 def apply_forced_sampler_overrides(params: BaseSamplerRequest):
     """Forcefully applies overrides if specified by the user"""
 
+    # Tolerate older OAI standard for logprobs
+    if isinstance(params.logprobs, int) and params.logprobs > 1:
+        params.top_logprobs = params.logprobs
+
     for var, value in overrides_container.overrides.items():
+        if var not in BaseSamplerRequest.model_fields:
+            xlogger.warning(f'Skipping unknown sampler override key "{var}"')
+            continue
+
         override = deepcopy(value.get("override"))
         original_value = getattr(params, var, None)
 
