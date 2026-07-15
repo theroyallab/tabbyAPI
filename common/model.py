@@ -157,6 +157,10 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
 
             if loaded_model_name == model_path.name and container.loaded:
                 xlogger.info(f'Model "{loaded_model_name}" is already loaded')
+
+                # Emit a terminal progress event so API clients always
+                # see a "finished" status even when no load was needed
+                yield 1, 1, ModelType.MODEL.value
                 return
 
             if container.loaded:
