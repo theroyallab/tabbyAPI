@@ -91,8 +91,8 @@ def log_metrics(
 
     # Add draft metrics
     if "draft_accept" in metrics:
-        accept = metrics.get("draft_accept")
-        reject = metrics.get("draft_reject", 1)
+        accept = metrics.get("draft_accept", 0)
+        reject = metrics.get("draft_reject", 0)
         total_draft = accept + reject
         accept_rate = accept / total_draft if total_draft > 0 else 0.0
         itemization.append(
