@@ -183,8 +183,14 @@ model:
   # The end token for reasoning content (default: "</think>")
   reasoning_end_token: "</think>"
 
-  # Suppress this text whenever it appears in the beginning of a reasoning block (default: None)
-  reasoning_suppress_header:
+  # Whether generation starts inside a reasoning block (default: auto).
+  # Options: auto, always, never
+  # auto guesses by scanning the end of the templated prompt for an unclosed reasoning start token.
+  start_in_reasoning: auto
+
+  # Parse tool calls that occur inside reasoning content (default: True).
+  # If False, tool call tags inside a reasoning block are treated as plain reasoning text.
+  tool_calls_in_reasoning: true
 
   # Tool format, e.g. 'qwen3_coder'. See docs for supported formats. If left blank,
   # tool calls from the model will not be parsed by the server.

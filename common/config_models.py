@@ -331,11 +331,21 @@ class ModelConfig(BaseConfigModel):
         "</think>",
         description="End token for the reasoning parser (default: </think>).",
     )
-    reasoning_suppress_header: str = Field(
-        None,
+    start_in_reasoning: str = Field(
+        "auto",
         description=(
-            "Suppress this text whenever it appears in the beginning of a reasoning block "
-            "(default: None)."
+            "Whether generation starts inside a reasoning block (default: auto).\n"
+            "Options: auto, always, never\n"
+            "auto guesses by scanning the end of the templated prompt for an\n"
+            "unclosed reasoning start token."
+        ),
+    )
+    tool_calls_in_reasoning: bool = Field(
+        True,
+        description=(
+            "Parse tool calls that occur inside reasoning content (default: True).\n"
+            "If False, tool call tags inside a reasoning block are treated as\n"
+            "plain reasoning text."
         ),
     )
     tool_format: Optional[str] = Field(

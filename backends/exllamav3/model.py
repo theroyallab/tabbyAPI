@@ -370,8 +370,15 @@ class ExllamaV3Container:
         self.reasoning = kwargs.get("reasoning", False)
         self.reasoning_start_token = kwargs.get("reasoning_start_token", "<think>")
         self.reasoning_end_token = kwargs.get("reasoning_end_token", "</think>")
-        self.reasoning_suppress_header = kwargs.get("reasoning_suppress_header", None)
         self.force_enable_thinking = kwargs.get("force_enable_thinking", False)
+        self.tool_calls_in_reasoning = kwargs.get("tool_calls_in_reasoning", True)
+
+        self.start_in_reasoning = kwargs.get("start_in_reasoning", "auto")
+        if self.start_in_reasoning not in {"auto", "always", "never"}:
+            xlogger.warning(
+                f"Invalid start_in_reasoning value '{self.start_in_reasoning}', using 'auto'."
+            )
+            self.start_in_reasoning = "auto"
 
         return self
 
@@ -1206,6 +1213,7 @@ class ExllamaV3Container:
             max_new_tokens=max_tokens,
             min_new_tokens=unwrap(params.min_tokens, 0),
             token_healing=unwrap(params.token_healing, False),
+            decode_special_tokens=True,
             stop_conditions=stop_conditions,
             banned_strings=params.banned_strings,
             embeddings=mm_embeddings_content,

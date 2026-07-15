@@ -4,6 +4,7 @@ import asyncio
 import json
 import pathlib
 from asyncio import CancelledError
+from time import time
 from typing import List, Optional
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
@@ -29,6 +30,7 @@ from endpoints.OAI.types.chat_completion import (
 )
 from endpoints.OAI.types.common import UsageStats
 from endpoints.OAI.utils.completion import _parse_gen_request_id
+from endpoints.OAI.utils.stream_parser import CONTENT, REASONING, TagStreamParser
 from endpoints.OAI.utils.tools import (
     get_toolcall_tags,
     parse_toolcalls,
@@ -64,6 +66,24 @@ def _start_in_reasoning_mode(prompt: str) -> bool:
     if re.search(tags_pattern, prompt[i:]):
         return False
     return True
+
+
+def _resolve_start_in_reasoning(prompt: str) -> bool:
+    """Determine whether generation starts inside a reasoning block."""
+
+    mc = model.container
+    if not mc.reasoning:
+        return False
+
+    mode = mc.start_in_reasoning
+    if mode == "always":
+        return True
+    if mode == "never":
+        return False
+
+    guess = _start_in_reasoning_mode(prompt)
+    xlogger.debug(f"start_in_reasoning auto guess: {guess}")
+    return guess
 
 
 def _compose_response(
@@ -112,7 +132,7 @@ def _compose_serialize_stream_chunk(
     generation: Optional[dict] = None,
     model_name: Optional[str] = None,
     suppress_finish: bool = False,
-) -> (str, dict, str):
+) -> tuple[str, dict, Optional[str], bool]:
     """
     Compose a chat completion stream chunk from generation produced by _chat_stream_collector
 
@@ -149,11 +169,13 @@ def _compose_serialize_stream_chunk(
     choices = [choice]
     data = {
         "id": f"chatcmpl-{request_id}",
+        "object": "chat.completion.chunk",
+        "created": int(time()),
         "choices": choices,
     }
 
     if model_name:
-        data["model_name"] = model_name
+        data["model"] = model_name
 
     # Serialize
     s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
@@ -169,7 +191,7 @@ def _compose_serialize_stream_usage_chunk(
     usage_index: int,
     last_finish_reason: str,
     model_name: Optional[str] = None,
-) -> (str, dict):
+) -> tuple[str, dict]:
     """
     Compose a usage chunk to send at the end of a strema
     """
@@ -184,12 +206,14 @@ def _compose_serialize_stream_usage_chunk(
     choices = [choice]
     data = {
         "id": f"chatcmpl-{request_id}",
+        "object": "chat.completion.chunk",
+        "created": int(time()),
         "choices": choices,
         "usage": usage_stats.model_dump(mode="json"),
     }
 
     if model_name:
-        data["model_name"] = model_name
+        data["model"] = model_name
 
     # Serialize
     s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
@@ -362,27 +386,20 @@ async def _chat_stream_collector(
     full_content = ""
     full_tool = ""
 
-    post_reasoning_whitespace = False
-    held_whitespace = ""
-
-    in_reasoning = start_in_reasoning_mode
-    in_tool = False
-
     tool_format = mc.tool_format
     t_tool_start, t_tool_end = get_toolcall_tags(tool_format)
     use_tool = params.tool_choice != "none" and bool(t_tool_start)
-    t_tool_start = t_tool_start if use_tool else None
-    t_tool_end = t_tool_end if use_tool else None
 
     use_think = mc.reasoning and bool(mc.reasoning_start_token)
-    t_think_start = mc.reasoning_start_token if use_think else None
-    t_think_end = mc.reasoning_end_token if use_think else None
-    t_suppress_header = mc.reasoning_suppress_header if use_think else None
-    t_suppress = t_suppress_header
 
-    # Regex to identify tool/think tags that may or may not arrive with other text
-    splits = [re.escape(s) for s in [t_tool_start, t_tool_end, t_think_start, t_think_end] if s]
-    split_re = re.compile("|".join(splits)) if splits else None
+    parser = TagStreamParser(
+        reasoning_start=mc.reasoning_start_token if use_think else None,
+        reasoning_end=mc.reasoning_end_token if use_think else None,
+        tool_start=t_tool_start if use_tool else None,
+        tool_end=t_tool_end if use_tool else None,
+        start_in_reasoning=start_in_reasoning_mode,
+        tool_calls_in_reasoning=mc.tool_calls_in_reasoning,
+    )
 
     # Collect logprobs
     collected_logprobs = []
@@ -394,84 +411,39 @@ async def _chat_stream_collector(
             params,
             disconnect_handler,
             mm_embeddings,
-            filter_trigger=t_think_end if in_reasoning else None,
+            filter_trigger=(
+                mc.reasoning_end_token if use_think and start_in_reasoning_mode else None
+            ),
         )
         generation = {}
         async for generation in new_generation:
             generation["index"] = task_idx
             text = generation.get("text", "")
             finish_reason = generation.get("finish_reason")
+
+            events = parser.feed(text) if text else []
+            if finish_reason:
+                events += parser.finish()
+
             delta_reasoning = ""
             delta_content = ""
-            delta_tool = ""
-            tag = None
-
-            while text:
-                # Find + identify tag and split text into before and after parts
-                if split_re:
-                    match = split_re.search(text)
-                    if match:
-                        i, j = match.span()
-                        sub, text, tag = text[:i], text[j:], match[0]
-                    else:
-                        sub, text, tag = text, "", None
-                else:
-                    sub, text, tag = text, "", None
-
-                # Accumulate text up to tag
-                if in_tool:
-                    delta_tool += sub
-                    full_tool += sub
-                elif in_reasoning:
-                    if t_suppress:
-                        if t_suppress.startswith(sub):
-                            t_suppress = t_suppress[len(sub) :]
-                            sub = ""
-                        elif sub.startswith(t_suppress):
-                            sub = sub[len(t_suppress) :]
-                            t_suppress = ""
+            for channel, sub in events:
+                if channel == REASONING:
                     delta_reasoning += sub
                     full_reasoning += sub
-                else:
-                    if post_reasoning_whitespace:
-                        if not sub.strip():
-                            held_whitespace += sub
-                            sub = ""
-                        else:
-                            sub = held_whitespace + sub
-                            held_whitespace = ""
-                            post_reasoning_whitespace = False
+                elif channel == CONTENT:
                     delta_content += sub
                     full_content += sub
+                else:
+                    full_tool += sub
 
-                # Track output phase. No nesting is expected, except tools may occur in
-                # reasoning content
-                if tag:
-                    if tag == t_tool_end:  # include outer tool tags in output
-                        delta_tool += tag
-                        full_tool += tag
-                    if not in_tool:
-                        if tag == t_think_start:
-                            post_reasoning_whitespace = False
-                            in_reasoning = True
-                            t_suppress = t_suppress_header
-                        elif tag == t_think_end:
-                            post_reasoning_whitespace = True
-                            in_reasoning = False
-                    if tag == t_tool_start:
-                        in_tool = True
-                        delta_tool += tag  # include outer tool tags in output
-                        full_tool += tag
-                    elif tag == t_tool_end:
-                        in_tool = False
-
-            # Collect logprobs in content span only. Also make sure we're not just coming
-            # out of a </think> tag
+            # Collect logprobs in content span only, skipping chunks that
+            # contain a phase transition
             if (
                 "logprobs_content" in generation
-                and tag not in [t_think_end, t_tool_end]
-                and not in_reasoning
-                and not in_tool
+                and not parser.saw_tag
+                and not parser.in_reasoning
+                and not parser.in_tool
             ):
                 collected_logprobs += generation["logprobs_content"]
 
@@ -543,7 +515,7 @@ async def stream_generate_chat_completion(
         )
 
         # Determine if we're streaming content or reasoning_content to start with
-        start_in_reasoning_mode = model.container.reasoning and _start_in_reasoning_mode(prompt)
+        start_in_reasoning_mode = _resolve_start_in_reasoning(prompt)
 
         # For aggregating usage
         usage_stats_list = []
@@ -647,7 +619,7 @@ async def generate_chat_completion(
         )
 
         # Determine if we're generating content or reasoning_content to start with
-        start_in_reasoning_mode = model.container.reasoning and _start_in_reasoning_mode(prompt)
+        start_in_reasoning_mode = _resolve_start_in_reasoning(prompt)
 
         # Create a stream collector for each choice
         for idx in range(0, data.n):
