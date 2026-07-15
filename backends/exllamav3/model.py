@@ -33,7 +33,7 @@ from common.gen_logging import (
     log_metrics,
     log_prompt,
 )
-from common.hardware import hardware_supports_flash_attn
+from common.hardware import hardware_supports_exllamav3
 from common.health import HealthManager
 from common.errors import ContextLengthExceededError, validate_context_requirements
 from common.logger import xlogger
@@ -142,7 +142,7 @@ class ExllamaV3Container:
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "0.0.43")
+        check_package_version("exllamav3", "1.0.0")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
@@ -266,7 +266,7 @@ class ExllamaV3Container:
                 # Reserve VRAM for each GPU
                 self.autosplit_reserve = [value / 1024 for value in autosplit_reserve_megabytes]
 
-        if not hardware_supports_flash_attn(gpu_device_list):
+        if not hardware_supports_exllamav3(gpu_device_list):
             gpu_unsupported_message = (
                 "Unable to run ExllamaV3 because an unsupported GPU is "
                 "found in this configuration. \n"

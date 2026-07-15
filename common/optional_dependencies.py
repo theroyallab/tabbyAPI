@@ -16,7 +16,6 @@ class DependenciesModel(BaseModel):
 
     torch: bool
     exllamav3: bool
-    flash_attn: bool
     infinity_emb: bool
     sentence_transformers: bool
 
@@ -59,7 +58,15 @@ def check_package_version(package_name: str, required_version_str: str):
     """
 
     required_version = version.parse(required_version_str)
-    current_version = version.parse(package_version(package_name).split("+")[0])
+
+    # Prefer the version reported by the package itself. Installed metadata
+    # can be stale when running a source checkout from sys.path.
+    try:
+        version_str = importlib.import_module(f"{package_name}.version").__version__
+    except (ImportError, AttributeError):
+        version_str = package_version(package_name)
+
+    current_version = version.parse(version_str.split("+")[0])
 
     unsupported_message = (
         f"ERROR: TabbyAPI requires {package_name} {required_version} "

@@ -27,7 +27,7 @@ WORKDIR /app
 COPY pyproject.toml .
 
 # Install cu12 group first — pins torch+cu128, exllamav3+cu128,
-# flash_attn+cu128, and flash-linear-attention.
+# and flash-linear-attention.
 # The 'extras' group (infinity-emb, sentence-transformers) is installed separately
 # with --no-deps so pip cannot resolve xformers transitively and pull a cu130 wheel,
 # which would cause libcudart.so.13 ImportError on driver 590.x (cu128-only hosts).

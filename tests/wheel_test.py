@@ -6,12 +6,6 @@ from importlib.util import find_spec
 successful_packages = []
 errored_packages = []
 
-if find_spec("flash_attn") is not None:
-    print(f"Flash attention on version {version('flash_attn')} successfully imported")
-    successful_packages.append("flash_attn")
-else:
-    print("Flash attention 2 is not found in your environment.")
-
 if find_spec("exllamav3") is not None:
     print(f"Exllamav3 on version {version('exllamav3')} successfully imported")
     successful_packages.append("exllamav3")
@@ -34,7 +28,7 @@ else:
     errored_packages.append("jinja2")
 
 print(f"\nSuccessful imports: {', '.join(successful_packages)}")
-print(f"Errored imports: {''.join(errored_packages)}")
+print(f"Errored imports: {', '.join(errored_packages)}")
 
 if len(errored_packages) > 0:
     print(
