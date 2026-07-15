@@ -47,6 +47,8 @@ def test_chat_request(api_key, base_url, request, n=1):
         print("\n[usage]")
         pprint(data["usage"])
 
+    return data
+
 
 def test_comp_request(api_key, base_url, request, n=1):
     request["n"] = n
@@ -79,6 +81,8 @@ def test_comp_request(api_key, base_url, request, n=1):
     if "usage" in data:
         print("\n[usage]")
         pprint(data["usage"])
+
+    return data
 
 
 def test_chat_streaming(api_key, base_url, request, n=1, display_idx=0, rawdump=False):

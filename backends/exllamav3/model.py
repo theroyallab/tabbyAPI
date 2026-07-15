@@ -1172,7 +1172,7 @@ class ExllamaV3Container:
             request_id,
         )
 
-        if params.json_schema:
+        if params.json_schema or params.regex_pattern or params.grammar_string:
             if filter_trigger is not None:
                 trigger_token_id = self.tokenizer.single_id(filter_trigger)
                 if trigger_token_id is None:
@@ -1182,9 +1182,21 @@ class ExllamaV3Container:
                     )
             else:
                 trigger_token_id = None
-            grammar_handler.add_json_schema_filter(
-                params.json_schema, self.tokenizer, trigger_token_id=trigger_token_id
-            )
+
+            if params.json_schema:
+                grammar_handler.add_json_schema_filter(
+                    params.json_schema, self.tokenizer, trigger_token_id=trigger_token_id
+                )
+
+            if params.regex_pattern:
+                grammar_handler.add_regex_filter(
+                    params.regex_pattern, self.tokenizer, trigger_token_id=trigger_token_id
+                )
+
+            if params.grammar_string:
+                grammar_handler.add_kbnf_filter(
+                    params.grammar_string, self.tokenizer, trigger_token_id=trigger_token_id
+                )
 
         generation = {}
         job = AsyncJob(

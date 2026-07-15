@@ -36,8 +36,6 @@ UNSUPPORTED_PARAMS = {
     "mirostat_mode": 0,
     "logit_bias": None,
     "temp_exponent": 1.0,
-    "regex_pattern": None,
-    "grammar_string": None,
 }
 
 
