@@ -193,7 +193,9 @@ async def _stream_collector(
             disconnect_handler,
             None,
         )
-        generation = {}
+        # Initialize with a valid index so a client disconnect before the
+        # first token still composes into a valid (empty) choice
+        generation = {"index": task_idx}
         async for generation in new_generation:
             generation["index"] = task_idx
             delta_content = generation.get("text", "")
