@@ -1,8 +1,4 @@
-"""
-Manages the storage and utility of model containers.
-
-Containers exist as a common interface for backends.
-"""
+"""Manages the lifecycle of the global model container and embeddings container."""
 
 import aiofiles
 import asyncio
@@ -44,7 +40,6 @@ if dependencies.extras:
 class ModelType(Enum):
     MODEL = "model"
     DRAFT = "draft"
-    EMBEDDING = "embedding"
     VISION = "vision"
 
 
