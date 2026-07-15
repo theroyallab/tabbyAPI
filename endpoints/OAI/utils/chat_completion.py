@@ -39,7 +39,7 @@ from endpoints.OAI.utils.tools import (
 from endpoints.OAI.utils.common_ import aggregate_usage_stats, get_usage_stats
 
 
-def _start_in_reasoning_mode(prompt: str) -> bool:
+def _start_in_reasoning_mode(prompt: str, user_suffix_len: int = 0) -> bool:
     """
     Utility function to determine if the formatted prompt indicates that inference should
     start in reasoning mode.
@@ -48,6 +48,12 @@ def _start_in_reasoning_mode(prompt: str) -> bool:
     - templates that force-enable thinking may force just <think>
     Best guess: check if the last occurrence of either is <think>, and not much text
     and no other <> tags follow it.
+
+    user_suffix_len is the length of user-supplied text at the end of the prompt
+    (response prefix and/or continued final message). The near-the-end window is
+    meant to bound template-generated text, so it is extended by this amount,
+    and the scan for other tags skips the user text: it has no template
+    structure, so only which reasoning tag occurs last matters there.
     """
     _think_prefix_max_chars = 256  # Arbitrary hard-cutoff threshold
     _tags_max_length = 32
@@ -59,17 +65,41 @@ def _start_in_reasoning_mode(prompt: str) -> bool:
     if last_st <= last_et:
         return False
     i = last_st + len(st)
-    if len(prompt) - i > _think_prefix_max_chars:
+    if len(prompt) - i > _think_prefix_max_chars + user_suffix_len:
         return False
     char_op = st[:1]
     char_cl = st[-1:]
     tags_pattern = char_op + r"\S{1," + str(_tags_max_length - 2) + r"}" + char_cl
-    if re.search(tags_pattern, prompt[i:]):
+    scan_end = max(i, len(prompt) - user_suffix_len)
+    if re.search(tags_pattern, prompt[i:scan_end]):
         return False
     return True
 
 
-def _resolve_start_in_reasoning(prompt: str) -> bool:
+def _user_suffix_len(data: ChatCompletionRequest) -> int:
+    """
+    Length of the user-supplied text trailing the templated prompt: the
+    response prefix and/or the content of a continued final message.
+    """
+
+    suffix_len = 0
+
+    if data.continue_final_message and data.messages:
+        content = data.messages[-1].content
+        if isinstance(content, str):
+            suffix_len += len(content)
+        elif isinstance(content, list):
+            suffix_len += sum(
+                len(part.text) for part in content if part.type == "text" and part.text
+            )
+
+    if data.response_prefix and (data.add_generation_prompt or data.continue_final_message):
+        suffix_len += len(data.response_prefix)
+
+    return suffix_len
+
+
+def _resolve_start_in_reasoning(prompt: str, data: ChatCompletionRequest) -> bool:
     """Determine whether generation starts inside a reasoning block."""
 
     mc = model.container
@@ -82,7 +112,7 @@ def _resolve_start_in_reasoning(prompt: str) -> bool:
     if mode == "never":
         return False
 
-    guess = _start_in_reasoning_mode(prompt)
+    guess = _start_in_reasoning_mode(prompt, _user_suffix_len(data))
     xlogger.debug(f"start_in_reasoning auto guess: {guess}")
     return guess
 
@@ -376,7 +406,9 @@ async def apply_chat_template(data: ChatCompletionRequest):
             data.template_vars.update({"enable_thinking": True})
 
         continued_message_text = None
+        original_final_message = None
         if data.continue_final_message:
+            original_final_message = data.messages[-1] if data.messages else None
             continued_message_text = _mark_continued_final_message(data)
 
         prompt, mm_embeddings, template_vars = await format_messages_with_template(
@@ -385,6 +417,10 @@ async def apply_chat_template(data: ChatCompletionRequest):
 
         if continued_message_text is not None:
             prompt = _cut_prompt_at_continue_tag(prompt, continued_message_text)
+
+            # Restore the caller's final message so request logs and dumps
+            # don't show the sentinel tag
+            data.messages = data.messages[:-1] + [original_final_message]
 
         # Append response prefix if present. With continue_final_message it
         # extends the continued turn.
@@ -603,7 +639,7 @@ async def stream_generate_chat_completion(
         )
 
         # Determine if we're streaming content or reasoning_content to start with
-        start_in_reasoning_mode = _resolve_start_in_reasoning(prompt)
+        start_in_reasoning_mode = _resolve_start_in_reasoning(prompt, data)
 
         # For aggregating usage
         usage_stats_list = []
@@ -707,7 +743,7 @@ async def generate_chat_completion(
         )
 
         # Determine if we're generating content or reasoning_content to start with
-        start_in_reasoning_mode = _resolve_start_in_reasoning(prompt)
+        start_in_reasoning_mode = _resolve_start_in_reasoning(prompt, data)
 
         # Create a stream collector for each choice
         for idx in range(0, data.n):
