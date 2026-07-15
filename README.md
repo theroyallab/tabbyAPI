@@ -1,7 +1,7 @@
 # TabbyAPI
 
 <p align="left">
-    <img src="https://img.shields.io/badge/Python-3.10%20|%203.11%20|%203.12-blue" alt="Python 3.10, 3.11, and 3.12">
+    <img src="https://img.shields.io/badge/Python-3.10--3.14-blue" alt="Python 3.10 through 3.14">
     <a href="/LICENSE">
         <img src="https://img.shields.io/badge/License-AGPLv3-blue.svg" alt="License: AGPL v3"/>
     </a>
@@ -87,13 +87,11 @@ For Docker Compose, custom config mounts, or building the image locally, see the
 - JSON schema + Regex + EBNF support
 - AI Horde support
 - Speculative decoding via draft models
-- Multi-lora with independent scaling (ex. a weight of 0.9)
 - Inbuilt proxy to override client request parameters/samplers
 - Flexible Jinja2 template engine for chat completions that conforms to HuggingFace
 - Concurrent inference with asyncio
 - Utilizes modern python paradigms
 - Continuous batching engine using paged attention
-- Fast classifier-free guidance
 - OAI style tool/function calling
 
 And much more. If something is missing here, PR it in!
