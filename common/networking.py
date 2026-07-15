@@ -16,6 +16,15 @@ from common.errors import context_length_error_content
 from common.tabby_config import config
 
 
+def get_sse_ping_interval() -> int:
+    """SSE keep-alive ping interval in seconds, or effectively never if disabled."""
+
+    from sys import maxsize
+
+    interval = config.network.sse_ping_interval
+    return interval if interval else maxsize
+
+
 class TabbyRequestErrorMessage(BaseModel):
     """Common request error type."""
 

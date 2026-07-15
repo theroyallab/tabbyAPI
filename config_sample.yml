@@ -31,6 +31,11 @@ network:
   # Possible values: OAI, Kobold.
   api_servers: ["OAI"]
 
+  # Seconds between SSE keep-alive pings on streaming responses (default: 15).
+  # Pings are SSE comments, ignored by compliant clients, and prevent
+  # connections from dropping during long prefills. Set to 0 to disable.
+  sse_ping_interval: 15
+
 # Options for logging
 logging:
   # Enable prompt logging (default: False).

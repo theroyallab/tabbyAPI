@@ -1,6 +1,5 @@
 import asyncio
 import pathlib
-from sys import maxsize
 from typing import Optional
 from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -11,7 +10,11 @@ from common import model, sampling
 from common.auth import check_admin_key, check_api_key, get_key_permission
 from common.downloader import hf_repo_download
 from common.model import check_embeddings_container, check_model_container
-from common.networking import handle_request_error, run_with_request_disconnect
+from common.networking import (
+    get_sse_ping_interval,
+    handle_request_error,
+    run_with_request_disconnect,
+)
 from common.tabby_config import config
 from common.templating import PromptTemplate, get_all_templates
 from common.utils import unwrap
@@ -197,7 +200,7 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
 
         raise HTTPException(400, error_message)
 
-    return EventSourceResponse(stream_model_load(data, model_path), ping=maxsize)
+    return EventSourceResponse(stream_model_load(data, model_path), ping=get_sse_ping_interval())
 
 
 # Unload model endpoint

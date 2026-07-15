@@ -3,13 +3,17 @@ from asyncio import CancelledError, InvalidStateError
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
-from sys import maxsize
 
 from common import model
 from common.auth import check_api_key
 from common.debug_requests import log_chat_completion_request
 from common.model import check_embeddings_container, check_model_container
-from common.networking import handle_request_error, DisconnectHandler, run_with_request_disconnect
+from common.networking import (
+    get_sse_ping_interval,
+    handle_request_error,
+    DisconnectHandler,
+    run_with_request_disconnect,
+)
 from common.tabby_config import config
 from common.logger import xlogger
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
@@ -88,7 +92,7 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
             model.check_context_length(prompt, data)
             return EventSourceResponse(
                 stream_generate_completion(prompt, data, request, model_path, disconnect_handler),
-                ping=maxsize,
+                ping=get_sse_ping_interval(),
             )
         else:
             response = await generate_completion(
@@ -152,7 +156,7 @@ async def chat_completion_request(
                 stream_generate_chat_completion(
                     prompt, mm_embeddings, data, request, model_path, disconnect_handler
                 ),
-                ping=maxsize,
+                ping=get_sse_ping_interval(),
             )
         else:
             response = await generate_chat_completion(

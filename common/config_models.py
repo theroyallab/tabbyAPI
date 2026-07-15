@@ -72,6 +72,15 @@ class NetworkConfig(BaseConfigModel):
             'Select API servers to enable (default: ["OAI"]).\nPossible values: OAI, Kobold.'
         ),
     )
+    sse_ping_interval: Optional[int] = Field(
+        15,
+        description=(
+            "Seconds between SSE keep-alive pings on streaming responses (default: 15).\n"
+            "Pings are SSE comments, ignored by compliant clients, and prevent\n"
+            "connections from dropping during long prefills. Set to 0 to disable."
+        ),
+        ge=0,
+    )
 
     # Converts all strings in the api_servers list to lowercase
     # NOTE: Expand if more models need this validator

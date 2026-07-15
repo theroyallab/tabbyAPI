@@ -1,10 +1,10 @@
-from sys import maxsize
 from fastapi import APIRouter, Depends, Request
 from sse_starlette import EventSourceResponse
 
 from common import model
 from common.auth import check_api_key
 from common.model import check_model_container
+from common.networking import get_sse_ping_interval
 from common.utils import unwrap
 from endpoints.core.utils.model import get_current_model
 from endpoints.Kobold.types.generation import (
@@ -59,7 +59,7 @@ async def generate(request: Request, data: GenerateRequest) -> GenerateResponse:
 )
 async def generate_stream(request: Request, data: GenerateRequest) -> GenerateResponse:
     model.check_context_length(data.prompt, data)
-    response = EventSourceResponse(stream_generation(data, request), ping=maxsize)
+    response = EventSourceResponse(stream_generation(data, request), ping=get_sse_ping_interval())
 
     return response
 
