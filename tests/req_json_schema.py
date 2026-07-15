@@ -68,8 +68,16 @@ def validate_person(label, text):
         return
 
     check(f"{label}: output is valid JSON", True)
-    check(f"{label}: object has required fields", isinstance(obj, dict) and all(k in obj for k in PERSON_SCHEMA["required"]))
-    check(f"{label}: field types match schema", isinstance(obj.get("name"), str) and isinstance(obj.get("age"), int) and isinstance(obj.get("hobbies"), list))
+    check(
+        f"{label}: object has required fields",
+        isinstance(obj, dict) and all(k in obj for k in PERSON_SCHEMA["required"]),
+    )
+    check(
+        f"{label}: field types match schema",
+        isinstance(obj.get("name"), str)
+        and isinstance(obj.get("age"), int)
+        and isinstance(obj.get("hobbies"), list),
+    )
 
 
 def main():

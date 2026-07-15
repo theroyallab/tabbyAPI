@@ -75,19 +75,31 @@ def main():
 
     # Regex on the completions endpoint
     data = test_comp_request(api_key, BASE_URL, comp_request_phone.copy(), n=1)
-    check("regex phone: output matches pattern", re.fullmatch(PHONE_REGEX, data["choices"][0]["text"].strip()))
+    check(
+        "regex phone: output matches pattern",
+        re.fullmatch(PHONE_REGEX, data["choices"][0]["text"].strip()),
+    )
 
     data = test_comp_request(api_key, BASE_URL, comp_request_date.copy(), n=1)
-    check("regex date: output matches pattern", re.fullmatch(DATE_REGEX, data["choices"][0]["text"].strip()))
+    check(
+        "regex date: output matches pattern",
+        re.fullmatch(DATE_REGEX, data["choices"][0]["text"].strip()),
+    )
 
     # Regex, n=2 (filters must be independent per generation)
     data = test_comp_request(api_key, BASE_URL, comp_request_phone.copy(), n=2)
     for idx, choice in enumerate(data["choices"]):
-        check(f"regex phone n=2 choice {idx}: output matches pattern", re.fullmatch(PHONE_REGEX, choice["text"].strip()))
+        check(
+            f"regex phone n=2 choice {idx}: output matches pattern",
+            re.fullmatch(PHONE_REGEX, choice["text"].strip()),
+        )
 
     # Regex on the chat completions endpoint
     data = test_chat_request(api_key, BASE_URL, chat_request_date.copy(), n=1)
-    check("regex chat date: output matches pattern", re.fullmatch(DATE_REGEX, data["choices"][0]["message"]["content"].strip()))
+    check(
+        "regex chat date: output matches pattern",
+        re.fullmatch(DATE_REGEX, data["choices"][0]["message"]["content"].strip()),
+    )
 
     # KBNF grammars on the completions endpoint
     data = test_comp_request(api_key, BASE_URL, comp_request_yesno.copy(), n=1)
