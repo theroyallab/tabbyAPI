@@ -1,2 +1,11 @@
+# api_key accepts a single key or a list of keys, so access can be granted
+# and revoked per user. Changes to this file are picked up by a running
+# server automatically. Use tools/add_api_key.py to generate and add a key.
+#
+# api_key:
+#   - first key
+#   - second key
 api_key: # Insert api key here
+
+# There is always exactly one admin key.
 admin_key: # Insert admin key here

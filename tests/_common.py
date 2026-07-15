@@ -1,6 +1,25 @@
 import json
 import httpx
+import yaml
 from pprint import pprint
+
+
+def load_api_keys(path="api_tokens.yml"):
+    """
+    Read keys from api_tokens.yml for request scripts.
+
+    api_key may be a single key or a list of keys; the first key is
+    returned when it's a list. Returns (api_key, admin_key).
+    """
+
+    with open(path) as f:
+        tokens = yaml.safe_load(f)
+
+    api_key = tokens.get("api_key")
+    if isinstance(api_key, list):
+        api_key = api_key[0] if api_key else None
+
+    return api_key, tokens.get("admin_key")
 
 
 def test_chat_request(api_key, base_url, request, n=1):

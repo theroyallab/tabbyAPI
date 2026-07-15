@@ -1,6 +1,5 @@
 import json
 
-import yaml
 from _common import *
 
 BASE_URL = "http://localhost:5000/v1"
@@ -81,9 +80,7 @@ def validate_person(label, text):
 
 
 def main():
-    with open("api_tokens.yml") as f:
-        tokens = yaml.safe_load(f)
-        api_key = tokens["admin_key"]
+    _, api_key = load_api_keys()
 
     # Completions endpoint, object schema
     data = test_comp_request(api_key, BASE_URL, comp_request.copy(), n=1)

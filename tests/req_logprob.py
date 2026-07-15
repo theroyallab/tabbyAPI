@@ -1,4 +1,3 @@
-import yaml
 from _common import *
 
 BASE_URL = "http://localhost:5000/v1"
@@ -35,9 +34,7 @@ oai_request_2 = {
 
 
 def main():
-    with open("api_tokens.yml") as f:
-        tokens = yaml.safe_load(f)
-        api_key = tokens["admin_key"]
+    _, api_key = load_api_keys()
 
     test_chat_request(api_key, BASE_URL, oai_request.copy(), n=1)
     test_chat_request(api_key, BASE_URL, oai_request.copy(), n=2)
