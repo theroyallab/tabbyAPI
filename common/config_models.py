@@ -184,8 +184,7 @@ class ModelConfig(BaseConfigModel):
         None,
         description=(
             "Size of the prompt cache to allocate (default: max_seq_len).\n"
-            "Must be a multiple of 256 and can't be less than max_seq_len.\n"
-            "For CFG, set this to 2 * max_seq_len."
+            "Must be a multiple of 256 and can't be less than max_seq_len."
         ),
         multiple_of=256,
         gt=0,
