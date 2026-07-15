@@ -415,7 +415,7 @@ async def _chat_stream_collector(
                 mc.reasoning_end_token if use_think and start_in_reasoning_mode else None
             ),
         )
-        generation = {}
+        generation = {"index": task_idx}
         async for generation in new_generation:
             generation["index"] = task_idx
             text = generation.get("text", "")
