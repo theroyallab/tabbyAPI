@@ -24,6 +24,7 @@ from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionLogprobs,
     ChatCompletionMessage,
+    ChatCompletionMessagePart,
     ChatCompletionRequest,
     ChatCompletionRespChoice,
     ChatCompletionResponse,
@@ -275,6 +276,85 @@ async def format_messages_with_template(
     return prompt, mm_embeddings, template_vars
 
 
+# The tag mechanism and cut logic are ported from render_jinja_template in
+# huggingface/transformers (src/transformers/utils/chat_template_utils.py,
+# Apache License 2.0). The trailing space is part of the tag.
+# _cut_prompt_at_continue_tag uses its survival through rendering to detect
+# templates that trim trailing whitespace from message content.
+CONTINUE_FINAL_MESSAGE_TAG = "CONTINUE_FINAL_MESSAGE_TAG "
+
+
+def _mark_continued_final_message(data: ChatCompletionRequest) -> str:
+    """Validate a continue_final_message request and append the sentinel tag.
+
+    Replaces the final message with a copy whose text ends in the sentinel
+    tag, so the rendered prompt can be cut back to an unterminated assistant
+    turn. Returns the final message text as it was before the tag.
+    """
+
+    def request_error(message: str) -> HTTPException:
+        error_message = handle_request_error(message).error.message
+        return HTTPException(422, error_message)
+
+    if data.add_generation_prompt:
+        raise request_error("continue_final_message requires add_generation_prompt to be false")
+
+    if not data.messages:
+        raise request_error("continue_final_message is set but there are no messages to continue")
+
+    final_message = data.messages[-1].model_copy(deep=True)
+
+    if isinstance(final_message.content, str):
+        final_text = final_message.content
+        final_message.content = final_message.content + CONTINUE_FINAL_MESSAGE_TAG
+    elif isinstance(final_message.content, list):
+        for part in reversed(final_message.content):
+            if part.type == "text" and part.text is not None:
+                final_text = part.text
+                break
+        else:
+            raise request_error(
+                "continue_final_message is set but the final message has "
+                "no text content to continue"
+            )
+        # A separate final part keeps the tag after any trailing image part.
+        final_message.content = final_message.content + [
+            ChatCompletionMessagePart(type="text", text=CONTINUE_FINAL_MESSAGE_TAG)
+        ]
+    else:
+        raise request_error(
+            "continue_final_message is set but the final message has no content to continue"
+        )
+
+    data.messages = data.messages[:-1] + [final_message]
+    return final_text
+
+
+def _cut_prompt_at_continue_tag(prompt: str, final_message_text: str) -> str:
+    """Cut the rendered prompt back to the end of the continued message."""
+
+    bare_tag = CONTINUE_FINAL_MESSAGE_TAG.strip()
+
+    if final_message_text.strip() not in prompt or bare_tag not in prompt:
+        error_message = handle_request_error(
+            "continue_final_message is set but the final message does not "
+            "appear in the rendered prompt. The prompt template may rewrite "
+            "or drop the final message."
+        ).error.message
+        raise HTTPException(422, error_message)
+
+    tag_loc = prompt.rindex(bare_tag)
+
+    if prompt[tag_loc : tag_loc + len(CONTINUE_FINAL_MESSAGE_TAG)] == CONTINUE_FINAL_MESSAGE_TAG:
+        # The template preserves trailing whitespace in message content.
+        return prompt[:tag_loc]
+
+    # The template trims trailing whitespace from message content. Trim the
+    # continued message the same way so the prompt matches what the template
+    # would have produced for that content by itself.
+    return prompt[:tag_loc].rstrip()
+
+
 async def apply_chat_template(data: ChatCompletionRequest):
     """
     Compile the prompt and get any additional stop strings from the template.
@@ -295,13 +375,21 @@ async def apply_chat_template(data: ChatCompletionRequest):
         if model.container.force_enable_thinking:
             data.template_vars.update({"enable_thinking": True})
 
+        continued_message_text = None
+        if data.continue_final_message:
+            continued_message_text = _mark_continued_final_message(data)
+
         prompt, mm_embeddings, template_vars = await format_messages_with_template(
             data.messages, data.template_vars
         )
 
-        # Append response prefix if present
+        if continued_message_text is not None:
+            prompt = _cut_prompt_at_continue_tag(prompt, continued_message_text)
+
+        # Append response prefix if present. With continue_final_message it
+        # extends the continued turn.
         if data.response_prefix:
-            if data.add_generation_prompt:
+            if data.add_generation_prompt or data.continue_final_message:
                 prompt += data.response_prefix
             else:
                 xlogger.warning(

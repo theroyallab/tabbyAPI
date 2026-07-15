@@ -74,6 +74,8 @@ class ChatCompletionRequest(CommonCompletionRequest):
         description="Aliases: chat_template_kwargs",
     )
     response_prefix: Optional[str] = None
+
+    continue_final_message: Optional[bool] = False
     model: Optional[str] = None
 
     # tools is follows the format OAI schema, functions is more flexible
