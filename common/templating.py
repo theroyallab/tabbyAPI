@@ -27,34 +27,61 @@ class TemplateLoadError(Exception):
 VALID_TOOL_CALL_FORMATS = {"json", "xml", "auto"}
 
 
+def _strftime_now(format):
+    """Some models require strftime_now, e.g. Granite3."""
+
+    current_time = datetime.now()
+    return current_time.strftime(format)
+
+
+def _raise_exception(message):
+    """Exception handler for chat templates."""
+
+    raise TemplateError(message)
+
+
+def _tojson_compat(value, indent=None, ensure_ascii=True):
+    """Compatibility JSON filter for chat templates.
+
+    Some model templates call ``tojson(ensure_ascii=False)`` while the
+    bundled Jinja filter may not accept that keyword in sandboxed mode.
+    """
+    return Markup(
+        json.dumps(
+            value,
+            indent=indent,
+            ensure_ascii=ensure_ascii,
+            separators=(",", ": "),
+        )
+    )
+
+
+def _create_environment() -> ImmutableSandboxedEnvironment:
+    """Build the Jinja environment shared by all prompt templates."""
+
+    environment = ImmutableSandboxedEnvironment(
+        trim_blocks=True,
+        lstrip_blocks=True,
+        enable_async=True,
+        extensions=[loopcontrols],
+    )
+    environment.globals["strftime_now"] = _strftime_now
+    environment.globals["raise_exception"] = _raise_exception
+    environment.filters["tojson"] = _tojson_compat
+
+    return environment
+
+
 class PromptTemplate:
     """A template for chat completion prompts."""
 
     name: str
     raw_template: str
     template: Template
-    environment: ImmutableSandboxedEnvironment = ImmutableSandboxedEnvironment(
-        trim_blocks=True,
-        lstrip_blocks=True,
-        enable_async=True,
-        extensions=[loopcontrols],
-    )
 
-    @staticmethod
-    def _tojson_compat(value, indent=None, ensure_ascii=True):
-        """Compatibility JSON filter for chat templates.
-
-        Some model templates call ``tojson(ensure_ascii=False)`` while the
-        bundled Jinja filter may not accept that keyword in sandboxed mode.
-        """
-        return Markup(
-            json.dumps(
-                value,
-                indent=indent,
-                ensure_ascii=ensure_ascii,
-                separators=(",", ": "),
-            )
-        )
+    # One environment shared by every template. Don't register anything
+    # template-specific on it.
+    environment: ImmutableSandboxedEnvironment = _create_environment()
 
     async def render(self, template_vars: dict):
         """Get a prompt from a template and a list of messages."""
@@ -72,19 +99,6 @@ class PromptTemplate:
 
     def compile(self, template_str: str):
         """Compiles and stores a jinja2 template"""
-
-        # Some models require strftime_now, e.g. Granite3
-        def strftime_now(format):
-            current_time = datetime.now()
-            return current_time.strftime(format)
-
-        # Exception handler
-        def raise_exception(message):
-            raise TemplateError(message)
-
-        self.environment.globals["strftime_now"] = strftime_now
-        self.environment.globals["raise_exception"] = raise_exception
-        self.environment.filters["tojson"] = self._tojson_compat
 
         return self.environment.from_string(template_str)
 
