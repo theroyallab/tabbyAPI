@@ -167,11 +167,18 @@ model:
   # Enables vision support if the model supports it. (default: False)
   vision: false
 
-  # Force-enable reasoning in template args
-  # Injects the enable_thinking: True into the model's template arguments. This doesn't
-  # force reasoning or affect how reasoning content is parsed, but some clients will
-  # not explicitly enable this and some models need it to properly enter reasoning mode.
-  force_enable_thinking: false
+  # Default chat template variables (default: {}).
+  # Merged into the template variables of every chat completion request; values
+  # sent by the client (template_vars / chat_template_kwargs, or the top-level
+  # reasoning_effort field) take precedence. Use for model-specific reasoning
+  # knobs, e.g. {enable_thinking: true} or {reasoning_effort: high}.
+  template_vars_default: {}
+
+  # Forced chat template variables (default: {}).
+  # Like template_vars_default, but these override any values sent by the client.
+  # Replaces the deprecated force_enable_thinking option, which is still accepted
+  # as an alias for {enable_thinking: true}.
+  template_vars_force: {}
 
   # Enable reasoning parser (default: False).
   # Do NOT enable this if the model is not a reasoning model (e.g. deepseek-r1 series)

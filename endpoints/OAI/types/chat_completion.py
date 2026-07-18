@@ -63,6 +63,18 @@ class ChatCompletionStreamChoice(BaseModel):
     logprobs: Optional[ChatCompletionLogprobs] = None
 
 
+class ReasoningOptions(BaseModel):
+    """
+    OpenRouter / OpenAI Responses style reasoning options. Unknown keys are
+    ignored. The flat top-level reasoning_effort and enable_thinking fields
+    take precedence over the equivalent keys here.
+    """
+
+    effort: Optional[str] = None
+    enabled: Optional[bool] = None
+    max_tokens: Optional[int] = None
+
+
 # Inherited from common request
 class ChatCompletionRequest(CommonCompletionRequest):
     messages: List[ChatCompletionMessage]
@@ -72,6 +84,40 @@ class ChatCompletionRequest(CommonCompletionRequest):
         default={},
         validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
         description="Aliases: chat_template_kwargs",
+    )
+    reasoning_effort: Optional[str] = Field(
+        default=None,
+        description=(
+            "Reasoning effort hint, forwarded to the chat template as the "
+            "reasoning_effort variable. Accepted values depend on the model. "
+            "An explicit reasoning_effort in template_vars takes precedence."
+        ),
+    )
+    enable_thinking: Optional[bool] = Field(
+        default=None,
+        description=(
+            "Reasoning toggle, forwarded to the chat template as the "
+            "enable_thinking variable. An explicit enable_thinking in "
+            "template_vars takes precedence."
+        ),
+    )
+    verbosity: Optional[str] = Field(
+        default=None,
+        description=(
+            "Response verbosity hint, forwarded to the chat template as the "
+            "verbosity variable. An explicit verbosity in template_vars "
+            "takes precedence."
+        ),
+    )
+    reasoning: Optional[ReasoningOptions] = Field(
+        default=None,
+        description=(
+            "OpenRouter / OpenAI Responses style reasoning options. "
+            "reasoning.effort and reasoning.enabled map to the reasoning_effort "
+            "and enable_thinking template variables; the flat top-level fields "
+            "take precedence. reasoning.max_tokens is not supported and is "
+            "ignored."
+        ),
     )
     response_prefix: Optional[str] = None
 

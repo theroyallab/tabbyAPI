@@ -394,6 +394,42 @@ def _cut_prompt_at_continue_tag(prompt: str, final_message_text: str) -> str:
     return prompt[:tag_loc].rstrip()
 
 
+def resolve_template_vars(data: ChatCompletionRequest, container) -> dict:
+    """
+    Merge chat template variables from all sources. Priority, lowest to
+    highest: the model's template_vars_default, the request's reasoning
+    object, the request's flat reasoning_effort/enable_thinking/verbosity
+    fields, the request's template_vars, then the model's template_vars_force.
+    """
+
+    request_vars = {}
+
+    # OpenRouter / OpenAI Responses style reasoning object
+    if data.reasoning is not None:
+        if data.reasoning.max_tokens is not None:
+            xlogger.debug("reasoning.max_tokens is not supported; ignoring.")
+        if data.reasoning.enabled is not None:
+            request_vars["enable_thinking"] = data.reasoning.enabled
+        if data.reasoning.effort is not None:
+            request_vars["reasoning_effort"] = data.reasoning.effort
+
+    # Flat fields take precedence over the reasoning object
+    if data.reasoning_effort is not None:
+        request_vars["reasoning_effort"] = data.reasoning_effort
+    if data.enable_thinking is not None:
+        request_vars["enable_thinking"] = data.enable_thinking
+    if data.verbosity is not None:
+        request_vars["verbosity"] = data.verbosity
+
+    request_vars.update(data.template_vars)
+
+    return {
+        **container.template_vars_default,
+        **request_vars,
+        **container.template_vars_force,
+    }
+
+
 async def apply_chat_template(data: ChatCompletionRequest):
     """
     Compile the prompt and get any additional stop strings from the template.
@@ -404,6 +440,7 @@ async def apply_chat_template(data: ChatCompletionRequest):
     tools = data.model_dump()["tools"]
 
     try:
+        data.template_vars = resolve_template_vars(data, model.container)
         data.template_vars.update(
             {
                 "add_generation_prompt": data.add_generation_prompt,
@@ -411,8 +448,6 @@ async def apply_chat_template(data: ChatCompletionRequest):
                 "functions": data.functions,
             }
         )
-        if model.container.force_enable_thinking:
-            data.template_vars.update({"enable_thinking": True})
 
         continued_message_text = None
         original_final_message = None

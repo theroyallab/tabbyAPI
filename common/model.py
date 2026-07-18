@@ -17,7 +17,7 @@ from common.sampling import BaseSamplerRequest
 from common.tabby_config import config
 from common.optional_dependencies import dependencies
 from common.transformers_utils import HFModel
-from common.utils import deep_merge_dict, unwrap
+from common.utils import deep_merge_dicts, unwrap
 
 if dependencies.exllamav3:
     from backends.exllamav3.model import ExllamaV3Container
@@ -72,15 +72,16 @@ def validate_backend(backend: Optional[str], hf_model: HFModel):
 async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
     """
     Applies model load overrides.
-    Sources are from inline config and use_as_default.
-    Currently agnostic due to different schemas for API and config.
+
+    Priority, lowest to highest: use_as_default keys, the load kwargs
+    (startup config or API request), then the model folder's
+    tabby_config.yml, which always wins when present.
     """
 
     override_config_path = model_path / "tabby_config.yml"
 
-    # Initialize overrides dict
-    overrides = {"draft_model": {}}
-    model_inline_config = None
+    # Inline overrides from the model folder's tabby_config.yml
+    inline_overrides = {"draft_model": {}}
 
     if override_config_path.exists():
         async with aiofiles.open(
@@ -92,41 +93,35 @@ async def apply_load_defaults(model_path: pathlib.Path, **kwargs):
             yaml = YAML(typ="safe")
             inline_config = unwrap(yaml.load(contents), {})
 
-            # Check for inline model overrides and merge config defaults
             model_inline_config = unwrap(inline_config.get("model"), {})
             if model_inline_config:
-                overrides = {**overrides, **model_inline_config}
+                inline_overrides = {**inline_overrides, **model_inline_config}
             else:
                 xlogger.warning(
                     "Cannot find inline model overrides. "
                     'Make sure they are nested under a "model:" key'
                 )
 
-            # Merge draft overrides beforehand and merge config defaults
             draft_inline_config = unwrap(inline_config.get("draft_model"), {})
             if draft_inline_config:
-                overrides["draft_model"] = {
-                    **overrides.get("draft_model"),
-                    **draft_inline_config,
-                }
+                inline_overrides["draft_model"] = draft_inline_config
 
-    # Add use_as_default
-    overrides = {**overrides, **config.model_defaults}
-    overrides["draft_model"] = {
-        **overrides.get("draft_model"),
-        **config.draft_model_defaults,
+            xlogger.info(f"Applying model overrides from {override_config_path}")
+
+    # use_as_default keys
+    defaults = {
+        **config.model_defaults,
+        "draft_model": {**config.draft_model_defaults},
     }
 
-    # Merge the override and model kwargs
-    # No need to preserve the original overrides dict
-    merged_kwargs = deep_merge_dict(overrides, kwargs)
+    merged_kwargs = deep_merge_dicts(defaults, kwargs, inline_overrides)
 
     xlogger.debug(
         "Applying load defaults",
         {
             "kwargs": kwargs,
-            "model_inline_config": model_inline_config,
-            "overrides": overrides,
+            "defaults": defaults,
+            "inline_overrides": inline_overrides,
             "merged_kwargs": merged_kwargs,
         },
     )

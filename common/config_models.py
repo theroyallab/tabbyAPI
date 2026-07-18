@@ -307,14 +307,25 @@ class ModelConfig(BaseConfigModel):
         False,
         description=("Enables vision support if the model supports it. (default: False)"),
     )
+    template_vars_default: dict = Field(
+        {},
+        description=(
+            "Default chat template variables (default: {}).\n"
+            "Merged into the template variables of every chat completion request;\n"
+            "values sent by the client take precedence. Use for model-specific\n"
+            "reasoning knobs, e.g. {enable_thinking: true} or {reasoning_effort: high}."
+        ),
+    )
+    template_vars_force: dict = Field(
+        {},
+        description=(
+            "Forced chat template variables (default: {}).\n"
+            "Like template_vars_default, but these override any values sent by the client."
+        ),
+    )
     force_enable_thinking: bool = Field(
         False,
-        description=(
-            "Force-enable reasoning in template args\n"
-            "Injects the enable_thinking: True into the model's template arguments. This doesn't\n"
-            "force reasoning or affect how reasoning content is parsed, but some clients will\n"
-            "not explicitly enable this and some models need it to properly enter reasoning mode."
-        ),
+        description=("DEPRECATED: Equivalent to template_vars_force: {enable_thinking: true}."),
     )
     reasoning: bool = Field(
         False,

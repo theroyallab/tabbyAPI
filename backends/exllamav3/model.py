@@ -398,8 +398,20 @@ class ExllamaV3Container:
         self.reasoning = kwargs.get("reasoning", False)
         self.reasoning_start_token = kwargs.get("reasoning_start_token", "<think>")
         self.reasoning_end_token = kwargs.get("reasoning_end_token", "</think>")
-        self.force_enable_thinking = kwargs.get("force_enable_thinking", False)
         self.tool_calls_in_reasoning = kwargs.get("tool_calls_in_reasoning", True)
+
+        # Default and forced chat template variables
+        self.template_vars_default = kwargs.get("template_vars_default") or {}
+        self.template_vars_force = kwargs.get("template_vars_force") or {}
+        if kwargs.get("force_enable_thinking"):
+            xlogger.warning(
+                "force_enable_thinking is deprecated; use "
+                "template_vars_force: {enable_thinking: true} instead."
+            )
+            self.template_vars_force = {
+                "enable_thinking": True,
+                **self.template_vars_force,
+            }
 
         self.start_in_reasoning = kwargs.get("start_in_reasoning", "auto")
         if self.start_in_reasoning not in {"auto", "always", "never"}:
