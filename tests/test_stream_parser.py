@@ -290,5 +290,100 @@ class HarmonyToolcallFormatTests(unittest.TestCase):
         self.assertEqual(self.parse("<|channel|>commentary<|message|>preamble<|call|>"), [])
 
 
+class Hy3ToolcallFormatTests(unittest.TestCase):
+    def parse(self, text):
+        from endpoints.OAI.utils.toolcall_formats.hy3 import parse_toolcalls
+
+        return parse_toolcalls(text)
+
+    def test_parse_tool_call(self):
+        calls = self.parse(
+            "<tool_calls:opensource>\n"
+            "<tool_call:opensource>get_weather<tool_sep:opensource>\n"
+            "<arg_key:opensource>location</arg_key:opensource>\n"
+            "<arg_value:opensource>Tokyo</arg_value:opensource>\n"
+            "</tool_call:opensource>\n"
+            "</tool_calls:opensource>"
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "get_weather")
+        self.assertEqual(calls[0].function.arguments, '{"location": "Tokyo"}')
+
+    def test_parallel_calls(self):
+        calls = self.parse(
+            "<tool_calls:opensource>\n"
+            "<tool_call:opensource>f<tool_sep:opensource>\n"
+            "<arg_key:opensource>a</arg_key:opensource>\n"
+            "<arg_value:opensource>1</arg_value:opensource>\n"
+            "</tool_call:opensource>\n"
+            "<tool_call:opensource>g<tool_sep:opensource>\n"
+            "<arg_key:opensource>b</arg_key:opensource>\n"
+            '<arg_value:opensource>["x", "y"]</arg_value:opensource>\n'
+            "</tool_call:opensource>\n"
+            "</tool_calls:opensource>"
+        )
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0].function.name, "f")
+        self.assertEqual(calls[0].function.arguments, '{"a": 1}')
+        self.assertEqual(calls[1].function.name, "g")
+        self.assertEqual(calls[1].function.arguments, '{"b": ["x", "y"]}')
+
+    def test_missing_tool_sep(self):
+        calls = self.parse(
+            "<tool_calls:opensource>\n"
+            "<tool_call:opensource>f\n"
+            "<arg_key:opensource>a</arg_key:opensource>\n"
+            "<arg_value:opensource>hello world</arg_value:opensource>\n"
+            "</tool_call:opensource>\n"
+            "</tool_calls:opensource>"
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "f")
+        self.assertEqual(calls[0].function.arguments, '{"a": "hello world"}')
+
+    def test_no_args(self):
+        calls = self.parse(
+            "<tool_calls:opensource>\n"
+            "<tool_call:opensource>list_files<tool_sep:opensource>\n"
+            "</tool_call:opensource>\n"
+            "</tool_calls:opensource>"
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "list_files")
+        self.assertEqual(calls[0].function.arguments, "{}")
+
+    def test_streamed_through_tag_parser(self):
+        from endpoints.OAI.utils.toolcall_formats.hy3 import (
+            TOOLCALL_START,
+            TOOLCALL_END,
+        )
+
+        p = TagStreamParser(
+            reasoning_start="<think:opensource>",
+            reasoning_end="</think:opensource>",
+            tool_start=TOOLCALL_START,
+            tool_end=TOOLCALL_END,
+            start_in_reasoning=True,
+        )
+        text = (
+            "pondering</think:opensource>Checking the weather."
+            "<tool_calls:opensource>\n"
+            "<tool_call:opensource>get_weather<tool_sep:opensource>\n"
+            "<arg_key:opensource>location</arg_key:opensource>\n"
+            "<arg_value:opensource>Tokyo</arg_value:opensource>\n"
+            "</tool_call:opensource>\n"
+            "</tool_calls:opensource>"
+        )
+        # Feed in small chunks to exercise tag holdback
+        out = collect(p, [text[i : i + 7] for i in range(0, len(text), 7)])
+        self.assertEqual(out["reasoning"], "pondering")
+        self.assertEqual(out["content"], "Checking the weather.")
+
+        calls = self.parse(out["tool"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "get_weather")
+        self.assertEqual(calls[0].function.arguments, '{"location": "Tokyo"}')
+
+
 if __name__ == "__main__":
     unittest.main()
