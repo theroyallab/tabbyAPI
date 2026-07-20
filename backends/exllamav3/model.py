@@ -37,6 +37,7 @@ from common.hardware import hardware_supports_exllamav3
 from common.health import HealthManager
 from common.errors import ContextLengthExceededError, validate_context_requirements
 from common.logger import xlogger
+from common.metrics import MetricsManager
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import DisconnectHandler
 from common.optional_dependencies import check_package_version
@@ -1110,6 +1111,15 @@ class ExllamaV3Container:
                     "draft_reject": rejected_draft_tokens,
                 }
             )
+
+        # Accumulate server-wide metrics for the /metrics endpoint
+        MetricsManager.record_generation(
+            prompt_tokens=prompt_tokens,
+            cached_tokens=cached_tokens,
+            gen_tokens=gen_tokens,
+            prompt_time=prompt_time,
+            gen_time=gen_time,
+        )
 
         return finish_chunk
 

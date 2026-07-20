@@ -36,6 +36,11 @@ network:
   # connections from dropping during long prefills. Set to 0 to disable.
   sse_ping_interval: 15
 
+  # Enable the Prometheus-compatible /metrics endpoint (default: False).
+  # Exposes aggregate inference stats in the text exposition format.
+  # NOTE: This endpoint is not protected by API key authentication.
+  enable_metrics: false
+
 # Options for logging
 logging:
   # Enable prompt logging (default: False).
