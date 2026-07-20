@@ -612,7 +612,6 @@ class ExllamaV3Container:
             }
         finally:
             self.load_lock.release()
-            return
             
 
     def get_loras(self) -> List[Any]:
