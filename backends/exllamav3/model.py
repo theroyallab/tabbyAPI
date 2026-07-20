@@ -21,6 +21,8 @@ from exllamav3 import (
     Model,
     Tokenizer,
 )
+from exllamav3.model.lora import LoRA
+from exllamav3.model.lora import Linear
 from exllamav3.cache import CacheLayer_quant
 from backends.exllamav3.grammar import ExLlamaV3Grammar
 
@@ -580,19 +582,41 @@ class ExllamaV3Container:
         while len(self.active_job_ids) > 0:
             await asyncio.sleep(0.01)
 
-    # TODO: Wire up exllamav3's LoRA support once the API surface for it is decided
     async def load_loras(self, lora_directory: pathlib.Path, **kwargs) -> Dict[str, List[str]]:
-        """Stub. LoRAs aren't hooked up to the ExLlamaV3 backend yet."""
+        """Load one or more LoRAs."""
+        loras = unwrap(kwargs.get("loras"),[])
+        try:
+            await self.load_lock.acquire()
+            await self.wait_for_jobs(kwargs.get("skip_wait"))
+            success: List[str] = []
+            failure: List[str] = []
+            for lora in loras:
+                lora_name = lora.get("name")
+                lora_scaling = unwrap(lora.get("scaling"),1.0)
 
-        xlogger.error("LoRA loading is not hooked up to the ExLlamaV3 backend yet.")
-        return {
-            "success": [],
-            "failure": [lora.get("name", "unknown") for lora in kwargs.get("loras", [])],
-        }
+                if lora_name is None:
+                    xlogger.warning(    #todo: is this still meaningful? implementation mostly copied from exl2
+                        "One of your loras does not have a name. Please check your "
+                        "config.yml! Skipping lora load."
+                    )
+                    failure.append(lora_name)
+                    continue
+                xlogger.info(f"Adding lora: {lora_name} at scaling {lora_scaling}")
+                lora_path = lora_directory / lora_name
+
+                LoRA.from_directory(self.model, lora_path, lora_scaling)
+
+            return {
+                "success": success,
+                "failure": failure,
+            }
+        finally:
+            self.load_lock.release()
+            return
+            
 
     def get_loras(self) -> List[Any]:
-        """Stub. LoRAs aren't hooked up to the ExLlamaV3 backend yet."""
-
+        """Stub. Not currently tracking which LoRA are loaded""" # TODO: keep track of loaded loras?
         return []
 
     async def load_gen(self, progress_callback=None, **kwargs):
@@ -721,9 +745,14 @@ class ExllamaV3Container:
             **kwargs: Additional unloading options (e.g., shutdown).
         """
 
-        # Nothing to do for LoRA-only unloads until LoRAs are hooked up
         if loras_only:
-            xlogger.error("LoRA unloading is not hooked up to the ExLlamaV3 backend yet.")
+            xlogger.info("Unloading LoRAs..")
+            await self.load_lock.acquire()
+            for module in self.model:
+                if isinstance(module, Linear):
+                    module.lora_a_tensors.clear()
+                    module.lora_b_tensors.clear()
+            self.load_lock.release()
             return
 
         # Used when shutting down the server
