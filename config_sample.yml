@@ -256,7 +256,7 @@ draft_model:
 # Options for Sampling
 sampling:
   # Select a sampler override preset (default: None).
-  # Find this in the sampler-overrides folder.
+  # This is a preset name, not a path: TabbyAPI reads sampler_overrides/<name>.yml relative to the directory it is launched from.
   # This overrides default fallbacks for sampler values that are passed to the API.
   # NOTE: safe_defaults is noob friendly and provides fallbacks for frontends that don't send sampling parameters.
   # Remove this for any advanced usage.
