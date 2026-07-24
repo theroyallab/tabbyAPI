@@ -19,6 +19,11 @@ from typing import Dict, List, Optional, Union
 from common.utils import filter_none_values, unwrap
 
 
+# Directory that sampler override presets are looked up in. This is a relative
+# path, so it resolves against the current working directory (where TabbyAPI
+# was launched from) rather than the directory TabbyAPI is installed in.
+SAMPLER_OVERRIDES_DIR = pathlib.Path("sampler_overrides")
+
 # Params that are accepted for API compatibility but not implemented by the
 # exllamav3 backend, mapped to the neutral value that leaves them inactive.
 # Requests that activate any of these get a warning and the param is ignored.
@@ -408,9 +413,16 @@ def overrides_from_dict(new_overrides: dict):
 
 
 async def overrides_from_file(preset_name: str):
-    """Fetches an override preset from a file"""
+    """
+    Fetches an override preset from a file.
 
-    preset_path = pathlib.Path(f"sampler_overrides/{preset_name}.yml")
+    The preset name is not a path: it is looked up as
+    `sampler_overrides/<preset_name>.yml` relative to the current working
+    directory, so TabbyAPI has to be launched from the directory that holds
+    the `sampler_overrides` folder.
+    """
+
+    preset_path = SAMPLER_OVERRIDES_DIR / f"{preset_name}.yml"
     if preset_path.exists():
         overrides_container.selected_preset = preset_path.stem
         async with aiofiles.open(preset_path, "r", encoding="utf8") as raw_preset:
@@ -424,18 +436,25 @@ async def overrides_from_file(preset_name: str):
             xlogger.info("Applied sampler overrides from file.", {"preset": preset})
     else:
         error_message = (
-            f'Sampler override file named "{preset_name}" was not found. '
-            + "Make sure it's located in the sampler_overrides folder."
+            f'Sampler override file named "{preset_name}" was not found at '
+            f"{preset_path.resolve()}. Presets are read from the "
+            f'"{SAMPLER_OVERRIDES_DIR}" folder relative to the current working '
+            f"directory ({pathlib.Path.cwd()}), so make sure the file is there "
+            "and that TabbyAPI is launched from that directory."
         )
 
         raise FileNotFoundError(error_message)
 
 
 def get_all_presets():
-    """Fetches all sampler override presets from the overrides directory"""
+    """
+    Fetches all sampler override presets from the overrides directory.
 
-    override_directory = pathlib.Path("sampler_overrides")
-    preset_files = [file.stem for file in override_directory.glob("*.yml")]
+    Uses the same lookup as `overrides_from_file`: the `sampler_overrides`
+    folder relative to the current working directory.
+    """
+
+    preset_files = [file.stem for file in SAMPLER_OVERRIDES_DIR.glob("*.yml")]
 
     return preset_files
 
