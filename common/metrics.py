@@ -73,10 +73,45 @@ class MetricsManagerClass:
         except Exception:
             return 0, 0
 
+    def _live_kv_cache(self) -> tuple[int, int]:
+        """Read (used_tokens, max_tokens) of the paged KV cache from the generator.
+
+        Usage is measured over pages currently referenced by in-flight jobs, the
+        instantaneous KV load. Unreferenced pages may still hold reusable prompt
+        prefixes but are free to be evicted, so they count as headroom rather than
+        usage (matching llama.cpp's kv_cache_usage_ratio). Returns zeros if no
+        model is loaded or the backend does not expose a page table.
+        """
+
+        # Imported lazily to avoid a circular import (common.model pulls in the
+        # backends, which import this module).
+        from common import model
+
+        container = model.container
+        generator = getattr(container, "generator", None) if container else None
+        sync_generator = getattr(generator, "generator", None) if generator else None
+        pagetable = getattr(sync_generator, "pagetable", None) if sync_generator else None
+
+        if pagetable is None:
+            return 0, 0
+
+        try:
+            max_pages = pagetable.max_pages
+            max_tokens = sync_generator.max_total_tokens
+            page_size = max_tokens // max_pages if max_pages else 0
+            used_tokens = len(pagetable.referenced_pages) * page_size
+            return used_tokens, max_tokens
+        except Exception:
+            return 0, 0
+
     def render_prometheus(self) -> str:
         """Render all metrics in the Prometheus text exposition format."""
 
         requests_processing, requests_deferred = self._live_request_counts()
+        kv_cache_tokens, kv_cache_max_tokens = self._live_kv_cache()
+        kv_cache_usage_ratio = (
+            kv_cache_tokens / kv_cache_max_tokens if kv_cache_max_tokens > 0 else 0.0
+        )
 
         # Throughput is measured over processed (non-cached) prompt tokens, to
         # match how the backend reports per-request prompt speed.
@@ -159,6 +194,24 @@ class MetricsManagerClass:
                 "requests_deferred",
                 "Number of requests deferred.",
                 requests_deferred,
+            ),
+            (
+                "gauge",
+                "kv_cache_usage_ratio",
+                "KV-cache usage. 1 means 100 percent usage.",
+                kv_cache_usage_ratio,
+            ),
+            (
+                "gauge",
+                "kv_cache_tokens",
+                "KV-cache tokens.",
+                kv_cache_tokens,
+            ),
+            (
+                "gauge",
+                "kv_cache_max_tokens",
+                "Total KV-cache token capacity.",
+                kv_cache_max_tokens,
             ),
         ]
 
