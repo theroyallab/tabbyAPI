@@ -145,7 +145,12 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         if container and container.model:
             loaded_model_name = container.model_dir.name
 
-            if loaded_model_name == model_path.name and container.loaded:
+            # Compare resolved paths, not just directory names, so a symlink
+            # alias pointing at the already-loaded model is recognized as the
+            # same model instead of triggering a spurious unload/reload (#379).
+            already_loaded = container.model_dir.resolve() == model_path.resolve()
+
+            if already_loaded and container.loaded:
                 xlogger.info(f'Model "{loaded_model_name}" is already loaded')
 
                 # Emit a terminal progress event so API clients always

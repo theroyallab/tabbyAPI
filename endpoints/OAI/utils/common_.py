@@ -62,9 +62,13 @@ def aggregate_usage_stats(usage_stats_list: list[UsageStats]) -> UsageStats:
 async def load_inline_model(model_name: str, request: Request):
     """Load a model from the data.model parameter"""
 
-    # Return if the model container already exists and the model is fully loaded
-    if model.container and model.container.model_dir.name == model_name and model.container.loaded:
-        return
+    # Return if the model container already exists and the model is fully loaded.
+    # Compare resolved paths so a symlink alias for the loaded model is treated
+    # as already loaded instead of triggering a spurious reload (#379).
+    if model.container and model.container.loaded:
+        requested_dir = pathlib.Path(config.model.model_dir) / model_name
+        if model.container.model_dir.resolve() == requested_dir.resolve():
+            return
 
     # Return if inline loading is disabled
     # Also warn if an admin key is used
