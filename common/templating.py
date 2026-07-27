@@ -8,7 +8,7 @@ from datetime import datetime
 from importlib.metadata import version as package_version
 from typing import Optional
 from jinja2 import Template, TemplateError
-from jinja2.ext import loopcontrols
+from jinja2.ext import loopcontrols, Extension
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from common.logger import xlogger
 from markupsafe import Markup
@@ -16,6 +16,16 @@ from packaging import version
 
 
 from common.utils import unwrap
+
+
+class IgnoreGenerationTags(Extension):
+    """Pass-through for HuggingFace's ``{% generation %}`` chat-template tag."""
+
+    tags = {"generation"}
+
+    def parse(self, parser):
+        parser.stream.skip(1)
+        return parser.parse_statements(("name:endgeneration",), drop_needle=True)
 
 
 class TemplateLoadError(Exception):
@@ -63,7 +73,7 @@ def _create_environment() -> ImmutableSandboxedEnvironment:
         trim_blocks=True,
         lstrip_blocks=True,
         enable_async=True,
-        extensions=[loopcontrols],
+        extensions=[IgnoreGenerationTags, loopcontrols],
     )
     environment.globals["strftime_now"] = _strftime_now
     environment.globals["raise_exception"] = _raise_exception
