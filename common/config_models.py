@@ -66,10 +66,11 @@ class NetworkConfig(BaseConfigModel):
             "NOTE: Only enable this for debug purposes."
         ),
     )
-    api_servers: Optional[List[Literal["oai", "kobold"]]] = Field(
+    api_servers: Optional[List[Literal["oai", "kobold", "anthropic"]]] = Field(
         ["OAI"],
         description=(
-            'Select API servers to enable (default: ["OAI"]).\nPossible values: OAI, Kobold.'
+            'Select API servers to enable (default: ["OAI"]).\n'
+            "Possible values: OAI, Kobold, Anthropic."
         ),
     )
     sse_ping_interval: Optional[int] = Field(

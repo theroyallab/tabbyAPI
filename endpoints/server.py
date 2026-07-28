@@ -10,6 +10,7 @@ from common.logger import UVICORN_LOG_CONFIG
 from common.errors import ContextLengthHTTPException, context_length_exception_handler
 from common.networking import get_global_depends
 from common.tabby_config import config
+from endpoints.Anthropic import router as AnthropicRouter
 from endpoints.Kobold import router as KoboldRouter
 from endpoints.OAI import router as OAIRouter
 from endpoints.core.router import router as CoreRouter
@@ -48,7 +49,11 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
     )
 
     # Map for API id to server router
-    router_mapping = {"oai": OAIRouter, "kobold": KoboldRouter}
+    router_mapping = {
+        "oai": OAIRouter,
+        "kobold": KoboldRouter,
+        "anthropic": AnthropicRouter,
+    }
 
     # Include the OAI api by default
     for server in api_servers:
