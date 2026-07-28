@@ -129,9 +129,15 @@ class ToolChoice(BaseModel):
 
 
 class AnthropicMessage(BaseModel):
-    """A single turn of the conversation."""
+    """
+    A single turn of the conversation.
 
-    role: Literal["user", "assistant"]
+    A system role is accepted mid-list: recent Anthropic models take operator
+    instructions that way rather than by editing the top-level system prompt,
+    and Claude Code sends them on every request.
+    """
+
+    role: Literal["user", "assistant", "system"]
     content: Union[str, List[RequestContentBlock]]
 
 

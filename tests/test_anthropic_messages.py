@@ -111,6 +111,87 @@ class SystemPromptTests(unittest.TestCase):
         self.assertEqual(converted.messages[0].content, "cached")
 
 
+class MidConversationSystemTests(unittest.TestCase):
+    """Claude Code sends operator instructions as system-role messages."""
+
+    def convert(self, messages, **kwargs):
+        return convert_messages_request(messages_request(messages=messages, **kwargs))
+
+    def test_mid_conversation_system_becomes_a_tagged_user_turn(self):
+        # Chat templates almost universally reject a system turn that isn't
+        # first; Qwen's raises outright
+        converted = self.convert(
+            [
+                {"role": "user", "content": "hi"},
+                {"role": "system", "content": "Terse mode enabled."},
+            ],
+            system="Top level prompt.",
+        )
+
+        self.assertEqual([m.role for m in converted.messages], ["system", "user", "user"])
+        self.assertEqual(
+            converted.messages[2].content,
+            "<system-reminder>\nTerse mode enabled.\n</system-reminder>",
+        )
+
+    def test_leading_system_message_becomes_the_system_prompt(self):
+        converted = self.convert(
+            [
+                {"role": "system", "content": "You are helpful."},
+                {"role": "user", "content": "hi"},
+            ]
+        )
+
+        self.assertEqual([m.role for m in converted.messages], ["system", "user"])
+        self.assertEqual(converted.messages[0].content, "You are helpful.")
+
+    def test_leading_system_message_yields_to_the_top_level_prompt(self):
+        # Only one turn can be first, and the top-level prompt already took it
+        converted = self.convert(
+            [{"role": "system", "content": "Second one."}, {"role": "user", "content": "hi"}],
+            system="Top level prompt.",
+        )
+
+        self.assertEqual([m.role for m in converted.messages], ["system", "user", "user"])
+        self.assertEqual(converted.messages[0].content, "Top level prompt.")
+        self.assertIn("Second one.", converted.messages[1].content)
+
+    def test_system_message_content_blocks(self):
+        converted = self.convert(
+            [
+                {"role": "user", "content": "hi"},
+                {
+                    "role": "system",
+                    "content": [
+                        {"type": "text", "text": "one"},
+                        {"type": "text", "text": "two"},
+                    ],
+                },
+            ]
+        )
+
+        self.assertEqual(
+            converted.messages[-1].content,
+            "<system-reminder>\none\n\ntwo\n</system-reminder>",
+        )
+
+    def test_several_system_messages(self):
+        converted = self.convert(
+            [
+                {"role": "user", "content": "hi"},
+                {"role": "system", "content": "first"},
+                {"role": "assistant", "content": "ok"},
+                {"role": "system", "content": "second"},
+            ]
+        )
+
+        self.assertEqual(
+            [m.role for m in converted.messages], ["user", "user", "assistant", "user"]
+        )
+        self.assertIn("first", converted.messages[1].content)
+        self.assertIn("second", converted.messages[3].content)
+
+
 class MessageContentTests(unittest.TestCase):
     def test_string_content(self):
         converted = convert_messages_request(

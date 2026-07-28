@@ -207,6 +207,33 @@ def _tool_result_content(block: ToolResultBlock):
     return _content_from_items(items) or ""
 
 
+def _system_turn(content, mid_conversation: bool) -> ChatCompletionMessage:
+    """
+    Turn a system-role message into one a chat template will render.
+
+    Anthropic's mid-conversation system messages carry operator instructions
+    without disturbing the cached prefix ahead of them. Chat templates almost
+    universally allow a system turn only in first position — Qwen's raises
+    "System message must be at the beginning" otherwise — so anything later is
+    carried in a user turn tagged as a system reminder, the same fallback the
+    Anthropic API documents for models lacking the feature.
+
+    Folding it into the leading system prompt instead would defeat the point:
+    that prompt sits at the front of the prefix, so rewriting it every turn
+    invalidates the whole prompt cache.
+    """
+
+    if not mid_conversation:
+        return ChatCompletionMessage(role="system", content=content)
+
+    if isinstance(content, str):
+        content = f"<system-reminder>\n{content}\n</system-reminder>"
+    else:
+        xlogger.debug("Non-text system message content; passing through untagged.")
+
+    return ChatCompletionMessage(role="user", content=content)
+
+
 class MessageParts(NamedTuple):
     """One Anthropic message, split along the axes a chat message needs."""
 
@@ -286,6 +313,10 @@ def build_chat_messages(
 
     for message in messages:
         parts = _split_content(message.content)
+
+        if message.role == "system":
+            chat_messages.append(_system_turn(parts.content, bool(chat_messages)))
+            continue
 
         # Anthropic packs every tool result for a turn into one user message,
         # but chat templates expect one tool message per result, so a single
