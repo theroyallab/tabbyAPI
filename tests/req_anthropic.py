@@ -66,6 +66,66 @@ stop_sequence_request = {
 }
 
 
+tool_request = {
+    "model": MODEL,
+    "max_tokens": 512,
+    "tools": [
+        {
+            "name": "get_weather",
+            "description": "Get the current weather for a location.",
+            "input_schema": {
+                "type": "object",
+                "properties": {"location": {"type": "string", "description": "City name"}},
+                "required": ["location"],
+            },
+        }
+    ],
+    "tool_choice": {"type": "auto"},
+    "messages": [{"role": "user", "content": "What's the weather in Paris and London?"}],
+}
+
+# A second turn feeding results back, which exercises the tool_result fan-out
+tool_followup_request = {
+    "model": MODEL,
+    "max_tokens": 512,
+    "tools": tool_request["tools"],
+    "messages": [
+        {"role": "user", "content": "What's the weather in Paris and London?"},
+        {
+            "role": "assistant",
+            "content": [
+                {"type": "text", "text": "Let me check both."},
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "get_weather",
+                    "input": {"location": "Paris"},
+                },
+                {
+                    "type": "tool_use",
+                    "id": "toolu_2",
+                    "name": "get_weather",
+                    "input": {"location": "London"},
+                },
+            ],
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "tool_result", "tool_use_id": "toolu_1", "content": "21C, sunny"},
+                {
+                    "type": "tool_result",
+                    "tool_use_id": "toolu_2",
+                    "content": "station offline",
+                    "is_error": True,
+                },
+                {"type": "text", "text": "Summarise what you found."},
+            ],
+        },
+    ],
+}
+
+
 def post(api_key, path, request):
     return httpx.post(
         f"{BASE_URL}{path}",
@@ -92,6 +152,8 @@ def test_message(api_key, request, label):
             print(f"\n[thinking]\n{block['thinking']}")
         elif block["type"] == "text":
             print(f"\n[text]\n{block['text']}")
+        elif block["type"] == "tool_use":
+            print(f"\n[tool_use] [{block['id']}] {block['name']}({json.dumps(block['input'])})")
 
     print(f"\nStop reason: {data.get('stop_reason')} (sequence: {data.get('stop_sequence')})")
     print(f"Usage: {data.get('usage')}")
@@ -133,15 +195,29 @@ def test_message_streaming(api_key, request, label):
             payload = json.loads(line[len("data:") :].strip())
 
             if name == "content_block_start":
-                blocks[payload["index"]] = dict(payload["content_block"])
+                block = dict(payload["content_block"])
+                if block["type"] == "tool_use":
+                    # input arrives as JSON fragments to concatenate
+                    block["_json"] = ""
+                blocks[payload["index"]] = block
                 order.append(payload["index"])
-                kind = payload["content_block"]["type"]
-                print(f"\n\n[{kind}][{payload['index']}]")
+                label = block["type"]
+                if label == "tool_use":
+                    label += f" {block['name']}"
+                print(f"\n\n[{label}][{payload['index']}]")
             elif name == "content_block_delta":
                 delta = payload["delta"]
-                key = "thinking" if delta["type"] == "thinking_delta" else "text"
-                blocks[payload["index"]][key] += delta[key]
-                print(delta[key], end="", flush=True)
+                if delta["type"] == "input_json_delta":
+                    blocks[payload["index"]]["_json"] += delta["partial_json"]
+                    print(delta["partial_json"], end="", flush=True)
+                else:
+                    key = "thinking" if delta["type"] == "thinking_delta" else "text"
+                    blocks[payload["index"]][key] += delta[key]
+                    print(delta[key], end="", flush=True)
+            elif name == "content_block_stop":
+                block = blocks[payload["index"]]
+                if block["type"] == "tool_use":
+                    block["input"] = json.loads(block.pop("_json") or "{}")
             elif name == "message_delta":
                 final = payload
             elif name == "error":
@@ -175,9 +251,13 @@ def main():
     test_message(api_key, block_request.copy(), "content blocks and replayed thinking")
     test_message(api_key, stop_sequence_request.copy(), "client stop sequence")
 
+    test_message(api_key, tool_request.copy(), "tool call")
+    test_message(api_key, tool_followup_request.copy(), "tool results fed back")
+
     test_message_streaming(api_key, simple_request.copy(), "plain text")
     test_message_streaming(api_key, block_request.copy(), "content blocks")
     test_message_streaming(api_key, stop_sequence_request.copy(), "client stop sequence")
+    test_message_streaming(api_key, tool_request.copy(), "tool call")
 
     test_count_tokens(api_key, simple_request, "plain text")
     test_count_tokens(api_key, block_request, "content blocks")

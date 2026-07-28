@@ -1,7 +1,7 @@
 """Types for the Anthropic Messages API."""
 
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Annotated, List, Literal, Optional, Union
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 from uuid import uuid4
 
 
@@ -36,6 +36,26 @@ class RedactedThinkingBlock(BaseModel):
     data: Optional[str] = None
 
 
+class ToolUseBlock(BaseModel):
+    """A tool call the model made on a previous turn, replayed by the client."""
+
+    type: Literal["tool_use"]
+    id: str
+    name: str
+    input: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolResultBlock(BaseModel):
+    """The result of a tool call, sent back in a user turn."""
+
+    type: Literal["tool_result"]
+    tool_use_id: str
+
+    # Anthropic allows a bare string or a list of blocks here
+    content: Optional[Union[str, List["RequestContentBlock"]]] = None
+    is_error: Optional[bool] = False
+
+
 class UnsupportedBlock(BaseModel):
     """Any block type this server does not handle yet."""
 
@@ -45,10 +65,40 @@ class UnsupportedBlock(BaseModel):
 
 
 KnownRequestBlock = Annotated[
-    Union[TextBlock, ThinkingBlock, RedactedThinkingBlock],
+    Union[TextBlock, ThinkingBlock, RedactedThinkingBlock, ToolUseBlock, ToolResultBlock],
     Field(discriminator="type"),
 ]
 RequestContentBlock = Union[KnownRequestBlock, UnsupportedBlock]
+
+ToolResultBlock.model_rebuild()
+
+
+class ToolDefinition(BaseModel):
+    """
+    A tool the model may call.
+
+    Anthropic's server-side tools (web search, code execution) arrive in the
+    same list distinguished by a `type`, so the field is modelled here in
+    order to reject them by name rather than fail schema validation.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    input_schema: Optional[Dict[str, Any]] = None
+    type: Optional[str] = None
+
+
+class ToolChoice(BaseModel):
+    """How the model should choose among the available tools."""
+
+    model_config = ConfigDict(extra="allow")
+
+    # Not a Literal so an unrecognized mode is reported by name
+    type: str
+    name: Optional[str] = None
+    disable_parallel_tool_use: Optional[bool] = None
 
 
 class AnthropicMessage(BaseModel):
@@ -105,6 +155,9 @@ class MessagesRequest(BaseModel):
     thinking: Optional[ThinkingConfig] = None
     metadata: Optional[Metadata] = None
 
+    tools: Optional[List[ToolDefinition]] = None
+    tool_choice: Optional[ToolChoice] = None
+
 
 class CountTokensRequest(BaseModel):
     """Represents an Anthropic token counting request."""
@@ -112,6 +165,8 @@ class CountTokensRequest(BaseModel):
     messages: List[AnthropicMessage]
     model: Optional[str] = None
     system: Optional[Union[str, List[TextBlock]]] = None
+    tools: Optional[List[ToolDefinition]] = None
+    tool_choice: Optional[ToolChoice] = None
 
 
 # Response types
@@ -138,7 +193,16 @@ class ResponseThinkingBlock(BaseModel):
     signature: str = ""
 
 
-ResponseContentBlock = Union[ResponseThinkingBlock, ResponseTextBlock]
+class ResponseToolUseBlock(BaseModel):
+    """A tool call in a response."""
+
+    type: Literal["tool_use"] = "tool_use"
+    id: str
+    name: str
+    input: Dict[str, Any] = Field(default_factory=dict)
+
+
+ResponseContentBlock = Union[ResponseThinkingBlock, ResponseTextBlock, ResponseToolUseBlock]
 
 
 class Usage(BaseModel):

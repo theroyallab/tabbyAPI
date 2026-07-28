@@ -45,6 +45,7 @@ from endpoints.OAI.utils.common_ import get_usage_stats
 # Block kinds, matching the content block types they open
 TEXT = "text"
 THINKING = "thinking"
+TOOL_USE = "tool_use"
 
 
 def _event(name: str, payload: dict) -> ServerSentEvent:
@@ -136,6 +137,53 @@ class ContentBlockTracker:
         )
 
         return events
+
+    def write_tool_call(self, tool_call: dict) -> List[ServerSentEvent]:
+        """
+        Emit a complete tool call as its own block.
+
+        The pipeline parses tool calls only once the generation has finished,
+        so the arguments arrive whole rather than incrementally. They are sent
+        as a single input_json_delta, which is what an accumulating client
+        expects: it concatenates the fragments and parses the result.
+        """
+
+        function = tool_call.get("function") or {}
+        events = self.close()
+
+        self.index += 1
+        self.open_kind = TOOL_USE
+
+        events.append(
+            _event(
+                "content_block_start",
+                {
+                    "type": "content_block_start",
+                    "index": self.index,
+                    "content_block": {
+                        "type": TOOL_USE,
+                        "id": tool_call.get("id"),
+                        "name": function.get("name"),
+                        "input": {},
+                    },
+                },
+            )
+        )
+        events.append(
+            _event(
+                "content_block_delta",
+                {
+                    "type": "content_block_delta",
+                    "index": self.index,
+                    "delta": {
+                        "type": "input_json_delta",
+                        "partial_json": function.get("arguments") or "{}",
+                    },
+                },
+            )
+        )
+
+        return events + self.close()
 
 
 def _message_start(message_id: str, model_name: str, input_tokens: int) -> ServerSentEvent:
@@ -277,6 +325,12 @@ async def stream_generate_message(
                 yield event
             for event in blocks.write(TEXT, generation.get("delta_content") or ""):
                 yield event
+
+            # Tool calls are parsed once generation finishes, so they arrive
+            # whole on the finish chunk rather than as incremental deltas
+            for tool_call in generation.get("delta_tool_calls") or []:
+                for event in blocks.write_tool_call(tool_call):
+                    yield event
 
             finish_reason = generation.get("finish_reason")
             if finish_reason:

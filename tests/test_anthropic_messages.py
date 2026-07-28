@@ -18,13 +18,14 @@ from endpoints.Anthropic.types.messages import (
     MessagesRequest,
     ResponseTextBlock,
     ResponseThinkingBlock,
+    ResponseToolUseBlock,
 )
 from endpoints.Anthropic.utils.convert import (
     _sampler_params,
     convert_count_tokens_request,
     convert_messages_request,
 )
-from endpoints.Anthropic.utils.messages import convert_response, stop_reason
+from endpoints.Anthropic.utils.messages import convert_response, stop_reason, tool_call_input
 from endpoints.Anthropic.utils.stream import ContentBlockTracker, stream_generate_message
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionMessage,
@@ -32,6 +33,7 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionResponse,
 )
 from endpoints.OAI.types.common import UsageStats
+from endpoints.OAI.types.tools import Tool, ToolCall
 
 MODEL_DIR = pathlib.Path("/models/test-model")
 
@@ -184,9 +186,7 @@ class MessageContentTests(unittest.TestCase):
         self.assertEqual(ctx.exception.error_type, "invalid_request_error")
         self.assertIn("image", ctx.exception.detail)
 
-    def test_tool_blocks_are_reported_as_unsupported(self):
-        # Until tool support lands, a tool_result must fail loudly rather than
-        # drop the tool output out of the conversation
+    def test_image_inside_tool_result_is_rejected(self):
         with self.assertRaises(AnthropicHTTPException) as ctx:
             convert_messages_request(
                 messages_request(
@@ -194,13 +194,258 @@ class MessageContentTests(unittest.TestCase):
                         {
                             "role": "user",
                             "content": [
-                                {"type": "tool_result", "tool_use_id": "x", "content": "42"}
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": "x",
+                                    "content": [{"type": "image", "source": {}}],
+                                }
                             ],
                         }
                     ]
                 )
             )
         self.assertIn("tool_result", ctx.exception.detail)
+
+
+class ToolConversionTests(unittest.TestCase):
+    def test_tool_use_block_becomes_tool_call(self):
+        converted = convert_messages_request(
+            messages_request(
+                messages=[
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "toolu_1",
+                                "name": "get_weather",
+                                "input": {"city": "Paris"},
+                            }
+                        ],
+                    }
+                ]
+            )
+        )
+
+        message = converted.messages[0]
+        self.assertEqual(message.role, "assistant")
+
+        # An assistant turn that only called tools carries no text
+        self.assertIsNone(message.content)
+        self.assertEqual(len(message.tool_calls), 1)
+
+        call = message.tool_calls[0]
+        self.assertEqual(call.id, "toolu_1")
+        self.assertEqual(call.function.name, "get_weather")
+
+        # Templates render the OAI shape, whose arguments are a JSON string
+        self.assertEqual(json.loads(call.function.arguments), {"city": "Paris"})
+
+    def test_tool_results_fan_out_to_one_message_each(self):
+        # Anthropic packs every result into one user message; templates expect
+        # one tool message per result
+        converted = convert_messages_request(
+            messages_request(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": "toolu_1", "content": "21C"},
+                            {"type": "tool_result", "tool_use_id": "toolu_2", "content": "rainy"},
+                        ],
+                    }
+                ]
+            )
+        )
+
+        self.assertEqual([m.role for m in converted.messages], ["tool", "tool"])
+        self.assertEqual([m.tool_call_id for m in converted.messages], ["toolu_1", "toolu_2"])
+        self.assertEqual([m.content for m in converted.messages], ["21C", "rainy"])
+
+    def test_tool_result_with_text_blocks(self):
+        converted = convert_messages_request(
+            messages_request(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "toolu_1",
+                                "content": [
+                                    {"type": "text", "text": "line one"},
+                                    {"type": "text", "text": "line two"},
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            )
+        )
+
+        self.assertEqual(converted.messages[0].content, "line one\n\nline two")
+
+    def test_tool_results_precede_trailing_user_text(self):
+        converted = convert_messages_request(
+            messages_request(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": "toolu_1", "content": "21C"},
+                            {"type": "text", "text": "What should I wear?"},
+                        ],
+                    }
+                ]
+            )
+        )
+
+        self.assertEqual([m.role for m in converted.messages], ["tool", "user"])
+        self.assertEqual(converted.messages[1].content, "What should I wear?")
+
+    def test_error_tool_result_is_marked_in_the_text(self):
+        # Templates have no concept of a failed call, so the model can only
+        # act on the failure if it can read it
+        converted = convert_messages_request(
+            messages_request(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "toolu_1",
+                                "content": "no such city",
+                                "is_error": True,
+                            }
+                        ],
+                    }
+                ]
+            )
+        )
+
+        self.assertEqual(converted.messages[0].content, "Error: no such city")
+
+    def test_full_tool_round_trip_message_order(self):
+        converted = convert_messages_request(
+            messages_request(
+                system="be helpful",
+                messages=[
+                    {"role": "user", "content": "weather in Paris?"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {"type": "text", "text": "Checking."},
+                            {
+                                "type": "tool_use",
+                                "id": "toolu_1",
+                                "name": "get_weather",
+                                "input": {"city": "Paris"},
+                            },
+                        ],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": "toolu_1", "content": "21C"}
+                        ],
+                    },
+                ],
+            )
+        )
+
+        self.assertEqual(
+            [m.role for m in converted.messages], ["system", "user", "assistant", "tool"]
+        )
+        self.assertEqual(converted.messages[2].content, "Checking.")
+        self.assertEqual(len(converted.messages[2].tool_calls), 1)
+
+    def test_tool_definitions_become_oai_specs(self):
+        converted = convert_messages_request(
+            messages_request(
+                tools=[
+                    {
+                        "name": "get_weather",
+                        "description": "Get the weather",
+                        "input_schema": {
+                            "type": "object",
+                            "properties": {"city": {"type": "string"}},
+                        },
+                    }
+                ]
+            )
+        )
+
+        spec = converted.tools[0]
+        self.assertEqual(spec.type, "function")
+        self.assertEqual(spec.function.name, "get_weather")
+        self.assertEqual(spec.function.description, "Get the weather")
+        self.assertEqual(spec.function.parameters["properties"], {"city": {"type": "string"}})
+
+    def test_tool_cache_control_is_ignored(self):
+        converted = convert_messages_request(
+            messages_request(
+                tools=[
+                    {
+                        "name": "get_weather",
+                        "input_schema": {"type": "object"},
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ]
+            )
+        )
+        self.assertEqual(converted.tools[0].function.name, "get_weather")
+
+    def test_server_tool_is_rejected(self):
+        with self.assertRaises(AnthropicHTTPException) as ctx:
+            convert_messages_request(
+                messages_request(tools=[{"type": "web_search_20260209", "name": "web_search"}])
+            )
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("web_search_20260209", ctx.exception.detail)
+
+    def test_tool_without_schema_is_rejected(self):
+        with self.assertRaises(AnthropicHTTPException) as ctx:
+            convert_messages_request(messages_request(tools=[{"name": "broken"}]))
+
+        self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_no_tools_leaves_field_unset(self):
+        self.assertIsNone(convert_messages_request(messages_request()).tools)
+
+    def test_tool_choice_modes(self):
+        for anthropic_mode, expected in [("auto", "auto"), ("any", "required"), ("none", "none")]:
+            converted = convert_messages_request(
+                messages_request(tool_choice={"type": anthropic_mode})
+            )
+            self.assertEqual(converted.tool_choice, expected)
+
+    def test_named_tool_choice(self):
+        converted = convert_messages_request(
+            messages_request(tool_choice={"type": "tool", "name": "get_weather"})
+        )
+        self.assertEqual(converted.tool_choice.function.name, "get_weather")
+
+    def test_named_tool_choice_without_name_is_rejected(self):
+        with self.assertRaises(AnthropicHTTPException):
+            convert_messages_request(messages_request(tool_choice={"type": "tool"}))
+
+    def test_unknown_tool_choice_is_rejected(self):
+        with self.assertRaises(AnthropicHTTPException) as ctx:
+            convert_messages_request(messages_request(tool_choice={"type": "sometimes"}))
+
+        self.assertIn("sometimes", ctx.exception.detail)
+
+    def test_disable_parallel_tool_use(self):
+        converted = convert_messages_request(
+            messages_request(tool_choice={"type": "auto", "disable_parallel_tool_use": True})
+        )
+        self.assertIs(converted.parallel_tool_calls, False)
+
+    def test_parallel_tool_use_left_alone_when_unspecified(self):
+        converted = convert_messages_request(messages_request(tool_choice={"type": "auto"}))
+        self.assertIs(converted.parallel_tool_calls, True)
 
 
 class SamplerMappingTests(unittest.TestCase):
@@ -446,6 +691,65 @@ class EndpointTests(unittest.TestCase):
         self.assertFalse(load_lock.locked())
 
 
+class ToolResponseTests(unittest.TestCase):
+    def tool_call(self, name="get_weather", arguments='{"city": "Paris"}', call_id="toolu_1"):
+        return ToolCall(id=call_id, function=Tool(name=name, arguments=arguments))
+
+    def test_tool_use_block_shape(self):
+        c = choice(content=None, finish_reason="tool_calls")
+        c.message.tool_calls = [self.tool_call()]
+
+        response = convert_response(
+            ChatCompletionResponse(choices=[c], model="test-model"),
+            messages_request(),
+            "test-model",
+        )
+
+        block = response.content[0]
+        self.assertIsInstance(block, ResponseToolUseBlock)
+        self.assertEqual(block.type, "tool_use")
+        self.assertEqual(block.id, "toolu_1")
+        self.assertEqual(block.name, "get_weather")
+
+        # The wire form is an object, not the JSON string the pipeline uses
+        self.assertEqual(block.input, {"city": "Paris"})
+
+    def test_text_precedes_tool_use(self):
+        c = choice(content="Checking.", reasoning_content="hmm", finish_reason="tool_calls")
+        c.message.tool_calls = [self.tool_call()]
+
+        response = convert_response(
+            ChatCompletionResponse(choices=[c], model="test-model"),
+            messages_request(),
+            "test-model",
+        )
+
+        self.assertEqual([b.type for b in response.content], ["thinking", "text", "tool_use"])
+
+    def test_parallel_tool_calls_become_separate_blocks(self):
+        c = choice(content=None, finish_reason="tool_calls")
+        c.message.tool_calls = [
+            self.tool_call(call_id="toolu_1"),
+            self.tool_call(name="get_time", arguments="{}", call_id="toolu_2"),
+        ]
+
+        response = convert_response(
+            ChatCompletionResponse(choices=[c], model="test-model"),
+            messages_request(),
+            "test-model",
+        )
+
+        self.assertEqual([b.id for b in response.content], ["toolu_1", "toolu_2"])
+        self.assertEqual(response.content[1].input, {})
+
+    def test_unparseable_arguments_yield_empty_input(self):
+        # Surfacing the call with an empty input beats failing the response;
+        # the tool name is the useful part
+        self.assertEqual(tool_call_input("get_weather", "not json"), {})
+        self.assertEqual(tool_call_input("get_weather", "[1, 2]"), {})
+        self.assertEqual(tool_call_input("get_weather", '{"a": 1}'), {"a": 1})
+
+
 class ContentBlockTrackerTests(unittest.TestCase):
     def names(self, events):
         return [event.event for event in events]
@@ -673,6 +977,107 @@ class StreamEventTests(unittest.TestCase):
         names = [name for name, _ in events]
         self.assertEqual(names[-1], "message_stop")
         self.assertIn("content_block_stop", names)
+
+    def test_tool_call_streams_as_its_own_block(self):
+        events, _ = run_stream(
+            messages_request(),
+            [
+                finish_chunk(
+                    finish_reason="tool_calls",
+                    delta_tool_calls=[
+                        {
+                            "id": "toolu_1",
+                            "type": "function",
+                            "index": 0,
+                            "function": {"name": "get_weather", "arguments": '{"city": "Paris"}'},
+                        }
+                    ],
+                )
+            ],
+        )
+
+        self.assertEqual(
+            [name for name, _ in events],
+            [
+                "message_start",
+                "content_block_start",
+                "content_block_delta",
+                "content_block_stop",
+                "message_delta",
+                "message_stop",
+            ],
+        )
+
+        start = [p for n, p in events if n == "content_block_start"][0]
+        self.assertEqual(start["content_block"]["type"], "tool_use")
+        self.assertEqual(start["content_block"]["id"], "toolu_1")
+        self.assertEqual(start["content_block"]["name"], "get_weather")
+        self.assertEqual(start["content_block"]["input"], {})
+
+        delta = [p for n, p in events if n == "content_block_delta"][0]["delta"]
+        self.assertEqual(delta["type"], "input_json_delta")
+        self.assertEqual(json.loads(delta["partial_json"]), {"city": "Paris"})
+
+        self.assertEqual(dict(events)["message_delta"]["delta"]["stop_reason"], "tool_use")
+
+    def test_text_block_is_closed_before_a_tool_block_opens(self):
+        events, _ = run_stream(
+            messages_request(),
+            [
+                {"index": 0, "delta_content": "Checking.", "delta_reasoning_content": ""},
+                finish_chunk(
+                    finish_reason="tool_calls",
+                    delta_tool_calls=[
+                        {
+                            "id": "toolu_1",
+                            "function": {"name": "get_weather", "arguments": "{}"},
+                        }
+                    ],
+                ),
+            ],
+        )
+
+        names = [name for name, _ in events]
+        self.assertEqual(
+            names,
+            [
+                "message_start",
+                "content_block_start",
+                "content_block_delta",
+                "content_block_stop",
+                "content_block_start",
+                "content_block_delta",
+                "content_block_stop",
+                "message_delta",
+                "message_stop",
+            ],
+        )
+
+        starts = [p for n, p in events if n == "content_block_start"]
+        self.assertEqual([s["content_block"]["type"] for s in starts], ["text", "tool_use"])
+        self.assertEqual([s["index"] for s in starts], [0, 1])
+
+    def test_parallel_tool_calls_stream_as_separate_blocks(self):
+        events, _ = run_stream(
+            messages_request(),
+            [
+                finish_chunk(
+                    finish_reason="tool_calls",
+                    delta_tool_calls=[
+                        {"id": "toolu_1", "function": {"name": "a", "arguments": "{}"}},
+                        {"id": "toolu_2", "function": {"name": "b", "arguments": "{}"}},
+                    ],
+                )
+            ],
+        )
+
+        starts = [p for n, p in events if n == "content_block_start"]
+        self.assertEqual([s["content_block"]["id"] for s in starts], ["toolu_1", "toolu_2"])
+        self.assertEqual([s["index"] for s in starts], [0, 1])
+
+        # Each block must be closed before the next opens
+        names = [name for name, _ in events]
+        self.assertEqual(names.count("content_block_stop"), 2)
 
     def test_open_block_is_closed_before_message_delta(self):
         events, _ = run_stream(
