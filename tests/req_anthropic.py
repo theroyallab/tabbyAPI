@@ -11,6 +11,7 @@ The requests are sent with the Anthropic header and auth conventions
 SDK clients use.
 """
 
+import json
 from pprint import pprint
 
 import httpx
@@ -98,6 +99,62 @@ def test_message(api_key, request, label):
     return data
 
 
+def test_message_streaming(api_key, request, label):
+    print("\n\n")
+    print("-" * 80)
+    print(f"STREAMING MESSAGES REQUEST: {label}")
+    print("-" * 80)
+
+    request = {**request, "stream": True}
+
+    # Accumulate the way an SDK does, so a malformed block lifecycle shows up
+    blocks = {}
+    order = []
+    final = {}
+    event_names = []
+
+    with httpx.stream(
+        "POST",
+        f"{BASE_URL}/messages",
+        headers={"x-api-key": api_key, "anthropic-version": "2023-06-01"},
+        json=request,
+        timeout=300,
+    ) as response:
+        name = None
+        for line in response.iter_lines():
+            line = line.rstrip("\r")
+            if line.startswith("event:"):
+                name = line[len("event:") :].strip()
+                event_names.append(name)
+                continue
+            if not line.startswith("data:"):
+                continue
+
+            payload = json.loads(line[len("data:") :].strip())
+
+            if name == "content_block_start":
+                blocks[payload["index"]] = dict(payload["content_block"])
+                order.append(payload["index"])
+                kind = payload["content_block"]["type"]
+                print(f"\n\n[{kind}][{payload['index']}]")
+            elif name == "content_block_delta":
+                delta = payload["delta"]
+                key = "thinking" if delta["type"] == "thinking_delta" else "text"
+                blocks[payload["index"]][key] += delta[key]
+                print(delta[key], end="", flush=True)
+            elif name == "message_delta":
+                final = payload
+            elif name == "error":
+                print(f"\n\n[error] {payload}")
+
+    print(f"\n\nEvent order: {event_names}")
+    print(f"Accumulated blocks: {[blocks[i] for i in order]}")
+    print(f"Stop: {final.get('delta')}")
+    print(f"Usage: {final.get('usage')}")
+
+    return blocks
+
+
 def test_count_tokens(api_key, request, label):
     print("\n\n")
     print("-" * 80)
@@ -117,6 +174,10 @@ def main():
     test_message(api_key, simple_request.copy(), "plain text")
     test_message(api_key, block_request.copy(), "content blocks and replayed thinking")
     test_message(api_key, stop_sequence_request.copy(), "client stop sequence")
+
+    test_message_streaming(api_key, simple_request.copy(), "plain text")
+    test_message_streaming(api_key, block_request.copy(), "content blocks")
+    test_message_streaming(api_key, stop_sequence_request.copy(), "client stop sequence")
 
     test_count_tokens(api_key, simple_request, "plain text")
     test_count_tokens(api_key, block_request, "content blocks")

@@ -309,15 +309,24 @@ def check_context_length(
     prompts: str | list[str],
     params: BaseSamplerRequest,
     mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
-):
-    """Reject oversized prompts before a streaming response commits HTTP 200."""
+) -> int:
+    """
+    Reject oversized prompts before a streaming response commits HTTP 200.
+
+    Returns the longest prompt's length in tokens, so a caller that needs the
+    prompt token count up front doesn't have to tokenize a second time.
+    """
 
     if isinstance(prompts, str):
         prompts = [prompts]
 
+    lengths = []
+
     try:
         for prompt in prompts:
-            container.validate_context_length(prompt, params, mm_embeddings)
+            lengths.append(container.validate_context_length(prompt, params, mm_embeddings))
     except ContextLengthExceededError as exc:
         error_message = handle_request_error(str(exc), exc_info=False).error.message
         raise ContextLengthHTTPException(error_message) from exc
+
+    return max(lengths, default=0)

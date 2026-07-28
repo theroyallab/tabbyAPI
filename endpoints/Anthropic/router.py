@@ -2,12 +2,14 @@ import asyncio
 from asyncio import CancelledError, InvalidStateError
 
 from fastapi import APIRouter, Depends, Request
+from sse_starlette import EventSourceResponse
 
 from common import model
 from common.auth import check_api_key
 from common.logger import xlogger
 from common.model import check_model_container
-from common.networking import DisconnectHandler
+from common.networking import DisconnectHandler, get_sse_ping_interval
+from common.tabby_config import config
 from endpoints.Anthropic.errors import AnthropicRoute, request_error
 from endpoints.Anthropic.types.messages import (
     CountTokensRequest,
@@ -17,6 +19,7 @@ from endpoints.Anthropic.types.messages import (
 )
 from endpoints.Anthropic.utils.convert import convert_messages_request
 from endpoints.Anthropic.utils.messages import convert_response, count_tokens
+from endpoints.Anthropic.utils.stream import stream_generate_message
 from endpoints.OAI.utils.chat_completion import apply_chat_template, generate_chat_completion
 from endpoints.OAI.utils.common_ import load_inline_model
 
@@ -68,11 +71,11 @@ async def messages_request(request: Request, data: MessagesRequest) -> MessagesR
     raw_json = await request.json()
     xlogger.debug("[ENDPOINT] /v1/messages", {"raw": raw_json})
 
-    if data.stream:
+    if data.stream and config.developer.disable_request_streaming:
+        # Returning a non-streaming body to a client that asked for SSE would
+        # fail in the client's parser rather than say what went wrong
         raise request_error(
-            400,
-            "Streaming is not supported on /v1/messages yet. Send the request "
-            "with stream disabled.",
+            400, "Streaming is disabled on this server (developer.disable_request_streaming)."
         )
 
     model_path = await _resolve_model(data.model, request)
@@ -84,6 +87,25 @@ async def messages_request(request: Request, data: MessagesRequest) -> MessagesR
     try:
         disconnect_handler = DisconnectHandler(request, "/v1/messages")
         await disconnect_handler.poll()
+
+        if data.stream:
+            # Checked before the response commits HTTP 200, and reused as the
+            # prompt token count message_start has to carry up front
+            input_tokens = model.check_context_length(prompt, converted, mm_embeddings)
+
+            return EventSourceResponse(
+                stream_generate_message(
+                    prompt,
+                    mm_embeddings,
+                    data,
+                    converted,
+                    request,
+                    model_path,
+                    disconnect_handler,
+                    input_tokens,
+                ),
+                ping=get_sse_ping_interval(),
+            )
 
         completion = await generate_chat_completion(
             prompt, mm_embeddings, converted, request, model_path, disconnect_handler

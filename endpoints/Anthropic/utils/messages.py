@@ -15,29 +15,36 @@ from endpoints.Anthropic.types.messages import (
     Usage,
 )
 from endpoints.Anthropic.utils.convert import convert_count_tokens_request
-from endpoints.OAI.types.chat_completion import ChatCompletionRespChoice, ChatCompletionResponse
+from endpoints.OAI.types.chat_completion import ChatCompletionResponse
 from endpoints.OAI.utils.chat_completion import apply_chat_template
 
 
-def _stop_reason(
-    choice: ChatCompletionRespChoice, stop_sequences: Optional[List[str]]
+def stop_reason(
+    finish_reason: Optional[str],
+    eos_reason: Optional[str],
+    stop_str: Optional[str],
+    stop_sequences: Optional[List[str]],
 ) -> Tuple[str, Optional[str]]:
     """
-    Map a finished choice onto an Anthropic stop reason.
+    Map a finished generation onto an Anthropic stop reason.
+
+    Takes the raw fields rather than a response object so the streaming and
+    non-streaming paths share one implementation; a stop reason that differs
+    between them is a class of bug worth designing out.
 
     The stop_sequence field only reports sequences the client asked for. A
     prompt template contributes its own stop strings, and surfacing one of
     those as a stop_sequence would name a string the client never sent.
     """
 
-    if choice.finish_reason == "tool_calls":
+    if finish_reason == "tool_calls":
         return "tool_use", None
 
-    if choice.finish_reason == "length":
+    if finish_reason == "length":
         return "max_tokens", None
 
-    if choice.eos_reason == "stop_string" and choice.stop_str in (stop_sequences or []):
-        return "stop_sequence", choice.stop_str
+    if eos_reason == "stop_string" and stop_str in (stop_sequences or []):
+        return "stop_sequence", stop_str
 
     return "end_turn", None
 
@@ -60,13 +67,15 @@ def convert_response(
     if message.content:
         content.append(ResponseTextBlock(text=message.content))
 
-    stop_reason, stop_sequence = _stop_reason(choice, data.stop_sequences)
+    reason, stop_sequence = stop_reason(
+        choice.finish_reason, choice.eos_reason, choice.stop_str, data.stop_sequences
+    )
 
     usage = completion.usage
     return MessagesResponse(
         content=content,
         model=model_name,
-        stop_reason=stop_reason,
+        stop_reason=reason,
         stop_sequence=stop_sequence,
         usage=Usage(
             input_tokens=usage.prompt_tokens if usage else 0,

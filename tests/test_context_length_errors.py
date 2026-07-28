@@ -125,18 +125,25 @@ class ContextLengthErrorTests(unittest.IsolatedAsyncioTestCase):
 
     def test_streaming_preflight_checks_each_batched_prompt(self):
         checked_prompts = []
-        container = SimpleNamespace(
-            validate_context_length=lambda prompt, *args: checked_prompts.append(prompt)
-        )
+
+        def validate(prompt, *args):
+            checked_prompts.append(prompt)
+            return len(prompt)
+
+        container = SimpleNamespace(validate_context_length=validate)
 
         original_container = model.container
         model.container = container
         try:
-            model.check_context_length(["first", "second"], DummyRequestData())
+            longest = model.check_context_length(["first", "second"], DummyRequestData())
         finally:
             model.container = original_container
 
         self.assertEqual(checked_prompts, ["first", "second"])
+
+        # The longest prompt's length is returned so a caller needing the
+        # prompt token count up front doesn't tokenize a second time
+        self.assertEqual(longest, len("second"))
 
     async def test_completion_returns_400_for_context_length_error(self):
         error = ContextLengthExceededError("Prompt length 9 is greater than max_seq_len 8")
