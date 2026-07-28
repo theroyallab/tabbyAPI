@@ -1119,6 +1119,9 @@ class ExllamaV3Container:
             gen_tokens=gen_tokens,
             prompt_time=prompt_time,
             gen_time=gen_time,
+            queue_time=queue_time,
+            accepted_draft_tokens=accepted_draft_tokens,
+            rejected_draft_tokens=rejected_draft_tokens,
         )
 
         return finish_chunk
