@@ -177,16 +177,29 @@ class MessageContentTests(unittest.TestCase):
                     messages=[
                         {
                             "role": "user",
-                            "content": [{"type": "image", "source": {"type": "base64"}}],
+                            "content": [{"type": "document", "source": {"type": "base64"}}],
                         }
                     ]
                 )
             )
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertEqual(ctx.exception.error_type, "invalid_request_error")
-        self.assertIn("image", ctx.exception.detail)
+        self.assertIn("document", ctx.exception.detail)
 
-    def test_image_inside_tool_result_is_rejected(self):
+    def test_malformed_known_block_is_reported_as_malformed(self):
+        # A supported type that failed validation lands in the same fallback
+        # as an unknown type, but saying it "is not supported" would be wrong
+        with self.assertRaises(AnthropicHTTPException) as ctx:
+            convert_messages_request(
+                messages_request(
+                    messages=[{"role": "user", "content": [{"type": "image", "source": {}}]}]
+                )
+            )
+
+        self.assertIn("image", ctx.exception.detail)
+        self.assertNotIn("not supported", ctx.exception.detail)
+
+    def test_unsupported_block_inside_tool_result(self):
         with self.assertRaises(AnthropicHTTPException) as ctx:
             convert_messages_request(
                 messages_request(
@@ -197,7 +210,7 @@ class MessageContentTests(unittest.TestCase):
                                 {
                                     "type": "tool_result",
                                     "tool_use_id": "x",
-                                    "content": [{"type": "image", "source": {}}],
+                                    "content": [{"type": "document", "source": {}}],
                                 }
                             ],
                         }
@@ -205,6 +218,216 @@ class MessageContentTests(unittest.TestCase):
                 )
             )
         self.assertIn("tool_result", ctx.exception.detail)
+
+
+PNG = "iVBORw0KGgoAAAANSUhEUg=="
+
+
+def vision_container(use_vision=True):
+    return patch.object(common.model, "container", SimpleNamespace(use_vision=use_vision))
+
+
+class ImageTests(unittest.TestCase):
+    def base64_message(self, **source):
+        block = {
+            "type": "image",
+            "source": {"type": "base64", "media_type": "image/png", "data": PNG, **source},
+        }
+        return messages_request(
+            messages=[{"role": "user", "content": [block, {"type": "text", "text": "what is it?"}]}]
+        )
+
+    def test_base64_image_becomes_a_data_url_part(self):
+        with vision_container():
+            converted = convert_messages_request(self.base64_message())
+
+        parts = converted.messages[0].content
+        self.assertEqual([p.type for p in parts], ["image_url", "text"])
+        self.assertEqual(parts[0].image_url.url, f"data:image/png;base64,{PNG}")
+        self.assertEqual(parts[1].text, "what is it?")
+
+    def test_url_image_is_passed_through(self):
+        with vision_container():
+            converted = convert_messages_request(
+                messages_request(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image",
+                                    "source": {"type": "url", "url": "https://x.test/a.png"},
+                                }
+                            ],
+                        }
+                    ]
+                )
+            )
+
+        self.assertEqual(converted.messages[0].content[0].image_url.url, "https://x.test/a.png")
+
+    def test_text_only_message_stays_a_plain_string(self):
+        # The common case must not become a part list just because images exist
+        with vision_container():
+            converted = convert_messages_request(
+                messages_request(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "a"},
+                                {"type": "text", "text": "b"},
+                            ],
+                        }
+                    ]
+                )
+            )
+
+        self.assertEqual(converted.messages[0].content, "a\n\nb")
+
+    def test_consecutive_text_around_an_image_keeps_its_separator(self):
+        with vision_container():
+            converted = convert_messages_request(
+                messages_request(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": "a"},
+                                {"type": "text", "text": "b"},
+                                {
+                                    "type": "image",
+                                    "source": {"type": "url", "url": "https://x.test/a.png"},
+                                },
+                                {"type": "text", "text": "c"},
+                            ],
+                        }
+                    ]
+                )
+            )
+
+        parts = converted.messages[0].content
+        self.assertEqual([p.type for p in parts], ["text", "image_url", "text"])
+        self.assertEqual(parts[0].text, "a\n\nb")
+        self.assertEqual(parts[2].text, "c")
+
+    def test_image_rejected_without_a_vision_model(self):
+        # Templating only builds embeddings for a vision model, so the image
+        # would otherwise be dropped and the model asked about nothing
+        with vision_container(use_vision=False):
+            with self.assertRaises(AnthropicHTTPException) as ctx:
+                convert_messages_request(self.base64_message())
+
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("does not support images", ctx.exception.detail)
+
+    def test_base64_source_without_data_is_rejected(self):
+        with vision_container():
+            with self.assertRaises(AnthropicHTTPException) as ctx:
+                convert_messages_request(
+                    messages_request(
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "image",
+                                        "source": {"type": "base64", "media_type": "image/png"},
+                                    }
+                                ],
+                            }
+                        ]
+                    )
+                )
+
+        self.assertIn("media_type and data", ctx.exception.detail)
+
+    def test_file_source_is_rejected(self):
+        with vision_container():
+            with self.assertRaises(AnthropicHTTPException) as ctx:
+                convert_messages_request(
+                    messages_request(
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "image",
+                                        "source": {"type": "file", "file_id": "file_1"},
+                                    }
+                                ],
+                            }
+                        ]
+                    )
+                )
+
+        self.assertIn("file", ctx.exception.detail)
+
+    def test_image_inside_tool_result(self):
+        with vision_container():
+            converted = convert_messages_request(
+                messages_request(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": "toolu_1",
+                                    "content": [
+                                        {"type": "text", "text": "screenshot:"},
+                                        {
+                                            "type": "image",
+                                            "source": {
+                                                "type": "base64",
+                                                "media_type": "image/png",
+                                                "data": PNG,
+                                            },
+                                        },
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                )
+            )
+
+        message = converted.messages[0]
+        self.assertEqual(message.role, "tool")
+        self.assertEqual([p.type for p in message.content], ["text", "image_url"])
+
+    def test_error_tool_result_with_an_image_keeps_the_error_marker(self):
+        with vision_container():
+            converted = convert_messages_request(
+                messages_request(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": "toolu_1",
+                                    "is_error": True,
+                                    "content": [
+                                        {
+                                            "type": "image",
+                                            "source": {
+                                                "type": "base64",
+                                                "media_type": "image/png",
+                                                "data": PNG,
+                                            },
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                )
+            )
+
+        parts = converted.messages[0].content
+        self.assertEqual(parts[0].text, "Error")
+        self.assertEqual(parts[1].type, "image_url")
 
 
 class ToolConversionTests(unittest.TestCase):

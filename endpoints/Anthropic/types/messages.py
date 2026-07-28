@@ -36,6 +36,26 @@ class RedactedThinkingBlock(BaseModel):
     data: Optional[str] = None
 
 
+class ImageSource(BaseModel):
+    """Where an image block's data comes from."""
+
+    model_config = ConfigDict(extra="allow")
+
+    # Not a Literal so an unsupported source is reported by name
+    type: str
+    media_type: Optional[str] = None
+    data: Optional[str] = None
+    url: Optional[str] = None
+    file_id: Optional[str] = None
+
+
+class ImageBlock(BaseModel):
+    """An image, either inline base64 or a URL to fetch."""
+
+    type: Literal["image"]
+    source: ImageSource
+
+
 class ToolUseBlock(BaseModel):
     """A tool call the model made on a previous turn, replayed by the client."""
 
@@ -65,7 +85,14 @@ class UnsupportedBlock(BaseModel):
 
 
 KnownRequestBlock = Annotated[
-    Union[TextBlock, ThinkingBlock, RedactedThinkingBlock, ToolUseBlock, ToolResultBlock],
+    Union[
+        TextBlock,
+        ImageBlock,
+        ThinkingBlock,
+        RedactedThinkingBlock,
+        ToolUseBlock,
+        ToolResultBlock,
+    ],
     Field(discriminator="type"),
 ]
 RequestContentBlock = Union[KnownRequestBlock, UnsupportedBlock]

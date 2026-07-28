@@ -126,6 +126,34 @@ tool_followup_request = {
 }
 
 
+# A 1x1 red PNG, enough to exercise the base64 path without a fixture file
+RED_PIXEL_PNG = (
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmM"
+    "IQAAAABJRU5ErkJggg=="
+)
+
+image_request = {
+    "model": MODEL,
+    "max_tokens": 256,
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": RED_PIXEL_PNG,
+                    },
+                },
+                {"type": "text", "text": "What colour is this image?"},
+            ],
+        }
+    ],
+}
+
+
 def post(api_key, path, request):
     return httpx.post(
         f"{BASE_URL}{path}",
@@ -262,10 +290,13 @@ def main():
     test_count_tokens(api_key, simple_request, "plain text")
     test_count_tokens(api_key, block_request, "content blocks")
 
+    # Needs a vision model loaded; errors cleanly otherwise
+    test_message(api_key, image_request.copy(), "base64 image")
+
     # Unsupported blocks must fail loudly rather than drop conversation
     unsupported = simple_request.copy()
     unsupported["messages"] = [
-        {"role": "user", "content": [{"type": "image", "source": {"type": "base64"}}]}
+        {"role": "user", "content": [{"type": "document", "source": {"type": "base64"}}]}
     ]
     test_message(api_key, unsupported, "unsupported block (expects an error envelope)")
 
