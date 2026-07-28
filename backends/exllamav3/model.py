@@ -22,6 +22,7 @@ from exllamav3 import (
     Tokenizer,
 )
 from exllamav3.cache import CacheLayer_quant
+from exllamav3.generator.sampler import GreedySampler
 from backends.exllamav3.grammar import ExLlamaV3Grammar
 
 from backends.exllamav3.sampler import ExllamaV3SamplerBuilder
@@ -130,6 +131,7 @@ class ExllamaV3Container:
     max_batch_size: Optional[int] = None
     draft_num_tokens: Optional[int] = None
     ngram_match_min: int = 0
+    mtp_warmup_batch_sizes: List[int] = []
 
     def __init__(self):
         # Mutable state must be created per instance. A class-level default
@@ -177,6 +179,7 @@ class ExllamaV3Container:
         self.config = Config.from_directory(str(model_directory.resolve()))
         self.model = Model.from_config(self.config)
         self.tokenizer = Tokenizer.from_config(self.config)
+        self.mtp_warmup_batch_sizes = list(unwrap(kwargs.get("mtp_warmup_batch_sizes"), []))
 
         # Prepare vision model if requested in config
         self.vision_model = None
@@ -675,6 +678,63 @@ class ExllamaV3Container:
             if value:
                 yield value
 
+    async def _warmup_mtp_batches(self):
+        """Capture recurrent/MTP CUDA graph shapes before the API accepts traffic."""
+
+        if not self.mtp_warmup_batch_sizes:
+            return
+        if not self.use_draft_model or not self.draft_model.caps.get("mtp_draft", False):
+            xlogger.warning(
+                "mtp_warmup_batch_sizes was configured, but the active draft model "
+                "is not native MTP."
+            )
+            return
+
+        batch_sizes = sorted(set(self.mtp_warmup_batch_sizes))
+        invalid = [size for size in batch_sizes if size < 1 or size > self.max_batch_size]
+        if invalid:
+            raise ValueError(
+                "mtp_warmup_batch_sizes must be between 1 and max_batch_size "
+                f"({self.max_batch_size}); invalid values: {invalid}"
+            )
+
+        # More than three decode rounds are required to select and capture the fused GDN graph.
+        # A predictable prompt keeps the MTP window fully accepted while exercising draft Bx1 and
+        # target-verification Bx(draft+1) shapes. No generated text is logged or returned.
+        input_ids = self.tokenizer.encode(
+            "Warm the inference graph by continuing this sequence: 1 2 3 4 5 6 7 8",
+            encode_special_tokens=False,
+        )
+
+        async def drain(job: AsyncJob):
+            final = None
+            async for result in job:
+                final = result
+            return final
+
+        xlogger.info(f"Prewarming native MTP batch shapes: {batch_sizes}")
+        started = asyncio.get_running_loop().time()
+        for batch_size in batch_sizes:
+            jobs = [
+                AsyncJob(
+                    self.generator,
+                    input_ids=input_ids.clone(),
+                    max_new_tokens=32,
+                    sampler=GreedySampler(),
+                    seed=0,
+                    identifier=f"mtp-startup-warmup-b{batch_size}-{index}",
+                )
+                for index in range(batch_size)
+            ]
+            results = await asyncio.gather(*(drain(job) for job in jobs))
+            if self.generator.error is not None or any(result is None for result in results):
+                raise RuntimeError(f"Native MTP batch-{batch_size} startup warmup failed")
+            torch.cuda.synchronize()
+            xlogger.info(f"Prewarmed native MTP batch shape {batch_size}")
+
+        elapsed = asyncio.get_running_loop().time() - started
+        xlogger.info(f"Native MTP batch prewarm complete in {elapsed:.2f} seconds")
+
     async def create_generator(self):
         """Create and save a Exllama generator class."""
 
@@ -700,9 +760,10 @@ class ExllamaV3Container:
                 ngram_match_min=self.ngram_match_min,
             )
 
-            # Update the state of the container var
             if self.max_batch_size is None:
                 self.max_batch_size = self.generator.generator.max_batch_size
+
+            await self._warmup_mtp_batches()
         finally:
             # This means the generator is being recreated
             # The load lock is already released in the load function

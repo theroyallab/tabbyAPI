@@ -293,6 +293,15 @@ class ModelConfig(BaseConfigModel):
         ),
         ge=1,
     )
+    mtp_warmup_batch_sizes: List[int] = Field(
+        default_factory=list,
+        description=(
+            "Precompile Qwen3.5 MTP and recurrent CUDA graph shapes during model startup.\n"
+            "Each listed batch size is warmed before the API becomes ready, preventing the first\n"
+            "request at a new concurrency level from paying JIT and graph-capture latency.\n"
+            "Example: [1, 2, 3, 4]. Only applies to native MTP drafting."
+        ),
+    )
     prompt_template: Optional[str] = Field(
         None,
         description=(
