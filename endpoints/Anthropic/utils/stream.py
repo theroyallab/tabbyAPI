@@ -33,8 +33,8 @@ from common.logger import xlogger
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import DisconnectHandler
 from endpoints.Anthropic.errors import error_content
-from endpoints.Anthropic.types.messages import MessagesRequest
-from endpoints.Anthropic.utils.messages import stop_reason
+from endpoints.Anthropic.types.messages import MessagesRequest, Usage
+from endpoints.Anthropic.utils.messages import stop_reason, usage_from_stats
 from endpoints.OAI.types.chat_completion import ChatCompletionRequest
 from endpoints.OAI.utils.chat_completion import (
     _chat_stream_collector,
@@ -212,17 +212,21 @@ def _message_start(message_id: str, model_name: str, input_tokens: int) -> Serve
     )
 
 
-def _message_delta(
-    reason: str, stop_sequence: Optional[str], input_tokens: int, output_tokens: int
-) -> ServerSentEvent:
-    """Build the closing metadata event."""
+def _message_delta(reason: str, stop_sequence: Optional[str], usage: Usage) -> ServerSentEvent:
+    """
+    Build the closing metadata event.
+
+    The whole usage object is repeated here, not just the output count: the
+    prefix cache split is only known once prefill has run, so message_start
+    could not carry it.
+    """
 
     return _event(
         "message_delta",
         {
             "type": "message_delta",
             "delta": {"stop_reason": reason, "stop_sequence": stop_sequence},
-            "usage": {"input_tokens": input_tokens, "output_tokens": output_tokens},
+            "usage": usage.model_dump(),
         },
     )
 
@@ -306,8 +310,9 @@ async def stream_generate_message(
         blocks = ContentBlockTracker()
         reason = "end_turn"
         stop_sequence = None
-        output_tokens = 0
-        final_input_tokens = input_tokens
+
+        # Stands in until the finish chunk reports what prefill actually did
+        final_usage = Usage(input_tokens=input_tokens, output_tokens=0)
 
         while True:
             generation = await _next_generation(gen_queue, gen_task)
@@ -341,19 +346,18 @@ async def stream_generate_message(
                     data.stop_sequences,
                 )
 
+                # The finish chunk is authoritative: it knows the output
+                # count and how much of the prompt the prefix cache served
                 usage = get_usage_stats(generation)
                 if usage:
-                    output_tokens = usage.completion_tokens
-
-                    # The finish chunk is authoritative for the prompt count
-                    final_input_tokens = usage.prompt_tokens
+                    final_usage = usage_from_stats(usage)
 
                 break
 
         for event in blocks.close():
             yield event
 
-        yield _message_delta(reason, stop_sequence, final_input_tokens, output_tokens)
+        yield _message_delta(reason, stop_sequence, final_usage)
         yield _event("message_stop", {"type": "message_stop"})
 
         xlogger.info(f"Finished Anthropic streaming request {request.state.id}")

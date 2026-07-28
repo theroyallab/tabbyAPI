@@ -48,6 +48,37 @@ def tool_call_input(name: str, arguments: str) -> dict:
     return parsed
 
 
+def usage_from_stats(usage) -> Usage:
+    """
+    Split prompt tokens into fresh and cache-read, as Anthropic counts them.
+
+    TabbyAPI's prompt_tokens is the whole prompt with cached_tokens the part
+    the prefix cache served, while Anthropic's input_tokens counts only what
+    was not read from cache. Reporting the whole prompt as input made every
+    replayed turn look freshly processed, which is what inflates a client's
+    cost estimate over a long conversation.
+
+    cache_creation stays zero: the backend does not distinguish writing to the
+    cache from ordinary prefill, and clients price cache writes above plain
+    input, so guessing there would overstate rather than understate.
+    """
+
+    if usage is None:
+        return Usage(input_tokens=0, output_tokens=0)
+
+    prompt_tokens = usage.prompt_tokens or 0
+
+    # Defensive: a cached count above the prompt length would make input
+    # tokens negative
+    cached_tokens = min(usage.cached_tokens or 0, prompt_tokens)
+
+    return Usage(
+        input_tokens=prompt_tokens - cached_tokens,
+        output_tokens=usage.completion_tokens or 0,
+        cache_read_input_tokens=cached_tokens,
+    )
+
+
 def stop_reason(
     finish_reason: Optional[str],
     eos_reason: Optional[str],
@@ -108,16 +139,12 @@ def convert_response(
         choice.finish_reason, choice.eos_reason, choice.stop_str, data.stop_sequences
     )
 
-    usage = completion.usage
     return MessagesResponse(
         content=content,
         model=model_name,
         stop_reason=reason,
         stop_sequence=stop_sequence,
-        usage=Usage(
-            input_tokens=usage.prompt_tokens if usage else 0,
-            output_tokens=usage.completion_tokens if usage else 0,
-        ),
+        usage=usage_from_stats(completion.usage),
     )
 
 

@@ -25,7 +25,12 @@ from endpoints.Anthropic.utils.convert import (
     convert_count_tokens_request,
     convert_messages_request,
 )
-from endpoints.Anthropic.utils.messages import convert_response, stop_reason, tool_call_input
+from endpoints.Anthropic.utils.messages import (
+    convert_response,
+    stop_reason,
+    tool_call_input,
+    usage_from_stats,
+)
 from endpoints.Anthropic.utils.stream import ContentBlockTracker, stream_generate_message
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionMessage,
@@ -34,6 +39,7 @@ from endpoints.OAI.types.chat_completion import (
 )
 from endpoints.OAI.types.common import UsageStats
 from endpoints.OAI.utils.chat_completion import resolve_template_vars
+from endpoints.OAI.utils.common_ import aggregate_usage_stats, get_usage_stats
 from endpoints.OAI.types.tools import Tool, ToolCall
 
 MODEL_DIR = pathlib.Path("/models/test-model")
@@ -1099,6 +1105,90 @@ class ToolResponseTests(unittest.TestCase):
         self.assertEqual(tool_call_input("get_weather", '{"a": 1}'), {"a": 1})
 
 
+class UsageAccountingTests(unittest.TestCase):
+    """Prompt tokens served from the prefix cache are counted separately."""
+
+    def stats(self, prompt_tokens=100, cached_tokens=None, completion_tokens=5):
+        return UsageStats(
+            prompt_tokens=prompt_tokens,
+            cached_tokens=cached_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+        )
+
+    def test_cached_prefix_is_not_counted_as_fresh_input(self):
+        # TabbyAPI's prompt_tokens is the whole prompt; Anthropic's
+        # input_tokens is only the part that was not read from cache
+        usage = usage_from_stats(self.stats(prompt_tokens=100, cached_tokens=90))
+
+        self.assertEqual(usage.input_tokens, 10)
+        self.assertEqual(usage.cache_read_input_tokens, 90)
+        self.assertEqual(usage.output_tokens, 5)
+
+    def test_uncached_prompt_is_all_input(self):
+        usage = usage_from_stats(self.stats(prompt_tokens=100, cached_tokens=0))
+
+        self.assertEqual(usage.input_tokens, 100)
+        self.assertEqual(usage.cache_read_input_tokens, 0)
+
+    def test_missing_cached_count_is_treated_as_uncached(self):
+        usage = usage_from_stats(self.stats(prompt_tokens=100, cached_tokens=None))
+
+        self.assertEqual(usage.input_tokens, 100)
+        self.assertEqual(usage.cache_read_input_tokens, 0)
+
+    def test_cached_count_cannot_drive_input_negative(self):
+        usage = usage_from_stats(self.stats(prompt_tokens=100, cached_tokens=150))
+
+        self.assertEqual(usage.input_tokens, 0)
+        self.assertEqual(usage.cache_read_input_tokens, 100)
+
+    def test_cache_creation_is_never_guessed(self):
+        # The backend cannot distinguish a cache write from ordinary prefill,
+        # and clients price writes above plain input
+        usage = usage_from_stats(self.stats(prompt_tokens=100, cached_tokens=40))
+
+        self.assertEqual(usage.cache_creation_input_tokens, 0)
+
+    def test_absent_usage_is_all_zero(self):
+        usage = usage_from_stats(None)
+
+        self.assertEqual(usage.input_tokens, 0)
+        self.assertEqual(usage.output_tokens, 0)
+
+    def test_non_streaming_response_reports_the_split(self):
+        response = convert_response(
+            completion(usage=self.stats(prompt_tokens=100, cached_tokens=90)),
+            messages_request(),
+            "test-model",
+        )
+
+        self.assertEqual(response.usage.input_tokens, 10)
+        self.assertEqual(response.usage.cache_read_input_tokens, 90)
+
+    def test_pipeline_carries_cached_tokens_from_the_finish_chunk(self):
+        stats = get_usage_stats(
+            {"finish_reason": "stop", "prompt_tokens": 100, "cached_tokens": 90.0, "gen_tokens": 5}
+        )
+        self.assertEqual(stats.cached_tokens, 90)
+
+    def test_aggregate_keeps_the_shared_cached_count(self):
+        # One prompt is shared across choices, so its cached portion is too
+        stats = [
+            UsageStats(prompt_tokens=100, cached_tokens=90, completion_tokens=5, total_tokens=105),
+            UsageStats(prompt_tokens=100, cached_tokens=90, completion_tokens=7, total_tokens=107),
+        ]
+        for entry in stats:
+            entry.prompt_time = 0.1
+            entry.completion_time = 0.2
+
+        aggregated = aggregate_usage_stats(stats)
+
+        self.assertEqual(aggregated.cached_tokens, 90)
+        self.assertEqual(aggregated.prompt_tokens, 100)
+        self.assertEqual(aggregated.completion_tokens, 12)
+
+
 class ContentBlockTrackerTests(unittest.TestCase):
     def names(self, events):
         return [event.event for event in events]
@@ -1209,6 +1299,7 @@ def finish_chunk(**kwargs):
         "eos_reason": "stop_token",
         "stop_str": None,
         "prompt_tokens": 12,
+        "cached_tokens": 8,
         "gen_tokens": 5,
         "delta_content": "",
         "delta_reasoning_content": "",
@@ -1287,7 +1378,10 @@ class StreamEventTests(unittest.TestCase):
         self.assertEqual(payload["delta"]["stop_reason"], "end_turn")
         self.assertIsNone(payload["delta"]["stop_sequence"])
         self.assertEqual(payload["usage"]["output_tokens"], 5)
-        self.assertEqual(payload["usage"]["input_tokens"], 12)
+
+        # 12 prompt tokens of which 8 came from the prefix cache
+        self.assertEqual(payload["usage"]["input_tokens"], 4)
+        self.assertEqual(payload["usage"]["cache_read_input_tokens"], 8)
 
     def test_max_tokens_stop_reason(self):
         events, _ = run_stream(
