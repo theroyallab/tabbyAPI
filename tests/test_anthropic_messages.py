@@ -33,6 +33,7 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionResponse,
 )
 from endpoints.OAI.types.common import UsageStats
+from endpoints.OAI.utils.chat_completion import resolve_template_vars
 from endpoints.OAI.types.tools import Tool, ToolCall
 
 MODEL_DIR = pathlib.Path("/models/test-model")
@@ -790,6 +791,50 @@ class SamplerMappingTests(unittest.TestCase):
     def test_thinking_absent_sets_no_template_var(self):
         converted = convert_messages_request(messages_request())
         self.assertNotIn("enable_thinking", converted.template_vars)
+
+    def test_template_vars_passthrough(self):
+        converted = convert_messages_request(
+            messages_request(template_vars={"reasoning_effort": "high"})
+        )
+        self.assertEqual(converted.template_vars["reasoning_effort"], "high")
+
+    def test_template_vars_accepts_the_oai_alias(self):
+        converted = convert_messages_request(
+            messages_request(chat_template_kwargs={"verbosity": "low"})
+        )
+        self.assertEqual(converted.template_vars["verbosity"], "low")
+
+    def test_explicit_template_vars_beat_the_thinking_field(self):
+        # Mirrors the chat completion path, where template_vars outrank the
+        # flat reasoning fields
+        converted = convert_messages_request(
+            messages_request(thinking={"type": "disabled"}, template_vars={"enable_thinking": True})
+        )
+        self.assertIs(converted.template_vars["enable_thinking"], True)
+
+    def test_template_vars_still_lose_to_force(self):
+        converted = convert_messages_request(
+            messages_request(template_vars={"reasoning_effort": "high", "preserve_thinking": False})
+        )
+        container = SimpleNamespace(
+            template_vars_default={"verbosity": "medium"},
+            template_vars_force={"preserve_thinking": True},
+        )
+        resolved = resolve_template_vars(converted, container)
+
+        self.assertEqual(resolved["verbosity"], "medium")
+        self.assertEqual(resolved["reasoning_effort"], "high")
+        self.assertIs(resolved["preserve_thinking"], True)
+
+    def test_count_tokens_takes_template_vars(self):
+        # Counting has to render the prompt generation would
+        converted = convert_count_tokens_request(
+            CountTokensRequest(
+                messages=[{"role": "user", "content": "hi"}],
+                template_vars={"enable_thinking": False},
+            )
+        )
+        self.assertIs(converted.template_vars["enable_thinking"], False)
 
     def test_count_tokens_request_conversion(self):
         converted = convert_count_tokens_request(

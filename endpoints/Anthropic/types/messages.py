@@ -1,6 +1,6 @@
 """Types for the Anthropic Messages API."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 from uuid import uuid4
 
@@ -191,6 +191,17 @@ class MessagesRequest(BaseModel):
     tools: Optional[List[ToolDefinition]] = None
     tool_choice: Optional[ToolChoice] = None
 
+    template_vars: Optional[dict] = Field(
+        default=None,
+        validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
+        description=(
+            "TabbyAPI extension, not part of the Messages API. Variables passed "
+            "to the chat template, as on /v1/chat/completions. Aliases: "
+            "chat_template_kwargs. Takes precedence over the value derived from "
+            "the thinking field, and is still overridden by template_vars_force."
+        ),
+    )
+
 
 class CountTokensRequest(BaseModel):
     """Represents an Anthropic token counting request."""
@@ -200,6 +211,15 @@ class CountTokensRequest(BaseModel):
     system: Optional[Union[str, List[TextBlock]]] = None
     tools: Optional[List[ToolDefinition]] = None
     tool_choice: Optional[ToolChoice] = None
+
+    template_vars: Optional[dict] = Field(
+        default=None,
+        validation_alias=AliasChoices("template_vars", "chat_template_kwargs"),
+        description=(
+            "TabbyAPI extension. Counting has to render the same prompt "
+            "generation would, so the same variables apply."
+        ),
+    )
 
 
 # Response types

@@ -453,6 +453,11 @@ def convert_messages_request(data: MessagesRequest) -> ChatCompletionRequest:
             # here, not something a request can allocate
             xlogger.debug("thinking.budget_tokens is not supported; ignoring.")
 
+    # Explicit variables win over the one derived from thinking, matching how
+    # the chat completion path ranks template_vars above its own flat fields.
+    # Both still lose to the model's template_vars_force.
+    template_vars.update(data.template_vars or {})
+
     tool_choice, parallel_tool_calls = convert_tool_choice(data.tool_choice)
 
     optional = {}
@@ -488,6 +493,7 @@ def convert_count_tokens_request(data: CountTokensRequest) -> ChatCompletionRequ
         messages=build_chat_messages(data.system, data.messages),
         model=data.model,
         tools=convert_tools(data.tools),
+        template_vars=data.template_vars or {},
         max_tokens=1,
         n=1,
     )
