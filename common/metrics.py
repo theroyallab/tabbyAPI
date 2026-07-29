@@ -75,6 +75,27 @@ class MetricsManagerClass:
         self.requests_total = 0
         self.n_tokens_max = 0
 
+        # No prefill throughput gauge is derived from the two counters above,
+        # deliberately. The backend times prefill as one span per request, and
+        # that span cannot be split into time spent on cached versus newly
+        # processed tokens: a prefix cache hit takes tokens out of
+        # prompt_tokens_total while the lookup, page allocation and per-chunk
+        # overhead it still paid for stay in prompt_seconds_total. Their ratio
+        # therefore reads low and keeps sinking as reuse accumulates. Measured
+        # on a 27B model, a warm request contributing 12 tokens in 37ms drags a
+        # lifetime average towards ~320 T/s against a real rate of ~1646 T/s.
+        #
+        # Restricting the sample to requests that computed enough tokens for the
+        # ~30ms of fixed per-request overhead to vanish does fix the bias, but a
+        # server fronting a harness with a stable system prefix may never see
+        # more than one such request, and the first one carries the autotuning
+        # pass (measured 1.6% slow), so the estimator is pinned to its single
+        # worst sample. Prefill speed is a benchmark quantity; measure it with
+        # exllamav3's eval/perf.py or from the per-request log line.
+        #
+        # What is well defined here is the rate of work over wall clock, which
+        # rate(prompt_tokens_total[5m]) gives without any of this reasoning.
+
         # Speculative decoding counters, following vLLM's spec-decode metric
         # names. A "draft token" is one the drafter proposed; it is accepted
         # when the target model samples the same token, otherwise it and every
@@ -237,13 +258,9 @@ class MetricsManagerClass:
         prefix_cache_queries = self.prompt_tokens_total + self.cached_tokens_total
         prefix_cache_hits = self.cached_tokens_total
 
-        # Throughput is measured over processed (non-cached) prompt tokens, to
-        # match how the backend reports per-request prompt speed.
-        prompt_tokens_seconds = (
-            self.prompt_tokens_total / self.prompt_seconds_total
-            if self.prompt_seconds_total > 0
-            else 0.0
-        )
+        # There is no prefill counterpart to this gauge on purpose; see the
+        # counter definitions. Decode time has no cached-token analogue to skew
+        # it, so generation tokens over decode seconds is what it claims to be.
         predicted_tokens_seconds = (
             self.gen_tokens_total / self.gen_seconds_total if self.gen_seconds_total > 0 else 0.0
         )
@@ -272,7 +289,9 @@ class MetricsManagerClass:
         # (type, name, help, value)
         # Names and help text of the shared metrics are kept verbatim from
         # llama.cpp's exporter so its dashboards work after a prefix swap.
-        # tabbyAPI-only metrics follow the ones they relate to.
+        # tabbyAPI-only metrics follow the ones they relate to. The one
+        # deliberate omission from that set is prompt_tokens_seconds; see the
+        # counter definitions for why it is not a quantity worth publishing.
         metrics = [
             (
                 "counter",
@@ -327,12 +346,6 @@ class MetricsManagerClass:
                 "requests_total",
                 "Number of finished generation requests.",
                 self.requests_total,
-            ),
-            (
-                "gauge",
-                "prompt_tokens_seconds",
-                "Average prompt throughput in tokens/s.",
-                prompt_tokens_seconds,
             ),
             (
                 "gauge",

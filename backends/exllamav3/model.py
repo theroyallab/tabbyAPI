@@ -1066,7 +1066,8 @@ class ExllamaV3Container:
         # Prompt
         prompt_tokens = result.get("prompt_tokens")
         cached_tokens = round(result.get("cached_tokens"), 2)
-        prompt_time = round(result.get("time_prefill"), 2)
+        raw_prompt_time = result.get("time_prefill")
+        prompt_time = round(raw_prompt_time, 2)
         prompt_ts = (
             "Indeterminate"
             if prompt_time == 0
@@ -1117,7 +1118,9 @@ class ExllamaV3Container:
             prompt_tokens=prompt_tokens,
             cached_tokens=cached_tokens,
             gen_tokens=gen_tokens,
-            prompt_time=prompt_time,
+            # Unrounded, so the aggregate rates are not skewed by the 0.01s
+            # display rounding on short prefills.
+            prompt_time=raw_prompt_time,
             gen_time=gen_time,
             queue_time=queue_time,
             accepted_draft_tokens=accepted_draft_tokens,
