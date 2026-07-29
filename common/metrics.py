@@ -73,7 +73,13 @@ class MetricsManagerClass:
         self.prompt_seconds_total = 0.0
         self.gen_seconds_total = 0.0
         self.requests_total = 0
+        # Largest prompt and largest completion seen. The request_prompt_tokens
+        # and request_generation_tokens histograms describe the distribution but
+        # cannot report an extreme: the top sample sits above every percentile,
+        # and once it lands in the final bucket its magnitude is lost. These
+        # keep the peaks readable. Both only ever rise, so they are counters.
         self.n_tokens_max = 0
+        self.tokens_predicted_max = 0
 
         # No prefill throughput gauge is derived from the two counters above,
         # deliberately. The backend times prefill as one span per request, and
@@ -161,6 +167,7 @@ class MetricsManagerClass:
         self.gen_seconds_total += gen_time
         self.requests_total += 1
         self.n_tokens_max = max(self.n_tokens_max, prompt_tokens)
+        self.tokens_predicted_max = max(self.tokens_predicted_max, gen_tokens)
 
         # Time to first token is the wait in queue plus prefill; end-to-end adds
         # the decode phase on top.
@@ -340,6 +347,12 @@ class MetricsManagerClass:
                 "n_tokens_max",
                 "Largest observed n_tokens.",
                 self.n_tokens_max,
+            ),
+            (
+                "counter",
+                "tokens_predicted_max",
+                "Largest observed number of generation tokens in one request.",
+                self.tokens_predicted_max,
             ),
             (
                 "counter",
