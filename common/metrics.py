@@ -398,12 +398,107 @@ class MetricsManagerClass:
         except Exception:
             return empty
 
+    def _live_recurrent(self) -> dict:
+        """Read the state of the recurrent checkpoint cache on hybrid models.
+
+        Hybrid architectures interleave full-attention layers, whose state is
+        the paged K/V cache, with linear-attention layers, whose state is a
+        single evolving tensor that cannot be indexed by position. The generator
+        checkpoints the latter to system RAM at page boundaries, and prompt
+        reuse is capped at the longest prefix that has *both* valid K/V pages
+        and a matching recurrent checkpoint.
+
+        That cap is why these series matter: if the checkpoint for a prefix is
+        evicted, its K/V pages are unusable however well the KV cache held them,
+        and with offloading enabled they will have been read back over PCIe
+        first. recurrent_capped_tokens_total counts exactly that waste.
+
+        Returns zeros on non-hybrid models, where there is no recurrent state.
+        """
+
+        from common import model
+
+        empty = {
+            "checkpoints": 0,
+            "bytes": 0,
+            "max_bytes": 0,
+            "usage_ratio": 0.0,
+            "checkpoint_bytes": 0,
+            "evictions": 0,
+            "stranded_evictions": 0,
+            "live_kv_evictions": 0,
+            "pruned": 0,
+            "stranded_by_kv": 0,
+            "capped_tokens": 0,
+        }
+
+        container = model.container
+        generator = getattr(container, "generator", None) if container else None
+        sync_generator = getattr(generator, "generator", None) if generator else None
+        if sync_generator is None:
+            return empty
+
+        recurrent_cache = getattr(sync_generator, "recurrent_cache", None)
+        pagetable = getattr(sync_generator, "pagetable", None)
+
+        out = dict(empty)
+
+        # Read in two stages, so a cache object in an unexpected state does not
+        # take the page table's figures down with it. The cap is the series
+        # these exist for, and losing it would hide the failure it reports.
+        try:
+            if pagetable is not None:
+                pt_counters = pagetable.metrics
+                max_pages = pagetable.max_pages
+                tokens_per_page = sync_generator.max_total_tokens // max_pages if max_pages else 0
+                out.update(
+                    {
+                        "capped_tokens": (pt_counters["alloc_kv_only_pages"] * tokens_per_page),
+                        "stranded_by_kv": pt_counters["stashes_stranded"],
+                    }
+                )
+        except Exception:
+            pass
+
+        if recurrent_cache is None:
+            return out
+
+        try:
+            counters = recurrent_cache.metrics
+            checkpoints = len(recurrent_cache)
+            current_size = recurrent_cache.current_size
+            max_size = recurrent_cache.max_size
+            out.update(
+                {
+                    "checkpoints": checkpoints,
+                    "bytes": current_size,
+                    "max_bytes": max_size,
+                    "usage_ratio": current_size / max_size if max_size else 0.0,
+                    # Published because it is the unit the budget is spent in: a
+                    # checkpoint is indivisible, so max_bytes / checkpoint_bytes
+                    # is how many prefixes can be resumed at all.
+                    "checkpoint_bytes": (current_size // checkpoints if checkpoints else 0),
+                    "evictions": counters["stash_evictions"],
+                    "stranded_evictions": counters["stash_evictions_stranded"],
+                    "live_kv_evictions": counters["stash_evictions_live_kv"],
+                    "pruned": counters["stash_pruned"],
+                }
+            )
+        except Exception:
+            # The dict above is built whole before it is applied, so a failed
+            # read leaves the page table's figures in place rather than a
+            # half-updated mix of the two.
+            pass
+
+        return out
+
     def render_prometheus(self) -> str:
         """Render all metrics in the Prometheus text exposition format."""
 
         requests_processing, requests_deferred = self._live_request_counts()
         kv_cache_tokens, kv_cache_max_tokens = self._live_kv_cache()
         offload = self._live_kv_offload()
+        recurrent = self._live_recurrent()
         kv_cache_usage_ratio = (
             kv_cache_tokens / kv_cache_max_tokens if kv_cache_max_tokens > 0 else 0.0
         )
@@ -677,6 +772,89 @@ class MetricsManagerClass:
                 "kv_offload_written_bytes_total",
                 "Bytes transferred from VRAM to system RAM evicting cache pages.",
                 offload["bytes_written"],
+            ),
+            # Recurrent checkpoint cache (hybrid models only). Zero everywhere on
+            # a pure transformer, which has no recurrent layers to checkpoint.
+            (
+                "gauge",
+                "recurrent_cache_usage_ratio",
+                "Recurrent checkpoint cache usage. 1 means 100 percent usage.",
+                recurrent["usage_ratio"],
+            ),
+            (
+                "gauge",
+                "recurrent_checkpoints",
+                "Recurrent state checkpoints currently held in system RAM.",
+                recurrent["checkpoints"],
+            ),
+            (
+                "gauge",
+                "recurrent_cache_bytes",
+                "System RAM currently holding recurrent checkpoints, in bytes.",
+                recurrent["bytes"],
+            ),
+            (
+                "gauge",
+                "recurrent_cache_max_bytes",
+                "Configured size of the recurrent checkpoint cache, in bytes.",
+                recurrent["max_bytes"],
+            ),
+            (
+                "gauge",
+                "recurrent_checkpoint_bytes",
+                "Mean size of one recurrent checkpoint, in bytes.",
+                recurrent["checkpoint_bytes"],
+            ),
+            (
+                "counter",
+                "recurrent_cache_evictions_total",
+                "Recurrent checkpoints dropped to make room.",
+                recurrent["evictions"],
+            ),
+            # The eviction breakdown is what says whether the budget is actually
+            # too small. A stranded checkpoint had already lost the K/V pages it
+            # anchors and could never have been resumed, so dropping it costs
+            # nothing; the same for one pruned while idle. A checkpoint dropped
+            # while its anchor page was still cached is the one that hurts, and
+            # is the direct precursor of recurrent_capped_tokens_total below.
+            (
+                "counter",
+                "recurrent_cache_stranded_evictions_total",
+                "Recurrent checkpoints dropped that were already unresumable.",
+                recurrent["stranded_evictions"],
+            ),
+            (
+                "counter",
+                "recurrent_cache_live_kv_evictions_total",
+                "Recurrent checkpoints dropped while their anchor KV page was still cached.",
+                recurrent["live_kv_evictions"],
+            ),
+            (
+                "counter",
+                "recurrent_cache_pruned_total",
+                "Unresumable recurrent checkpoints reclaimed while the generator was idle.",
+                recurrent["pruned"],
+            ),
+            # The mirror of live_kv_evictions, and the reason the two budgets
+            # have to be sized against each other rather than independently:
+            # here the KV cache is the one under pressure, and evicting a page
+            # stranded the checkpoint anchored to it.
+            (
+                "counter",
+                "recurrent_stranded_by_kv_total",
+                "Recurrent checkpoints stranded by eviction of the KV page anchoring them.",
+                recurrent["stranded_by_kv"],
+            ),
+            # The cost of an undersized recurrent cache, and the one series that
+            # ties the two caches together: these tokens had valid K/V in the
+            # cache and were still re-prefilled, because the recurrent state that
+            # goes with them was gone. With offloading on, they were also read
+            # back over PCIe before being discarded.
+            (
+                "counter",
+                "recurrent_capped_tokens_total",
+                "Tokens with valid KV that were re-prefilled anyway, for lack of recurrent state.",
+                recurrent["capped_tokens"],
             ),
         ]
 
