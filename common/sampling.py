@@ -24,7 +24,6 @@ from common.utils import filter_none_values, unwrap
 # Requests that activate any of these get a warning and the param is ignored.
 UNSUPPORTED_PARAMS = {
     "ban_eos_token": False,
-    "banned_tokens": [],
     "allowed_tokens": [],
     "smoothing_factor": 0.0,
     "top_a": 0.0,
