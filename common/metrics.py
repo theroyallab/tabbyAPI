@@ -578,6 +578,17 @@ class MetricsManagerClass:
         # deliberate omission from that set is prompt_tokens_seconds; see the
         # counter definitions for why it is not a quantity worth publishing.
         metrics = [
+            # Published so the phase-time counters below can be read against
+            # wall clock. Without it prompt_seconds_total and
+            # tokens_predicted_seconds_total give the split between prefill and
+            # decode but not what either costs against a real interval, and the
+            # standard name means the usual process dashboards pick it up.
+            (
+                "gauge",
+                "process_start_time_seconds",
+                "Start time of the process since the Unix epoch, in seconds.",
+                self.process_start_time,
+            ),
             (
                 "counter",
                 "prompt_tokens_total",
