@@ -7,8 +7,8 @@ import pathlib
 from datetime import datetime
 from importlib.metadata import version as package_version
 from typing import Optional
-from jinja2 import Template, TemplateError
-from jinja2.ext import loopcontrols
+from jinja2 import Template, TemplateError, nodes
+from jinja2.ext import Extension, loopcontrols
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from common.logger import xlogger
 from markupsafe import Markup
@@ -56,6 +56,21 @@ def _tojson_compat(value, indent=None, ensure_ascii=True):
     )
 
 
+class _GenerationTagExtension(Extension):
+    """Render-transparent {% generation %}...{% endgeneration %} blocks.
+
+    Transformers uses these tags to mark assistant tokens for training-time
+    masking; at inference the block contents render as-is.
+    """
+
+    tags = {"generation"}
+
+    def parse(self, parser):
+        lineno = next(parser.stream).lineno
+        body = parser.parse_statements(("name:endgeneration",), drop_needle=True)
+        return nodes.Scope(body).set_lineno(lineno)
+
+
 def _create_environment() -> ImmutableSandboxedEnvironment:
     """Build the Jinja environment shared by all prompt templates."""
 
@@ -63,7 +78,7 @@ def _create_environment() -> ImmutableSandboxedEnvironment:
         trim_blocks=True,
         lstrip_blocks=True,
         enable_async=True,
-        extensions=[loopcontrols],
+        extensions=[loopcontrols, _GenerationTagExtension],
     )
     environment.globals["strftime_now"] = _strftime_now
     environment.globals["raise_exception"] = _raise_exception

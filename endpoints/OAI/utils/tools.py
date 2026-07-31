@@ -23,6 +23,8 @@ ALL_TOOLCALL_FORMATS = {
     "harmony": harmony,
     "hy3": hy3,
     "hy_v3": hy3,
+    "laguna": glm4_5,
+    "poolside_v1": glm4_5,
     "minimax_m2": minimax_m2,
     "minimax_m2_1": minimax_m2,
     "minimax_m2_5": minimax_m2,

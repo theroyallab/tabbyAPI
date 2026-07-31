@@ -385,5 +385,69 @@ class Hy3ToolcallFormatTests(unittest.TestCase):
         self.assertEqual(calls[0].function.arguments, '{"location": "Tokyo"}')
 
 
+class LagunaToolcallFormatTests(unittest.TestCase):
+    """
+    Laguna (Poolside) uses the glm4_5 format without newlines: the function
+    name is directly followed by the first <arg_key> tag, and parallel calls
+    are back-to-back <tool_call> blocks with no outer wrapper.
+    """
+
+    def parse(self, text):
+        from endpoints.OAI.utils.toolcall_formats.glm4_5 import parse_toolcalls
+
+        return parse_toolcalls(text)
+
+    def test_compact_call_no_newlines(self):
+        calls = self.parse(
+            "<tool_call>get_weather"
+            "<arg_key>location</arg_key><arg_value>Tokyo</arg_value>"
+            "</tool_call>"
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "get_weather")
+        self.assertEqual(calls[0].function.arguments, '{"location": "Tokyo"}')
+
+    def test_parallel_compact_calls(self):
+        calls = self.parse(
+            "<tool_call>f<arg_key>a</arg_key><arg_value>1</arg_value></tool_call>"
+            '<tool_call>g<arg_key>b</arg_key><arg_value>["x", "y"]</arg_value>'
+            "</tool_call>"
+        )
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0].function.name, "f")
+        self.assertEqual(calls[0].function.arguments, '{"a": 1}')
+        self.assertEqual(calls[1].function.name, "g")
+        self.assertEqual(calls[1].function.arguments, '{"b": ["x", "y"]}')
+
+    def test_no_args(self):
+        calls = self.parse("<tool_call>list_files</tool_call>")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "list_files")
+        self.assertEqual(calls[0].function.arguments, "{}")
+
+    def test_streamed_through_tag_parser(self):
+        p = TagStreamParser(
+            reasoning_start="<think>",
+            reasoning_end="</think>",
+            tool_start="<tool_call>",
+            tool_end="</tool_call>",
+            start_in_reasoning=True,
+        )
+        text = (
+            "pondering</think>Checking the weather."
+            "<tool_call>get_weather"
+            "<arg_key>location</arg_key><arg_value>Tokyo</arg_value>"
+            "</tool_call>"
+        )
+        out = collect(p, [text[i : i + 7] for i in range(0, len(text), 7)])
+        self.assertEqual(out["reasoning"], "pondering")
+        self.assertEqual(out["content"], "Checking the weather.")
+
+        calls = self.parse(out["tool"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "get_weather")
+        self.assertEqual(calls[0].function.arguments, '{"location": "Tokyo"}')
+
+
 if __name__ == "__main__":
     unittest.main()
