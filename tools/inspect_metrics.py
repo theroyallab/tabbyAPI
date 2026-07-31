@@ -676,9 +676,109 @@ def render(
     )
     thr.row("requests finished", fmt_num(g("requests_total")))
 
+    # --- where the time goes
+    # The question this answers is which phase to buy speed in. A parallelism
+    # layout trades prefill against decode -- tensor parallel favours decode,
+    # pipeline parallel favours prefill -- and the right choice depends entirely
+    # on which one this server actually spends its time in, which is a property
+    # of the workload rather than of the hardware.
+    #
+    # The two phase counters are summed per request, so under concurrency they
+    # add up to more than the wall clock they ran in. That does not affect the
+    # split, which is what the decision turns on, but it does mean the share is
+    # of engine time rather than of elapsed time, and it is labelled as such
+    # when the two disagree.
+    prefill_s = g("prompt_seconds_total") or 0.0
+    decode_s = g("tokens_predicted_seconds_total") or 0.0
+    engine_s = prefill_s + decode_s
+    if engine_s > 0:
+        # process_start_time_seconds is epoch-based, following the convention,
+        # so it is compared against wall clock rather than the monotonic clock
+        # the rate windows use.
+        started = g("process_start_time_seconds")
+        uptime = (time.time() - started) if started else None
+
+        tb = Block("Where the time goes", new_row=True)
+        blocks.append(tb)
+
+        if uptime:
+            # Clamped, because summed request time can exceed the interval it
+            # ran in and a utilization above 100% reads as a bug rather than as
+            # concurrency, which the note beside it names explicitly
+            util = min(engine_s, uptime) / uptime
+            tb.row(
+                "engine busy",
+                f"{fmt_num(engine_s, 's')} of {fmt_num(uptime, 's')} up",
+                f"{fmt_num(util, '%')} utilization"
+                + ("" if engine_s <= uptime else c.dim(" · overlapped")),
+            )
+
+        for label, value in (("prefill", prefill_s), ("decode", decode_s)):
+            share = value / engine_s
+            tb.row(
+                label,
+                f"{c.dim(bar(share, barw, c))} {fmt_num(share, '%')}",
+                fmt_num(value, "s"),
+            )
+
+        # Queue time is not part of the split: a request waiting is the engine
+        # working on another one, so it would double-count. It is worth seeing
+        # because it is the part that more speed anywhere would relieve.
+        queued = (hists.get("request_queue_time_seconds") or {}).get("sum")
+        if queued:
+            tb.row("queued behind others", fmt_num(queued, "s"), c.dim("not engine time"))
+
+        # The trade a parallelism layout presents, as one number. Tensor
+        # parallel buys decode and gives up prefill, pipeline parallel the
+        # reverse, and no fixed speedup factor describes either, so what is
+        # printed is the exchange rate between the two phases rather than the
+        # result of some assumed swap.
+        #
+        # Cutting prefill time by a fraction x saves x*p of the engine's time;
+        # inflating decode time by y costs y*d. Break-even is x*p == y*d, so one
+        # percent off the winning phase pays for exactly (p/d) percent onto the
+        # losing one. That ratio is the whole decision, and it is a property of
+        # the workload rather than of any particular hardware layout.
+        p, d = prefill_s / engine_s, decode_s / engine_s
+        win, lose = ("prefill", "decode") if p >= d else ("decode", "prefill")
+        hi, lo = (p, d) if p >= d else (d, p)
+
+        if lo <= 0:
+            tb.row("exchange rate", f"{win} is all of it", c.dim(f"{lose} costs nothing"))
+        else:
+            rate = hi / lo
+            tb.row(
+                "exchange rate",
+                f"1% off {win} pays for {rate:,.0f}% onto {lose}"
+                if rate >= 100
+                else f"1% off {win} pays for {rate:.1f}% onto {lose}",
+                c.dim(f"{fmt_num(hi, '%')} vs {fmt_num(lo, '%')}"),
+            )
+
+        # The marginal rate above is a linear reading and overstates the trade
+        # for large moves, so the exact break-even is given for a concrete one:
+        # after speeding the winning phase up by `factor`, the losing phase can
+        # fall to lo / (1 - hi/factor) of its current speed before the swap
+        # stops paying. Two factors, a cautious one and an ambitious one, bracket
+        # what a layout change realistically buys.
+        for factor in (1.5, 2.0) if lo > 0 else ():
+            headroom = 1.0 - hi / factor
+            if headroom <= 0:
+                continue
+            floor = lo / headroom
+            if floor >= 1.0:
+                verdict = c.bad(f"{lose} cannot give up anything")
+            else:
+                verdict = c.good(f"{lose} may fall {1 / floor:.0f}x")
+            tb.row(
+                f"  at {factor:g}x {win}",
+                f"break-even at {fmt_num(floor, '%')} of {lose} speed",
+                verdict,
+            )
+
     # --- spec decode and prefix cache
-    # Both are short, and whatever tall section they land beside is not, so they
-    # are stacked into one column rather than each claiming a row of its own.
+    # Both are short, and "Where the time goes" beside them is not, so they are
+    # stacked into one column under it rather than each claiming a row.
     sd = Block("Speculative decode")
     if g("spec_decode_requests_total"):
         acc = g("spec_decode_draft_acceptance_rate")
