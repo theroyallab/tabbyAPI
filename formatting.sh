@@ -31,7 +31,7 @@ tool_version_check() {
     fi
 }
 
-tool_version_check "ruff" $RUFF_VERSION "$(grep "ruff==" requirements-dev.txt | cut -d'=' -f3)"
+tool_version_check "ruff" $RUFF_VERSION "$(grep -oE 'ruff *== *[0-9.]+' pyproject.toml | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')"
 
 # Format and lint all files
 format_and_lint() {
