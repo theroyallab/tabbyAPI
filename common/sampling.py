@@ -31,7 +31,6 @@ UNSUPPORTED_PARAMS = {
     "tfs": 1.0,
     "typical": 1.0,
     "skew": 0.0,
-    "xtc_probability": 0.0,
     "dry_multiplier": 0.0,
     "mirostat_mode": 0,
     "logit_bias": None,
