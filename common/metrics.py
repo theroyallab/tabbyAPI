@@ -3,16 +3,17 @@
 Modeled after llama.cpp's `/metrics` exporter: process-lifetime counters are
 accumulated as generations finish, while gauges (throughput, in-flight and
 queued requests, KV-cache usage) are computed live at scrape time. Per-request
-latency and size distributions are recorded as histograms, following vLLM's
-metric set. All access happens on the single asyncio event loop, so plain
-attributes are safe without locking.
+latency and size distributions are recorded as histograms, following the
+conventional metric set for an inference server. All access happens on the
+single asyncio event loop, so plain attributes are safe without locking.
 """
 
 import time
 
 
-# Bucket boundaries borrowed from vLLM's exporter so its dashboards work after a
-# prefix swap. Seconds-valued latency histograms share one coarse set; the
+# Bucket boundaries are the ones inference-server dashboards conventionally
+# expect, so they keep working after a prefix swap. Seconds-valued latency
+# histograms share one coarse set; the
 # time-to-first-token histogram gets a finer sub-second set since prefill is
 # often fast. Per-request token counts use a 1-2-5 progression.
 LATENCY_BUCKETS = [
@@ -62,27 +63,42 @@ TTFT_BUCKETS = [
     640.0,
     2560.0,
 ]
-TOKEN_BUCKETS = [
-    1,
-    2,
-    5,
-    10,
-    20,
-    50,
-    100,
-    200,
-    500,
-    1000,
-    2000,
-    5000,
-    10000,
-    20000,
-    50000,
-    100000,
-    200000,
-    500000,
-    1000000,
-]
+# Token-count buckets are built from the loaded model's context length rather
+# than fixed, which is the conventional approach. A fixed ladder to 1M was the
+# source of a
+# real misreading: with a 256k context the top boundaries were 200k and 500k, so
+# a server answering 200k-token prompts put every sample a few thousand above
+# the floor of a 300k-wide bucket, and histogram_quantile -- which assumes
+# samples are spread across the bucket they landed in -- reported a p99 of 493k
+# against a largest-ever prompt of 206k.
+#
+# One boundary beyond the 1-2-5 ladder is added at max_seq_len itself. Stopping
+# at the last mantissa value below the limit, as the usual construction does,
+# leaves everything between there and the real limit in +Inf: at 262144 the
+# ladder ends at 200000 and the top 24% of the usable range has no bucket.
+DEFAULT_MAX_TOKENS = 1_000_000
+
+
+def build_1_2_5_buckets(max_value: int) -> list[int]:
+    """Increasing powers of 10 times 1, 2 and 5, up to and including max_value.
+
+    >>> build_1_2_5_buckets(100)
+    [1, 2, 5, 10, 20, 50, 100]
+    """
+
+    buckets: list[int] = []
+    exponent = 0
+    while True:
+        for mantissa in (1, 2, 5):
+            value = mantissa * 10**exponent
+            if value > max_value:
+                if buckets and buckets[-1] < max_value:
+                    buckets.append(max_value)
+                return buckets
+            buckets.append(value)
+        exponent += 1
+
+
 # Per-request draft acceptance is a ratio in [0, 1], so it gets its own evenly
 # spaced buckets rather than the token or latency sets.
 ACCEPTANCE_BUCKETS = [
@@ -169,8 +185,8 @@ class MetricsManagerClass:
         # What is well defined here is the rate of work over wall clock, which
         # rate(prompt_tokens_total[5m]) gives without any of this reasoning.
 
-        # Speculative decoding counters, following vLLM's spec-decode metric
-        # names. A "draft token" is one the drafter proposed; it is accepted
+        # Speculative decoding counters, using the conventional spec-decode
+        # metric names. A "draft token" is one the drafter proposed; it is accepted
         # when the target model samples the same token, otherwise it and every
         # draft position after it are rejected, so accepted + rejected is the
         # number of tokens drafted. Only requests served with drafting enabled
@@ -185,7 +201,7 @@ class MetricsManagerClass:
         # (gen_tokens - accepted) recovers the step count exactly.
         self.draft_decode_steps_total = 0
 
-        # Per-request distributions (vLLM-style histograms). Latency is split
+        # Per-request distributions, as histograms. Latency is split
         # into the queue / prefill / decode phases the backend already times,
         # plus derived time-to-first-token (queue + prefill) and end-to-end
         # totals; token counts cover the full prompt and the generation.
@@ -194,9 +210,28 @@ class MetricsManagerClass:
         self.hist_decode_time = _Histogram(LATENCY_BUCKETS)
         self.hist_ttft = _Histogram(TTFT_BUCKETS)
         self.hist_e2e = _Histogram(LATENCY_BUCKETS)
-        self.hist_prompt_tokens = _Histogram(TOKEN_BUCKETS)
-        self.hist_gen_tokens = _Histogram(TOKEN_BUCKETS)
+        self.token_buckets = build_1_2_5_buckets(DEFAULT_MAX_TOKENS)
+        self.hist_prompt_tokens = _Histogram(self.token_buckets)
+        self.hist_gen_tokens = _Histogram(self.token_buckets)
         self.hist_draft_acceptance = _Histogram(ACCEPTANCE_BUCKETS)
+
+    def configure_token_buckets(self, max_seq_len: int):
+        """Size the token histograms for the loaded model's context length.
+
+        Called on model load, when max_seq_len is finally known. Changing the
+        boundaries discards whatever those two histograms had accumulated,
+        since counts against a different ladder cannot be carried over, so this
+        is a no-op when the buckets come out unchanged.
+        """
+
+        if not max_seq_len or max_seq_len < 1:
+            return
+        buckets = build_1_2_5_buckets(max_seq_len)
+        if buckets == self.token_buckets:
+            return
+        self.token_buckets = buckets
+        self.hist_prompt_tokens = _Histogram(buckets)
+        self.hist_gen_tokens = _Histogram(buckets)
 
     def record_generation(
         self,
@@ -504,7 +539,7 @@ class MetricsManagerClass:
         )
 
         # Prefix-cache effectiveness is exposed as the raw queries/hits token
-        # counters (vLLM-style), leaving the hit ratio to be computed at query
+        # counters, leaving the hit ratio to be computed at query
         # time with rate() so it reflects recent behavior rather than a
         # lifetime average.
         prefix_cache_queries = self.prompt_tokens_total + self.cached_tokens_total
@@ -518,7 +553,7 @@ class MetricsManagerClass:
         )
 
         # Speculative decoding effectiveness. The two raw counters are the
-        # vLLM-style primitives to rate() over; these gauges are the lifetime
+        # primitives to rate() over; these gauges are the lifetime
         # summary, cheap to read without a query language. Acceptance rate is
         # per drafted token, mean accepted length is per decode step (how many
         # drafts a step gets for free), and tokens per step adds the target

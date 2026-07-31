@@ -352,6 +352,12 @@ class ExllamaV3Container:
         self.max_seq_len = max_seq_len
         self.cache_size = cache_size
 
+        # Size the /metrics token histograms to this model's context length.
+        # Their buckets are meaningless until the range they have to cover is
+        # known, and a ladder that overshoots it reports percentiles above any
+        # request the server can even accept.
+        MetricsManager.configure_token_buckets(max_seq_len)
+
         # Max batch size
         default_mbs = 4 if self.model.caps.get("recurrent_states") else 128
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"), default_mbs)
