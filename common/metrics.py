@@ -16,21 +16,88 @@ import time
 # time-to-first-token histogram gets a finer sub-second set since prefill is
 # often fast. Per-request token counts use a 1-2-5 progression.
 LATENCY_BUCKETS = [
-    0.3, 0.5, 0.8, 1.0, 1.5, 2.0, 2.5, 5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0,
-    60.0, 120.0, 240.0, 480.0, 960.0, 1920.0, 7680.0,
+    0.3,
+    0.5,
+    0.8,
+    1.0,
+    1.5,
+    2.0,
+    2.5,
+    5.0,
+    10.0,
+    15.0,
+    20.0,
+    30.0,
+    40.0,
+    50.0,
+    60.0,
+    120.0,
+    240.0,
+    480.0,
+    960.0,
+    1920.0,
+    7680.0,
 ]
 TTFT_BUCKETS = [
-    0.001, 0.005, 0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5,
-    5.0, 7.5, 10.0, 20.0, 40.0, 80.0, 160.0, 640.0, 2560.0,
+    0.001,
+    0.005,
+    0.01,
+    0.02,
+    0.04,
+    0.06,
+    0.08,
+    0.1,
+    0.25,
+    0.5,
+    0.75,
+    1.0,
+    2.5,
+    5.0,
+    7.5,
+    10.0,
+    20.0,
+    40.0,
+    80.0,
+    160.0,
+    640.0,
+    2560.0,
 ]
 TOKEN_BUCKETS = [
-    1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000,
-    100000, 200000, 500000, 1000000,
+    1,
+    2,
+    5,
+    10,
+    20,
+    50,
+    100,
+    200,
+    500,
+    1000,
+    2000,
+    5000,
+    10000,
+    20000,
+    50000,
+    100000,
+    200000,
+    500000,
+    1000000,
 ]
 # Per-request draft acceptance is a ratio in [0, 1], so it gets its own evenly
 # spaced buckets rather than the token or latency sets.
 ACCEPTANCE_BUCKETS = [
-    0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0,
+    0.05,
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    0.95,
+    1.0,
 ]
 
 
@@ -249,11 +316,94 @@ class MetricsManagerClass:
         except Exception:
             return 0, 0
 
+    def _live_kv_offload(self) -> dict:
+        """Read the state of the CPU page cache (pages evicted to system RAM).
+
+        Returns a zero-filled dict when offloading is disabled or no model is
+        loaded, so the series exist unconditionally rather than appearing and
+        disappearing across scrapes.
+
+        The counters here live in the generator's page cache, not in this
+        object, so they restart from zero whenever the generator is recreated
+        (model reload, or recovery from a backend error). Prometheus detects
+        counter resets, so rate() over them stays correct across a reload;
+        absolute values are only meaningful within one generator's lifetime.
+        """
+
+        from common import model
+
+        empty = {
+            "tokens": 0,
+            "max_tokens": 0,
+            "usage_ratio": 0.0,
+            "bytes": 0,
+            "max_bytes": 0,
+            "restored_tokens": 0,
+            "stores": 0,
+            "deduped_stores": 0,
+            "evictions": 0,
+            "cold_allocs": 0,
+            "bytes_read": 0,
+            "bytes_written": 0,
+        }
+
+        container = model.container
+        generator = getattr(container, "generator", None) if container else None
+        sync_generator = getattr(generator, "generator", None) if generator else None
+        cpu_cache = getattr(sync_generator, "cpu_page_cache", None) if sync_generator else None
+
+        if cpu_cache is None:
+            return empty
+
+        try:
+            counters = cpu_cache.metrics
+            pages = len(cpu_cache)
+            max_pages = cpu_cache.max_slots
+            # One slot holds the whole per-layer page image across the attached
+            # caches, so it is also the size of a single transfer in either
+            # direction.
+            slot_size = cpu_cache.slot_size
+
+            # Page-granular counts are converted to tokens so they read on the
+            # same axis as kv_cache_tokens. The number of tokens per page is
+            # fixed by the generator's page size, which the page cache does not
+            # carry, so it is taken from the page table.
+            pagetable = getattr(sync_generator, "pagetable", None)
+            pt_max_pages = getattr(pagetable, "max_pages", 0) if pagetable else 0
+            tokens_per_page = sync_generator.max_total_tokens // pt_max_pages if pt_max_pages else 0
+
+            return {
+                "tokens": pages * tokens_per_page,
+                "max_tokens": max_pages * tokens_per_page,
+                "usage_ratio": pages / max_pages if max_pages else 0.0,
+                "bytes": pages * slot_size,
+                "max_bytes": max_pages * slot_size,
+                # A restore reads back a whole page, which is one page of prompt
+                # that did not have to be prefilled again. These tokens are
+                # already counted in cached_tokens_total, which does not
+                # distinguish a page found in VRAM from one read back over
+                # PCIe; this series is that breakdown, and the ratio against
+                # cached_tokens_total says how much of the prefix cache is
+                # actually being served out of RAM.
+                "restored_tokens": counters["restores"] * tokens_per_page,
+                "stores": counters["pushes"],
+                "deduped_stores": counters["dedup_hits"],
+                "evictions": counters["evictions"],
+                "cold_allocs": counters["cold_allocs"],
+                # Every transfer moves exactly one slot, in whole, so the byte
+                # totals are exact rather than an estimate.
+                "bytes_read": counters["restores"] * slot_size,
+                "bytes_written": counters["pushes"] * slot_size,
+            }
+        except Exception:
+            return empty
+
     def render_prometheus(self) -> str:
         """Render all metrics in the Prometheus text exposition format."""
 
         requests_processing, requests_deferred = self._live_request_counts()
         kv_cache_tokens, kv_cache_max_tokens = self._live_kv_cache()
+        offload = self._live_kv_offload()
         kv_cache_usage_ratio = (
             kv_cache_tokens / kv_cache_max_tokens if kv_cache_max_tokens > 0 else 0.0
         )
@@ -280,9 +430,7 @@ class MetricsManagerClass:
         # model's own token, so it is the decode speedup factor over no drafter.
         draft_tokens_total = self.draft_tokens_accepted_total + self.draft_tokens_rejected_total
         draft_acceptance_rate = (
-            self.draft_tokens_accepted_total / draft_tokens_total
-            if draft_tokens_total > 0
-            else 0.0
+            self.draft_tokens_accepted_total / draft_tokens_total if draft_tokens_total > 0 else 0.0
         )
         draft_mean_accepted_len = (
             self.draft_tokens_accepted_total / self.draft_decode_steps_total
@@ -437,6 +585,98 @@ class MetricsManagerClass:
                 "kv_cache_max_tokens",
                 "Total KV-cache token capacity.",
                 kv_cache_max_tokens,
+            ),
+            # KV offload cache. Deliberately no bytes-per-second gauge: a
+            # lifetime average of transfer rate is as misleading here as it is
+            # for prefill, since it divides by wall clock that includes every
+            # scrape interval with no transfers at all. The bytes counters below
+            # give the real thing under rate(), and PCIe bandwidth is a constant
+            # of the machine rather than something to watch drift.
+            (
+                "gauge",
+                "kv_offload_usage_ratio",
+                "KV offload cache usage. 1 means 100 percent usage.",
+                offload["usage_ratio"],
+            ),
+            (
+                "gauge",
+                "kv_offload_tokens",
+                "Tokens of KV cache currently held in system RAM.",
+                offload["tokens"],
+            ),
+            (
+                "gauge",
+                "kv_offload_max_tokens",
+                "Total KV offload cache token capacity.",
+                offload["max_tokens"],
+            ),
+            (
+                "gauge",
+                "kv_offload_bytes",
+                "System RAM currently holding cache pages, in bytes.",
+                offload["bytes"],
+            ),
+            # The backend pins the whole configured capacity up front, in the
+            # background, so this is the RAM cost of the feature whatever the
+            # usage gauge above reads.
+            (
+                "gauge",
+                "kv_offload_max_bytes",
+                "Configured size of the KV offload cache, in bytes.",
+                offload["max_bytes"],
+            ),
+            # Taken against cached_tokens_total this is the share of prefix
+            # cache hits that came back over PCIe rather than being found in
+            # VRAM, in the same raw-counter form as prefix_cache_queries/hits so
+            # rate() gives recent behavior rather than a lifetime average.
+            (
+                "counter",
+                "kv_offload_restored_tokens_total",
+                "Prompt tokens read back from system RAM instead of being prefilled again.",
+                offload["restored_tokens"],
+            ),
+            # Evictions climbing towards stores means the cache is too small for
+            # the working set and pages are being written out only to be
+            # discarded before anyone reads them back.
+            (
+                "counter",
+                "kv_offload_stores_total",
+                "Pages copied from VRAM into the KV offload cache.",
+                offload["stores"],
+            ),
+            (
+                "counter",
+                "kv_offload_deduped_stores_total",
+                "Page stores skipped because the page was already held in system RAM.",
+                offload["deduped_stores"],
+            ),
+            (
+                "counter",
+                "kv_offload_evictions_total",
+                "Pages dropped from the KV offload cache to make room.",
+                offload["evictions"],
+            ),
+            # The backend pins slabs ahead of demand on a background thread. A
+            # store that outruns it has to pin synchronously, at roughly
+            # 2.5 GB/s, on the generator's own thread. Nonzero early in a
+            # process is expected; nonzero later is a stall worth seeing.
+            (
+                "counter",
+                "kv_offload_cold_allocs_total",
+                "Page stores that had to pin system memory synchronously.",
+                offload["cold_allocs"],
+            ),
+            (
+                "counter",
+                "kv_offload_read_bytes_total",
+                "Bytes transferred from system RAM to VRAM restoring cache pages.",
+                offload["bytes_read"],
+            ),
+            (
+                "counter",
+                "kv_offload_written_bytes_total",
+                "Bytes transferred from VRAM to system RAM evicting cache pages.",
+                offload["bytes_written"],
             ),
         ]
 
