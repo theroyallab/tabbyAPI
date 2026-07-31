@@ -129,6 +129,7 @@ class ExllamaV3Container:
     max_rq_tokens: Optional[int] = 2048
     max_batch_size: Optional[int] = None
     draft_num_tokens: Optional[int] = None
+    dynamic_draft: Optional[bool] = False
     ngram_match_min: int = 0
 
     def __init__(self):
@@ -170,13 +171,16 @@ class ExllamaV3Container:
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "1.0.0")
+        check_package_version("exllamav3", "1.3.0")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
         self.config = Config.from_directory(str(model_directory.resolve()))
         self.model = Model.from_config(self.config)
         self.tokenizer = Tokenizer.from_config(self.config)
+
+        # Set CPU offload layers
+        self.config.infer_params.moe_cpu_offload = unwrap(kwargs.get("cpu_moe_offload_layers"), 0)
 
         # Prepare vision model if requested in config
         self.vision_model = None
@@ -215,6 +219,7 @@ class ExllamaV3Container:
             if self.use_draft_model or self.ngram_match_min
             else None
         )
+        self.dynamic_draft = draft_args.get("dynamic_draft", False)
 
         # Always disable draft if params are incorrectly configured
         if draft_mode == "model" and draft_args and draft_model_name is None:
@@ -696,7 +701,9 @@ class ExllamaV3Container:
                 max_batch_size=self.max_batch_size,
                 max_chunk_size=self.chunk_size,
                 recurrent_cache_size=config.memory.sysmem_recurrent_cache * 1024**2,
+                cpu_cache_size=config.memory.sysmem_kv_cache * 1024**2,
                 num_draft_tokens=self.draft_num_tokens,
+                dynamic_draft_tokens=self.dynamic_draft,
                 ngram_match_min=self.ngram_match_min,
             )
 

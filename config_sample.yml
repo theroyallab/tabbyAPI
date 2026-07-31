@@ -125,6 +125,10 @@ model:
   # Used with tensor parallelism.
   gpu_split: []
 
+  # Number of mixture-of-expert layers to offload to CPU inference (default: 0)
+  # Only affects MoE models. Set a large value such as 999 to offload all layers
+  cpu_moe_offload_layers:
+
   # NOTE: If a model has YaRN rope scaling, it will automatically be enabled by ExLlama.
   # rope_scale and rope_alpha settings won't apply in this case.
 
@@ -249,6 +253,10 @@ draft_model:
   # (e.g. DFlash with 15 tokens by default) shorter drafts may be preferable.
   draft_num_tokens:
 
+  # Adjust number of draft tokens dynamically based on observed acceptance rates (default: False)
+  # Ceiling is given by num_draft_tokens.
+  dynamic_draft:
+
   # Minimum match length for exllamav3 n-gram drafting (default: 2).
   # Only used when draft_mode is ngram.
   ngram_match_min: 2
@@ -294,6 +302,9 @@ memory:
 
   # Max size of recurrent cache in system memory, in MB (default: 4096)
   sysmem_recurrent_cache: 4096
+
+  # Size of system memory second-tier K/V cache, in MB (default: 0)
+  sysmem_kv_cache: 0
 
   # Use cudaMallocAsync backend in Torch (default: True).
   # Enabling this is generally preferable, but it may cause issues with certain

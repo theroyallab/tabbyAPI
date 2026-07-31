@@ -245,6 +245,14 @@ class ModelConfig(BaseConfigModel):
             "Used with tensor parallelism."
         ),
     )
+    cpu_moe_offload_layers: Optional[int] = Field(
+        0,
+        description=(
+            "Number of mixture-of-expert layers to offload to CPU inference (default: 0)\n"
+            "Only affects MoE models. Set a large value such as 999 to offload all layers"
+        ),
+    )
+
     rope_scale: Optional[float] = Field(
         1.0,
         description=(
@@ -446,6 +454,13 @@ class DraftModelConfig(BaseConfigModel):
             "(e.g. DFlash with 15 tokens by default) shorter drafts may be preferable."
         ),
     )
+    dynamic_draft: Optional[bool] = Field(
+        False,
+        description=(
+            "Adjust number of draft tokens dynamically based on observed acceptance rates.\n"
+            "Ceiling is given by num_draft_tokens."
+        ),
+    )
     ngram_match_min: Optional[int] = Field(
         2,
         description=(
@@ -531,6 +546,10 @@ class MemoryConfig(BaseConfigModel):
     sysmem_recurrent_cache: Optional[int] = Field(
         4096,
         description=("Max size of recurrent cache in system memory, in MB (default: 4096)"),
+    )
+    sysmem_kv_cache: Optional[int] = Field(
+        0,
+        description=("Size of system memory second-tier K/V cache, in MB (default: 0)"),
     )
     cuda_malloc_async: Optional[bool] = Field(
         True,
