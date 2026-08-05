@@ -260,6 +260,34 @@ def _compose_serialize_stream_usage_chunk(
     return s, data
 
 
+def _sort_tool_messages(message_dicts: List[dict]):
+    """Reorder tool-result messages to match the tool call order.
+
+    Clients may return parallel tool results in any order; some templates
+    (e.g. DeepSeek-V4) render results positionally and require them in the
+    order of the corresponding assistant tool_calls. Sorts each consecutive
+    run of tool messages after an assistant message in place, matching by
+    tool_call_id. Results with unknown IDs keep their relative order at the
+    end of the run.
+    """
+
+    i = 0
+    while i < len(message_dicts):
+        msg = message_dicts[i]
+        i += 1
+        if msg.get("role") != "assistant" or not msg.get("tool_calls"):
+            continue
+
+        order = {tc["id"]: idx for idx, tc in enumerate(msg["tool_calls"]) if tc.get("id")}
+        run_start = i
+        while i < len(message_dicts) and message_dicts[i].get("role") == "tool":
+            i += 1
+        if i - run_start > 1 and order:
+            run = message_dicts[run_start:i]
+            run.sort(key=lambda m: order.get(m.get("tool_call_id"), len(order)))
+            message_dicts[run_start:i] = run
+
+
 async def format_messages_with_template(
     messages: List[ChatCompletionMessage],
     existing_template_vars: Optional[dict] = None,
@@ -305,6 +333,10 @@ async def format_messages_with_template(
                             "string to dict, keeping as string",
                             {"args": args},
                         )
+
+    # Sort parallel tool results into tool call order for templates that
+    # render them positionally
+    _sort_tool_messages(message_dicts)
 
     # Get all special tokens
     special_tokens_dict = model.container.get_special_tokens()

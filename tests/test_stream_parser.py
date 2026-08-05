@@ -449,5 +449,114 @@ class LagunaToolcallFormatTests(unittest.TestCase):
         self.assertEqual(calls[0].function.arguments, '{"location": "Tokyo"}')
 
 
+class DeepseekV4ToolcallFormatTests(unittest.TestCase):
+    def parse(self, text):
+        from endpoints.OAI.utils.toolcall_formats.deepseek_v4 import parse_toolcalls
+
+        return parse_toolcalls(text)
+
+    def test_parse_tool_call(self):
+        calls = self.parse(
+            "<｜DSML｜tool_calls>\n"
+            '<｜DSML｜invoke name="get_weather">\n'
+            '<｜DSML｜parameter name="location" string="true">Paris</｜DSML｜parameter>\n'
+            '<｜DSML｜parameter name="days" string="false">3</｜DSML｜parameter>\n'
+            "</｜DSML｜invoke>\n"
+            "</｜DSML｜tool_calls>"
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "get_weather")
+        self.assertEqual(calls[0].function.arguments, '{"location": "Paris", "days": 3}')
+
+    def test_string_param_kept_verbatim(self):
+        # string="true" values are never JSON-decoded, even if they look typed
+        calls = self.parse(
+            '<｜DSML｜invoke name="f">\n'
+            '<｜DSML｜parameter name="a" string="true">123</｜DSML｜parameter>\n'
+            '<｜DSML｜parameter name="b" string="true">{"x": 1}\nline two</｜DSML｜parameter>\n'
+            "</｜DSML｜invoke>"
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            calls[0].function.arguments, '{"a": "123", "b": "{\\"x\\": 1}\\nline two"}'
+        )
+
+    def test_typed_params(self):
+        calls = self.parse(
+            '<｜DSML｜invoke name="f">\n'
+            '<｜DSML｜parameter name="flag" string="false">true</｜DSML｜parameter>\n'
+            '<｜DSML｜parameter name="items" string="false">["x", "y"]</｜DSML｜parameter>\n'
+            '<｜DSML｜parameter name="obj" string="false">{"k": 1}</｜DSML｜parameter>\n'
+            "</｜DSML｜invoke>"
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            calls[0].function.arguments,
+            '{"flag": true, "items": ["x", "y"], "obj": {"k": 1}}',
+        )
+
+    def test_invalid_json_falls_back_to_string(self):
+        calls = self.parse(
+            '<｜DSML｜invoke name="f">\n'
+            '<｜DSML｜parameter name="a" string="false">not json</｜DSML｜parameter>\n'
+            "</｜DSML｜invoke>"
+        )
+        self.assertEqual(calls[0].function.arguments, '{"a": "not json"}')
+
+    def test_parallel_calls(self):
+        calls = self.parse(
+            "<｜DSML｜tool_calls>\n"
+            '<｜DSML｜invoke name="f">\n'
+            '<｜DSML｜parameter name="a" string="false">1</｜DSML｜parameter>\n'
+            "</｜DSML｜invoke>\n"
+            '<｜DSML｜invoke name="g">\n'
+            '<｜DSML｜parameter name="b" string="true">x</｜DSML｜parameter>\n'
+            "</｜DSML｜invoke>\n"
+            "</｜DSML｜tool_calls>"
+        )
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0].function.name, "f")
+        self.assertEqual(calls[0].function.arguments, '{"a": 1}')
+        self.assertEqual(calls[1].function.name, "g")
+        self.assertEqual(calls[1].function.arguments, '{"b": "x"}')
+
+    def test_no_args(self):
+        calls = self.parse('<｜DSML｜invoke name="list_files">\n</｜DSML｜invoke>')
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "list_files")
+        self.assertEqual(calls[0].function.arguments, "{}")
+
+    def test_streamed_through_tag_parser(self):
+        from endpoints.OAI.utils.toolcall_formats.deepseek_v4 import (
+            TOOLCALL_START,
+            TOOLCALL_END,
+        )
+
+        p = TagStreamParser(
+            reasoning_start="<think>",
+            reasoning_end="</think>",
+            tool_start=TOOLCALL_START,
+            tool_end=TOOLCALL_END,
+            start_in_reasoning=True,
+        )
+        text = (
+            "pondering</think>Checking the weather.\n\n"
+            "<｜DSML｜tool_calls>\n"
+            '<｜DSML｜invoke name="get_weather">\n'
+            '<｜DSML｜parameter name="location" string="true">Tokyo</｜DSML｜parameter>\n'
+            "</｜DSML｜invoke>\n"
+            "</｜DSML｜tool_calls>"
+        )
+        # Feed in small chunks to exercise tag holdback
+        out = collect(p, [text[i : i + 7] for i in range(0, len(text), 7)])
+        self.assertEqual(out["reasoning"], "pondering")
+        self.assertEqual(out["content"].rstrip(), "Checking the weather.")
+
+        calls = self.parse(out["tool"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0].function.name, "get_weather")
+        self.assertEqual(calls[0].function.arguments, '{"location": "Tokyo"}')
+
+
 if __name__ == "__main__":
     unittest.main()
