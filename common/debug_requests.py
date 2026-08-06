@@ -101,6 +101,32 @@ async def write_chat_completion_request_log(request: Request, body: dict) -> Pat
     return log_path
 
 
+async def write_chat_completion_prompt_log(request: Request, prompt: str):
+    """Write the fully templated prompt next to the JSON request log.
+
+    Saves the exact text that is sent to the tokenizer as a .txt file with
+    the same basename as the request's JSON debug log.
+    """
+
+    if not config.logging.log_chat_completion_requests:
+        return
+
+    json_path = getattr(request.state, "debug_log_path", None)
+    if json_path is None:
+        return
+
+    prompt_path = json_path.with_suffix(".txt")
+    try:
+        async with aiofiles.open(prompt_path, "w", encoding="utf8") as prompt_file:
+            await prompt_file.write(prompt)
+    except Exception as exc:
+        xlogger.error(
+            "Failed to write chat completion prompt debug log",
+            str(exc),
+            details=f"\n{exc}",
+        )
+
+
 async def log_chat_completion_request(request: Request):
     """FastAPI dependency to log chat completion request bodies when enabled."""
 
@@ -112,4 +138,6 @@ async def log_chat_completion_request(request: Request):
     except Exception:
         body = {"_invalid_json_body": "[omitted: request body was not valid JSON]"}
 
-    await write_chat_completion_request_log(request, body)
+    log_path = await write_chat_completion_request_log(request, body)
+    if log_path is not None:
+        request.state.debug_log_path = log_path

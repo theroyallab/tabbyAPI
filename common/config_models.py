@@ -112,6 +112,8 @@ class LoggingConfig(BaseConfigModel):
         False,
         description=(
             "Write every /v1/chat/completions request to logs/debug/ as JSON (default: False).\n"
+            "Also saves the fully templated prompt (the exact text sent to the tokenizer) "
+            "as a .txt file with the same basename.\n"
             "PRIVACY WARNING: Enabling this creates a comprehensive request log, including the "
             "full message history and generation parameters. API keys are redacted, but prompts "
             "and user-provided content are preserved for bug-report reproduction."
