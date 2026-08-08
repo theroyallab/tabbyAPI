@@ -34,7 +34,6 @@ UNSUPPORTED_PARAMS = {
     "xtc_probability": 0.0,
     "dry_multiplier": 0.0,
     "mirostat_mode": 0,
-    "logit_bias": None,
     "temp_exponent": 1.0,
 }
 

@@ -1136,6 +1136,10 @@ class ExllamaV3Container:
 
         sampler_builder = ExllamaV3SamplerBuilder()
 
+        # Apply logit bias first so it lands ahead of the other steps
+        if params.logit_bias:
+            sampler_builder.logit_bias(params.logit_bias)
+
         # Penalties
 
         # Set penalty range

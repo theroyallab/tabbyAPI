@@ -12,6 +12,7 @@ from exllamav3.generator.sampler import (
     SS_Sample,
     SS_Base,
     SS_AdaptiveP,
+    SS_LogitBias,
 )
 
 
@@ -40,6 +41,10 @@ class ExllamaV3SamplerBuilder:
 
     def min_p(self, min_p):
         self.stack.append(SS_MinP(min_p))
+
+    def logit_bias(self, logit_bias):
+        # Must run before the logits are transformed, so prepend it to the stack
+        self.stack.insert(0, SS_LogitBias(logit_bias))
 
     def greedy(self):
         self.stack.append(SS_Argmax())
