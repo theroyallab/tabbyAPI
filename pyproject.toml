@@ -26,6 +26,7 @@ dependencies = [
     "sse-starlette >= 2.2.0",
     "packaging",
     "tokenizers >= 0.21.0",
+    "numpy",
     "aiofiles",
     "aiohttp",
     "async_lru",
