@@ -26,14 +26,21 @@ WORKDIR /app
 # Get requirements
 COPY pyproject.toml .
 
-# Install cu12 group first — pins torch+cu128, exllamav3+cu128,
+# Install cu12 group — pins torch+cu128, exllamav3+cu128,
 # and flash-linear-attention.
-# The 'extras' group (infinity-emb, sentence-transformers) is installed separately
-# with --no-deps so pip cannot resolve xformers transitively and pull a cu130 wheel,
-# which would cause libcudart.so.13 ImportError on driver 590.x (cu128-only hosts).
-# See: https://github.com/theroyallab/tabbyAPI/issues/414
 RUN pip install --no-cache-dir .[cu12]
-RUN pip install --no-cache-dir --no-deps .[extras]
+
+# Optionally install the embeddings stack (infinity-emb, sentence-transformers)
+# with --build-arg EXTRAS=1 (disabled by default).
+# The installed torch is pinned via a constraints file so dependency resolution
+# cannot replace it with a wheel built for a different CUDA version, which would
+# cause libcudart ImportErrors on hosts with older drivers.
+# See: https://github.com/theroyallab/tabbyAPI/issues/414
+ARG EXTRAS=
+RUN if [ -n "$EXTRAS" ]; then \
+      pip freeze | grep -E '^torch(==| @)' > /tmp/torch-constraint.txt && \
+      pip install --no-cache-dir -c /tmp/torch-constraint.txt .[extras]; \
+    fi
 
 RUN rm pyproject.toml
 

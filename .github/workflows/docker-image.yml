@@ -22,8 +22,13 @@ jobs:
         include:
           - dockerfile: ./docker/Dockerfile
             tag: latest
+            extras: ''
+          - dockerfile: ./docker/Dockerfile
+            tag: latest-extras
+            extras: '1'
           - dockerfile: ./docker/Dockerfile.cu13
             tag: cu13
+            extras: ''
     steps:
       - uses: actions/checkout@v4
 
@@ -55,6 +60,8 @@ jobs:
         with:
           file: ${{ matrix.dockerfile }}
           push: true
+          build-args: |
+            EXTRAS=${{ matrix.extras }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.image.outputs.name }}:buildcache-${{ matrix.tag }}

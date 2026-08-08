@@ -76,6 +76,8 @@ docker run --gpus all --name tabbyapi -p 5000:5000 -v /path/to/models:/app/model
 
 Replace `/path/to/models` with the folder that contains your local model directories. The API is exposed on `http://localhost:5000`.
 
+Available tags: `latest` (CUDA 12.8), `cu13` (CUDA 13), and `latest-extras` (CUDA 12.8 with the optional embeddings stack included). When building from source, pass `--build-arg EXTRAS=1` to include the embeddings stack.
+
 For Docker Compose, custom config mounts, or building the image locally, see the [Docker instructions](docs/01.-Getting-Started.md#docker).
 
 ## Features

@@ -31,10 +31,17 @@ embeddings_container = None
 load_lock = asyncio.Lock()
 
 
+# A broken infinity-emb install (e.g. missing transitive dependencies) only
+# disables embeddings instead of preventing server startup
+_extras_import_error: Optional[str] = None
 if dependencies.extras:
-    from backends.infinity.model import InfinityContainer
+    try:
+        from backends.infinity.model import InfinityContainer
 
-    embeddings_container: Optional[InfinityContainer] = None
+        embeddings_container: Optional[InfinityContainer] = None
+    except Exception as exc:
+        _extras_import_error = str(exc)
+        xlogger.warning(f"Embeddings are disabled because infinity-emb failed to import: {exc}")
 
 
 class ModelType(Enum):
@@ -249,6 +256,12 @@ async def load_embedding_model(model_path: pathlib.Path, **kwargs):
             "Please run the following command in your environment "
             "to install extra packages:\n"
             "pip install -U .[extras]"
+        )
+
+    # Break out if infinity is installed but not importable
+    if _extras_import_error is not None:
+        raise ImportError(
+            f"Embeddings are disabled because infinity-emb failed to import: {_extras_import_error}"
         )
 
     # Check if the model is already loaded

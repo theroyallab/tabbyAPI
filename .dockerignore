@@ -8,6 +8,7 @@ venv
 # Ignore specific application files
 models/
 loras/
+logs/
 config.yml
 config_sample.yml
 api_tokens.yml

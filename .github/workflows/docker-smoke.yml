@@ -1,0 +1,55 @@
+name: Docker smoke test
+
+on:
+  pull_request:
+    paths:
+      - 'pyproject.toml'
+      - 'docker/**'
+      - '.github/workflows/docker-smoke.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: "docker-smoke-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dockerfile: ./docker/Dockerfile
+            extras: ''
+            name: cu12
+          - dockerfile: ./docker/Dockerfile
+            extras: '1'
+            name: cu12-extras
+          - dockerfile: ./docker/Dockerfile.cu13
+            extras: ''
+            name: cu13
+    name: smoke (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@v4
+
+      # CUDA-enabled torch images are large; reclaim runner disk first
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL
+          sudo docker image prune -af
+
+      - name: Build image
+        run: >
+          docker build -f ${{ matrix.dockerfile }}
+          --build-arg EXTRAS=${{ matrix.extras }}
+          -t tabbyapi-smoke .
+
+      # Import the full server module graph (torch, exllamav3, the optional
+      # infinity gate) without starting the server or needing a GPU, so
+      # missing or broken dependencies fail here instead of at user startup.
+      - name: Import smoke test
+        run: >
+          docker run --rm --entrypoint python3 tabbyapi-smoke -c
+          "import main; from common import model, sampling;
+          from endpoints.OAI import router; print('import smoke test OK')"
