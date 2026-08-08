@@ -14,14 +14,8 @@ from exllamav3.generator.sampler import (
     SS_AdaptiveP,
     SS_BanTokens,
     SS_XTC,
+    SS_LogitBias,
 )
-
-# TODO: Import SS_LogitBias directly and drop the fallback once the minimum
-# exllamav3 version requirement is bumped to v1.4.1
-try:
-    from exllamav3.generator.sampler import SS_LogitBias
-except ImportError:
-    SS_LogitBias = None
 
 # Logits-space steps that remain meaningful under greedy decoding: they can
 # change which token has the highest logit, unlike the probability-shaping

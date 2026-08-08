@@ -171,7 +171,7 @@ class ExllamaV3Container:
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "1.3.0")
+        check_package_version("exllamav3", "1.4.1")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
@@ -1139,16 +1139,6 @@ class ExllamaV3Container:
         # Apply logit bias first so it lands ahead of the other steps
         if params.logit_bias:
             sampler_builder.logit_bias(params.logit_bias)
-
-        # Apply logit bias first so it lands ahead of the other steps
-        if params.logit_bias:
-            if not sampler_builder.logit_bias(params.logit_bias):
-                # TODO: Remove this fallback once the minimum exllamav3
-                #       version requirement is bumped to v1.4.1
-                xlogger.warning(
-                    "logit_bias is ignored because the installed exllamav3 "
-                    "version does not support it (requires v1.4.1 or later)."
-                )
 
         # Penalties
 
