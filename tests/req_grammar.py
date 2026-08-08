@@ -2,17 +2,17 @@ import re
 
 from _common import *
 
-BASE_URL = "http://localhost:5000/v1"
+BASE_URL = "http://localhost:5010/v1"
 MODEL = "/mnt/str/models/qwen3.5-9b/exl3/5.00bpw_mul1/"
 
 PHONE_REGEX = r"\d{3}-\d{4}"
 DATE_REGEX = r"\d{4}-\d{2}-\d{2}"
 
-YESNO_KBNF = 'start ::= "yes" | "no";'
-SENTENCE_KBNF = (
-    'start ::= greeting " " subject "!";\n'
-    'greeting ::= "Hello" | "Goodbye";\n'
-    'subject ::= "world" | "friend";\n'
+# llama.cpp GBNF syntax (auto-detected by the `::=` rule operator)
+YESNO_GBNF = 'root ::= "yes" | "no"'
+# Lark syntax
+SENTENCE_LARK = (
+    'start: greeting " " subject "!"\ngreeting: "Hello" | "Goodbye"\nsubject: "world" | "friend"\n'
 )
 
 comp_request_phone = {
@@ -48,14 +48,14 @@ comp_request_yesno = {
     "model": MODEL,
     "prompt": "Question: Is the sky blue?\nAnswer:",
     "max_tokens": 10,
-    "grammar_string": YESNO_KBNF,
+    "grammar_string": YESNO_GBNF,
 }
 
 comp_request_sentence = {
     "model": MODEL,
     "prompt": "A friendly greeting:",
     "max_tokens": 20,
-    "grammar_string": SENTENCE_KBNF,
+    "grammar_string": SENTENCE_LARK,
 }
 
 failures = []
@@ -98,13 +98,13 @@ def main():
         re.fullmatch(DATE_REGEX, data["choices"][0]["message"]["content"].strip()),
     )
 
-    # KBNF grammars on the completions endpoint
+    # CFG grammars on the completions endpoint
     data = test_comp_request(api_key, BASE_URL, comp_request_yesno.copy(), n=1)
-    check("kbnf yes/no: output conforms", data["choices"][0]["text"].strip() in {"yes", "no"})
+    check("gbnf yes/no: output conforms", data["choices"][0]["text"].strip() in {"yes", "no"})
 
     data = test_comp_request(api_key, BASE_URL, comp_request_sentence.copy(), n=1)
     check(
-        "kbnf sentence: output conforms",
+        "lark sentence: output conforms",
         re.fullmatch(r"(Hello|Goodbye) (world|friend)!", data["choices"][0]["text"].strip()),
     )
 

@@ -243,6 +243,10 @@ class BaseSamplerRequest(BaseModel):
 
     grammar_string: Optional[str] = Field(
         default_factory=lambda: get_default_sampler_value("grammar_string"),
+        description=(
+            "Constrain generation with a context-free grammar in Lark or "
+            "llama.cpp GBNF syntax (auto-detected)."
+        ),
     )
 
     max_temp: Optional[float] = Field(

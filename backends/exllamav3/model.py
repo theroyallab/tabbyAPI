@@ -1289,7 +1289,7 @@ class ExllamaV3Container:
                 )
 
             if params.grammar_string:
-                grammar_handler.add_kbnf_filter(
+                grammar_handler.add_grammar_filter(
                     params.grammar_string, self.tokenizer, trigger_token_id=trigger_token_id
                 )
 

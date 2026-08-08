@@ -2,7 +2,7 @@ import json
 
 from _common import *
 
-BASE_URL = "http://localhost:5000/v1"
+BASE_URL = "http://localhost:5010/v1"
 MODEL = "/mnt/str/models/qwen3.5-9b/exl3/5.00bpw_mul1/"
 
 PERSON_SCHEMA = {

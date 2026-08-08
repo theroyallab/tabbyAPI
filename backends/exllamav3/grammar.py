@@ -1,32 +1,12 @@
-import typing
 from typing import List, Optional
 import traceback
 
 from exllamav3 import (
     Tokenizer,
     Filter,
-    FormatronFilter,
+    LLGuidanceFilter,
 )
-from formatron.extractor import NonterminalExtractor
-from formatron.formatter import FormatterBuilder
-from formatron.schemas import json_schema
 from common.logger import xlogger
-
-
-class CFGExtractor(NonterminalExtractor):
-    """Extractor class for KBNF context-free grammar"""
-
-    def __init__(self, nonterminal: str, kbnf_string: str):
-        super().__init__(nonterminal)
-        self.kbnf_string = kbnf_string
-
-    # Return the entire input string as the extracted string
-    def extract(self, input_str: str) -> typing.Optional[tuple[str, typing.Any]]:
-        return "", input_str
-
-    @property
-    def kbnf_definition(self) -> str:
-        return self.kbnf_string.replace("start", self.nonterminal)
 
 
 class ExLlamaV3Grammar:
@@ -41,26 +21,21 @@ class ExLlamaV3Grammar:
         self,
         schema: dict,
         tokenizer: Tokenizer,
-        trigger_token_id: int = None,
+        trigger_token_id: Optional[int] = None,
     ):
         """Adds an ExllamaV3 filter based on a JSON schema."""
 
-        leading_character = "[" if schema.get("type") == "array" else "{"
+        # Unwrap a named schema nested in an OAI response format config
+        if "schema" in schema and "name" in schema:
+            schema = schema["schema"]
 
         try:
-            # Get named schema nested in from OAI response format config
-            if "schema" in schema and "name" in schema:
-                schema = schema["schema"]
-
-            # Add fields required by formatron if not present
-            if "$id" not in schema:
-                schema["$id"] = "https://example.com/example.json"
-            if "$schema" not in schema:
-                schema["$schema"] = "http://json-schema.org/draft-07/schema#"
-
-            # Validate schema and create formatter
-            schema = json_schema.create_schema(schema)
-
+            lmfilter = LLGuidanceFilter(
+                tokenizer,
+                eos_after_completed=True,
+                json_schema=schema,
+                trigger_token=trigger_token_id,
+            )
         except Exception:
             traceback.print_exc()
             xlogger.error(
@@ -70,27 +45,7 @@ class ExLlamaV3Grammar:
             )
             return
 
-        f = FormatterBuilder()
-        f.append_line(f"{f.json(schema)}")
-        self.filters.append(
-            FormatronFilter(
-                tokenizer,
-                eos_after_completed=True,
-                formatter_builder=f,
-                trigger_token=trigger_token_id,
-            )
-        )
-
-        # Additional constraint to force leading character
-        f = FormatterBuilder()
-        f.append_line(leading_character)
-        self.filters.append(
-            FormatronFilter(
-                tokenizer,
-                formatter_builder=f,
-                trigger_token=trigger_token_id,
-            )
-        )
+        self.filters.append(lmfilter)
 
     def add_regex_filter(
         self,
@@ -101,14 +56,10 @@ class ExLlamaV3Grammar:
         """Adds an ExllamaV3 filter based on a regular expression."""
 
         try:
-            # Validate regex, create formatter and build the filter
-            f = FormatterBuilder()
-            f.append_line(f"{f.regex(pattern)}")
-
-            lmfilter = FormatronFilter(
+            lmfilter = LLGuidanceFilter(
                 tokenizer,
                 eos_after_completed=True,
-                formatter_builder=f,
+                regex=pattern,
                 trigger_token=trigger_token_id,
             )
         except Exception:
@@ -122,33 +73,33 @@ class ExLlamaV3Grammar:
 
         self.filters.append(lmfilter)
 
-    def add_kbnf_filter(
+    def add_grammar_filter(
         self,
-        kbnf_string: str,
+        grammar_string: str,
         tokenizer: Tokenizer,
         trigger_token_id: Optional[int] = None,
     ):
-        """Adds an ExllamaV3 filter based on KBNF grammar."""
+        """Adds an ExllamaV3 filter based on a context-free grammar.
+
+        Accepts Lark syntax or llama.cpp GBNF, distinguished by the rule
+        definition operator (GBNF uses `::=`).
+        """
+
+        grammar_kind = "gbnf_grammar" if "::=" in grammar_string else "lark_grammar"
 
         try:
-            # Validate KBNF, create formatter and build the filter
-            f = FormatterBuilder()
-            f.append_line(
-                f"""{f.extractor(lambda nonterminal: CFGExtractor(nonterminal, kbnf_string))}"""
-            )
-
-            lmfilter = FormatronFilter(
+            lmfilter = LLGuidanceFilter(
                 tokenizer,
                 eos_after_completed=True,
-                formatter_builder=f,
                 trigger_token=trigger_token_id,
+                **{grammar_kind: grammar_string},
             )
         except Exception:
             traceback.print_exc()
             xlogger.error(
-                "Skipping because the KBNF string couldn't be parsed. "
+                "Skipping because the grammar couldn't be parsed. "
                 "Please read the above error for more information.",
-                {"kbnf_string": kbnf_string, "exception": traceback.format_exc()},
+                {"grammar_string": grammar_string, "exception": traceback.format_exc()},
             )
             return
 
