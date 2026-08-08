@@ -137,10 +137,14 @@ class BaseSamplerRequest(BaseModel):
 
     xtc_probability: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("xtc_probability", 0.0),
+        ge=0.0,
+        le=1.0,
     )
 
     xtc_threshold: Optional[float] = Field(
-        default_factory=lambda: get_default_sampler_value("xtc_threshold", 0.1)
+        default_factory=lambda: get_default_sampler_value("xtc_threshold", 0.1),
+        ge=0.0,
+        le=1.0,
     )
 
     frequency_penalty: Optional[float] = Field(

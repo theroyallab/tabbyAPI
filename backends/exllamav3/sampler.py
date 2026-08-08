@@ -12,7 +12,22 @@ from exllamav3.generator.sampler import (
     SS_Sample,
     SS_Base,
     SS_AdaptiveP,
-    SS_LogitBias,
+    SS_BanTokens,
+    SS_XTC,
+)
+
+# TODO: Import SS_LogitBias directly and drop the fallback once the minimum
+# exllamav3 version requirement is bumped to v1.4.1
+try:
+    from exllamav3.generator.sampler import SS_LogitBias
+except ImportError:
+    SS_LogitBias = None
+
+# Logits-space steps that remain meaningful under greedy decoding: they can
+# change which token has the highest logit, unlike the probability-shaping
+# steps (temperature, top-k/p, min-p, XTC), which never alter the argmax
+_GREEDY_KEPT_STEPS = tuple(
+    step for step in (SS_LogitBias, SS_RepP, SS_PresFreqP, SS_BanTokens) if step is not None
 )
 
 
@@ -24,11 +39,24 @@ class ExllamaV3SamplerBuilder:
 
     stack: List[SS_Base] = field(default_factory=list)
 
+    def logit_bias(self, logit_bias) -> bool:
+        """Returns False when the installed exllamav3 lacks SS_LogitBias."""
+
+        if SS_LogitBias is None:
+            return False
+
+        # Must run before the logits are transformed, so prepend it to the stack
+        self.stack.insert(0, SS_LogitBias(logit_bias))
+        return True
+
     def penalties(self, rep_p, freq_p, pres_p, penalty_range, rep_decay):
         self.stack += [
             SS_RepP(rep_p, penalty_range, rep_decay),
             SS_PresFreqP(pres_p, freq_p, penalty_range, rep_decay),
         ]
+
+    def ban_tokens(self, banned_tokens):
+        self.stack.append(SS_BanTokens(banned_tokens))
 
     def temperature(self, temp):
         self.stack.append(SS_Temperature(temp))
@@ -42,9 +70,10 @@ class ExllamaV3SamplerBuilder:
     def min_p(self, min_p):
         self.stack.append(SS_MinP(min_p))
 
-    def logit_bias(self, logit_bias):
-        # Must run before the logits are transformed, so prepend it to the stack
-        self.stack.insert(0, SS_LogitBias(logit_bias))
+    def xtc(self, xtc_probability, xtc_threshold, tokenizer):
+        # The tokenizer supplies the default set of protected tokens
+        # (newline pieces and special tokens)
+        self.stack.append(SS_XTC(xtc_probability, xtc_threshold, tokenizer=tokenizer))
 
     def greedy(self):
         self.stack.append(SS_Argmax())
@@ -59,9 +88,11 @@ class ExllamaV3SamplerBuilder:
         if len(self.stack) and isinstance(self.stack[-1], SS_AdaptiveP):
             return CustomSampler(self.stack)
 
-        # Use greedy if temp is 0
+        # Use greedy if temp is 0. Probability-shaping steps are dropped, but
+        # logit biases, penalties and token bans still affect the argmax
         if greedy:
-            return CustomSampler([SS_Argmax()])
+            kept = [s for s in self.stack if isinstance(s, _GREEDY_KEPT_STEPS)]
+            return CustomSampler(kept + [SS_Argmax()])
         else:
             self.stack.append(SS_Sample())
             return CustomSampler(self.stack)
