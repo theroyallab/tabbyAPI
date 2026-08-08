@@ -102,12 +102,12 @@ cu13 = [
     "flash-linear-attention >= 0.5.0 ; python_version >= '3.12' and ((platform_system == 'Linux' and platform_machine == 'x86_64') or platform_system == 'Windows')",
 
     # Exl3
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.3.0/exllamav3-1.3.0%2Bcu132.torch2.11.0-cp314-cp314-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.14'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.3.0/exllamav3-1.3.0%2Bcu132.torch2.11.0-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.3.0/exllamav3-1.3.0%2Bcu132.torch2.11.0-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.3.0/exllamav3-1.3.0%2Bcu132.torch2.11.0-cp314-cp314-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.14'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.3.0/exllamav3-1.3.0%2Bcu132.torch2.11.0-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
-    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.3.0/exllamav3-1.3.0%2Bcu132.torch2.11.0-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.4.0/exllamav3-1.4.0%2Bcu132.torch2.11.0-cp314-cp314-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.14'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.4.0/exllamav3-1.4.0%2Bcu132.torch2.11.0-cp313-cp313-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.13'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.4.0/exllamav3-1.4.0%2Bcu132.torch2.11.0-cp312-cp312-win_amd64.whl ; platform_system == 'Windows' and python_version == '3.12'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.4.0/exllamav3-1.4.0%2Bcu132.torch2.11.0-cp314-cp314-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.14'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.4.0/exllamav3-1.4.0%2Bcu132.torch2.11.0-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.4.0/exllamav3-1.4.0%2Bcu132.torch2.11.0-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
 ]
 # MARK: Ruff options
 
