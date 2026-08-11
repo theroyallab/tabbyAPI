@@ -11,7 +11,6 @@ from jinja2 import Template, TemplateError, nodes
 from jinja2.ext import Extension, loopcontrols
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 from common.logger import xlogger
-from markupsafe import Markup
 from packaging import version
 
 
@@ -45,14 +44,16 @@ def _tojson_compat(value, indent=None, ensure_ascii=True):
 
     Some model templates call ``tojson(ensure_ascii=False)`` while the
     bundled Jinja filter may not accept that keyword in sandboxed mode.
+
+    Returns a plain string, matching the transformers template environment:
+    autoescape is off, and a Markup return value would HTML-escape any plain
+    string a template concatenates with the filter's output.
     """
-    return Markup(
-        json.dumps(
-            value,
-            indent=indent,
-            ensure_ascii=ensure_ascii,
-            separators=(",", ": "),
-        )
+    return json.dumps(
+        value,
+        indent=indent,
+        ensure_ascii=ensure_ascii,
+        separators=(",", ": "),
     )
 
 
