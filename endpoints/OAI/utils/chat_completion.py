@@ -34,6 +34,7 @@ from endpoints.OAI.utils.completion import _parse_gen_request_id
 from endpoints.OAI.utils.stream_parser import (
     CONTENT,
     REASONING,
+    GlimmerStreamParser,
     HarmonyStreamParser,
     TagStreamParser,
 )
@@ -108,9 +109,9 @@ def _resolve_start_in_reasoning(prompt: str, data: ChatCompletionRequest) -> boo
     """Determine whether generation starts inside a reasoning block."""
 
     mc = model.container
-    if mc.harmony:
-        # Harmony message headers determine the channel; there is no
-        # ambiguity for the parser to resolve
+    if mc.harmony or mc.muse_glimmer:
+        # Harmony and Glimmer message headers determine the channel; there
+        # is no ambiguity for the parser to resolve
         return False
     if not mc.reasoning:
         return False
@@ -592,6 +593,11 @@ async def _chat_stream_collector(
         tool_format = "harmony"
         use_think = False
         parser = HarmonyStreamParser()
+    elif mc.muse_glimmer:
+        # Same for Muse Glimmer, with recipients in place of channels
+        tool_format = "muse_glimmer"
+        use_think = False
+        parser = GlimmerStreamParser()
     else:
         tool_format = mc.tool_format
         t_tool_start, t_tool_end = get_toolcall_tags(tool_format)

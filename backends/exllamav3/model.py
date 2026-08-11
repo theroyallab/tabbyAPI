@@ -86,6 +86,7 @@ class ExllamaV3Container:
     prompt_template: Optional[PromptTemplate] = None
     tool_format: Optional[str] = None
     harmony: bool = False
+    muse_glimmer: bool = False
 
     # Optional features
     use_draft_model: bool = False
@@ -452,6 +453,44 @@ class ExllamaV3Container:
                 xlogger.warning(
                     "Harmony supersedes the reasoning and tool format settings "
                     "in the model config; they will be ignored."
+                )
+
+        # Muse Glimmer message format. Like Harmony, the message structure is
+        # baked into the checkpoint's special tokens, so auto-detect from the
+        # tokenizer unless overridden in config. The token sets are disjoint
+        # (Glimmer has no <|channel|>, Harmony no <|eom|>/<|eot|>), so the
+        # two auto-detections cannot both trigger.
+        glimmer = kwargs.get("muse_glimmer")
+        if self.tool_format in ("muse_glimmer", "glimmer"):
+            # Glimmer isn't a tag-based tool format; selecting it as one
+            # enables full Glimmer parsing
+            if glimmer is False:
+                xlogger.warning(
+                    f"tool_format: {self.tool_format} has no effect when "
+                    "muse_glimmer is set to false; tool calls will not be parsed."
+                )
+            else:
+                glimmer = True
+        if glimmer is None:
+            glimmer = not self.harmony and all(
+                self.tokenizer.single_id(token) is not None
+                for token in ("<|start|>", "<|message|>", "<|eom|>", "<|eot|>")
+            )
+        if glimmer and self.harmony:
+            xlogger.warning(
+                "Both harmony and muse_glimmer are enabled; using Harmony "
+                "and ignoring muse_glimmer."
+            )
+            glimmer = False
+        self.muse_glimmer = bool(glimmer)
+        if self.muse_glimmer:
+            xlogger.info("Using the Muse Glimmer format for reasoning and tool call parsing.")
+            if self.reasoning or (
+                self.tool_format and self.tool_format not in ("muse_glimmer", "glimmer")
+            ):
+                xlogger.warning(
+                    "Muse Glimmer supersedes the reasoning and tool format "
+                    "settings in the model config; they will be ignored."
                 )
 
         return self

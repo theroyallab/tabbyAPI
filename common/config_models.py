@@ -386,6 +386,16 @@ class ModelConfig(BaseConfigModel):
             "reasoning and tool format settings."
         ),
     )
+    muse_glimmer: Optional[bool] = Field(
+        None,
+        description=(
+            "Parse responses in the Muse Glimmer message format.\n"
+            "Auto-detected from the model's special tokens by default; set to\n"
+            "true or false to override. Setting 'tool_format: muse_glimmer' is\n"
+            "equivalent to setting this to true. When active, supersedes the\n"
+            "reasoning and tool format settings."
+        ),
+    )
 
     _metadata: Metadata = PrivateAttr(Metadata())
     model_config = ConfigDict(protected_namespaces=())
