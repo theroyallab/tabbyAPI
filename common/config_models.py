@@ -244,7 +244,7 @@ class ModelConfig(BaseConfigModel):
         default_factory=list,
         description=(
             "Array of VRAM sizes to split between GPUs, in GB (default: []).\n"
-            "Used with tensor parallelism."
+            "Used both with and without tensor parallelism."
         ),
     )
     cpu_moe_offload_layers: Optional[int] = Field(

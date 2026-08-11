@@ -124,7 +124,7 @@ model:
   autosplit_reserve: [96]
 
   # Array of VRAM sizes to split between GPUs, in GB (default: []).
-  # Used with tensor parallelism.
+  # Used both with and without tensor parallelism.
   gpu_split: []
 
   # Number of mixture-of-expert layers to offload to CPU inference (default: 0)
