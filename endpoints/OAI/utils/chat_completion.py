@@ -437,10 +437,9 @@ def resolve_template_vars(data: ChatCompletionRequest, container) -> dict:
 
     request_vars = {}
 
-    # OpenRouter / OpenAI Responses style reasoning object
+    # OpenRouter / OpenAI Responses style reasoning object;
+    # reasoning.max_tokens is consumed by _resolve_reasoning_budget instead
     if data.reasoning is not None:
-        if data.reasoning.max_tokens is not None:
-            xlogger.debug("reasoning.max_tokens is not supported; ignoring.")
         if data.reasoning.enabled is not None:
             request_vars["enable_thinking"] = data.reasoning.enabled
         if data.reasoning.effort is not None:
@@ -558,6 +557,49 @@ def _parse_tool_calls(
     return dumped
 
 
+def _resolve_reasoning_budget(data: ChatCompletionRequest, mc) -> tuple[Optional[int], str]:
+    """
+    Resolve the reasoning token budget and forced message from the request and
+    model config. Following llama.cpp, a negative budget at any level means
+    "unset" and defers to the next source; the resolved budget is either None
+    (unlimited) or >= 0.
+    """
+
+    def normalize(budget):
+        return None if budget is None or budget < 0 else budget
+
+    budget = normalize(data.reasoning_budget_tokens)
+    if budget is None and data.reasoning is not None:
+        budget = normalize(data.reasoning.max_tokens)
+    if budget is None:
+        budget = normalize(mc.reasoning_budget_tokens)
+
+    message = data.reasoning_budget_message
+    if message is None:
+        message = mc.reasoning_budget_message
+
+    return budget, message or ""
+
+
+def _reasoning_budget_injection(mc, message: str) -> Optional[str]:
+    """
+    Text forced into the output stream to end the reasoning phase: the budget
+    message followed by the tokens that transition the active reasoning format
+    to final content. None if the model has no reasoning format to end.
+    """
+
+    if mc.harmony:
+        suffix = "<|end|><|start|>assistant<|channel|>final<|message|>"
+    elif mc.muse_glimmer:
+        suffix = "<|eom|><|start|>assistant to=user<|message|>"
+    elif mc.reasoning and mc.reasoning_start_token and mc.reasoning_end_token:
+        suffix = mc.reasoning_end_token
+    else:
+        return None
+
+    return message + suffix
+
+
 async def _chat_stream_collector(
     task_idx: int,
     gen_queue: asyncio.Queue | None,
@@ -614,6 +656,28 @@ async def _chat_stream_collector(
             tool_calls_in_reasoning=mc.tool_calls_in_reasoning,
         )
 
+    # Reasoning budget: when the reasoning phase exceeds the budget, force
+    # end-of-reasoning tokens into the output stream so the model answers
+    # with what it has. The injected text arrives as regular output, so the
+    # parser transitions out of reasoning on its own.
+    budget, budget_message = _resolve_reasoning_budget(params, mc)
+    budget_injection = None
+    if budget is not None:
+        budget_injection = _reasoning_budget_injection(mc, budget_message)
+        if budget_injection is None:
+            xlogger.debug(
+                "A reasoning budget was requested but the model has no reasoning format; ignoring."
+            )
+        elif params.json_schema or params.regex_pattern or params.grammar_string:
+            # Injection permanently disables a job's filters
+            xlogger.warning(
+                "The reasoning budget is ignored because the request uses "
+                "constrained generation (json_schema, regex_pattern or "
+                "grammar_string)."
+            )
+            budget_injection = None
+    reasoning_tokens = 0
+
     # Collect logprobs
     collected_logprobs = []
 
@@ -649,6 +713,22 @@ async def _chat_stream_collector(
                     full_content += sub
                 else:
                     full_tool += sub
+
+            # Count reasoning tokens and force the end of the reasoning phase
+            # when the budget is exhausted. Attribution is approximate: a
+            # chunk counts as reasoning if the parser is still in reasoning
+            # after consuming it, and the injection lands a few tokens late
+            # (tokens sampled ahead of this consumer precede it).
+            if budget_injection is not None and parser.in_reasoning and not parser.in_tool:
+                reasoning_tokens += len(generation.get("token_ids") or [])
+                if reasoning_tokens >= budget:
+                    if mc.constrain_generation_output(request_id, budget_injection):
+                        xlogger.debug(
+                            f"Reasoning budget of {budget} tokens exhausted; "
+                            "forcing the end of the reasoning phase.",
+                            {"injection": budget_injection},
+                        )
+                    budget_injection = None
 
             # Collect logprobs in content span only, skipping chunks that
             # contain a phase transition

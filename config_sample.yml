@@ -205,6 +205,20 @@ model:
   # If False, tool call tags inside a reasoning block are treated as plain reasoning text.
   tool_calls_in_reasoning: true
 
+  # Default reasoning token budget (default: None).
+  # When a request's reasoning content exceeds the budget, the server forces the end of
+  # the reasoning phase by injecting reasoning_budget_message followed by the model's
+  # end-of-reasoning tokens. 0 ends reasoning as soon as it starts; None or a negative
+  # value disables the budget. Overridable per request via reasoning_budget_tokens
+  # (aliases: reasoning_budget, thinking_budget, thinking_token_budget) or
+  # reasoning.max_tokens. Requires a reasoning format: reasoning tags, Harmony or Muse Glimmer.
+  reasoning_budget_tokens:
+
+  # Text injected before the end-of-reasoning tokens when the reasoning budget is
+  # exhausted (default: no text, only the end-of-reasoning tokens are forced). Also overridable
+  # per request via reasoning_budget_message.
+  reasoning_budget_message:
+
   # Tool format, e.g. 'qwen3_coder'. See docs for supported formats. If left blank,
   # tool calls from the model will not be parsed by the server.
   tool_format:

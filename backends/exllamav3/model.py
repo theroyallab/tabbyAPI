@@ -87,6 +87,8 @@ class ExllamaV3Container:
     tool_format: Optional[str] = None
     harmony: bool = False
     muse_glimmer: bool = False
+    reasoning_budget_tokens: Optional[int] = None
+    reasoning_budget_message: Optional[str] = None
 
     # Optional features
     use_draft_model: bool = False
@@ -405,6 +407,10 @@ class ExllamaV3Container:
         self.reasoning_start_token = kwargs.get("reasoning_start_token", "<think>")
         self.reasoning_end_token = kwargs.get("reasoning_end_token", "</think>")
         self.tool_calls_in_reasoning = kwargs.get("tool_calls_in_reasoning", True)
+
+        # Reasoning budget defaults, overridable per request
+        self.reasoning_budget_tokens = kwargs.get("reasoning_budget_tokens")
+        self.reasoning_budget_message = kwargs.get("reasoning_budget_message")
 
         # Default and forced chat template variables
         self.template_vars_default = kwargs.get("template_vars_default") or {}
@@ -1028,6 +1034,40 @@ class ExllamaV3Container:
         finally:
             # Clean up and remove the job from active IDs
             del self.active_job_ids[request_id]
+
+    def constrain_generation_output(self, request_id: str, text: str) -> bool:
+        """
+        Force `text` into the output stream of an active generation job: the
+        next sampled tokens are constrained to the given string, then sampling
+        resumes. Used to end the reasoning phase when a reasoning budget is
+        exhausted. Returns False if the job is not running or the installed
+        exllamav3 version does not support output constraints.
+        """
+
+        job = self.active_job_ids.get(request_id)
+        if job is None:
+            return False
+
+        # TODO: Call directly once the minimum exllamav3 version requirement
+        #       includes AsyncJob.constrain_output_now
+        if not hasattr(job, "constrain_output_now"):
+            xlogger.warning(
+                "The installed exllamav3 version does not support output "
+                "constraints; the reasoning budget is ignored."
+            )
+            return False
+
+        # Encode here rather than passing the string through: tokenizers with
+        # a BOS post-processor (Llama-3 style) prepend BOS regardless of
+        # add_bos, which would corrupt the injection
+        ids = self.tokenizer.encode(text, encode_special_tokens=True, add_bos=False)
+        if ids.shape[-1] > 0 and ids[0, 0].item() == self.tokenizer.bos_token_id:
+            ids = ids[:, 1:]
+        if ids.shape[-1] == 0:
+            return False
+
+        job.constrain_output_now(ids)
+        return True
 
     def handle_logprobs(self, result: dict, generation: dict):
         """

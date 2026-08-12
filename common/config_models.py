@@ -369,6 +369,29 @@ class ModelConfig(BaseConfigModel):
             "plain reasoning text."
         ),
     )
+    reasoning_budget_tokens: Optional[int] = Field(
+        None,
+        description=(
+            "Default reasoning token budget (default: None).\n"
+            "When a request's reasoning content exceeds the budget, the server\n"
+            "forces the end of the reasoning phase by injecting\n"
+            "reasoning_budget_message followed by the model's end-of-reasoning\n"
+            "tokens. 0 ends reasoning as soon as it starts; None or a negative\n"
+            "value disables the budget. Overridable per request via\n"
+            "reasoning_budget_tokens (aliases: reasoning_budget,\n"
+            "thinking_budget, thinking_token_budget) or reasoning.max_tokens.\n"
+            "Requires a reasoning format: reasoning tags, Harmony or Muse\n"
+            "Glimmer."
+        ),
+    )
+    reasoning_budget_message: Optional[str] = Field(
+        None,
+        description=(
+            "Text injected before the end-of-reasoning tokens when the\n"
+            "reasoning budget is exhausted (default: no text, only the end-of-reasoning\n"
+            "tokens are forced). Overridable per request via reasoning_budget_message."
+        ),
+    )
     tool_format: Optional[str] = Field(
         None,
         description=(

@@ -115,8 +115,33 @@ class ChatCompletionRequest(CommonCompletionRequest):
             "OpenRouter / OpenAI Responses style reasoning options. "
             "reasoning.effort and reasoning.enabled map to the reasoning_effort "
             "and enable_thinking template variables; the flat top-level fields "
-            "take precedence. reasoning.max_tokens is not supported and is "
-            "ignored."
+            "take precedence. reasoning.max_tokens sets the reasoning token "
+            "budget, superseded by the flat reasoning_budget_tokens field."
+        ),
+    )
+    reasoning_budget_tokens: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "reasoning_budget_tokens",
+            "reasoning_budget",
+            "thinking_budget",
+            "thinking_token_budget",
+        ),
+        description=(
+            "Aliases: reasoning_budget, thinking_budget, thinking_token_budget. "
+            "Token budget for reasoning content: when exceeded, the server "
+            "forces the end of the reasoning phase so the model answers with "
+            "what it has. 0 ends reasoning as soon as it starts; a negative "
+            "value or None defers to the server-side default (unlimited if "
+            "unset). Requires a model with a configured reasoning format."
+        ),
+    )
+    reasoning_budget_message: Optional[str] = Field(
+        default=None,
+        description=(
+            "Text injected before the end-of-reasoning tokens when the "
+            "reasoning budget is exhausted (default: none, configurable "
+            "server-side)."
         ),
     )
     response_prefix: Optional[str] = None
