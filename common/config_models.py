@@ -512,7 +512,9 @@ class SamplingConfig(BaseConfigModel):
         None,
         description=(
             "Select a sampler override preset (default: None).\n"
-            "Find this in the sampler-overrides folder.\n"
+            "This is a preset name, not a path: TabbyAPI reads "
+            "sampler_overrides/<name>.yml relative to the directory it is "
+            "launched from.\n"
             "This overrides default fallbacks for sampler values "
             "that are passed to the API.\n"
             "NOTE: safe_defaults preset provides a fallback for frontends "
