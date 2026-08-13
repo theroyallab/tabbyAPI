@@ -148,12 +148,15 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
     global container
 
     async with load_lock:
-        # Check if the model is already loaded
+        # Check if the model is already loaded. Compare full resolved paths:
+        # quant-style layouts give unrelated models the same directory
+        # basename (e.g. <model_a>/exl3/4.00bpw vs <model_b>/exl3/4.00bpw),
+        # and a name comparison would silently skip the swap.
         if container and container.model:
-            loaded_model_name = container.model_dir.name
+            loaded_model_dir = container.model_dir
 
-            if loaded_model_name == model_path.name and container.loaded:
-                xlogger.info(f'Model "{loaded_model_name}" is already loaded')
+            if loaded_model_dir.resolve() == model_path.resolve() and container.loaded:
+                xlogger.info(f'Model "{loaded_model_dir.name}" is already loaded')
 
                 # Emit a terminal progress event so API clients always
                 # see a "finished" status even when no load was needed
@@ -264,12 +267,14 @@ async def load_embedding_model(model_path: pathlib.Path, **kwargs):
             f"Embeddings are disabled because infinity-emb failed to import: {_extras_import_error}"
         )
 
-    # Check if the model is already loaded
+    # Check if the model is already loaded (by full path, same as load_model_gen)
     if embeddings_container and embeddings_container.engine:
-        loaded_model_name = embeddings_container.model_dir.name
+        loaded_model_dir = embeddings_container.model_dir
 
-        if loaded_model_name == model_path.name and embeddings_container.loaded:
-            raise ValueError(f'Embeddings model "{loaded_model_name}" is already loaded! Aborting.')
+        if loaded_model_dir.resolve() == model_path.resolve() and embeddings_container.loaded:
+            raise ValueError(
+                f'Embeddings model "{loaded_model_dir.name}" is already loaded! Aborting.'
+            )
 
         xlogger.info("Unloading existing embeddings model.")
         await unload_embedding_model()

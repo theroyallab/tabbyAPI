@@ -59,11 +59,33 @@ def aggregate_usage_stats(usage_stats_list: list[UsageStats]) -> UsageStats:
     return usage_stats
 
 
+def _is_loaded_model(model_name: str) -> bool:
+    """
+    True if model_name refers to the currently loaded model, either by its
+    advertised id (the model directory's basename) or as a path. A basename
+    alone is ambiguous in quant-style layouts (<model>/exl3/<bpw>), so paths
+    are compared fully resolved against the model directory.
+    """
+
+    if not (model.container and model.container.loaded):
+        return False
+
+    loaded_model_dir = model.container.model_dir
+    if loaded_model_dir.name == model_name:
+        return True
+
+    requested_path = pathlib.Path(config.model.model_dir) / model_name
+    try:
+        return requested_path.resolve() == loaded_model_dir.resolve()
+    except OSError:
+        return False
+
+
 async def load_inline_model(model_name: str, request: Request):
     """Load a model from the data.model parameter"""
 
     # Return if the model container already exists and the model is fully loaded
-    if model.container and model.container.model_dir.name == model_name and model.container.loaded:
+    if _is_loaded_model(model_name):
         return
 
     # Return if inline loading is disabled
