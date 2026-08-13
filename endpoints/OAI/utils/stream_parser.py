@@ -306,9 +306,9 @@ class HarmonyStreamParser(ChannelStreamParser):
         <|start|>assistant<|channel|>final<|message|>...content...<|return|>
         <|channel|>commentary to=functions.name <|constrain|>json<|message|>{...}<|call|>
 
-    Routing: analysis -> reasoning, final -> content, commentary with a
-    recipient -> tool, commentary without one (a user-visible preamble)
-    -> content. Tool messages are parsed with the "harmony" tool format.
+    Routing: any message with a recipient -> tool, analysis -> reasoning,
+    final and commentary preambles -> content. Tool messages are parsed with
+    the "harmony" tool format.
     """
 
     _TOKENS = ["<|start|>", "<|message|>", "<|end|>", "<|return|>", "<|call|>"]
@@ -319,10 +319,14 @@ class HarmonyStreamParser(ChannelStreamParser):
         channel = channel.group(1) if channel else None
         recipient = re.search(r"\bto=\S+", header)
 
+        # A recipient means the message is addressed to a tool, regardless of
+        # channel: function calls normally ride the commentary channel, but
+        # gpt-oss also emits them on analysis (the Harmony spec calls
+        # built-in tools from there)
+        if recipient:
+            return TOOL
         if channel == "analysis":
             return REASONING
-        if channel == "commentary" and recipient:
-            return TOOL
         # "final", commentary preambles, and anything unrecognized
         return CONTENT
 

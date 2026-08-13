@@ -215,6 +215,27 @@ class HarmonyStreamParserTests(unittest.TestCase):
         self.assertIn("to=functions.f", out["tool"])
         self.assertTrue(out["tool"].endswith("<|message|>{}<|call|>"))
 
+    def test_analysis_channel_tool_call(self):
+        # gpt-oss emits some tool calls on the analysis channel (the Harmony
+        # spec calls built-in tools from there); a recipient in the header
+        # marks a tool call regardless of channel
+        p = HarmonyStreamParser()
+        out = collect(
+            p,
+            [
+                "<|channel|>analysis<|message|>We need to open the file.<|end|>",
+                "<|start|>assistant<|channel|>analysis to=functions.read code",
+                '<|message|>{"filePath": "index.html"}',
+            ],
+        )
+        self.assertEqual(out["reasoning"], "We need to open the file.")
+        self.assertEqual(out["content"], "")
+        self.assertEqual(
+            out["tool"],
+            "assistant<|channel|>analysis to=functions.read code"
+            '<|message|>{"filePath": "index.html"}<|call|>',
+        )
+
     def test_commentary_preamble_is_content(self):
         p = HarmonyStreamParser()
         out = collect(
