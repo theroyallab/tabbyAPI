@@ -29,11 +29,14 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
     )
     app.add_exception_handler(ContextLengthHTTPException, context_length_exception_handler)
 
-    # ALlow CORS requests
+    # Allow CORS requests from the configured origins.
+    # allow_credentials stays False: TabbyAPI authenticates with a header/query
+    # token rather than cookies, so credentialed CORS buys nothing and would make
+    # Starlette reflect an arbitrary requesting origin back instead of sending "*".
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=config.network.allowed_origins,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
