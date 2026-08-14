@@ -163,6 +163,12 @@ model:
   # can reduce it further to minimize VRAM overhead.
   max_batch_size:
 
+  # Precompile native MTP batch shapes during model startup (default: []).
+  # This prevents the first request at each configured concurrency level from
+  # paying the recurrent CUDA graph capture cost. Values must not exceed
+  # max_batch_size. Only applies to native MTP drafting.
+  mtp_warmup_batch_sizes: []
+
   # Set the prompt template for this model. (default: None)
   # If empty, attempts to look for the model's chat template.
   # If a model contains multiple templates in its tokenizer_config.json,
