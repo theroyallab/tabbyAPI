@@ -21,6 +21,7 @@ def get_usage_stats(
     completion_tokens = generation.get("gen_tokens", 0)
     usage_stats = UsageStats(
         prompt_tokens=prompt_tokens,
+        cached_tokens=int(generation.get("cached_tokens") or 0),
         prompt_time=generation.get("prompt_time"),
         prompt_tokens_per_sec=generation.get("prompt_tokens_per_sec"),
         completion_tokens=completion_tokens,
@@ -38,6 +39,8 @@ def aggregate_usage_stats(usage_stats_list: list[UsageStats]) -> UsageStats:
 
     usl = usage_stats_list
     prompt_tokens = usl[0].prompt_tokens
+    # Every choice shares one prompt, so the cached portion is shared too
+    cached_tokens = usl[0].cached_tokens
     prompt_time = usl[0].prompt_time
     prompt_tokens_per_sec = usl[0].prompt_tokens_per_sec
     completion_tokens = sum(us.completion_tokens for us in usl)
@@ -48,6 +51,7 @@ def aggregate_usage_stats(usage_stats_list: list[UsageStats]) -> UsageStats:
 
     usage_stats = UsageStats(
         prompt_tokens=prompt_tokens,
+        cached_tokens=cached_tokens,
         prompt_time=prompt_time,
         prompt_tokens_per_sec=prompt_tokens_per_sec,
         completion_tokens=completion_tokens,

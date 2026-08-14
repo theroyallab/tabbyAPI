@@ -28,7 +28,7 @@ network:
   send_tracebacks: false
 
   # Select API servers to enable (default: ["OAI"]).
-  # Possible values: OAI, Kobold.
+  # Possible values: OAI, Kobold, Anthropic.
   api_servers: ["OAI"]
 
   # Seconds between SSE keep-alive pings on streaming responses (default: 15).

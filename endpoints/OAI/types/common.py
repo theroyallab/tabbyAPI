@@ -10,6 +10,11 @@ class UsageStats(BaseModel):
     """Represents usage stats."""
 
     prompt_tokens: int
+
+    # The part of prompt_tokens served from the prefix cache rather than
+    # processed. prompt_tokens is the whole prompt, so the two are not additive.
+    cached_tokens: Optional[int] = None
+
     prompt_time: Optional[float] = None
     prompt_tokens_per_sec: Optional[Union[float, str]] = None
     completion_tokens: int
