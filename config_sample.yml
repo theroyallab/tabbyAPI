@@ -20,6 +20,13 @@ network:
   # Turn on this option if you are ONLY connecting from localhost.
   disable_auth: false
 
+  # Origins allowed to call the API from a browser (default: ["*"]).
+  # This is a CORS allowlist, not authentication: "*" lets any site open in your
+  # browser send requests to this instance, which matters most when disable_auth
+  # is on. Restrict to your own frontends (e.g. ["http://localhost:8000"]) or use
+  # an empty list [] to block all browser (cross-origin) callers.
+  allowed_origins: ["*"]
+
   # Disable fetching external content in response to requests,such as images from URLs.
   disable_fetch_requests: false
 

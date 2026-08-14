@@ -53,6 +53,18 @@ class NetworkConfig(BaseConfigModel):
             "Turn on this option if you are ONLY connecting from localhost."
         ),
     )
+    allowed_origins: Optional[List[str]] = Field(
+        ["*"],
+        description=(
+            'Origins allowed to call the API from a browser (default: ["*"]).\n'
+            "This is a CORS allowlist, not an auth mechanism: it only governs which\n"
+            "web pages a browser will let read this API's responses.\n"
+            'The default "*" means any site open in your browser can send requests to\n'
+            "this instance, which matters most when disable_auth is on. Restrict this to\n"
+            'your own frontends (e.g. ["http://localhost:8000"]) to close that off, or\n'
+            "use an empty list [] to block all browser (cross-origin) callers."
+        ),
+    )
     disable_fetch_requests: Optional[bool] = Field(
         False,
         description=(
