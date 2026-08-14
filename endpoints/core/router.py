@@ -15,6 +15,7 @@ from common.networking import (
     handle_request_error,
     run_with_request_disconnect,
 )
+from common.metrics import MetricsManager
 from common.tabby_config import config
 from common.templating import PromptTemplate, get_all_templates
 from common.utils import unwrap
@@ -67,6 +68,25 @@ async def healthcheck(response: Response) -> HealthCheckResponse:
         response.status_code = 503
 
     return HealthCheckResponse(status="healthy" if healthy else "unhealthy", issues=issues)
+
+
+# Prometheus-compatible metrics endpoint (no auth, opt-in via config)
+@router.get("/metrics")
+async def metrics():
+    """Exposes aggregate inference stats in the Prometheus text format."""
+
+    if not config.network.enable_metrics:
+        raise HTTPException(
+            404,
+            "The metrics endpoint is disabled. "
+            "Set network.enable_metrics to true in config.yml to enable it.",
+        )
+
+    return Response(
+        content=MetricsManager.render_prometheus(),
+        media_type="text/plain; version=0.0.4",
+        headers={"Process-Start-Time-Unix": str(int(MetricsManager.process_start_time))},
+    )
 
 
 @router.get("/.well-known/serviceinfo")

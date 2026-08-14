@@ -37,6 +37,7 @@ from common.hardware import hardware_supports_exllamav3
 from common.health import HealthManager
 from common.errors import ContextLengthExceededError, validate_context_requirements
 from common.logger import xlogger
+from common.metrics import MetricsManager
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import DisconnectHandler
 from common.optional_dependencies import check_package_version
@@ -353,6 +354,12 @@ class ExllamaV3Container:
 
         self.max_seq_len = max_seq_len
         self.cache_size = cache_size
+
+        # Size the /metrics token histograms to this model's context length.
+        # Their buckets are meaningless until the range they have to cover is
+        # known, and a ladder that overshoots it reports percentiles above any
+        # request the server can even accept.
+        MetricsManager.configure_token_buckets(max_seq_len)
 
         # Max batch size
         default_mbs = 4 if self.model.caps.get("recurrent_states") else 128
@@ -1144,7 +1151,8 @@ class ExllamaV3Container:
         # Prompt
         prompt_tokens = result.get("prompt_tokens")
         cached_tokens = round(result.get("cached_tokens"), 2)
-        prompt_time = round(result.get("time_prefill"), 2)
+        raw_prompt_time = result.get("time_prefill")
+        prompt_time = round(raw_prompt_time, 2)
         prompt_ts = (
             "Indeterminate"
             if prompt_time == 0
@@ -1189,6 +1197,20 @@ class ExllamaV3Container:
                     "draft_reject": rejected_draft_tokens,
                 }
             )
+
+        # Accumulate server-wide metrics for the /metrics endpoint
+        MetricsManager.record_generation(
+            prompt_tokens=prompt_tokens,
+            cached_tokens=cached_tokens,
+            gen_tokens=gen_tokens,
+            # Unrounded, so the aggregate rates are not skewed by the 0.01s
+            # display rounding on short prefills.
+            prompt_time=raw_prompt_time,
+            gen_time=gen_time,
+            queue_time=queue_time,
+            accepted_draft_tokens=accepted_draft_tokens,
+            rejected_draft_tokens=rejected_draft_tokens,
+        )
 
         return finish_chunk
 
