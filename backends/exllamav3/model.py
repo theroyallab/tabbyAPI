@@ -260,6 +260,15 @@ class ExllamaV3Container:
         gpu_device_list = list(range(0, gpu_count))
         use_tp = unwrap(kwargs.get("tensor_parallel"), False)
 
+        # Reserve VRAM per GPU. Read for every split mode
+        default_reserve = [96]
+        autosplit_reserve_megabytes = unwrap(kwargs.get("autosplit_reserve"), default_reserve)
+        if isinstance(autosplit_reserve_megabytes, (int, float)) and not isinstance(
+            autosplit_reserve_megabytes, bool
+        ):
+            autosplit_reserve_megabytes = [autosplit_reserve_megabytes]
+        self.autosplit_reserve = [value / 1024 for value in autosplit_reserve_megabytes]
+
         # Set GPU split options
         if gpu_count == 1:
             self.gpu_split_auto = False
@@ -286,10 +295,6 @@ class ExllamaV3Container:
                 self.gpu_split_auto = False
                 self.gpu_split = gpu_split
 
-                # Causes crash if set with GPU split
-                # TODO: Remove when fixed in exllama upstream
-                self.autosplit_reserve = None
-
                 gpu_device_list = [
                     device_idx for device_idx, memory in enumerate(self.gpu_split) if memory > 0
                 ]
@@ -297,10 +302,15 @@ class ExllamaV3Container:
                 # Otherwise fallback to autosplit settings
                 self.gpu_split_auto = gpu_split_auto
 
-                autosplit_reserve_megabytes = unwrap(kwargs.get("autosplit_reserve"), [96])
-
-                # Reserve VRAM for each GPU
-                self.autosplit_reserve = [value / 1024 for value in autosplit_reserve_megabytes]
+        # A manual split states how much of each GPU to use, and exllamav3 takes
+        # either a reserve or a split, so the reserve is dropped for that model
+        if autosplit_reserve_megabytes != default_reserve:
+            if self.gpu_split:
+                xlogger.warning("autosplit_reserve is ignored when gpu_split is set.")
+            if self.draft_gpu_split:
+                xlogger.warning(
+                    "autosplit_reserve is ignored for the draft model when draft_gpu_split is set."
+                )
 
         if not hardware_supports_exllamav3(gpu_device_list):
             gpu_unsupported_message = (
@@ -686,9 +696,11 @@ class ExllamaV3Container:
 
     @torch.inference_mode()
     def load_model_sync(self, progress_callback=None):
+        # exllamav3 asserts on reserve_per_device and use_per_device together,
+        # so a model with a manual split gets the split and not the reserve
         if self.use_vision:
             for value in self.vision_model.load_gen(
-                reserve_per_device=self.autosplit_reserve,
+                reserve_per_device=None if self.gpu_split else self.autosplit_reserve,
                 use_per_device=self.gpu_split or None,
                 callback=progress_callback,
             ):
@@ -697,7 +709,9 @@ class ExllamaV3Container:
 
         if self.use_draft_model:
             for value in self.draft_model.load_gen(
-                reserve_per_device=self.autosplit_reserve,
+                reserve_per_device=(
+                    None if (self.gpu_split or self.draft_gpu_split) else self.autosplit_reserve
+                ),
                 use_per_device=self.draft_gpu_split or None,
                 callback=progress_callback,
             ):
@@ -716,7 +730,7 @@ class ExllamaV3Container:
         for value in self.model.load_gen(
             tensor_p=self.use_tp,
             tp_backend=self.tp_backend,
-            reserve_per_device=self.autosplit_reserve,
+            reserve_per_device=None if self.gpu_split else self.autosplit_reserve,
             use_per_device=self.gpu_split,
             callback=progress_callback,
             max_chunk_size=self.chunk_size,
