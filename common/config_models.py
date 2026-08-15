@@ -236,8 +236,12 @@ class ModelConfig(BaseConfigModel):
     autosplit_reserve: List[float] = Field(
         [96],
         description=(
-            "Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0).\n"
-            "Represented as an array of MB per GPU."
+            "Reserve VRAM used when loading a model (default: 96 MB on GPU 0).\n"
+            "Represented as an array of MB per GPU.\n"
+            "A negative value excludes that GPU from the model split, so\n"
+            "excluding every GPU will fail to load.\n"
+            "Ignored for a model whose placement is already set by gpu_split\n"
+            "or draft_gpu_split."
         ),
     )
     gpu_split: List[float] = Field(

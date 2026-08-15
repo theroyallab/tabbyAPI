@@ -119,8 +119,12 @@ model:
   # Not parsed for single GPU users.
   gpu_split_auto: true
 
-  # Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0).
+  # Reserve VRAM used when loading a model (default: 96 MB on GPU 0).
   # Represented as an array of MB per GPU.
+  # A negative value excludes that GPU from the model split, so
+  # excluding every GPU will fail to load.
+  # Ignored for a model whose placement is already set by gpu_split
+  # or draft_gpu_split.
   autosplit_reserve: [96]
 
   # Array of VRAM sizes to split between GPUs, in GB (default: []).
