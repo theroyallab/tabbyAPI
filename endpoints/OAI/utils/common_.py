@@ -1,6 +1,10 @@
 import pathlib
 from common import model
-from endpoints.OAI.types.common import UsageStats
+from endpoints.OAI.types.common import (
+    CompletionTokensDetails,
+    PromptTokensDetails,
+    UsageStats,
+)
 from common.tabby_config import config
 from common.auth import get_key_permission
 from common.logger import xlogger
@@ -19,11 +23,27 @@ def get_usage_stats(
 
     prompt_tokens = generation.get("prompt_tokens", 0)
     completion_tokens = generation.get("gen_tokens", 0)
+    cached_tokens = generation.get("cached_tokens")
+    draft_accepted = generation.get("draft_accept")
+    draft_rejected = generation.get("draft_reject")
     usage_stats = UsageStats(
         prompt_tokens=prompt_tokens,
+        prompt_tokens_details=(
+            PromptTokensDetails(cached_tokens=round(cached_tokens))
+            if cached_tokens is not None
+            else None
+        ),
         prompt_time=generation.get("prompt_time"),
         prompt_tokens_per_sec=generation.get("prompt_tokens_per_sec"),
         completion_tokens=completion_tokens,
+        completion_tokens_details=(
+            CompletionTokensDetails(
+                accepted_prediction_tokens=draft_accepted,
+                rejected_prediction_tokens=draft_rejected,
+            )
+            if draft_accepted is not None and draft_rejected is not None
+            else None
+        ),
         completion_time=generation.get("gen_time"),
         completion_tokens_per_sec=generation.get("gen_tokens_per_sec"),
         total_tokens=prompt_tokens + completion_tokens,
@@ -46,11 +66,28 @@ def aggregate_usage_stats(usage_stats_list: list[UsageStats]) -> UsageStats:
     total_tokens = prompt_tokens + completion_tokens
     total_time = prompt_time + completion_time
 
+    draft_details = [
+        us.completion_tokens_details for us in usl if us.completion_tokens_details is not None
+    ]
+
     usage_stats = UsageStats(
         prompt_tokens=prompt_tokens,
+        prompt_tokens_details=usl[0].prompt_tokens_details,
         prompt_time=prompt_time,
         prompt_tokens_per_sec=prompt_tokens_per_sec,
         completion_tokens=completion_tokens,
+        completion_tokens_details=(
+            CompletionTokensDetails(
+                accepted_prediction_tokens=sum(
+                    details.accepted_prediction_tokens for details in draft_details
+                ),
+                rejected_prediction_tokens=sum(
+                    details.rejected_prediction_tokens for details in draft_details
+                ),
+            )
+            if draft_details
+            else None
+        ),
         completion_time=completion_time,
         completion_tokens_per_sec=completion_tokens_per_sec,
         total_tokens=total_tokens,
