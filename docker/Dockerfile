@@ -1,12 +1,17 @@
 # Use an official CUDA runtime with Ubuntu as a parent image
 FROM nvidia/cuda:12.8.1-runtime-ubuntu24.04
 
-# Install system dependencies
+# Install system dependencies. python3.12-dev supplies Python.h, which Triton's
+# runtime JIT needs to build its cuda_utils extension inside the container. The
+# venv resolves its include path to /usr/include/python3.12, so the headers have
+# to come from the system python, not from the venv.
+# See: https://github.com/theroyallab/tabbyAPI/issues/453
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     ca-certificates \
     python3.12 \
+    python3.12-dev \
     python3-pip \
     python3.12-venv \
     && rm -rf /var/lib/apt/lists/*
