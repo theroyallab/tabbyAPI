@@ -123,6 +123,11 @@ async def chat_completion_request(
     raw_json = await request.json()
     xlogger.debug("[ENDPOINT] /v1/chat/completions", {"raw": raw_json})
 
+    # Normalize "developer" (e.g. newer OpenAI-style tooling) to "system"
+    for message in data.messages:
+        if message.role == "developer":
+            message.role = "system"
+
     async with load_lock:
         if data.model:
             await load_inline_model(data.model, request)
@@ -168,6 +173,32 @@ async def chat_completion_request(
 
     except (CancelledError, InvalidStateError) as ex:
         raise HTTPException(422, "/v1/chat/completions request cancelled by user.") from ex
+
+
+# Apply template endpoint
+@router.post("/apply-template", dependencies=[Depends(check_api_key)])
+@router.post("/v1/apply-template", dependencies=[Depends(check_api_key)])
+async def apply_template_request(request: Request, data: ChatCompletionRequest):
+    """
+    Renders the chat template for the given messages without generating and
+    returns the templated prompt. Used by clients to probe template
+    capabilities (e.g. whether the model supports a thinking toggle).
+    """
+
+    await check_model_container()
+
+    if model.container.prompt_template is None:
+        raise HTTPException(
+            422, "Cannot apply template because a prompt template is not set."
+        )
+
+    # Normalize the "developer" role, same as chat completions.
+    for message in data.messages:
+        if message.role == "developer":
+            message.role = "system"
+
+    prompt, _ = await apply_chat_template(data)
+    return {"prompt": prompt}
 
 
 # Embeddings endpoint

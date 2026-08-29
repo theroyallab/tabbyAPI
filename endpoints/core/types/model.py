@@ -28,6 +28,19 @@ class ModelCardParameters(BaseModel):
     draft: Optional["ModelCard"] = None
 
 
+class ModelCardMeta(BaseModel):
+    """llama.cpp-style metadata block for a model card."""
+
+    vocab_type: int = 2
+    n_vocab: int = 0
+    n_ctx: int = 0
+    n_ctx_train: int = 0
+    n_embd: int = 0
+    n_params: int = 0
+    size: int = 0
+    ftype: str = "unknown"
+
+
 class ModelCard(BaseModel):
     """Represents a single model card."""
 
@@ -38,12 +51,33 @@ class ModelCard(BaseModel):
     logging: Optional[LoggingConfig] = None
     parameters: Optional[ModelCardParameters] = None
 
+    # llama.cpp compatibility fields
+    aliases: Optional[List[str]] = None
+    meta: Optional[ModelCardMeta] = None
+
+
+class ModelEntry(BaseModel):
+    """Ollama-style entry for the `models` array of a model list."""
+
+    name: str
+    model: str
+    modified_at: str = ""
+    size: str = ""
+    digest: str = ""
+    type: str = "model"
+    description: str = ""
+    tags: List[str] = Field(default_factory=lambda: [""])
+    capabilities: List[str] = Field(default_factory=lambda: ["completion"])
+
 
 class ModelList(BaseModel):
     """Represents a list of model cards."""
 
     object: str = "list"
     data: List[ModelCard] = Field(default_factory=list)
+
+    # llama.cpp / Ollama compatibility: mirror of `data` in Ollama's shape
+    models: Optional[List[ModelEntry]] = None
 
 
 class DraftModelLoadRequest(BaseModel):
@@ -143,9 +177,17 @@ class ModelDefaultGenerationSettings(BaseModel):
     n_ctx: int
 
 
+class ModelPropsModalities(BaseModel):
+    """Modality support flags for model props (llama.cpp compat)."""
+
+    vision: bool = False
+
+
 class ModelPropsResponse(BaseModel):
     """Represents a model props response."""
 
     total_slots: int = 1
+    model_path: str = ""
     chat_template: str = ""
     default_generation_settings: ModelDefaultGenerationSettings
+    modalities: ModelPropsModalities = Field(default_factory=ModelPropsModalities)

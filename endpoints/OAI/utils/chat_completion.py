@@ -525,7 +525,11 @@ async def apply_chat_template(data: ChatCompletionRequest):
 
         raise HTTPException(400, error_message) from exc
     except TemplateError as exc:
-        error_message = handle_request_error(f"TemplateError: {str(exc)}").error.message
+        # A TemplateError is the template rejecting client input (e.g. an
+        # unsupported reasoning_effort), not a server fault, so skip the trace.
+        error_message = handle_request_error(
+            f"TemplateError: {str(exc)}", exc_info=False
+        ).error.message
 
         raise HTTPException(400, error_message) from exc
 

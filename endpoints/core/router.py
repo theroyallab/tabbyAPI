@@ -30,6 +30,7 @@ from endpoints.core.types.model import (
     ModelList,
     ModelLoadRequest,
     ModelLoadResponse,
+    ModelPropsModalities,
     ModelPropsResponse,
 )
 from endpoints.core.types.health import HealthCheckResponse
@@ -46,6 +47,7 @@ from endpoints.core.types.token import (
 )
 from endpoints.core.utils.lora import get_active_loras, get_lora_list
 from endpoints.core.utils.model import (
+    apply_llama_compat,
     get_current_model,
     get_current_model_list,
     get_dummy_models,
@@ -120,7 +122,7 @@ async def list_models(request: Request) -> ModelList:
     if config.model.use_dummy_models:
         models.data[:0] = get_dummy_models()
 
-    return models
+    return apply_llama_compat(models)
 
 
 # Currently loaded model endpoint
@@ -145,8 +147,12 @@ async def model_props() -> ModelPropsResponse:
     current_model_card = get_current_model()
     resp = ModelPropsResponse(
         total_slots=current_model_card.parameters.max_batch_size,
+        model_path=str(model.container.model_dir),
         default_generation_settings=ModelDefaultGenerationSettings(
             n_ctx=current_model_card.parameters.max_seq_len,
+        ),
+        modalities=ModelPropsModalities(
+            vision=bool(current_model_card.parameters.use_vision),
         ),
     )
 

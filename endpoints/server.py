@@ -1,18 +1,27 @@
 import asyncio
 import uvicorn
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from typing import Optional
 
 from common import signals
+from common.auth import check_api_key
+from common.debug_requests import log_chat_completion_request
 from common.logger import UVICORN_LOG_CONFIG
 from common.errors import ContextLengthHTTPException, context_length_exception_handler
+from common.model import check_embeddings_container
 from common.networking import get_global_depends
 from common.tabby_config import config
 from endpoints.Kobold import router as KoboldRouter
 from endpoints.OAI import router as OAIRouter
+from endpoints.OAI.router import (
+    chat_completion_request,
+    completion_request,
+    embeddings,
+)
 from endpoints.core.router import router as CoreRouter
+from endpoints.core.router import list_models
 
 
 def setup_app(host: Optional[str] = None, port: Optional[int] = None):
