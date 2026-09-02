@@ -81,6 +81,14 @@ class NetworkConfig(BaseConfigModel):
         ),
         ge=0,
     )
+    enable_metrics: Optional[bool] = Field(
+        False,
+        description=(
+            "Enable the Prometheus-compatible /metrics endpoint (default: False).\n"
+            "Exposes aggregate inference stats in the text exposition format.\n"
+            "NOTE: This endpoint is not protected by API key authentication."
+        ),
+    )
 
     # Converts all strings in the api_servers list to lowercase
     # NOTE: Expand if more models need this validator
