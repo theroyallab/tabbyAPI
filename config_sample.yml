@@ -57,6 +57,11 @@ logging:
   # Enable generation parameter logging (default: False).
   log_generation_params: false
 
+  # Seconds between in-progress generation logs (default: 0, disabled).
+  # Reports the stage, generated token count, average rate, and time since the
+  # generator last produced an event.
+  log_generation_progress_interval: 0
+
   # Enable request logging (default: False).
   # NOTE: Only use this for debugging!
   log_requests: false

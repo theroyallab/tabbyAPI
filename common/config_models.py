@@ -125,6 +125,15 @@ class LoggingConfig(BaseConfigModel):
         False,
         description="Enable generation parameter logging (default: False).",
     )
+    log_generation_progress_interval: Optional[float] = Field(
+        0,
+        description=(
+            "Seconds between in-progress generation logs (default: 0, disabled). "
+            "Reports the current stage, generated token count, average generation rate, "
+            "and time since the generator last produced an event."
+        ),
+        ge=0,
+    )
     log_requests: Optional[bool] = Field(
         False,
         description=(

@@ -32,6 +32,7 @@ from common.concurrency import iterate_in_threadpool
 from common.gen_logging import (
     format_settings,
     log_generation_params,
+    log_generation_progress,
     log_metrics,
     log_prompt,
     log_request_start,
@@ -1504,11 +1505,40 @@ class ExllamaV3Container:
         generated_tokens = 0
         full_response = ""
         metrics_result = {}
+        progress_interval = config.logging.log_generation_progress_interval or 0
+        progress_loop = asyncio.get_running_loop()
+        progress_started = progress_loop.time()
+        progress_last_activity = progress_started
+        progress_generation_started = None
+        progress_stage = "queued"
+        progress_task = None
+
+        async def report_progress():
+            while True:
+                await asyncio.sleep(progress_interval)
+                now = progress_loop.time()
+                log_generation_progress(
+                    request_id=request_id,
+                    stage=progress_stage,
+                    generated_tokens=generated_tokens,
+                    elapsed=now - progress_started,
+                    generation_elapsed=(
+                        now - progress_generation_started
+                        if progress_generation_started is not None
+                        else 0
+                    ),
+                    idle=now - progress_last_activity,
+                )
+
+        if progress_interval > 0:
+            progress_task = asyncio.create_task(report_progress())
 
         # Get the generation status once it's ready
         try:
             async for result in job:
                 await disconnect_handler.poll()
+                progress_last_activity = progress_loop.time()
+                progress_stage = result.get("stage", progress_stage)
 
                 stage = result.get("stage")
                 if stage == "started":
@@ -1541,6 +1571,8 @@ class ExllamaV3Container:
 
                 chunk = unwrap(result.get("text"), "")
                 if chunk:
+                    if progress_generation_started is None:
+                        progress_generation_started = progress_loop.time()
                     chunk_tokens = result.get("token_ids")
                     if chunk_tokens is None:
                         chunk_tokens = self.tokenizer.encode(chunk)
@@ -1609,6 +1641,13 @@ class ExllamaV3Container:
             raise ex
         finally:
             status_display.remove_job(request_id)
+
+            if progress_task is not None:
+                progress_task.cancel()
+                try:
+                    await progress_task
+                except CancelledError:
+                    pass
 
             # Log generation options to console
             # Some options are too large, so log the args instead

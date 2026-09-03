@@ -22,6 +22,10 @@ def broadcast_status():
     if config.logging.log_generation_params:
         enabled.append("generation params")
 
+    if config.logging.log_generation_progress_interval:
+        interval = config.logging.log_generation_progress_interval
+        enabled.append(f"generation progress every {interval:g} seconds")
+
     if enabled:
         xlogger.info("Generation logging is enabled for: " + ", ".join(enabled))
 
@@ -113,6 +117,35 @@ def _describe_finish(metrics: dict) -> Optional[str]:
             return "loop detected"
         case _:
             return str(eos_reason)
+
+
+def log_generation_progress(
+    request_id: str,
+    stage: str,
+    generated_tokens: int,
+    elapsed: float,
+    generation_elapsed: float,
+    idle: float,
+):
+    """Log a periodic snapshot for an active generation request."""
+    elapsed = round(elapsed, 2)
+    generation_elapsed = round(generation_elapsed, 2)
+    idle = round(idle, 2)
+    tokens_per_second = (
+        round(generated_tokens / generation_elapsed, 2) if generation_elapsed > 0 else 0.0
+    )
+    xlogger.info(
+        f"Generation progress (ID: {request_id}): {generated_tokens} tokens in {elapsed} seconds",
+        {
+            "stage": stage,
+            "generated_tokens": generated_tokens,
+            "elapsed_seconds": elapsed,
+            "generation_elapsed_seconds": generation_elapsed,
+            "idle_seconds": idle,
+            "tokens_per_second": tokens_per_second,
+        },
+        details=(f"(Stage: {stage}, Generate: {tokens_per_second} T/s, No activity: {idle} s)"),
+    )
 
 
 def log_metrics(
