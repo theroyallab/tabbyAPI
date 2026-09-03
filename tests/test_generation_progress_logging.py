@@ -1,10 +1,13 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+import torch
 from pydantic import ValidationError
 
 from common.config_models import LoggingConfig
+from common.gen_logging import GenerationProgressReporter
 from common import gen_logging
 
 
@@ -33,6 +36,70 @@ def test_broadcast_status_includes_generation_progress(monkeypatch):
     assert logger.info.call_args.args[0] == (
         "Generation logging is enabled for: generation progress every 15 seconds"
     )
+
+
+@pytest.mark.asyncio
+async def test_progress_reporter_tracks_pending_results_and_stops_cleanly():
+    logs = []
+    pending = [{"stage": "streaming", "token_ids": torch.tensor([[1, 2, 3]])}]
+    reporter = GenerationProgressReporter(
+        "request-1", 0.01, lambda: pending, logger=lambda **fields: logs.append(fields)
+    )
+
+    reporter.start()
+    await asyncio.sleep(0.025)
+    reporter.observe(pending.pop())
+    reporter.observe({"stage": "streaming", "token_ids": torch.tensor([[4, 5]])})
+    await asyncio.sleep(0.015)
+    await reporter.stop()
+    logged_count = len(logs)
+    await asyncio.sleep(0.015)
+
+    assert logged_count >= 3
+    assert len(logs) == logged_count
+    assert logs[0]["request_id"] == "request-1"
+    assert logs[0]["stage"] == "streaming"
+    assert logs[0]["generated_tokens"] == 3
+    assert logs[-1]["generated_tokens"] == 5
+    assert logs[-1]["idle"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_progress_reporter_disabled_interval_never_starts_or_logs():
+    logger = Mock()
+    reporter = GenerationProgressReporter("request-1", 0, lambda: (), logger=logger)
+
+    reporter.start()
+    reporter.observe({"stage": "streaming", "token_ids": torch.tensor([[1]])})
+    await asyncio.sleep(0)
+    await reporter.stop()
+
+    assert reporter.task is None
+    logger.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_progress_reporter_isolates_logger_failures_and_concurrent_requests():
+    logs = []
+
+    def logger(**fields):
+        logs.append(fields)
+        if fields["request_id"] == "broken":
+            raise RuntimeError("logging failed")
+
+    first = GenerationProgressReporter("healthy", 0.01, lambda: (), logger=logger)
+    second = GenerationProgressReporter("broken", 0.01, lambda: (), logger=logger)
+    first.start()
+    second.start()
+    first.observe({"stage": "prefill"})
+    second.observe({"stage": "streaming", "token_ids": torch.tensor([[1]])})
+
+    await asyncio.sleep(0.025)
+    await first.stop()
+    await second.stop()
+
+    assert any(item["request_id"] == "healthy" and item["stage"] == "prefill" for item in logs)
+    assert any(item["request_id"] == "broken" and item["generated_tokens"] == 1 for item in logs)
 
 
 def test_log_generation_progress_reports_stage_rate_and_idle_time(monkeypatch):

@@ -2,7 +2,11 @@
 Functions for logging generation events.
 """
 
+import asyncio
+from asyncio import CancelledError
 from typing import Optional
+
+import torch
 
 from common.logger import xlogger
 from common.sampling import BaseSamplerRequest
@@ -146,6 +150,99 @@ def log_generation_progress(
         },
         details=(f"(Stage: {stage}, Generate: {tokens_per_second} T/s, No activity: {idle} s)"),
     )
+
+
+def _result_token_count(result: dict) -> int:
+    token_ids = result.get("token_ids")
+    if isinstance(token_ids, torch.Tensor):
+        return token_ids.numel()
+    if isinstance(token_ids, tuple) and token_ids:
+        token_ids = token_ids[0]
+        return token_ids.numel() if isinstance(token_ids, torch.Tensor) else len(token_ids)
+    return len(token_ids) if token_ids is not None else 0
+
+
+class GenerationProgressReporter:
+    """Emit bounded progress snapshots without blocking request processing."""
+
+    def __init__(self, request_id, interval, pending_results, logger=log_generation_progress):
+        self.request_id = request_id
+        self.interval = interval or 0
+        self.pending_results = pending_results
+        self.logger = logger
+        self.started = None
+        self.last_activity = None
+        self.generation_started = None
+        self.generated_tokens = 0
+        self.marker = None
+        self.stage = "queued"
+        self.task = None
+
+    def start(self):
+        if self.interval <= 0:
+            return
+        loop = asyncio.get_running_loop()
+        self.started = self.last_activity = loop.time()
+        self.task = asyncio.create_task(self._run())
+
+    def observe(self, result):
+        if self.task is None:
+            return
+        now = asyncio.get_running_loop().time()
+        self.last_activity = now
+        self.stage = result.get("stage", self.stage)
+        self.generated_tokens += _result_token_count(result)
+        if self.generated_tokens and self.generation_started is None:
+            self.generation_started = now
+
+    async def _run(self):
+        try:
+            while True:
+                await asyncio.sleep(self.interval)
+                await self._report()
+        except CancelledError:
+            raise
+        except Exception:
+            return
+
+    async def _report(self):
+        now = asyncio.get_running_loop().time()
+        pending = tuple(self.pending_results())
+        pending_results = [item for item in pending if isinstance(item, dict)]
+        pending_tokens = sum(_result_token_count(item) for item in pending_results)
+        total_tokens = self.generated_tokens + pending_tokens
+        stage = next(
+            (item.get("stage") for item in reversed(pending_results) if item.get("stage")),
+            self.stage,
+        )
+        marker = (stage, total_tokens, len(pending))
+        if marker != self.marker:
+            self.marker = marker
+            self.last_activity = now
+        if total_tokens and self.generation_started is None:
+            self.generation_started = now
+        await asyncio.to_thread(
+            self.logger,
+            request_id=self.request_id,
+            stage=stage,
+            generated_tokens=total_tokens,
+            elapsed=now - self.started,
+            generation_elapsed=(
+                now - self.generation_started if self.generation_started is not None else 0
+            ),
+            idle=now - self.last_activity,
+        )
+
+    async def stop(self):
+        if self.task is None:
+            return
+        task = self.task
+        self.task = None
+        task.cancel()
+        try:
+            await task
+        except (CancelledError, Exception):
+            pass
 
 
 def log_metrics(
