@@ -1499,23 +1499,22 @@ class ExllamaV3Container:
             filters=grammar_handler.filters,
         )
         self.active_job_ids[request_id] = job
+        progress = GenerationProgressReporter(
+            request_id=request_id,
+            interval=config.logging.log_generation_progress_interval,
+        )
+        progress.start()
+        progress.attach(job)
         await disconnect_handler.add_cleanup_task(id(job), job.cancel, ())
         job_status = status_display.add_job(request_id, label, context_len)
 
         generated_tokens = 0
         full_response = ""
         metrics_result = {}
-        progress = GenerationProgressReporter(
-            request_id=request_id,
-            interval=config.logging.log_generation_progress_interval,
-            pending_results=lambda: job.queue._queue,
-        )
-        progress.start()
 
         # Get the generation status once it's ready
         try:
             async for result in job:
-                progress.observe(result)
                 await disconnect_handler.poll()
 
                 stage = result.get("stage")
@@ -1542,7 +1541,6 @@ class ExllamaV3Container:
                         if nxt.get("stage") != "streaming":
                             continue
                         span.append(nxt)
-                        progress.observe(nxt)
                         if nxt.get("eos"):
                             break
                     if len(span) > 1:

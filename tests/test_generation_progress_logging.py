@@ -39,35 +39,60 @@ def test_broadcast_status_includes_generation_progress(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_progress_reporter_tracks_pending_results_and_stops_cleanly():
+async def test_progress_reporter_tracks_produced_results_and_stops_cleanly():
     logs = []
-    pending = [{"stage": "streaming", "token_ids": torch.tensor([[1, 2, 3]])}]
     reporter = GenerationProgressReporter(
-        "request-1", 0.01, lambda: pending, logger=lambda **fields: logs.append(fields)
+        "request-1", 60, logger=lambda **fields: logs.append(fields)
     )
 
     reporter.start()
-    await asyncio.sleep(0.025)
-    reporter.observe(pending.pop())
+    reporter.observe({"stage": "streaming", "token_ids": torch.tensor([[1, 2, 3]])})
+    reporter.last_activity -= 1
+    await reporter._report()
     reporter.observe({"stage": "streaming", "token_ids": torch.tensor([[4, 5]])})
-    await asyncio.sleep(0.015)
+    await reporter._report()
     await reporter.stop()
-    logged_count = len(logs)
-    await asyncio.sleep(0.015)
 
-    assert logged_count >= 3
-    assert len(logs) == logged_count
+    assert len(logs) == 2
     assert logs[0]["request_id"] == "request-1"
     assert logs[0]["stage"] == "streaming"
     assert logs[0]["generated_tokens"] == 3
-    assert logs[-1]["generated_tokens"] == 5
-    assert logs[-1]["idle"] >= 0
+    assert logs[0]["idle"] >= 1
+    assert logs[1]["generated_tokens"] == 5
+    assert logs[1]["idle"] < logs[0]["idle"]
+
+
+@pytest.mark.asyncio
+async def test_progress_reporter_attach_tracks_production_without_blocking_delivery():
+    logs = []
+    put_result = Mock()
+    sink = SimpleNamespace(put_result=put_result)
+    reporter = GenerationProgressReporter(
+        "request-1", 60, logger=lambda **fields: logs.append(fields)
+    )
+    reporter.start()
+    reporter.attach(sink)
+
+    result = {"stage": "streaming", "token_ids": torch.tensor([[1, 2]])}
+    sink.put_result(result)
+    error = RuntimeError("generation failed")
+    sink.put_result(error)
+    await reporter._report()
+    await reporter.stop()
+
+    assert put_result.call_args_list[0].args == (result,)
+    assert put_result.call_args_list[1].args == (error,)
+    assert logs[0]["generated_tokens"] == 2
+
+    reporter.observe = Mock(side_effect=RuntimeError("telemetry failed"))
+    sink.put_result(result)
+    assert put_result.call_args_list[-1].args == (result,)
 
 
 @pytest.mark.asyncio
 async def test_progress_reporter_disabled_interval_never_starts_or_logs():
     logger = Mock()
-    reporter = GenerationProgressReporter("request-1", 0, lambda: (), logger=logger)
+    reporter = GenerationProgressReporter("request-1", 0, logger=logger)
 
     reporter.start()
     reporter.observe({"stage": "streaming", "token_ids": torch.tensor([[1]])})
@@ -79,27 +104,46 @@ async def test_progress_reporter_disabled_interval_never_starts_or_logs():
 
 
 @pytest.mark.asyncio
-async def test_progress_reporter_isolates_logger_failures_and_concurrent_requests():
+async def test_progress_reporter_keeps_concurrent_requests_isolated():
     logs = []
-
-    def logger(**fields):
-        logs.append(fields)
-        if fields["request_id"] == "broken":
-            raise RuntimeError("logging failed")
-
-    first = GenerationProgressReporter("healthy", 0.01, lambda: (), logger=logger)
-    second = GenerationProgressReporter("broken", 0.01, lambda: (), logger=logger)
+    logger = lambda **fields: logs.append(fields)
+    first = GenerationProgressReporter("first", 60, logger=logger)
+    second = GenerationProgressReporter("second", 60, logger=logger)
     first.start()
     second.start()
     first.observe({"stage": "prefill"})
     second.observe({"stage": "streaming", "token_ids": torch.tensor([[1]])})
 
-    await asyncio.sleep(0.025)
+    await asyncio.gather(first._report(), second._report())
     await first.stop()
     await second.stop()
 
-    assert any(item["request_id"] == "healthy" and item["stage"] == "prefill" for item in logs)
-    assert any(item["request_id"] == "broken" and item["generated_tokens"] == 1 for item in logs)
+    assert any(item["request_id"] == "first" and item["stage"] == "prefill" for item in logs)
+    assert any(item["request_id"] == "second" and item["generated_tokens"] == 1 for item in logs)
+
+
+@pytest.mark.asyncio
+async def test_progress_reporter_run_isolates_report_failures():
+    reporter = GenerationProgressReporter("request-1", 0, logger=Mock())
+
+    async def fail_report():
+        raise RuntimeError("logging failed")
+
+    reporter._report = fail_report
+    await reporter._run()
+
+
+@pytest.mark.asyncio
+async def test_progress_reporter_stop_preserves_caller_cancellation():
+    async def cancel_while_stopping():
+        reporter = GenerationProgressReporter("request-1", 1, logger=Mock())
+        reporter.task = asyncio.create_task(asyncio.sleep(60))
+        asyncio.current_task().cancel()
+        await reporter.stop()
+
+    stop_task = asyncio.create_task(cancel_while_stopping())
+    with pytest.raises(asyncio.CancelledError):
+        await stop_task
 
 
 def test_log_generation_progress_reports_stage_rate_and_idle_time(monkeypatch):

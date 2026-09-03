@@ -4,6 +4,8 @@ Functions for logging generation events.
 
 import asyncio
 from asyncio import CancelledError
+from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from typing import Optional
 
 import torch
@@ -15,6 +17,9 @@ from common.tabby_config import config
 # Below this many newly processed prompt tokens a prefill rate says more about
 # fixed per-request latency than about ingestion speed, so it isn't reported
 PREFILL_RATE_MIN_TOKENS = 256
+
+
+_PROGRESS_LOG_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="tabby-progress-log")
 
 
 def broadcast_status():
@@ -165,16 +170,14 @@ def _result_token_count(result: dict) -> int:
 class GenerationProgressReporter:
     """Emit bounded progress snapshots without blocking request processing."""
 
-    def __init__(self, request_id, interval, pending_results, logger=log_generation_progress):
+    def __init__(self, request_id, interval, logger=log_generation_progress):
         self.request_id = request_id
         self.interval = interval or 0
-        self.pending_results = pending_results
         self.logger = logger
         self.started = None
         self.last_activity = None
         self.generation_started = None
         self.generated_tokens = 0
-        self.marker = None
         self.stage = "queued"
         self.task = None
 
@@ -186,7 +189,7 @@ class GenerationProgressReporter:
         self.task = asyncio.create_task(self._run())
 
     def observe(self, result):
-        if self.task is None:
+        if self.task is None or not isinstance(result, dict):
             return
         now = asyncio.get_running_loop().time()
         self.last_activity = now
@@ -194,6 +197,18 @@ class GenerationProgressReporter:
         self.generated_tokens += _result_token_count(result)
         if self.generated_tokens and self.generation_started is None:
             self.generation_started = now
+
+    def attach(self, result_sink):
+        put_result = result_sink.put_result
+
+        def put_result_with_progress(result):
+            try:
+                self.observe(result)
+            except Exception:
+                pass
+            put_result(result)
+
+        result_sink.put_result = put_result_with_progress
 
     async def _run(self):
         try:
@@ -206,31 +221,23 @@ class GenerationProgressReporter:
             return
 
     async def _report(self):
-        now = asyncio.get_running_loop().time()
-        pending = tuple(self.pending_results())
-        pending_results = [item for item in pending if isinstance(item, dict)]
-        pending_tokens = sum(_result_token_count(item) for item in pending_results)
-        total_tokens = self.generated_tokens + pending_tokens
-        stage = next(
-            (item.get("stage") for item in reversed(pending_results) if item.get("stage")),
-            self.stage,
-        )
-        marker = (stage, total_tokens, len(pending))
-        if marker != self.marker:
-            self.marker = marker
-            self.last_activity = now
-        if total_tokens and self.generation_started is None:
+        loop = asyncio.get_running_loop()
+        now = loop.time()
+        if self.generated_tokens and self.generation_started is None:
             self.generation_started = now
-        await asyncio.to_thread(
-            self.logger,
-            request_id=self.request_id,
-            stage=stage,
-            generated_tokens=total_tokens,
-            elapsed=now - self.started,
-            generation_elapsed=(
-                now - self.generation_started if self.generation_started is not None else 0
+        await loop.run_in_executor(
+            _PROGRESS_LOG_EXECUTOR,
+            partial(
+                self.logger,
+                request_id=self.request_id,
+                stage=self.stage,
+                generated_tokens=self.generated_tokens,
+                elapsed=now - self.started,
+                generation_elapsed=(
+                    now - self.generation_started if self.generation_started is not None else 0
+                ),
+                idle=now - self.last_activity,
             ),
-            idle=now - self.last_activity,
         )
 
     async def stop(self):
@@ -241,7 +248,11 @@ class GenerationProgressReporter:
         task.cancel()
         try:
             await task
-        except (CancelledError, Exception):
+        except CancelledError:
+            current = asyncio.current_task()
+            if current is not None and current.cancelling():
+                raise
+        except Exception:
             pass
 
 
