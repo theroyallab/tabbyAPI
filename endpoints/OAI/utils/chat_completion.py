@@ -41,7 +41,9 @@ from endpoints.OAI.utils.stream_parser import (
 from endpoints.OAI.utils.tools import (
     get_toolcall_tags,
     parse_toolcalls,
+    supports_delta_streaming,
 )
+from endpoints.OAI.utils.toolcall_stream import QwenToolCallDeltaStreamer
 from endpoints.OAI.utils.common_ import aggregate_usage_stats, get_usage_stats
 
 
@@ -634,11 +636,13 @@ async def _chat_stream_collector(
         # reasoning and tool format settings
         tool_format = "harmony"
         use_think = False
+        use_tool = False
         parser = HarmonyStreamParser()
     elif mc.muse_glimmer:
         # Same for Muse Glimmer, with recipients in place of channels
         tool_format = "muse_glimmer"
         use_think = False
+        use_tool = False
         parser = GlimmerStreamParser()
     else:
         tool_format = mc.tool_format
@@ -655,6 +659,14 @@ async def _chat_stream_collector(
             start_in_reasoning=start_in_reasoning_mode,
             tool_calls_in_reasoning=mc.tool_calls_in_reasoning,
         )
+
+    # Incremental tool_calls deltas: for formats that support it, emit
+    # OpenAI-style tool call fragments as they are generated instead of one
+    # complete delta at end of stream. The end-of-stream parse stays as the
+    # fallback whenever the streamer produced nothing.
+    tool_streamer = None
+    if streaming_mode and use_tool and supports_delta_streaming(tool_format):
+        tool_streamer = QwenToolCallDeltaStreamer()
 
     # Reasoning budget: when the reasoning phase exceeds the budget, force
     # end-of-reasoning tokens into the output stream so the model answers
@@ -704,6 +716,7 @@ async def _chat_stream_collector(
 
             delta_reasoning = ""
             delta_content = ""
+            tool_deltas: list = []
             for channel, sub in events:
                 if channel == REASONING:
                     delta_reasoning += sub
@@ -713,6 +726,8 @@ async def _chat_stream_collector(
                     full_content += sub
                 else:
                     full_tool += sub
+                    if tool_streamer is not None:
+                        tool_deltas.extend(tool_streamer.feed(sub))
 
             # Count reasoning tokens and force the end of the reasoning phase
             # when the budget is exhausted. Attribution is approximate: a
@@ -757,10 +772,18 @@ async def _chat_stream_collector(
                 generation["delta_reasoning_content"] = delta_reasoning
                 generation["delta_content"] = delta_content
                 generation["delta_tool_calls"] = ""
+                if tool_deltas:
+                    await gen_queue.put({"index": task_idx, "delta_tool_calls": tool_deltas})
                 if finish_reason and full_tool:
-                    generation["delta_tool_calls"] = _parse_tool_calls(
-                        full_tool, tool_format, request_id
-                    )
+                    if tool_streamer is not None and tool_streamer.emitted:
+                        # Fragments were streamed; the client assembles the
+                        # calls itself, so only cross-check against the
+                        # authoritative parse and close the finish reason.
+                        tool_streamer.verify(full_tool, request_id)
+                    else:
+                        generation["delta_tool_calls"] = _parse_tool_calls(
+                            full_tool, tool_format, request_id
+                        )
                     generation["finish_reason"] = "tool_calls"
                 await gen_queue.put(generation)
 
