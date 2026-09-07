@@ -952,7 +952,9 @@ class ExllamaV3Container:
         prompt: str,
         params: BaseSamplerRequest,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
-    ):
+    ) -> int:
+        """Validate the prompt against the context limit and return its length."""
+
         context_len = len(
             self.encode_tokens(
                 prompt,
@@ -978,6 +980,8 @@ class ExllamaV3Container:
             self.job_max_rq_tokens(max_tokens),
             allocation_boundary,
         )
+
+        return context_len
 
     async def generate(
         self,

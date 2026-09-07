@@ -1,6 +1,7 @@
 """Contains model card types."""
 
-from pydantic import BaseModel, Field, ConfigDict
+from datetime import datetime, timezone
+from pydantic import BaseModel, Field, ConfigDict, computed_field
 from time import time
 from typing import List, Literal, Optional, Union
 
@@ -29,7 +30,14 @@ class ModelCardParameters(BaseModel):
 
 
 class ModelCard(BaseModel):
-    """Represents a single model card."""
+    """
+    Represents a single model card.
+
+    Carries the OpenAI fields (object, created) alongside the Anthropic ones
+    (type, display_name, created_at), which name the same things differently.
+    Anthropic SDK model types require theirs, and serving both keeps one
+    listing usable by either client.
+    """
 
     id: str = "test"
     object: str = "model"
@@ -38,12 +46,64 @@ class ModelCard(BaseModel):
     logging: Optional[LoggingConfig] = None
     parameters: Optional[ModelCardParameters] = None
 
+    # Anthropic aliases, filled from the fields above when not set
+    type: str = "model"
+    display_name: Optional[str] = None
+    created_at: Optional[str] = None
+
+    def model_post_init(self, __context):
+        if self.display_name is None:
+            self.display_name = self.id
+
+        if self.created_at is None:
+            self.created_at = (
+                datetime.fromtimestamp(self.created, tz=timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
+
+    @computed_field
+    @property
+    def max_input_tokens(self) -> Optional[int]:
+        """The context window under the name the Anthropic API gives it."""
+
+        return self.parameters.max_seq_len if self.parameters else None
+
+    @computed_field
+    @property
+    def max_tokens(self) -> Optional[int]:
+        """
+        The output ceiling, which is the context window here.
+
+        TabbyAPI caps a generation by the context minus the prompt rather than
+        by a separate output limit, so the context length is the honest upper
+        bound. The field is served because Anthropic's model schema carries it
+        beside max_input_tokens and a client reading one expects the other.
+        """
+
+        return self.parameters.max_seq_len if self.parameters else None
+
 
 class ModelList(BaseModel):
     """Represents a list of model cards."""
 
     object: str = "list"
     data: List[ModelCard] = Field(default_factory=list)
+
+    # Anthropic pagination fields. TabbyAPI serves the whole list at once, so
+    # there is never another page. The ids are computed rather than stored
+    # because callers build the list empty and append to data afterwards.
+    has_more: bool = False
+
+    @computed_field
+    @property
+    def first_id(self) -> Optional[str]:
+        return self.data[0].id if self.data else None
+
+    @computed_field
+    @property
+    def last_id(self) -> Optional[str]:
+        return self.data[-1].id if self.data else None
 
 
 class DraftModelLoadRequest(BaseModel):

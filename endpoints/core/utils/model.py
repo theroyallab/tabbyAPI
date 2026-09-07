@@ -8,10 +8,31 @@ from common.networking import get_generator_error, handle_request_disconnect
 from common.tabby_config import config
 from endpoints.core.types.model import (
     ModelCard,
+    ModelCardParameters,
     ModelList,
     ModelLoadRequest,
     ModelLoadResponse,
 )
+
+
+def get_listed_model_params() -> Optional[ModelCardParameters]:
+    """
+    Parameters of the loaded model as a listing carries them.
+
+    A listing is how a client discovers the context window, since neither the
+    OpenAI nor the Anthropic model schema has a field for it. The prompt
+    template content is dropped: it runs to kilobytes and nothing reading a
+    listing needs it, so it stays exclusive to /v1/model.
+    """
+
+    if model.container is None:
+        return None
+
+    params = model.container.model_info().parameters
+    if params is None:
+        return None
+
+    return params.model_copy(update={"prompt_template_content": None})
 
 
 def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = None):
@@ -22,11 +43,18 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = N
     if draft_model_path:
         draft_model_path = pathlib.Path(draft_model_path).resolve()
 
+    loaded_model_path = model.container.model_dir.resolve() if model.container else None
+
     model_card_list = ModelList()
     for path in model_path.iterdir():
         # Don't include the draft models path
         if path.is_dir() and path != draft_model_path:
             model_card = ModelCard(id=path.name)
+
+            # Only the loaded model has parameters to report
+            if loaded_model_path and path.resolve() == loaded_model_path:
+                model_card.parameters = get_listed_model_params()
+
             model_card_list.data.append(model_card)  # pylint: disable=no-member
 
     return model_card_list
@@ -55,7 +83,13 @@ async def get_current_model_list(model_type: str = "model"):
                 model_path = model.embeddings_container.model_dir
 
     if model_path:
-        current_models.append(ModelCard(id=model_path.name))
+        model_card = ModelCard(id=model_path.name)
+
+        # Draft and embedding cards would report the main model's parameters
+        if model_type == "model":
+            model_card.parameters = get_listed_model_params()
+
+        current_models.append(model_card)
 
     return ModelList(data=current_models)
 
