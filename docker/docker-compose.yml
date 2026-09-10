@@ -14,6 +14,9 @@ services:
     gpus: all
     ports:
       - "5000:5000"
+    # ExLlamaV3 keeps tensor-parallel and CPU MoE offload buffers in /dev/shm (and
+    # NCCL uses it as a transport). Docker's default of 64 MiB is far too small.
+    # This is an upper bound on a tmpfs, not a reservation.
     shm_size: "8g"
     ulimits:
       memlock: -1
