@@ -58,8 +58,9 @@ logging:
   log_generation_params: false
 
   # Seconds between in-progress generation logs (default: 0, disabled).
-  # Reports the stage, generated token count, average rate, and time since the
-  # generator last produced an event.
+  # While streaming, reports generated tokens and the average rate; during
+  # prefill, reports prompt-token ingestion progress. Also reports the stage and
+  # time since the generator last produced an event.
   log_generation_progress_interval: 0
 
   # Enable request logging (default: False).

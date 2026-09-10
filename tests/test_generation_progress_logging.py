@@ -63,6 +63,26 @@ async def test_progress_reporter_tracks_produced_results_and_stops_cleanly():
 
 
 @pytest.mark.asyncio
+async def test_progress_reporter_logs_prefill_tokens_instead_of_zero():
+    logs = []
+    reporter = GenerationProgressReporter(
+        "request-1", 60, logger=lambda **fields: logs.append(fields)
+    )
+
+    reporter.start()
+    reporter.observe({"stage": "prefill", "curr_progress": 500, "max_progress": 1000})
+    reporter.observe({"stage": "prefill", "curr_progress": 800, "max_progress": 1000})
+    await reporter._report()
+    await reporter.stop()
+
+    assert len(logs) == 1
+    assert logs[0]["stage"] == "prefill"
+    assert logs[0]["generated_tokens"] == 0
+    assert logs[0]["prompt_tokens"] == 800
+    assert logs[0]["prompt_total"] == 1000
+
+
+@pytest.mark.asyncio
 async def test_progress_reporter_attach_tracks_production_without_blocking_delivery():
     logs = []
     put_result = Mock()

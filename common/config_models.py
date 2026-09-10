@@ -129,8 +129,9 @@ class LoggingConfig(BaseConfigModel):
         0,
         description=(
             "Seconds between in-progress generation logs (default: 0, disabled). "
-            "Reports the current stage, generated token count, average generation rate, "
-            "and time since the generator last produced an event."
+            "While streaming, reports generated tokens and the average generation rate; "
+            "during prefill, reports prompt-token ingestion progress. Also reports the "
+            "current stage and time since the generator last produced an event."
         ),
         ge=0,
     )

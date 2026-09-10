@@ -135,6 +135,8 @@ def log_generation_progress(
     elapsed: float,
     generation_elapsed: float,
     idle: float,
+    prompt_tokens: Optional[int] = None,
+    prompt_total: Optional[int] = None,
 ):
     """Log a periodic snapshot for an active generation request."""
     elapsed = round(elapsed, 2)
@@ -143,17 +145,34 @@ def log_generation_progress(
     tokens_per_second = (
         round(generated_tokens / generation_elapsed, 2) if generation_elapsed > 0 else 0.0
     )
+    # The reporter tracks prompt ingestion during the prefill/queue phases and
+    # generated tokens once streaming begins; render whichever is active.
+    in_prefill = stage in ("queued", "started", "prefill")
+    if in_prefill:
+        prompt_tokens = prompt_tokens or 0
+        prompt_total = max(prompt_total or prompt_tokens, prompt_tokens)
+        headline = f"prefill {prompt_tokens:,}/{prompt_total:,} prompt tokens"
+        detail = (f"(Stage: {stage}, Prefill: {prompt_tokens:,}/{prompt_total:,} tokens, "
+                  f"No activity: {idle} s)")
+    else:
+        headline = f"{generated_tokens} tokens"
+        detail = f"(Stage: {stage}, Generate: {tokens_per_second} T/s, No activity: {idle} s)"
+
+    fields = {
+        "stage": stage,
+        "generated_tokens": generated_tokens,
+        "elapsed_seconds": elapsed,
+        "generation_elapsed_seconds": generation_elapsed,
+        "idle_seconds": idle,
+        "tokens_per_second": tokens_per_second,
+    }
+    if in_prefill:
+        fields.update({"prompt_tokens": prompt_tokens, "prompt_total": prompt_total})
+
     xlogger.info(
-        f"Generation progress (ID: {request_id}): {generated_tokens} tokens in {elapsed} seconds",
-        {
-            "stage": stage,
-            "generated_tokens": generated_tokens,
-            "elapsed_seconds": elapsed,
-            "generation_elapsed_seconds": generation_elapsed,
-            "idle_seconds": idle,
-            "tokens_per_second": tokens_per_second,
-        },
-        details=(f"(Stage: {stage}, Generate: {tokens_per_second} T/s, No activity: {idle} s)"),
+        f"Generation progress (ID: {request_id}): {headline} in {elapsed} seconds",
+        fields,
+        details=detail,
     )
 
 
@@ -178,6 +197,8 @@ class GenerationProgressReporter:
         self.last_activity = None
         self.generation_started = None
         self.generated_tokens = 0
+        self.prompt_tokens = 0
+        self.prompt_total = 0
         self.stage = "queued"
         self.task = None
 
@@ -194,6 +215,10 @@ class GenerationProgressReporter:
         now = asyncio.get_running_loop().time()
         self.last_activity = now
         self.stage = result.get("stage", self.stage)
+        curr_progress = result.get("curr_progress")
+        if curr_progress is not None:
+            self.prompt_tokens = max(self.prompt_tokens, curr_progress)
+            self.prompt_total = max(self.prompt_total, result.get("max_progress", 0))
         self.generated_tokens += _result_token_count(result)
         if self.generated_tokens and self.generation_started is None:
             self.generation_started = now
@@ -237,6 +262,8 @@ class GenerationProgressReporter:
                     now - self.generation_started if self.generation_started is not None else 0
                 ),
                 idle=now - self.last_activity,
+                prompt_tokens=self.prompt_tokens,
+                prompt_total=self.prompt_total,
             ),
         )
 
