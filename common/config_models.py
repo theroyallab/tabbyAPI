@@ -369,7 +369,11 @@ class ModelConfig(BaseConfigModel):
             "The default maximum batch size for transformer architectures is 32. Recurrent\n"
             "models with linear or sliding attention use more VRAM to support larger batches,\n"
             "so the default value is reduced to 4. If you do not require concurrency at all, you\n"
-            "can reduce it further to minimize VRAM overhead."
+            "can reduce it further to minimize VRAM overhead.\n"
+            "With a draft model, every slot of a recurrent model reserves draft_num_tokens + 1\n"
+            "copies of the recurrent state at load (728 MiB per slot for a 27B hybrid at the\n"
+            "default draft length of 4; the total is logged at load), so single-user setups\n"
+            "serving a recurrent model should set this to 1."
         ),
         ge=1,
     )
