@@ -24,6 +24,8 @@ from common.logger import RICH_CONSOLE
 REFRESH_INTERVAL = 0.25
 SPEED_WINDOW = 2.0
 
+HEIGHT_HOLD = 5.0
+
 
 @dataclass
 class JobStatus:
@@ -82,6 +84,8 @@ class StatusDisplay:
         self._task: Optional[asyncio.Task] = None
         self._last_frame: Optional[str] = None
         self._last_push = 0.0
+        # (time, job rows) samples over the last HEIGHT_HOLD seconds
+        self._heights: deque = deque()
 
     @property
     def active(self) -> bool:
@@ -274,13 +278,29 @@ class StatusDisplay:
             detail.append(f" · {tps:,.1f} T/s")
         return label, Text("generating"), Text(""), detail
 
+    def _held_height(self, rows: int) -> int:
+        """Number of job rows to show: the most seen in the last HEIGHT_HOLD seconds."""
+
+        now = time.monotonic()
+        self._heights.append((now, rows))
+        while self._heights and now - self._heights[0][0] > HEIGHT_HOLD:
+            self._heights.popleft()
+
+        return max(height for _, height in self._heights)
+
     def render(self):
         table = Table.grid(padding=(0, 2))
         for _ in range(4):
             table.add_column(no_wrap=True)
 
-        for job in list(self.jobs.values()):
+        jobs = list(self.jobs.values())
+        for job in jobs:
             table.add_row(*self._job_row(job))
+
+        # Rows are anchored at the bottom of the terminal, so a finished job would
+        # pull the rows above it down. Keep the height for a while instead
+        for _ in range(self._held_height(len(jobs)) - len(jobs)):
+            table.add_row(Text(""), Text(""), Text(""), Text(""))
 
         return Group(Rule(style="dim"), self._summary_line(), table)
 
