@@ -179,8 +179,10 @@ class ModelConfig(BaseConfigModel):
         description=(
             "Allow direct loading of models "
             "from a completion or chat completion request (default: False).\n"
-            "This method of loading is strict by default.\n"
-            "Enable dummy models to add exceptions for invalid model names."
+            "This method of loading is strict: a request naming a model that\n"
+            "doesn't exist or fails to load is rejected instead of running on the\n"
+            "loaded model. Enable dummy models to add exceptions for model names\n"
+            "that clients send without meaning a specific model."
         ),
     )
     use_dummy_models: Optional[bool] = Field(

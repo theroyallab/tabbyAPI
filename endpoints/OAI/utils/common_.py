@@ -147,14 +147,28 @@ async def load_inline_model(model_name: str, request: Request):
     model_path = pathlib.Path(config.model.model_dir)
     model_path = model_path / model_name
 
-    # Model path doesn't exist
+    # A request that names a model it can't get must fail rather than run on
+    # whatever happens to be loaded: the client asked for a specific model, and
+    # an answer from a different one is wrong in a way it cannot detect
     if not model_path.exists():
-        xlogger.warning(f"Could not find model path {str(model_path)}. Skipping inline model load.")
+        error_message = handle_request_error(
+            f"Model {model_name} was not found in the model directory.",
+            exc_info=False,
+        ).error.message
 
-        return
+        raise HTTPException(404, error_message)
 
     # Load the model and also add draft dir
-    await model.load_model(
-        model_path,
-        draft_model=config.draft_model.model_dump(include={"draft_model_dir"}),
-    )
+    try:
+        await model.load_model(
+            model_path,
+            draft_model=config.draft_model.model_dump(include={"draft_model_dir"}),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        error_message = handle_request_error(
+            f"Model {model_name} failed to load: {exc}"
+        ).error.message
+
+        raise HTTPException(503, error_message) from exc

@@ -86,8 +86,9 @@ model:
   model_dir: models
 
   # Allow direct loading of models from a completion or chat completion request (default: False).
-  # This method of loading is strict by default.
-  # Enable dummy models to add exceptions for invalid model names.
+  # This method of loading is strict: a request naming a model that doesn't exist or fails to load
+  # is rejected instead of running on the loaded model. Enable dummy models to add exceptions for
+  # model names that clients send without meaning a specific model.
   inline_model_loading: false
 
   # Sends dummy model names when the models endpoint is queried. (default: False)
