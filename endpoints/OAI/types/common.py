@@ -1,6 +1,6 @@
 """Common types for OAI."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_serializer
 from typing import Optional, Union
 
 from common.sampling import BaseSamplerRequest, get_default_sampler_value
@@ -40,6 +40,31 @@ class UsageStats(BaseModel):
     completion_tokens_per_sec: Optional[Union[float, str]] = None
     total_tokens: int
     total_time: Optional[float] = None
+
+
+class Timings(BaseModel):
+    """
+    llama-server compatible generation timings (llama.cpp server_slot_stats::to_json).
+    The draft keys are only present when a draft model ran, like llama.cpp, which
+    sets them for drafted generations only.
+    """
+
+    cache_n: int
+    prompt_n: int
+    prompt_ms: float
+    prompt_per_token_ms: float
+    prompt_per_second: float
+    predicted_n: int
+    predicted_ms: float
+    predicted_per_token_ms: float
+    predicted_per_second: float
+    draft_n: Optional[int] = None
+    draft_n_accepted: Optional[int] = None
+
+    # Absent, not null: draft_n=None means no draft ran, and the JSON carries no key
+    @model_serializer(mode="wrap")
+    def _drop_unset_draft_keys(self, handler):
+        return {key: value for key, value in handler(self).items() if value is not None}
 
 
 class CompletionResponseFormat(BaseModel):

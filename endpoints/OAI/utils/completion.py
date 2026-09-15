@@ -30,8 +30,8 @@ from endpoints.OAI.types.completion import (
     CompletionRespChoice,
     chat_logprobs_to_completion_logprobs,
 )
-from endpoints.OAI.types.common import UsageStats
-from endpoints.OAI.utils.common_ import aggregate_usage_stats, get_usage_stats
+from endpoints.OAI.types.common import Timings, UsageStats
+from endpoints.OAI.utils.common_ import aggregate_usage_stats, get_timings, get_usage_stats
 
 
 def _gen_label(request: Request, endpoint: str, n: int, task_idx: int, stream: bool) -> str:
@@ -87,6 +87,8 @@ def _compose_response(
             if return_usage
             else None
         ),
+        # Timings describe one generation, so several choices report none
+        timings=(get_timings(generations[0]) if len(generations) == 1 else None),
     )
     return response
 
@@ -96,6 +98,7 @@ def _compose_serialize_stream_chunk(
     generation: Optional[dict] = None,
     model_name: Optional[str] = None,
     suppress_finish: bool = False,
+    timings: Optional[Timings] = None,
 ) -> (str, dict, str):
     """
     Compose a chat completion stream chunk from generation produced by _chat_stream_collector
@@ -131,6 +134,9 @@ def _compose_serialize_stream_chunk(
     if model_name:
         data["model_name"] = model_name
 
+    if timings is not None:
+        data["timings"] = timings.model_dump(mode="json")
+
     # Serialize
     s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
 
@@ -145,6 +151,7 @@ def _compose_serialize_stream_usage_chunk(
     usage_index: int,
     last_finish_reason: str,
     model_name: Optional[str] = None,
+    timings: Optional[Timings] = None,
 ) -> (str, dict):
     """
     Compose a usage chunk to send at the end of a strema
@@ -167,6 +174,9 @@ def _compose_serialize_stream_usage_chunk(
 
     if model_name:
         data["model_name"] = model_name
+
+    if timings is not None:
+        data["timings"] = timings.model_dump(mode="json")
 
     # Serialize
     s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
@@ -312,12 +322,20 @@ async def stream_generate_completion(
             if isinstance(generation, Exception):
                 raise generation
 
+            # llama-server attaches timings to the stream's last chunk: the usage
+            # chunk when include_usage is set, otherwise the chunk carrying
+            # finish_reason. Timings describe one generation, so several choices
+            # or batch prompts report none.
+            timings = get_timings(generation) if total_n == 1 else None
+            suppress_finish = return_usage and remaining_n == 1
+
             # Create and serialize chunk
             chunk, _, finish_reason, is_empty = _compose_serialize_stream_chunk(
                 request.state.id,
                 generation,
                 model_path.name,
-                return_usage and remaining_n == 1,
+                suppress_finish,
+                None if suppress_finish else timings,
             )
             if not is_empty:
                 yield chunk
@@ -334,6 +352,7 @@ async def stream_generate_completion(
                             generation["index"],
                             finish_reason,
                             model_path.name,
+                            timings,
                         )
                         yield usage_chunk
                         xlogger.debug(
