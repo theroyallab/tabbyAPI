@@ -6,6 +6,10 @@ from exllamav3 import (
     Filter,
     LLGuidanceFilter,
 )
+from backends.exllamav3.whitespace_guard import (
+    WhitespaceStallGuardFilter,
+    build_whitespace_bitmask,
+)
 from common.errors import GrammarParseError
 from common.logger import xlogger
 
@@ -31,8 +35,32 @@ class ExLlamaV3Grammar:
 
     filters: List[Filter]
 
-    def __init__(self):
+    def __init__(self, stall_tokens: Optional[int] = 8):
         self.filters = []
+        self.stall_tokens = stall_tokens
+        self._whitespace_bitmask = None
+
+    def _wrap_with_stall_guard(self, lmfilter: Filter, tokenizer: Tokenizer) -> Filter:
+        """Wrap the filter with the whitespace stall guard, building the
+        vocab-wide whitespace bitmask once per handler."""
+
+        if not self.stall_tokens or self.stall_tokens < 1:
+            return lmfilter
+        if self._whitespace_bitmask is None:
+            try:
+                self._whitespace_bitmask = build_whitespace_bitmask(tokenizer)
+            except Exception as exc:
+                xlogger.warning(
+                    "Whitespace stall guard unavailable; constrained generation "
+                    "may stall in legal whitespace runs.",
+                    {"exception": str(exc)},
+                )
+                self._whitespace_bitmask = False
+        if self._whitespace_bitmask is False:
+            return lmfilter
+        return WhitespaceStallGuardFilter(
+            lmfilter, self._whitespace_bitmask, stall_tokens=self.stall_tokens
+        )
 
     def add_json_schema_filter(
         self,
@@ -63,7 +91,7 @@ class ExLlamaV3Grammar:
                 raise
             raise GrammarParseError(f"The JSON schema could not be compiled: {exc}") from exc
 
-        self.filters.append(lmfilter)
+        self.filters.append(self._wrap_with_stall_guard(lmfilter, tokenizer))
 
     def add_regex_filter(
         self,
@@ -90,7 +118,7 @@ class ExLlamaV3Grammar:
                 raise
             raise GrammarParseError(f"The regex pattern could not be compiled: {exc}") from exc
 
-        self.filters.append(lmfilter)
+        self.filters.append(self._wrap_with_stall_guard(lmfilter, tokenizer))
 
     def add_grammar_filter(
         self,
@@ -125,4 +153,4 @@ class ExLlamaV3Grammar:
                 f"The grammar ({grammar_kind}) could not be compiled: {exc}"
             ) from exc
 
-        self.filters.append(lmfilter)
+        self.filters.append(self._wrap_with_stall_guard(lmfilter, tokenizer))

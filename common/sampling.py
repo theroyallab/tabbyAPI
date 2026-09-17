@@ -323,6 +323,19 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
+    stall_guard_tokens: Optional[int] = Field(
+        default_factory=lambda: get_default_sampler_value("stall_guard_tokens", 8),
+        description=(
+            "ExLlamaV3 only. Re-rails grammar-constrained generation "
+            "(json_schema, regex_pattern, grammar_string) out of legal "
+            "whitespace runs: after N consecutive whitespace-only tokens while "
+            "the grammar is still incomplete, the next logit mask excludes "
+            "whitespace so sampling lands on a legal content token or EOS. "
+            "Set 0 or null to disable."
+        ),
+        ge=0,
+    )
+
     def param_source(self, name: str) -> str:
         """
         Where the effective value of a sampler param came from: "req" (sent with the

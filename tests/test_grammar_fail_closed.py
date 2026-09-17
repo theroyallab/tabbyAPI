@@ -6,6 +6,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from backends.exllamav3.grammar import ExLlamaV3Grammar
+from backends.exllamav3.whitespace_guard import WhitespaceStallGuardFilter
 from common import model
 from common.errors import GrammarParseError
 from endpoints.Kobold.utils import generation as kobold_generation
@@ -68,7 +69,41 @@ class GrammarParseErrorUnitTests(unittest.TestCase):
                 self.handler.add_grammar_filter("rule ::= ", self.tokenizer)
         self.assertEqual(self.handler.filters, [])
 
-    def test_valid_schema_appends_filter(self):
+    def test_stall_guard_tokens_zero_disables_guard(self):
+        sentinel = SimpleNamespace(
+            name="filter",
+            tokenizer=None,
+            trigger_token=None,
+            prefix_str=None,
+            eos_after_completed=True,
+        )
+        handler = ExLlamaV3Grammar(stall_tokens=0)
+        with patch(
+            "backends.exllamav3.grammar.LLGuidanceFilter",
+            lambda *args, **kwargs: sentinel,
+        ):
+            handler.add_json_schema_filter({"type": "object"}, self.tokenizer)
+        self.assertEqual(handler.filters, [sentinel])
+
+    def test_stall_guard_threshold_flows_to_wrapper(self):
+        sentinel = SimpleNamespace(
+            name="filter",
+            tokenizer=None,
+            trigger_token=None,
+            prefix_str=None,
+            eos_after_completed=True,
+        )
+        handler = ExLlamaV3Grammar(stall_tokens=4)
+        with patch(
+            "backends.exllamav3.grammar.LLGuidanceFilter",
+            lambda *args, **kwargs: sentinel,
+        ):
+            handler.add_json_schema_filter({"type": "object"}, self.tokenizer)
+        self.assertEqual(len(handler.filters), 1)
+        self.assertIsInstance(handler.filters[0], WhitespaceStallGuardFilter)
+        self.assertEqual(handler.filters[0].stall_tokens, 4)
+
+    def test_valid_schema_appends_guarded_filter(self):
         sentinel = SimpleNamespace(
             name="filter",
             tokenizer=None,
@@ -81,7 +116,10 @@ class GrammarParseErrorUnitTests(unittest.TestCase):
             lambda *args, **kwargs: sentinel,
         ):
             self.handler.add_json_schema_filter({"type": "object"}, self.tokenizer)
-        self.assertEqual(self.handler.filters, [sentinel])
+        self.assertEqual(len(self.handler.filters), 1)
+        wrapped = self.handler.filters[0]
+        self.assertIsInstance(wrapped, WhitespaceStallGuardFilter)
+        self.assertIs(wrapped.inner, sentinel)
 
     def test_missing_llguidance_dependency_is_not_masked(self):
         # A server-side environment problem must keep its original identity

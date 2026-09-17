@@ -1360,7 +1360,7 @@ class ExllamaV3Container:
         prompts = [prompt]
         stop_conditions = params.stop
         add_bos_token = unwrap(params.add_bos_token, self.hf_model.add_bos_token())
-        grammar_handler = ExLlamaV3Grammar()
+        grammar_handler = ExLlamaV3Grammar(stall_tokens=params.stall_guard_tokens)
 
         # Get multimodal embeddings if present
         mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
@@ -1460,6 +1460,8 @@ class ExllamaV3Container:
             settings.append(("regex_pattern", True))
         if params.grammar_string:
             settings.append(("grammar_string", True))
+        if params.json_schema or params.regex_pattern or params.grammar_string:
+            settings.append(("stall_guard_tokens", params.stall_guard_tokens))
         if params.token_healing:
             settings.append(("token_healing", True))
         if params.logprobs or params.top_logprobs:
