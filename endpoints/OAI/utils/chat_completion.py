@@ -8,7 +8,11 @@ from time import time
 from typing import List, Optional
 from fastapi import HTTPException, Request
 from jinja2 import TemplateError
-from common.errors import ContextLengthExceededError, ContextLengthHTTPException
+from common.errors import (
+    ContextLengthExceededError,
+    ContextLengthHTTPException,
+    GrammarParseError,
+)
 from common.logger import xlogger
 import re
 
@@ -912,6 +916,9 @@ async def stream_generate_chat_completion(
     except ContextLengthExceededError as exc:
         yield get_context_length_generator_error(str(exc))
 
+    except GrammarParseError as exc:
+        yield get_generator_error(str(exc), exc_info=False)
+
     except Exception as e:
         xlogger.error("Error during chat completion", str(e), details=f"\n{str(e)}")
         yield get_generator_error("Chat completion aborted. Please check the server console.")
@@ -985,6 +992,10 @@ async def generate_chat_completion(
     except ContextLengthExceededError as exc:
         error_message = handle_request_error(str(exc), exc_info=False).error.message
         raise ContextLengthHTTPException(error_message) from exc
+
+    except GrammarParseError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise HTTPException(400, error_message) from exc
 
     except Exception as exc:
         error_message = handle_request_error(
