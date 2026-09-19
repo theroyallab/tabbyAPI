@@ -547,11 +547,13 @@ class DraftModelConfig(BaseConfigModel):
             "or auto-calculate."
         ),
     )
-    draft_cache_mode: Optional[CACHE_SIZES] = Field(
+    draft_cache_mode: Optional[CACHE_TYPE] = Field(
         "FP16",
         description=(
             "Cache mode for draft models to save VRAM (default: FP16).\n"
-            f"Possible values: {str(CACHE_SIZES)[15:-1]}."
+            "Specify the pair k_bits,v_bits where k_bits and v_bits "
+            "are integers from 2-8 (i.e. 8,8).\n"
+            f"The legacy values {str(CACHE_SIZES)[15:-1]} are also accepted."
         ),
     )
     draft_gpu_split: List[float] = Field(
