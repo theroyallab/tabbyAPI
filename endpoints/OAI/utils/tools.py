@@ -42,6 +42,7 @@ ALL_TOOLCALL_FORMATS = {
     "glimmer": muse_glimmer,
     "qwen3_coder": qwen3_coder,
     "qwen3_5": qwen3_coder,
+    "spark2_5": glm4_5,
     "step3_5": qwen3_coder,
     "step3_7": qwen3_coder,
 }
