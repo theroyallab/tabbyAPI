@@ -16,6 +16,7 @@ from endpoints.OAI.utils.toolcall_formats import (
     mistral,
     gemma4,
     lfm2,
+    spark2_5,
 )
 
 ALL_TOOLCALL_FORMATS = {
@@ -44,6 +45,7 @@ ALL_TOOLCALL_FORMATS = {
     "qwen3_5": qwen3_coder,
     "step3_5": qwen3_coder,
     "step3_7": qwen3_coder,
+    "spark2_5": spark2_5,
 }
 
 
