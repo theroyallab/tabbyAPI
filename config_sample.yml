@@ -202,6 +202,10 @@ model:
   # models with linear or sliding attention use more VRAM to support larger batches,
   # so the default value is reduced to 4. If you do not require concurrency at all, you
   # can reduce it further to minimize VRAM overhead.
+  # With a draft model, every slot of a recurrent model reserves draft_num_tokens + 1
+  # copies of the recurrent state at load (728 MiB per slot for a 27B hybrid at the
+  # default draft length of 4; the total is logged at load), so single-user setups
+  # serving a recurrent model should set this to 1.
   max_batch_size:
 
   # Set the prompt template for this model. (default: None)
