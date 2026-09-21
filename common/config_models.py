@@ -453,19 +453,25 @@ class ModelConfig(BaseConfigModel):
         description=("DEPRECATED: Equivalent to template_vars_force: {enable_thinking: true}."),
     )
     reasoning: bool = Field(
-        False,
+        True,
         description=(
-            "Enable the reasoning parser (default: False).\n"
-            "Split response message into reasoning_content and content fields."
+            "Enable the reasoning parser (default: True).\n"
+            "Splits the response into reasoning_content and content fields. With the\n"
+            "tokens below left at auto, reasoning is only parsed when the model's\n"
+            "template or tokenizer shows which tags it uses."
         ),
     )
     reasoning_start_token: str = Field(
-        "<think>",
-        description="Start token for the reasoning parser (default: <think>).",
+        "auto",
+        description=(
+            "Start token for the reasoning parser (default: auto).\n"
+            "auto takes the tags from the detected tool format or the chat template;\n"
+            "set both tokens explicitly to override."
+        ),
     )
     reasoning_end_token: str = Field(
-        "</think>",
-        description="End token for the reasoning parser (default: </think>).",
+        "auto",
+        description="End token for the reasoning parser (default: auto).",
     )
     start_in_reasoning: str = Field(
         "auto",
@@ -508,10 +514,12 @@ class ModelConfig(BaseConfigModel):
         ),
     )
     tool_format: Optional[str] = Field(
-        None,
+        "auto",
         description=(
-            "Tool format, e.g. 'qwen3_coder'. See docs for supported formats. If left blank, \n"
-            "tool calls from the model will not be parsed by the server."
+            "Tool call format (default: auto). auto picks a parser from the model's\n"
+            "chat template, tokenizer and architecture, and warns if none matches.\n"
+            "Set a format name, e.g. 'qwen3_coder', to override; see the Tool Calling\n"
+            "docs for the supported formats. Leave blank to disable tool call parsing."
         ),
     )
     harmony: Optional[bool] = Field(

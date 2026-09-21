@@ -3,7 +3,7 @@ import json
 from itertools import zip_longest
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
-from endpoints.OAI.utils.toolcall_formats.common import coerce_param_value
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, coerce_param_value
 
 """
 Hy3 (Tencent Hunyuan) - tokenized XML with interleaved key/value pairs
@@ -29,6 +29,13 @@ rendered as JSON.
 
 TOOLCALL_START = "<tool_calls:opensource>"
 TOOLCALL_END = "</tool_calls:opensource>"
+
+DETECT = FormatSignature(
+    template_markers=("<tool_calls:opensource>",),
+    special_tokens=("<tool_calls:opensource>", "<arg_key:opensource>"),
+    architectures=("HunYuan", "Hunyuan"),
+    reasoning_tags=("<think:opensource>", "</think:opensource>"),
+)
 
 _OUTER = re.compile(r"<tool_call:opensource>(.*?)</tool_call:opensource>", re.DOTALL)
 _FUNC_NAME = re.compile(r"^(.*?)(?=<tool_sep:opensource>|<arg_key:opensource>|$)", re.DOTALL)

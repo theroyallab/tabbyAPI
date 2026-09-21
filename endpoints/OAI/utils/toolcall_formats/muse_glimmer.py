@@ -3,6 +3,7 @@ import re
 
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature
 
 """
 Muse Glimmer - structural message format with ATEM tool call syntax
@@ -29,6 +30,13 @@ for TagStreamParser to scan for.
 
 TOOLCALL_START = None
 TOOLCALL_END = None
+
+DETECT = FormatSignature(
+    template_markers=("<|eom|>", "<|message|>"),
+    special_tokens=("<|start|>", "<|message|>", "<|eom|>", "<|eot|>"),
+    architectures=("MuseGlimmer",),
+    structured=True,
+)
 
 _INVOKE_OPEN = re.compile(r'<atem:invoke name="([^"]+)">')
 _PARAM = re.compile(r'<atem:parameter name="([^"]+)">(.*?)</atem:parameter>', re.DOTALL)

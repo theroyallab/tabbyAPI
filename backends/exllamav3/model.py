@@ -52,7 +52,12 @@ from common.transformers_utils import HFModel
 from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import ChatCompletionLogprob, ChatCompletionLogprobLeaf
 from endpoints.core.types.model import ModelCard, ModelCardParameters
-from endpoints.OAI.utils.tools import is_supported_format
+from endpoints.OAI.utils.tools import (
+    canonical_format_name,
+    detect_reasoning_tags,
+    detect_tool_format,
+    is_supported_format,
+)
 
 
 def _merge_stream_results(results: List[dict]) -> dict:
@@ -449,13 +454,44 @@ class ExllamaV3Container:
             kwargs.get("prompt_template"), model_directory
         )
 
-        # Tool calling
-        self.tool_format = kwargs.get("tool_format")
-        if self.tool_format and not is_supported_format(self.tool_format):
+        # Tool calling. "auto" resolves the format from the model itself: the
+        # literal markers its chat template renders around a tool call, the
+        # special tokens in its tokenizer and, as a tie-breaker, its architecture
+        template_text = self.prompt_template.raw_template if self.prompt_template else None
+        architecture = (self.hf_model.hf_config.architectures or [None])[0]
+
+        def has_token(token: str) -> bool:
+            return self.tokenizer.single_id(token) is not None
+
+        self.tool_format = kwargs.get("tool_format", "auto") or None
+        self.tool_format_evidence = "config"
+        if self.tool_format == "auto":
+            detection = detect_tool_format(template_text, has_token, architecture)
+            self.tool_format = detection.tool_format
+            self.tool_format_evidence = ", ".join(detection.evidence)
+            if detection.ambiguous:
+                xlogger.warning(
+                    "Could not auto-detect the tool call format: the model matches "
+                    + ", ".join(detection.ambiguous)
+                    + " equally. Set tool_format in the model config to choose one."
+                )
+            elif self.tool_format is None:
+                if template_text and "tools" in template_text:
+                    xlogger.warning(
+                        "No known tool call format matches this model's chat template, so "
+                        "tool calls will not be parsed. Set tool_format (and the reasoning "
+                        "tokens) manually in config.yml or the model's tabby_config.yml; "
+                        "see the Tool Calling docs for the supported formats."
+                    )
+                elif template_text:
+                    xlogger.info(
+                        "The chat template has no tool support; tool calls won't be parsed."
+                    )
+        elif not is_supported_format(self.tool_format):
             xlogger.warning(f"Unrecognized tool_format in config: {self.tool_format}")
             self.tool_format = None
         if self.tool_format:
-            xlogger.info(f"Using tool format: {self.tool_format}")
+            self.tool_format = canonical_format_name(self.tool_format)
 
         # Catch all for template lookup errors
         if self.prompt_template:
@@ -469,10 +505,15 @@ class ExllamaV3Container:
                 "template wasn't provided or auto-detected."
             )
 
-        # Reasoning mode
-        self.reasoning = kwargs.get("reasoning", False)
-        self.reasoning_start_token = kwargs.get("reasoning_start_token", "<think>")
-        self.reasoning_end_token = kwargs.get("reasoning_end_token", "</think>")
+        # Reasoning mode. "auto" tokens are resolved below, once the message
+        # format (Harmony, Glimmer or tags) is settled
+        self.reasoning = kwargs.get("reasoning", True)
+        self.reasoning_start_token = kwargs.get("reasoning_start_token", "auto")
+        self.reasoning_end_token = kwargs.get("reasoning_end_token", "auto")
+        self.reasoning_explicit = "auto" not in (
+            self.reasoning_start_token,
+            self.reasoning_end_token,
+        )
         self.tool_calls_in_reasoning = kwargs.get("tool_calls_in_reasoning", True)
 
         # Reasoning budget defaults, overridable per request
@@ -522,7 +563,7 @@ class ExllamaV3Container:
         self.harmony = bool(harmony)
         if self.harmony:
             xlogger.info("Using the Harmony format for reasoning and tool call parsing.")
-            if self.reasoning or (self.tool_format and self.tool_format != "harmony"):
+            if self.reasoning_explicit or (self.tool_format and self.tool_format != "harmony"):
                 xlogger.warning(
                     "Harmony supersedes the reasoning and tool format settings "
                     "in the model config; they will be ignored."
@@ -558,13 +599,54 @@ class ExllamaV3Container:
         self.muse_glimmer = bool(glimmer)
         if self.muse_glimmer:
             xlogger.info("Using the Muse Glimmer format for reasoning and tool call parsing.")
-            if self.reasoning or (
+            if self.reasoning_explicit or (
                 self.tool_format and self.tool_format not in ("muse_glimmer", "glimmer")
             ):
                 xlogger.warning(
                     "Muse Glimmer supersedes the reasoning and tool format "
                     "settings in the model config; they will be ignored."
                 )
+
+        # Resolve "auto" reasoning tokens. Harmony and Glimmer carry reasoning
+        # in their message structure, so tags don't apply there
+        reasoning_evidence = "config"
+        if self.harmony or self.muse_glimmer:
+            self.reasoning_start_token = None
+            self.reasoning_end_token = None
+        elif self.reasoning and not self.reasoning_explicit:
+            tags, reasoning_evidence = detect_reasoning_tags(
+                template_text, has_token, self.tool_format
+            )
+            if tags:
+                self.reasoning_start_token, self.reasoning_end_token = tags
+            else:
+                self.reasoning = False
+                self.reasoning_start_token = None
+                self.reasoning_end_token = None
+        elif not self.reasoning:
+            self.reasoning_start_token = None
+            self.reasoning_end_token = None
+
+        # One line saying what the server will parse and why
+        if self.harmony:
+            summary = "Harmony message format"
+        elif self.muse_glimmer:
+            summary = "Muse Glimmer message format"
+        else:
+            parts = []
+            if self.tool_format:
+                parts.append(f"tool format {self.tool_format} ({self.tool_format_evidence})")
+            else:
+                parts.append("no tool call parsing")
+            if self.reasoning:
+                parts.append(
+                    f"reasoning tags {self.reasoning_start_token} {self.reasoning_end_token} "
+                    f"({reasoning_evidence})"
+                )
+            else:
+                parts.append("no reasoning parsing")
+            summary = ", ".join(parts)
+        xlogger.info(f"Response parsing: {summary}")
 
         return self
 
@@ -847,7 +929,6 @@ class ExllamaV3Container:
                 checkpoint_kwargs["recurrent_checkpoint_interval_pp"] = (
                     self.recurrent_checkpoint_interval_pp
                 )
-
 
             # Create new generator
             self.generator = AsyncGenerator(

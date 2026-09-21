@@ -2,7 +2,7 @@ import re
 import json
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
-from endpoints.OAI.utils.toolcall_formats.common import coerce_param_value
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, coerce_param_value
 
 """
 MiniMax M2 family (M2, M2.1, M2.5) - structured XML syntax
@@ -26,6 +26,13 @@ JSON-based tool call format.
 
 TOOLCALL_START = "<minimax:tool_call>"
 TOOLCALL_END = "</minimax:tool_call>"
+
+DETECT = FormatSignature(
+    template_markers=("<minimax:tool_call>",),
+    special_tokens=("<minimax:tool_call>", "</minimax:tool_call>"),
+    architectures=("MiniMax",),
+    reasoning_tags=("<think>", "</think>"),
+)
 
 _OUTER = re.compile(r"<minimax:tool_call>(.*?)</minimax:tool_call>", re.DOTALL)
 _INVOKE = re.compile(r'<invoke\s+name="([^"]+)"[^>]*>(.*?)</invoke>', re.DOTALL)

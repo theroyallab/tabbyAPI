@@ -2,6 +2,7 @@ import re
 import json
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature
 
 """
 DeepSeek-V4 - DSML invoke blocks with explicitly typed parameters
@@ -28,6 +29,13 @@ before templating to guarantee this.
 
 TOOLCALL_START = "<｜DSML｜tool_calls>"
 TOOLCALL_END = "</｜DSML｜tool_calls>"
+
+DETECT = FormatSignature(
+    template_markers=("<｜DSML｜tool_calls>",),
+    special_tokens=("｜DSML｜",),
+    architectures=("DeepseekV4",),
+    reasoning_tags=("<think>", "</think>"),
+)
 
 _INVOKE = re.compile(r'<｜DSML｜invoke name="(.*?)">(.*?)</｜DSML｜invoke>', re.DOTALL)
 _PARAM = re.compile(

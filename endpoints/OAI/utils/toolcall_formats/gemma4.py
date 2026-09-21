@@ -2,6 +2,7 @@ import re
 import json
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature
 
 """
 Gemma-4 - pseudo-JSON syntax
@@ -16,6 +17,13 @@ Raw format:
 
 TOOLCALL_START = "<|tool_call>"
 TOOLCALL_END = "<tool_call|>"
+
+DETECT = FormatSignature(
+    template_markers=("<|tool_call>", "<tool_call|>"),
+    special_tokens=("<|tool_call>", "<tool_call|>"),
+    architectures=("Gemma4",),
+    reasoning_tags=("<|channel>thought", "<channel|>"),
+)
 
 _CALL_PATTERN = re.compile(
     r"<\|tool_call>call:\s*([a-zA-Z0-9_.-]+)\s*\{(.*?)\}<tool_call\|>", re.DOTALL

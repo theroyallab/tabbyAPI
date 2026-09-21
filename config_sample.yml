@@ -256,15 +256,19 @@ model:
   # as an alias for {enable_thinking: true}.
   template_vars_force: {}
 
-  # Enable reasoning parser (default: False).
-  # Do NOT enable this if the model is not a reasoning model (e.g. deepseek-r1 series)
-  reasoning: false
+  # Enable the reasoning parser (default: True).
+  # Splits the response into reasoning_content and content fields. With the tokens below
+  # left at auto, reasoning is only parsed when the model's template or tokenizer shows
+  # which tags it uses.
+  reasoning: true
 
-  # The start token for reasoning content (default: "<think>")
-  reasoning_start_token: "<think>"
+  # Start token for the reasoning parser (default: auto).
+  # auto takes the tags from the detected tool format or the chat template; set both
+  # tokens explicitly (e.g. "<think>" and "</think>") to override.
+  reasoning_start_token: auto
 
-  # The end token for reasoning content (default: "</think>")
-  reasoning_end_token: "</think>"
+  # End token for the reasoning parser (default: auto).
+  reasoning_end_token: auto
 
   # Whether generation starts inside a reasoning block (default: auto).
   # Options: auto, always, never
@@ -289,9 +293,11 @@ model:
   # per request via reasoning_budget_message.
   reasoning_budget_message:
 
-  # Tool format, e.g. 'qwen3_coder'. See docs for supported formats. If left blank,
-  # tool calls from the model will not be parsed by the server.
-  tool_format:
+  # Tool call format (default: auto).
+  # auto picks a parser from the model's chat template, tokenizer and architecture, and warns
+  # if none matches. Set a format name, e.g. 'qwen3_coder', to override; see the Tool Calling
+  # docs for the supported formats. Leave blank to disable tool call parsing.
+  tool_format: auto
 
   # Parse responses in the Harmony message format (gpt-oss models).
   # Auto-detected from the model's special tokens by default; set to true or false

@@ -3,7 +3,7 @@ import json
 from itertools import zip_longest
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
-from endpoints.OAI.utils.toolcall_formats.common import coerce_param_value
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, coerce_param_value
 
 """
 GLM-4.5 / GLM-4.6 / GLM-4.7 family - XML with interleaved key/value pairs
@@ -28,6 +28,13 @@ different tool call mechanism.
 
 TOOLCALL_START = "<tool_call>"
 TOOLCALL_END = "</tool_call>"
+
+DETECT = FormatSignature(
+    template_markers=("<tool_call>", "<arg_key>"),
+    special_tokens=("<arg_key>", "<arg_value>"),
+    architectures=("Glm4", "Glm5", "GlmMoe", "Laguna", "Spark2_5"),
+    reasoning_tags=("<think>", "</think>"),
+)
 
 _OUTER = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
 _FUNC_NAME = re.compile(r"^(.*?)(?=<arg_key>|$)", re.DOTALL)
