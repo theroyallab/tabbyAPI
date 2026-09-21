@@ -17,6 +17,7 @@ from endpoints.OAI.utils.toolcall_formats import (
     gemma4,
     lfm2,
     hermes,
+    kimi,
     olmo3,
 )
 
@@ -32,6 +33,9 @@ ALL_TOOLCALL_FORMATS = {
     "qwen3": hermes,
     "qwen2_5": hermes,
     "smollm3": hermes,
+    "kimi": kimi,
+    "kimi_k2": kimi,
+    "kimi_linear": kimi,
     "olmo3": olmo3,
     "olmo": olmo3,
     "hy3": hy3,
