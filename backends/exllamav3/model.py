@@ -139,6 +139,8 @@ class ExllamaV3Container:
     draft_num_tokens: Optional[int] = None
     dynamic_draft: Optional[bool] = False
     ngram_match_min: int = 0
+    recurrent_checkpoint_interval: Optional[int] = None
+    recurrent_checkpoint_interval_pp: Optional[int] = None
 
     def __init__(self):
         # Mutable state must be created per instance. A class-level default
@@ -400,6 +402,18 @@ class ExllamaV3Container:
         # Max batch size
         default_mbs = 4 if self.model.caps.get("recurrent_states") else 128
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"), default_mbs)
+
+        # Recurrent checkpoint intervals (None = engine defaults)
+        self.recurrent_checkpoint_interval = kwargs.get("recurrent_checkpoint_interval")
+        self.recurrent_checkpoint_interval_pp = kwargs.get("recurrent_checkpoint_interval_pp")
+        if (
+            self.recurrent_checkpoint_interval is not None
+            or self.recurrent_checkpoint_interval_pp is not None
+        ) and not self.model.caps.get("recurrent_states"):
+            xlogger.warning(
+                "recurrent_checkpoint_interval settings are ignored because "
+                "the model has no recurrent layers."
+            )
 
         # Create cache
         cache_mode_default = "FP16"
@@ -808,6 +822,19 @@ class ExllamaV3Container:
                 if self.generator is not None:
                     await self.generator.close()
 
+            # Recurrent checkpoint intervals are only passed when configured,
+            # so the engine defaults apply otherwise
+            checkpoint_kwargs = {}
+            if self.recurrent_checkpoint_interval is not None:
+                checkpoint_kwargs["recurrent_checkpoint_interval"] = (
+                    self.recurrent_checkpoint_interval
+                )
+            if self.recurrent_checkpoint_interval_pp is not None:
+                checkpoint_kwargs["recurrent_checkpoint_interval_pp"] = (
+                    self.recurrent_checkpoint_interval_pp
+                )
+
+
             # Create new generator
             self.generator = AsyncGenerator(
                 model=self.model,
@@ -822,11 +849,22 @@ class ExllamaV3Container:
                 num_draft_tokens=self.draft_num_tokens,
                 dynamic_draft_tokens=self.dynamic_draft,
                 ngram_match_min=self.ngram_match_min,
+                **checkpoint_kwargs,
             )
 
             # Update the state of the container var
             if self.max_batch_size is None:
                 self.max_batch_size = self.generator.generator.max_batch_size
+
+            # Report the effective intervals (the engine rounds the ingestion
+            # interval up to a multiple of chunk_size)
+            generator = self.generator.generator
+            if checkpoint_kwargs and generator.recurrent_cache is not None:
+                xlogger.info(
+                    "Using recurrent checkpoint intervals: "
+                    f"{generator.recurrent_checkpoint_interval} tokens (generation), "
+                    f"{generator.recurrent_checkpoint_interval_pp} tokens (prompt ingestion)."
+                )
         finally:
             # This means the generator is being recreated
             # The load lock is already released in the load function

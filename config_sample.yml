@@ -204,6 +204,26 @@ model:
   # can reduce it further to minimize VRAM overhead.
   max_batch_size:
 
+  # Tokens between recurrent state checkpoints near the end of the prompt and
+  # during generation (default: None, the engine's per-architecture default,
+  # 2048 for most models). Only used by models with recurrent (linear or sliding
+  # attention) layers. Must be a multiple of 256.
+  recurrent_checkpoint_interval:
+
+  # Tokens between recurrent state checkpoints during prompt ingestion, further
+  # than 2 * chunk_size from the end of the prompt (default: None, the engine
+  # default of 32768). Only used by models with recurrent layers. Must be a
+  # multiple of 256 and is rounded up to a multiple of chunk_size.
+  # Recurrent states cannot be rolled back, so a request that edits an earlier
+  # part of a cached prompt replays from the last checkpoint before the edit.
+  # With the default, a long prompt is only checkpointed near its end and an
+  # early edit costs a full re-prefill; with a denser grid the replay cost becomes
+  # proportional to the distance from the edit to the end of the prompt.
+  # Each checkpoint costs one recurrent state of system RAM (148 MiB for a 27B
+  # hybrid with 48 recurrent layers), bounded by memory.sysmem_recurrent_cache,
+  # and cold prefill is 2-3% slower at 2048 or 1024.
+  recurrent_checkpoint_interval_pp:
+
   # Set the prompt template for this model. (default: None)
   # If empty, attempts to look for the model's chat template.
   # If a model contains multiple templates in its tokenizer_config.json,

@@ -375,6 +375,36 @@ class ModelConfig(BaseConfigModel):
         ),
         ge=1,
     )
+    recurrent_checkpoint_interval: Optional[int] = Field(
+        None,
+        description=(
+            "Tokens between recurrent state checkpoints near the end of the prompt and\n"
+            "during generation (default: None, the engine's per-architecture default,\n"
+            "2048 for most models). Only used by models with recurrent (linear or sliding\n"
+            "attention) layers. Must be a multiple of 256."
+        ),
+        multiple_of=256,
+        gt=0,
+    )
+    recurrent_checkpoint_interval_pp: Optional[int] = Field(
+        None,
+        description=(
+            "Tokens between recurrent state checkpoints during prompt ingestion, further\n"
+            "than 2 * chunk_size from the end of the prompt (default: None, the engine\n"
+            "default of 32768). Only used by models with recurrent layers. Must be a\n"
+            "multiple of 256 and is rounded up to a multiple of chunk_size.\n"
+            "Recurrent states cannot be rolled back, so a request that edits an earlier\n"
+            "part of a cached prompt replays from the last checkpoint before the edit.\n"
+            "With the default, a long prompt is only checkpointed near its end and an\n"
+            "early edit costs a full re-prefill; with a denser grid the replay cost becomes\n"
+            "proportional to the distance from the edit to the end of the prompt.\n"
+            "Each checkpoint costs one recurrent state of system RAM (148 MiB for a 27B\n"
+            "hybrid with 48 recurrent layers), bounded by memory.sysmem_recurrent_cache,\n"
+            "and cold prefill is 2-3% slower at 2048 or 1024."
+        ),
+        multiple_of=256,
+        gt=0,
+    )
     prompt_template: Optional[str] = Field(
         None,
         description=(
