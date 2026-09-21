@@ -16,6 +16,7 @@ from endpoints.OAI.utils.toolcall_formats import (
     mistral,
     gemma4,
     lfm2,
+    hermes,
     olmo3,
 )
 
@@ -27,6 +28,10 @@ ALL_TOOLCALL_FORMATS = {
     "glm4_6": glm4_5,
     "glm4_7": glm4_5,
     "harmony": harmony,
+    "hermes": hermes,
+    "qwen3": hermes,
+    "qwen2_5": hermes,
+    "smollm3": hermes,
     "olmo3": olmo3,
     "olmo": olmo3,
     "hy3": hy3,
