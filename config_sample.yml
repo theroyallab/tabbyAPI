@@ -238,6 +238,12 @@ model:
   # Enables vision support if the model supports it. (default: False)
   vision: false
 
+  # Warm up the model after loading (default: False).
+  # Runs a short schedule of forward passes so kernel compilation, autotuning and CUDA graph
+  # capture happen at load time instead of on the first requests. Adds some seconds to loading;
+  # sized from the cache, batch and chunk settings in effect.
+  warmup: false
+
   # Keep the vision model's weights in system RAM instead of VRAM (default: False).
   # Weights are stored in pinned host memory and streamed to the GPU during inference,
   # trading vision speed for VRAM. Only applies when vision is enabled.

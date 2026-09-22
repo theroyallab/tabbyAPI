@@ -423,6 +423,16 @@ class ModelConfig(BaseConfigModel):
         False,
         description=("Enables vision support if the model supports it. (default: False)"),
     )
+    warmup: Optional[bool] = Field(
+        False,
+        description=(
+            "Warm up the model after loading (default: False).\n"
+            "Runs a short schedule of forward passes so kernel compilation, autotuning\n"
+            "and CUDA graph capture happen at load time instead of on the first\n"
+            "requests. Adds some seconds to loading; sized from the cache, batch and\n"
+            "chunk settings in effect."
+        ),
+    )
     vision_offload: Optional[bool] = Field(
         False,
         description=(

@@ -141,6 +141,7 @@ class ModelLoadRequest(BaseModel):
     )
     prompt_template: Optional[str] = None
     vision: Optional[bool] = None
+    warmup: Optional[bool] = None
 
     # Non-config arguments
     draft_model: Optional[DraftModelLoadRequest] = None

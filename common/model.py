@@ -49,6 +49,7 @@ class ModelType(Enum):
     MODEL = "model"
     DRAFT = "draft"
     VISION = "vision"
+    WARMUP = "warmup"
 
 
 def load_progress(module, modules):
@@ -202,6 +203,10 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         if new_container.use_vision:
             model_type.insert(0, ModelType.VISION)
 
+        # Warmup runs after the weights are loaded and reports its own progress
+        if getattr(new_container, "warmup_enabled", False):
+            model_type.append(ModelType.WARMUP)
+
         load_status = new_container.load_gen(load_progress, **kwargs)
 
         # The live status line must not be showing while the loading bars run
@@ -214,9 +219,12 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 async for module, modules in load_status:
                     current_model_type = model_type[index].value
                     if module == 0:
-                        loading_task = progress.add_task(
-                            f"[cyan]Loading {current_model_type} modules", total=modules
+                        description = (
+                            "[cyan]Warming up"
+                            if current_model_type == ModelType.WARMUP.value
+                            else f"[cyan]Loading {current_model_type} modules"
                         )
+                        loading_task = progress.add_task(description, total=modules)
                     else:
                         progress.advance(loading_task)
 

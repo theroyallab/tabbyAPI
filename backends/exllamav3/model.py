@@ -186,7 +186,7 @@ class ExllamaV3Container:
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "1.4.7")
+        check_package_version("exllamav3", "1.5.1")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
@@ -448,6 +448,9 @@ class ExllamaV3Container:
         # Output chunking
         output_chunking = unwrap(kwargs.get("output_chunking"), True)
         self.max_rq_tokens = self.chunk_size if output_chunking else None
+
+        # Warm up kernels and graphs after loading, sized from the settings above
+        self.warmup_enabled = unwrap(kwargs.get("warmup"), False)
 
         # Template setup
         self.prompt_template = await find_prompt_template(
@@ -836,6 +839,12 @@ class ExllamaV3Container:
             async for value in iterate_in_threadpool(generator):
                 yield value
 
+            # Warm up before the generator attaches to the cache: the passes
+            # write into its leading pages and borrow recurrent-state slots
+            if self.warmup_enabled:
+                async for value in self.warmup_gen():
+                    yield value
+
             # Create async generator
             await self.create_generator()
 
@@ -852,6 +861,76 @@ class ExllamaV3Container:
 
             async with self.load_condition:
                 self.load_condition.notify_all()
+
+    async def warmup_gen(self):
+        """
+        Run exllamav3's warmup on the loaded model in a worker thread, yielding
+        (passes done, total passes) as it progresses so the caller can show a
+        bar. Pays kernel compilation, autotuning and graph capture up front for
+        the shapes this container will actually use. A failing pass is reported
+        by the engine and skipped; a failure of the whole routine is logged and
+        loading continues, since warmup is only an optimization.
+        """
+
+        loop = asyncio.get_running_loop()
+        progress: asyncio.Queue = asyncio.Queue()
+
+        def callback(done: int, total: int):
+            loop.call_soon_threadsafe(progress.put_nowait, (done, total))
+
+        # Match the decode step lengths the generator will run: single tokens,
+        # or draft windows plus the verified token when drafting is on
+        draft_tokens = 0
+        if self.use_draft_model or self.ngram_match_min:
+            draft_tokens = unwrap(self.draft_num_tokens, 4)
+        max_q_len = max(8, draft_tokens + 1)
+
+        finished = object()
+
+        @torch.inference_mode()
+        def run():
+            try:
+                return self.model.warmup(
+                    cache=self.cache,
+                    max_chunk_size=self.chunk_size,
+                    max_batch_size=self.max_batch_size,
+                    max_q_len=max_q_len,
+                    callback=callback,
+                )
+            finally:
+                # Queued after every progress callback, so the consumer below
+                # sees all of them before it stops
+                loop.call_soon_threadsafe(progress.put_nowait, finished)
+
+        started = time.perf_counter()
+        task = loop.run_in_executor(None, run)
+        announced = False
+        while True:
+            item = await progress.get()
+            if item is finished:
+                break
+            done, total = item
+            if not announced:
+                announced = True
+                yield 0, total
+            yield done, total
+
+        # The sentinel is queued from the worker before the executor future
+        # resolves, so wait for the result rather than reading it
+        try:
+            failures = await task
+        except Exception as exc:
+            xlogger.warning(f"Warmup failed and was skipped: {exc}")
+            return
+
+        elapsed = time.perf_counter() - started
+        if failures:
+            xlogger.warning(
+                f"Warmup finished in {elapsed:.1f} s with {len(failures)} failed pass(es): "
+                + ", ".join(failures)
+            )
+        else:
+            xlogger.info(f"Warmup finished in {elapsed:.1f} s")
 
     @torch.inference_mode()
     def load_model_sync(self, progress_callback=None):
