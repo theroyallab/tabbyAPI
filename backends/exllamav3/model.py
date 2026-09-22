@@ -361,8 +361,8 @@ class ExllamaV3Container:
             gpu_unsupported_message = (
                 "Unable to run ExllamaV3 because an unsupported GPU is "
                 "found in this configuration. \n"
-                "All GPUs must be ampere "
-                "(30 series) or newer. AMD GPUs are not supported."
+                "All GPUs must be turing "
+                "(20 series) or newer. AMD GPUs are not supported."
             )
 
             xlogger.warning(gpu_unsupported_message)
