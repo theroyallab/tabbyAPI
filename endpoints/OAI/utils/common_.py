@@ -3,6 +3,7 @@ from common import model
 from endpoints.OAI.types.common import (
     CompletionTokensDetails,
     PromptTokensDetails,
+    Timings,
     UsageStats,
 )
 from common.tabby_config import config
@@ -41,6 +42,56 @@ def get_usage_stats(
         total_time=generation.get("total_time"),
     )
     return usage_stats
+
+
+def get_timings(
+    generation: dict,
+) -> Timings | None:
+    """
+    Collect llama-server compatible timings from generation if it is a finish chunk
+
+    Key mapping follows llama.cpp's server_slot_stats::to_json
+    (tools/server/server-common.cpp). Rates are computed from the times, never
+    from the backend's *_tokens_per_sec fields, which carry the string
+    "Indeterminate" when a time is zero; a zero time yields 0.0 like llama.cpp.
+    """
+    if "finish_reason" not in generation:
+        return None
+
+    cache_n = round(generation.get("cached_tokens") or 0)
+    prompt_n = max((generation.get("prompt_tokens") or 0) - cache_n, 0)
+    prompt_ms = (generation.get("prompt_time") or 0) * 1000
+    predicted_n = generation.get("gen_tokens") or 0
+    predicted_ms = (generation.get("gen_time") or 0) * 1000
+
+    # llama.cpp divides by n_gen - 1 because its first token comes from the
+    # prompt batch's logits, outside the generation time. In exllamav3 the
+    # prompt is prefilled up to its last token (Job.is_prefill_done), and
+    # time_first_token is stamped before the decode pass that produces the
+    # first token, so gen_time covers all gen_tokens tokens. Dividing by
+    # gen_tokens gives the same meaning as llama.cpp's figure on this backend.
+
+    # llama.cpp sets the draft keys only when draft tokens were produced
+    # (n_draft_tokens > 0), so they stay absent otherwise
+    draft = {}
+    draft_accept = generation.get("draft_accept") or 0
+    draft_reject = generation.get("draft_reject") or 0
+    if draft_accept + draft_reject > 0:
+        draft["draft_n"] = draft_accept + draft_reject
+        draft["draft_n_accepted"] = draft_accept
+
+    return Timings(
+        cache_n=cache_n,
+        prompt_n=prompt_n,
+        prompt_ms=prompt_ms,
+        prompt_per_token_ms=prompt_ms / prompt_n if prompt_n > 0 else 0.0,
+        prompt_per_second=1e3 / prompt_ms * prompt_n if prompt_ms > 0 else 0.0,
+        predicted_n=predicted_n,
+        predicted_ms=predicted_ms,
+        predicted_per_token_ms=predicted_ms / predicted_n if predicted_n > 0 else 0.0,
+        predicted_per_second=1e3 / predicted_ms * predicted_n if predicted_ms > 0 else 0.0,
+        **draft,
+    )
 
 
 def aggregate_usage_stats(usage_stats_list: list[UsageStats]) -> UsageStats:

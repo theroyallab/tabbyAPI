@@ -6,7 +6,7 @@ from typing import Dict, List, Optional, Union
 from uuid import uuid4
 
 from endpoints.OAI.types.chat_completion import ChatCompletionLogprobs
-from endpoints.OAI.types.common import CommonCompletionRequest, UsageStats
+from endpoints.OAI.types.common import CommonCompletionRequest, Timings, UsageStats
 
 
 class CompletionLogprobs(BaseModel):
@@ -71,3 +71,4 @@ class CompletionResponse(BaseModel):
     model: str
     object: str = "text_completion"
     usage: Optional[UsageStats] = None
+    timings: Optional[Timings] = None
