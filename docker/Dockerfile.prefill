@@ -1,0 +1,17 @@
+# Thin overlay on the official TabbyAPI image.
+# Adds prefill progress streaming (prompt_progress SSE chunks).
+#
+# Build (on the server, or any machine with Docker):
+#   docker build -f docker/Dockerfile.prefill -t tabbyapi-prefill .
+#
+# Then point start.sh at the new image:
+#   IMAGE="tabbyapi-prefill"
+
+FROM ghcr.io/theroyallab/tabbyapi:latest
+
+# Override the three modified files. These are pure Python (no compiled
+# extensions), so a direct copy is safe. The /app/ directory is on Python's
+# import path (script directory), so these override the site-packages copies.
+COPY endpoints/OAI/types/common.py      /app/endpoints/OAI/types/common.py
+COPY backends/exllamav3/model.py        /app/backends/exllamav3/model.py
+COPY endpoints/OAI/utils/chat_completion.py /app/endpoints/OAI/utils/chat_completion.py
