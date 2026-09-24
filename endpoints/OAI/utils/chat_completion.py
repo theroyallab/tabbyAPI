@@ -929,7 +929,7 @@ async def generate_chat_completion(
     disconnect_handler: DisconnectHandler,
 ):
     gen_tasks: List[asyncio.Task] = []
-    return_usage = data.stream_options and data.stream_options.include_usage
+    return_usage = True  # non-streaming responses always carry usage
 
     try:
         xlogger.debug(
