@@ -14,6 +14,7 @@ from typing import (
     List,
     Optional,
 )
+from exllamav3.constants import PAGE_SIZE
 from exllamav3 import (
     AsyncGenerator,
     AsyncJob,
@@ -1486,6 +1487,16 @@ class ExllamaV3Container:
 
         return finish_chunk
 
+    @staticmethod
+    def _job_cached_tokens(job) -> int:
+        """Prompt tokens an enqueued job reused from the cache (whole pages plus a partial page)."""
+
+        inner = getattr(job, "job", None)
+        pages = getattr(inner, "cached_pages", 0) or 0
+        tokens = getattr(inner, "cached_tokens", 0) or 0
+        sequences = max(len(getattr(inner, "sequences", []) or []), 1)
+        return (pages * PAGE_SIZE + tokens) // sequences
+
     def _generator_latched(self) -> bool:
         """
         Whether the async generator is unusable. exllamav3 sets AsyncGenerator.error when
@@ -1716,7 +1727,8 @@ class ExllamaV3Container:
         generated_tokens = 0
         full_response = ""
         metrics_result = {}
-        return_progress = getattr(params, "return_progress", False)
+        # Only the OAI request types carry the flag; Kobold requests don't
+        return_progress = bool(getattr(params, "return_progress", False))
         prefill_start_time: float | None = None
         prefill_cached_tokens = 0
 
@@ -1727,18 +1739,26 @@ class ExllamaV3Container:
 
                 stage = result.get("stage")
                 if stage == "started":
-                    job_status.started(result.get("cached_tokens", 0))
+                    # The started event carries no counts; the job knows how
+                    # much of its prompt was found in the cache at allocation
+                    prefill_cached_tokens = self._job_cached_tokens(job)
+                    job_status.started(prefill_cached_tokens)
                     prefill_start_time = time.time()
-                    prefill_cached_tokens = result.get("cached_tokens", 0)
                 elif stage == "prefill":
                     job_status.prefill(result.get("curr_progress", 0))
                     if return_progress and prefill_start_time is not None:
+                        # Time since the engine began prefill for this job. The
+                        # started event and the first prefill event often arrive
+                        # in the same batch, so the event stamp lags by a chunk
+                        started_at = getattr(job.job, "time_first_prefill", None)
                         yield {
                             "_prefill_progress": {
                                 "total": result.get("max_progress", 0),
                                 "cache": prefill_cached_tokens,
                                 "processed": result.get("curr_progress", 0),
-                                "time_ms": int((time.time() - prefill_start_time) * 1000),
+                                "time_ms": int(
+                                    (time.time() - (started_at or prefill_start_time)) * 1000
+                                ),
                             }
                         }
 

@@ -69,9 +69,14 @@ class CommonCompletionRequest(BaseSamplerRequest):
         ge=1,
     )
 
-    # Prefill progress: when true, the server emits prompt_progress chunks
-    # during prefill (vendor extension, matches llama.cpp's return_progress).
-    return_progress: Optional[bool] = False
+    return_progress: Optional[bool] = Field(
+        default=False,
+        description=(
+            "Stream prompt processing progress (default: False). In stream mode, "
+            "emits chunks carrying a top-level prompt_progress object with total, "
+            "cache, processed and time_ms during prefill, in llama.cpp's format."
+        ),
+    )
 
     # Extra OAI request stuff
     best_of: Optional[int] = Field(

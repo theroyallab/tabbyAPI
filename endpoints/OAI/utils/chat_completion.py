@@ -219,11 +219,17 @@ def _compose_serialize_stream_chunk(
     if model_name:
         data["model"] = model_name
 
+    # Prefill progress (llama.cpp's return_progress extension) rides on an
+    # otherwise empty chunk, as a top-level field beside the choices
+    progress = generation.get("_prefill_progress")
+    if progress:
+        data["prompt_progress"] = progress
+
     # Serialize
     s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
 
     # Check if no data
-    is_empty = not delta and not (finish_reason and not suppress_finish)
+    is_empty = not delta and not progress and not (finish_reason and not suppress_finish)
     return s, data, finish_reason, is_empty
 
 
@@ -877,25 +883,6 @@ async def stream_generate_chat_completion(
             # Stream collector will push an exception to the queue if it fails
             if isinstance(generation, Exception):
                 raise generation
-
-            # Emit prefill progress as an SSE chunk (vendor extension)
-            if "_prefill_progress" in generation:
-                progress = generation["_prefill_progress"]
-                progress_chunk = {
-                    "id": f"chatcmpl-{request.state.id}",
-                    "object": "chat.completion.chunk",
-                    "created": int(time()),
-                    "choices": [{
-                        "index": 0,
-                        "delta": {"role": "assistant", "content": None},
-                        "finish_reason": None,
-                    }],
-                    "prompt_progress": progress,
-                }
-                if model_path:
-                    progress_chunk["model"] = model_path.name
-                yield json.dumps(progress_chunk, ensure_ascii=False)
-                continue
 
             # Create and serialize chunk
             chunk, _, finish_reason, is_empty = _compose_serialize_stream_chunk(

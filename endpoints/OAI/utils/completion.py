@@ -110,7 +110,7 @@ def _compose_serialize_stream_chunk(
 
     choice = {
         "index": generation.get("index"),
-        "text": delta_content,
+        "text": delta_content or "",
         "finish_reason": finish_reason if not suppress_finish else None,
     }
     if not suppress_finish and finish_reason and generation.get("eos_reason"):
@@ -131,11 +131,17 @@ def _compose_serialize_stream_chunk(
     if model_name:
         data["model_name"] = model_name
 
+    # Prefill progress (llama.cpp's return_progress extension), top-level
+    # beside the choices, on an otherwise empty chunk
+    progress = generation.get("_prefill_progress")
+    if progress:
+        data["prompt_progress"] = progress
+
     # Serialize
     s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
 
     # Check if no data
-    is_empty = not delta_content and not (finish_reason and not suppress_finish)
+    is_empty = not delta_content and not progress and not (finish_reason and not suppress_finish)
     return s, data, finish_reason, is_empty
 
 
@@ -211,6 +217,13 @@ async def _stream_collector(
         generation = {"index": task_idx}
         async for generation in new_generation:
             generation["index"] = task_idx
+
+            # Forward prefill progress events straight to the stream
+            if "_prefill_progress" in generation:
+                if streaming_mode and gen_queue is not None:
+                    await gen_queue.put(generation)
+                continue
+
             delta_content = generation.get("text", "")
             full_content += delta_content
             finish_reason = generation.get("finish_reason")
