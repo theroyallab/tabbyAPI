@@ -3,9 +3,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
 from fastapi import HTTPException
 
-from backends.exllamav3.grammar import ExLlamaV3Grammar
+pytest.importorskip("exllamav3")
+
+from backends.exllamav3.grammar import ExLlamaV3Grammar  # noqa: E402
 from common import model
 from common.errors import GrammarParseError
 from endpoints.Kobold.utils import generation as kobold_generation
@@ -87,9 +90,7 @@ class GrammarParseErrorUnitTests(unittest.TestCase):
         # A server-side environment problem must keep its original identity
         # (it maps to a server error), not a client-facing parse error.
         with patch("backends.exllamav3.grammar.LLGuidanceFilter", _raising_filter()):
-            with patch(
-                "backends.exllamav3.grammar._llguidance_ready", return_value=False
-            ):
+            with patch("backends.exllamav3.grammar._llguidance_ready", return_value=False):
                 with self.assertRaises(ValueError) as raised:
                     self.handler.add_json_schema_filter({"type": "object"}, self.tokenizer)
         self.assertNotIsInstance(raised.exception, GrammarParseError)
@@ -100,9 +101,7 @@ class GrammarParseErrorEndpointTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_chat_completion_returns_400_for_grammar_parse_error(self):
         async def collector(*args, **kwargs):
-            raise GrammarParseError(
-                "The JSON schema could not be compiled: Invalid grammar: boom"
-            )
+            raise GrammarParseError("The JSON schema could not be compiled: Invalid grammar: boom")
 
         original_container = model.container
         model.container = SimpleNamespace(reasoning=False, harmony=False, muse_glimmer=False)
@@ -125,9 +124,7 @@ class GrammarParseErrorEndpointTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_completion_returns_400_for_grammar_parse_error(self):
         async def collector(*args, **kwargs):
-            raise GrammarParseError(
-                "The JSON schema could not be compiled: Invalid grammar: boom"
-            )
+            raise GrammarParseError("The JSON schema could not be compiled: Invalid grammar: boom")
 
         with patch.object(completion, "_stream_collector", collector):
             with self.assertRaises(HTTPException) as raised:
@@ -160,9 +157,7 @@ class GrammarParseErrorStreamTests(unittest.IsolatedAsyncioTestCase):
     """Streaming requests surface the grammar rejection as an error event."""
 
     async def test_chat_stream_yields_error_event_for_grammar_parse_error(self):
-        error = GrammarParseError(
-            "The JSON schema could not be compiled: Invalid grammar: boom"
-        )
+        error = GrammarParseError("The JSON schema could not be compiled: Invalid grammar: boom")
 
         async def collector(task_idx, gen_queue=None, *args, **kwargs):
             # Mirror the real collector's contract: failures are pushed to the

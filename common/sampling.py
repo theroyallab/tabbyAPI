@@ -258,6 +258,12 @@ class BaseSamplerRequest(BaseModel):
 
     json_schema: Optional[object] = Field(
         default_factory=lambda: get_default_sampler_value("json_schema"),
+        description=(
+            "Constrain generation to a JSON schema (also settable via "
+            "response_format). Output is compact JSON: optional whitespace is "
+            "disabled in the grammar so generation cannot stall on whitespace. Add "
+            '{"x-guidance": {"whitespace_flexible": true}} to the schema to allow it.'
+        ),
     )
 
     regex_pattern: Optional[str] = Field(

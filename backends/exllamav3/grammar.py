@@ -26,6 +26,30 @@ def _llguidance_ready() -> bool:
     return llguidance_available
 
 
+# llguidance compile options applied to every JSON schema unless the schema
+# brings its own "x-guidance" block. Optional whitespace is disabled: a grammar
+# can forbid tokens but not compel progress, and with unlimited whitespace legal
+# between JSON tokens a model that wants to stop can idle on whitespace until
+# max_tokens without ever satisfying the schema. Without it the only legal
+# continuations are the next JSON token or the literal ", " / ": " separators,
+# so the output is compact and a stall is impossible. Clients that need
+# pretty-printed output can send {"x-guidance": {"whitespace_flexible": true}}.
+JSON_SCHEMA_GUIDANCE_DEFAULTS = {"whitespace_flexible": False}
+
+
+def prepare_json_schema(schema):
+    """Unwrap an OAI named schema and apply the default llguidance options."""
+
+    # Unwrap a named schema nested in an OAI response format config
+    if isinstance(schema, dict) and "schema" in schema and "name" in schema:
+        schema = schema["schema"]
+
+    if isinstance(schema, dict) and "x-guidance" not in schema:
+        schema = {**schema, "x-guidance": dict(JSON_SCHEMA_GUIDANCE_DEFAULTS)}
+
+    return schema
+
+
 class ExLlamaV3Grammar:
     """ExLlamaV3 class for various grammar filters/parsers."""
 
@@ -42,9 +66,7 @@ class ExLlamaV3Grammar:
     ):
         """Adds an ExllamaV3 filter based on a JSON schema."""
 
-        # Unwrap a named schema nested in an OAI response format config
-        if "schema" in schema and "name" in schema:
-            schema = schema["schema"]
+        schema = prepare_json_schema(schema)
 
         try:
             lmfilter = LLGuidanceFilter(
