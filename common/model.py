@@ -13,6 +13,7 @@ from common.errors import ContextLengthExceededError, ContextLengthHTTPException
 from common.logger import get_loading_progress_bar
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import handle_request_error
+from common import sampling
 from common.sampling import BaseSamplerRequest
 from common.status_display import status_display
 from common.tabby_config import config
@@ -143,6 +144,7 @@ async def unload_model(skip_wait: bool = False, shutdown: bool = False):
 
     await container.unload(skip_wait=skip_wait, shutdown=shutdown)
     container = None
+    sampling.clear_model_overrides()
 
 
 async def load_model_gen(model_path: pathlib.Path, **kwargs):
@@ -192,6 +194,18 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
         # Check model compatibility and dependencies before creating a container
         validate_backend(kwargs.get("backend"), hf_model)
 
+        # Check the model's own sampling section before the expensive load, so
+        # a bad preset name or malformed inline entry fails here rather than
+        # after the weights are in VRAM
+        sampler_preset, sampler_inline = sampling.split_sampling_section(
+            kwargs.get("sampling"), "the model's sampling config"
+        )
+        if sampler_preset and sampling.resolve_preset_path(sampler_preset) is None:
+            raise ValueError(
+                f'Sampler override preset "{sampler_preset}" (model sampling section) was '
+                "not found in the sampler_overrides folder."
+            )
+
         new_container = await ExllamaV3Container.create(model_path.resolve(), hf_model, **kwargs)
 
         # Add possible types of models that can be loaded
@@ -239,6 +253,12 @@ async def load_model_gen(model_path: pathlib.Path, **kwargs):
                 container = new_container
             finally:
                 progress.stop()
+
+        # Sampler overrides for this model, replacing the previous model's layer
+        if sampler_preset or sampler_inline:
+            await sampling.set_model_overrides(sampler_preset, sampler_inline)
+        else:
+            sampling.clear_model_overrides()
 
 
 async def load_model(model_path: pathlib.Path, **kwargs):

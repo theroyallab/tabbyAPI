@@ -423,23 +423,17 @@ class ModelConfig(BaseConfigModel):
         False,
         description=("Enables vision support if the model supports it. (default: False)"),
     )
-    warmup: Optional[bool] = Field(
-        False,
+    sampling: Optional[dict] = Field(
+        None,
         description=(
-            "Warm up the model after loading (default: False).\n"
-            "Runs a short schedule of forward passes so kernel compilation, autotuning\n"
-            "and CUDA graph capture happen at load time instead of on the first\n"
-            "requests. Adds some seconds to loading; sized from the cache, batch and\n"
-            "chunk settings in effect."
-        ),
-    )
-    vision_offload: Optional[bool] = Field(
-        False,
-        description=(
-            "Keep the vision model's weights in system RAM instead of VRAM\n"
-            "(default: False). Weights are stored in pinned host memory and\n"
-            "streamed to the GPU during inference, trading vision speed for\n"
-            "VRAM. Only applies when vision is enabled."
+            "Sampler overrides for this model (default: None).\n"
+            "Same syntax as the top-level sampling section: an optional\n"
+            "override_preset naming a file in sampler_overrides, plus any sampler\n"
+            "written inline as {override, force, additive}. Applied on top of the\n"
+            "global sampling section while this model is loaded. Meant for the\n"
+            "model folder's tabby_config.yml so each model can carry its own\n"
+            "sampling defaults; request parameters still take precedence unless\n"
+            "an override is forced."
         ),
     )
     template_vars_default: dict = Field(
@@ -641,7 +635,18 @@ class DraftModelConfig(BaseConfigModel):
 
 
 class SamplingConfig(BaseConfigModel):
-    """Options for Sampling"""
+    """
+    Options for Sampling. Besides override_preset, any sampler name may appear
+    directly in this section as an inline override, e.g.
+
+        temperature:
+          override: 0.5
+          force: false
+
+    Inline overrides apply on top of the preset, or on their own without one.
+    """
+
+    model_config = ConfigDict(extra="allow")
 
     override_preset: Optional[str] = Field(
         None,
@@ -653,9 +658,17 @@ class SamplingConfig(BaseConfigModel):
             "NOTE: safe_defaults provides llama.cpp-style fallbacks (temperature 0.8, "
             "top_k 40, top_p 0.95, min_p 0.05)\n"
             "for frontends that don't send sampling parameters. Leaving this blank "
-            "means no fallbacks at all."
+            "means no fallbacks at all.\n"
+            "Individual overrides can also be written directly in this section\n"
+            "(e.g. temperature: {override: 0.5, force: false}); they apply on top\n"
+            "of the preset, or on their own if no preset is given."
         ),
     )
+
+    def inline_overrides(self) -> dict:
+        """Sampler overrides written directly in this section, keyed by sampler name."""
+
+        return dict(self.model_extra or {})
 
 
 class LoraInstanceModel(BaseConfigModel):

@@ -238,6 +238,17 @@ model:
   # Enables vision support if the model supports it. (default: False)
   vision: false
 
+  # Sampler overrides for this model (default: None).
+  # Same syntax as the top-level sampling section: an optional override_preset plus any
+  # sampler written inline. Applied on top of the global sampling section while this model
+  # is loaded; meant for the model folder's tabby_config.yml. For example:
+  # sampling:
+  #   override_preset: my_model_preset
+  #   temperature:
+  #     override: 0.5
+  #     force: false
+  sampling:
+
   # Warm up the model after loading (default: False).
   # Runs a short schedule of forward passes so kernel compilation, autotuning and CUDA graph
   # capture happen at load time instead of on the first requests. Adds some seconds to loading;
@@ -373,6 +384,16 @@ sampling:
   # NOTE: safe_defaults is noob friendly and provides fallbacks for frontends that don't send sampling parameters.
   # for frontends that don't send sampling parameters. Leaving this blank means no fallbacks at all.
   override_preset: safe_defaults
+
+  # Individual overrides can also be written directly in this section, using the same
+  # syntax as a preset file. They apply on top of override_preset, or on their own if
+  # no preset is given. For example:
+  # temperature:
+  #   override: 0.5
+  #   force: false
+  # min_p:
+  #   override: 0.1
+  #   force: true
 
 # Options for Loras
 lora:

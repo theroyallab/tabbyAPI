@@ -51,10 +51,13 @@ async def entrypoint_async():
 
     # Set sampler parameter overrides if provided. Do this before the model
     # load so a bad preset name fails fast instead of after a long load
-    sampling_override_preset = config.sampling.override_preset
-    if sampling_override_preset:
+    sampling_override_preset, inline_overrides = sampling.split_sampling_section(
+        {"override_preset": config.sampling.override_preset, **config.sampling.inline_overrides()},
+        "the sampling config",
+    )
+    if sampling_override_preset or inline_overrides:
         try:
-            await sampling.overrides_from_file(sampling_override_preset)
+            await sampling.set_global_overrides(sampling_override_preset, inline_overrides)
         except FileNotFoundError as e:
             logger.error(
                 f"{e}\n"
@@ -64,12 +67,16 @@ async def entrypoint_async():
                 + "). Exiting."
             )
             raise SystemExit(1) from None
+        except TypeError as e:
+            logger.error(f"{e}. Exiting.")
+            raise SystemExit(1) from None
     else:
         logger.warning(
-            "No sampler override preset is configured (sampling.override_preset), so "
-            "sampling parameters have no fallback values. Requests that omit them run "
-            "untruncated: temperature 1.0, top_k 0, top_p 1.0, min_p 0. "
-            "Set override_preset to safe_defaults unless this is intentional."
+            "No sampler overrides are configured (sampling.override_preset or inline "
+            "overrides in the sampling section), so sampling parameters have no fallback "
+            "values. Requests that omit them run untruncated: temperature 1.0, top_k 0, "
+            "top_p 1.0, min_p 0. Set override_preset to safe_defaults unless this is "
+            "intentional."
         )
 
     # If an initial model name is specified, create a container

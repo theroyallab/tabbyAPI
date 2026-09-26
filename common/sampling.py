@@ -329,7 +329,7 @@ class BaseSamplerRequest(BaseModel):
         request), "forced" or "preset" (sampler override preset), or "default".
         """
 
-        override = overrides_container.overrides.get(name)
+        override = overrides_container.effective().get(name)
         if isinstance(override, dict) and override.get("override") and override.get("force"):
             return "forced"
 
@@ -444,8 +444,23 @@ class BaseSamplerRequest(BaseModel):
 
 
 class SamplerOverridesContainer(BaseModel):
+    """
+    Two layers of sampler overrides. The global layer comes from the startup
+    config (a preset and/or inline overrides under `sampling`) or the override
+    API; the model layer comes from the loaded model's own `sampling` section
+    (same syntax, under `model.sampling`) and is replaced or cleared
+    whenever the model changes. Within a layer, inline overrides win over the
+    preset; a key in the model layer wins over the same key globally; and a
+    request always wins over both unless the override is forced.
+    """
+
     selected_preset: Optional[str] = None
     overrides: dict = {}
+    model_preset: Optional[str] = None
+    model_overrides: dict = {}
+
+    def effective(self) -> dict:
+        return {**self.overrides, **self.model_overrides}
 
 
 # Global for default overrides
@@ -501,8 +516,8 @@ def describe_overrides(overrides: dict) -> str:
     return ", ".join(parts) if parts else "no overrides"
 
 
-async def overrides_from_file(preset_name: str):
-    """Fetches an override preset from a file"""
+async def _read_preset(preset_name: str) -> tuple[str, dict]:
+    """Read a preset file from the sampler_overrides folder as (name, overrides)."""
 
     preset_path = resolve_preset_path(preset_name)
     if preset_path is None:
@@ -511,20 +526,128 @@ async def overrides_from_file(preset_name: str):
             "sampler_overrides folder."
         )
 
-    overrides_container.selected_preset = preset_path.stem
     async with aiofiles.open(preset_path, "r", encoding="utf8") as raw_preset:
         contents = await raw_preset.read()
 
-        # Create a temporary YAML parser
-        yaml = YAML(typ="safe")
-        preset = yaml.load(contents)
-        overrides_from_dict(preset)
+    preset = YAML(typ="safe").load(contents)
+    if preset is None:
+        preset = {}
+    if not isinstance(preset, dict):
+        raise TypeError(f'Sampler override preset "{preset_name}" must be a mapping')
 
-        xlogger.info(
-            f'Sampler preset "{preset_path.stem}": '
-            + describe_overrides(overrides_container.overrides),
-            {"preset": preset},
-        )
+    return preset_path.stem, filter_none_values(preset)
+
+
+def split_sampling_section(section: Optional[dict], where: str) -> tuple[Optional[str], dict]:
+    """
+    Split a `sampling` config section into (override_preset, inline overrides).
+    The same syntax serves the global section and a model's `model.sampling`.
+    """
+
+    if not section:
+        return None, {}
+    if not isinstance(section, dict):
+        raise TypeError(f"The sampling section in {where} must be a mapping")
+
+    section = dict(section)
+    preset = section.pop("override_preset", None)
+    if preset is not None and not isinstance(preset, str):
+        raise TypeError(f"override_preset in {where} must be a preset name")
+
+    return (preset or None), validate_inline_overrides(section, where)
+
+
+def validate_inline_overrides(inline: Optional[dict], where: str) -> dict:
+    """
+    Check inline overrides written directly in a config section: a mapping of
+    sampler name to {override, force, additive}. Unknown sampler names are
+    warned about here rather than on every request.
+    """
+
+    if not inline:
+        return {}
+    if not isinstance(inline, dict):
+        raise TypeError(f"Inline sampler overrides in {where} must be a mapping")
+
+    checked = {}
+    for name, value in inline.items():
+        if not isinstance(value, dict) or "override" not in value:
+            raise TypeError(
+                f'Inline sampler override "{name}" in {where} must be a mapping with an '
+                '"override" key (and optionally "force" / "additive")'
+            )
+        if name not in BaseSamplerRequest.model_fields:
+            xlogger.warning(f'Skipping unknown sampler override key "{name}" in {where}')
+            continue
+        checked[name] = value
+
+    return checked
+
+
+async def _build_layer(preset_name: Optional[str], inline: dict) -> tuple[Optional[str], dict]:
+    """A layer's (preset name, merged overrides): inline entries win over the preset's."""
+
+    name, overrides = None, {}
+    if preset_name:
+        name, overrides = await _read_preset(preset_name)
+    return name, {**overrides, **inline}
+
+
+async def overrides_from_file(preset_name: str):
+    """Load the global override preset from a file (the override API's switch)"""
+
+    await set_global_overrides(preset_name, {})
+
+
+async def set_global_overrides(preset_name: Optional[str], inline: Optional[dict] = None):
+    """Set the global layer from a preset and/or inline overrides"""
+
+    inline = validate_inline_overrides(inline, "the sampling config")
+    name, overrides = await _build_layer(preset_name, inline)
+    overrides_container.selected_preset = name
+    overrides_from_dict(overrides)
+
+    xlogger.info(
+        _describe_layer("Sampler overrides", name, inline, overrides_container.overrides),
+        {"preset": name, "inline": inline},
+    )
+
+
+async def set_model_overrides(preset_name: Optional[str], inline: Optional[dict] = None):
+    """Set the model layer from a preset and/or inline overrides, on top of the global one"""
+
+    inline = validate_inline_overrides(inline, "the model's sampling config")
+    name, overrides = await _build_layer(preset_name, inline)
+    overrides_container.model_preset = name
+    overrides_container.model_overrides = filter_none_values(overrides)
+
+    xlogger.info(
+        _describe_layer("Sampler overrides for this model", name, inline, overrides),
+        {"preset": name, "inline": inline},
+    )
+
+
+async def model_overrides_from_file(preset_name: str):
+    """Load a model's own override preset on top of the global one"""
+
+    await set_model_overrides(preset_name, {})
+
+
+def clear_model_overrides():
+    """Drop the model layer, e.g. when the model is unloaded"""
+
+    overrides_container.model_preset = None
+    overrides_container.model_overrides = {}
+
+
+def _describe_layer(label: str, preset: Optional[str], inline: dict, merged: dict) -> str:
+    sources = []
+    if preset:
+        sources.append(f'preset "{preset}"')
+    if inline:
+        sources.append("inline")
+    source_text = " + ".join(sources) if sources else "none"
+    return f"{label} ({source_text}): {describe_overrides(merged)}"
 
 
 def get_all_presets():
@@ -542,7 +665,7 @@ def get_default_sampler_value(key, fallback=None):
     """Gets an overridden default sampler value"""
 
     default_value = unwrap(
-        deepcopy(overrides_container.overrides.get(key, {}).get("override")),
+        deepcopy(overrides_container.effective().get(key, {}).get("override")),
         fallback,
     )
 
@@ -556,7 +679,7 @@ def apply_forced_sampler_overrides(params: BaseSamplerRequest):
     if isinstance(params.logprobs, int) and params.logprobs > 1:
         params.top_logprobs = params.logprobs
 
-    for var, value in overrides_container.overrides.items():
+    for var, value in overrides_container.effective().items():
         if var not in BaseSamplerRequest.model_fields:
             xlogger.warning(f'Skipping unknown sampler override key "{var}"')
             continue
