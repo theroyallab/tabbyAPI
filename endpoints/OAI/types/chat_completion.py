@@ -3,7 +3,7 @@ from time import time
 from typing import Literal, Union, List, Optional, Dict
 from uuid import uuid4
 
-from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest
+from endpoints.OAI.types.common import UsageStats, CommonCompletionRequest, Timings
 from endpoints.OAI.types.tools import NamedToolChoice, ToolSpec, ToolCall
 
 
@@ -177,6 +177,7 @@ class ChatCompletionResponse(BaseModel):
     model: str
     object: str = "chat.completion"
     usage: Optional[UsageStats] = None
+    timings: Optional[Timings] = None
 
 
 class ChatCompletionStreamChunk(BaseModel):
