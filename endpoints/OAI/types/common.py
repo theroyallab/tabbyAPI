@@ -69,6 +69,10 @@ class CommonCompletionRequest(BaseSamplerRequest):
         ge=1,
     )
 
+    # Prefill progress: when true, the server emits prompt_progress chunks
+    # during prefill (vendor extension, matches llama.cpp's return_progress).
+    return_progress: Optional[bool] = False
+
     # Extra OAI request stuff
     best_of: Optional[int] = Field(
         description="Not parsed. Only used for OAI compliance.", default=None

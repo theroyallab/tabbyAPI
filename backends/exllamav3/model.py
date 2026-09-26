@@ -1716,6 +1716,9 @@ class ExllamaV3Container:
         generated_tokens = 0
         full_response = ""
         metrics_result = {}
+        return_progress = getattr(params, "return_progress", False)
+        prefill_start_time: float | None = None
+        prefill_cached_tokens = 0
 
         # Get the generation status once it's ready
         try:
@@ -1725,8 +1728,19 @@ class ExllamaV3Container:
                 stage = result.get("stage")
                 if stage == "started":
                     job_status.started(result.get("cached_tokens", 0))
+                    prefill_start_time = time.time()
+                    prefill_cached_tokens = result.get("cached_tokens", 0)
                 elif stage == "prefill":
                     job_status.prefill(result.get("curr_progress", 0))
+                    if return_progress and prefill_start_time is not None:
+                        yield {
+                            "_prefill_progress": {
+                                "total": result.get("max_progress", 0),
+                                "cache": prefill_cached_tokens,
+                                "processed": result.get("curr_progress", 0),
+                                "time_ms": int((time.time() - prefill_start_time) * 1000),
+                            }
+                        }
 
                 # The generator can produce several results per iteration
                 # (speculative decoding), while this consumer may only get one

@@ -717,6 +717,13 @@ async def _chat_stream_collector(
         generation = {"index": task_idx}
         async for generation in new_generation:
             generation["index"] = task_idx
+
+            # Forward prefill progress events directly to the stream
+            if "_prefill_progress" in generation:
+                if streaming_mode and gen_queue is not None:
+                    await gen_queue.put(generation)
+                continue
+
             text = generation.get("text", "")
             finish_reason = generation.get("finish_reason")
 
@@ -870,6 +877,25 @@ async def stream_generate_chat_completion(
             # Stream collector will push an exception to the queue if it fails
             if isinstance(generation, Exception):
                 raise generation
+
+            # Emit prefill progress as an SSE chunk (vendor extension)
+            if "_prefill_progress" in generation:
+                progress = generation["_prefill_progress"]
+                progress_chunk = {
+                    "id": f"chatcmpl-{request.state.id}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time()),
+                    "choices": [{
+                        "index": 0,
+                        "delta": {"role": "assistant", "content": None},
+                        "finish_reason": None,
+                    }],
+                    "prompt_progress": progress,
+                }
+                if model_path:
+                    progress_chunk["model"] = model_path.name
+                yield json.dumps(progress_chunk, ensure_ascii=False)
+                continue
 
             # Create and serialize chunk
             chunk, _, finish_reason, is_empty = _compose_serialize_stream_chunk(
