@@ -371,7 +371,7 @@ async def generate_completion(
     """Non-streaming generate for completions"""
 
     gen_tasks: List[asyncio.Task] = []
-    return_usage = data.stream_options and data.stream_options.include_usage
+    return_usage = True  # non-streaming responses always carry usage
 
     if isinstance(prompts, str):
         prompts = [prompts]
