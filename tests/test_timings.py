@@ -183,8 +183,8 @@ class ResponseAttachTests(unittest.TestCase):
         response = compose_chat_response("id", [generation()], "model", False)
 
         self.assertIsInstance(response.timings, Timings)
-        # Non-streaming responses always carry usage (PR #487); timings ride beside it
-        self.assertIsNotNone(response.usage)
+        # The helper was asked not to attach usage; timings are attached regardless
+        self.assertIsNone(response.usage)
 
     def test_chat_response_omits_timings_for_two_generations(self):
         generations = [generation(), generation(index=1, gen_tokens=30)]
