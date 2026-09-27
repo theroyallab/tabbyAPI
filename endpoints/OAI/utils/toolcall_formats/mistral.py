@@ -2,6 +2,7 @@ import re
 import json
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature
 
 """
 Mistral family, v11+ - Name/Args tokens
@@ -23,6 +24,13 @@ There is no end token; the sequence ends at EOS.
 
 TOOLCALL_START = "[TOOL_CALLS]"
 TOOLCALL_END = None
+
+DETECT = FormatSignature(
+    template_markers=("[TOOL_CALLS]", "[ARGS]"),
+    special_tokens=("[TOOL_CALLS]", "[ARGS]"),
+    architectures=("Mistral",),
+    reasoning_tags=("[THINK]", "[/THINK]"),
+)
 
 _TOOLCALL_PAIR = re.compile(
     r"\[TOOL_CALLS]\s*(\S+?)\s*\[ARGS]\s*(\{.*?)(?=\[TOOL_CALLS]|$)", re.DOTALL

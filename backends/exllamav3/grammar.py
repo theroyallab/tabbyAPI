@@ -6,7 +6,48 @@ from exllamav3 import (
     Filter,
     LLGuidanceFilter,
 )
+from common.errors import GrammarParseError
 from common.logger import xlogger
+
+
+def _llguidance_ready() -> bool:
+    """Whether the llguidance backend itself is importable and present.
+
+    A missing backend is a server environment problem and keeps its own
+    exception identity (server error), while a schema/regex/grammar the
+    backend rejects is a client error.
+    """
+
+    try:
+        from exllamav3.generator.filter.llguidance import llguidance_available
+    except ImportError:
+        # Flag moved in a future exllamav3; let construction errors decide.
+        return True
+    return llguidance_available
+
+
+# llguidance compile options applied to every JSON schema unless the schema
+# brings its own "x-guidance" block. Optional whitespace is disabled: a grammar
+# can forbid tokens but not compel progress, and with unlimited whitespace legal
+# between JSON tokens a model that wants to stop can idle on whitespace until
+# max_tokens without ever satisfying the schema. Without it the only legal
+# continuations are the next JSON token or the literal ", " / ": " separators,
+# so the output is compact and a stall is impossible. Clients that need
+# pretty-printed output can send {"x-guidance": {"whitespace_flexible": true}}.
+JSON_SCHEMA_GUIDANCE_DEFAULTS = {"whitespace_flexible": False}
+
+
+def prepare_json_schema(schema):
+    """Unwrap an OAI named schema and apply the default llguidance options."""
+
+    # Unwrap a named schema nested in an OAI response format config
+    if isinstance(schema, dict) and "schema" in schema and "name" in schema:
+        schema = schema["schema"]
+
+    if isinstance(schema, dict) and "x-guidance" not in schema:
+        schema = {**schema, "x-guidance": dict(JSON_SCHEMA_GUIDANCE_DEFAULTS)}
+
+    return schema
 
 
 class ExLlamaV3Grammar:
@@ -25,9 +66,7 @@ class ExLlamaV3Grammar:
     ):
         """Adds an ExllamaV3 filter based on a JSON schema."""
 
-        # Unwrap a named schema nested in an OAI response format config
-        if "schema" in schema and "name" in schema:
-            schema = schema["schema"]
+        schema = prepare_json_schema(schema)
 
         try:
             lmfilter = LLGuidanceFilter(
@@ -36,14 +75,15 @@ class ExLlamaV3Grammar:
                 json_schema=schema,
                 trigger_token=trigger_token_id,
             )
-        except Exception:
-            traceback.print_exc()
+        except Exception as exc:
             xlogger.error(
-                "Skipping because the JSON schema couldn't be parsed. "
-                "Please read the above error for more information.",
+                "JSON schema could not be compiled; rejecting the request instead "
+                "of generating without the constraint.",
                 {"schema": schema, "exception": traceback.format_exc()},
             )
-            return
+            if not _llguidance_ready():
+                raise
+            raise GrammarParseError(f"The JSON schema could not be compiled: {exc}") from exc
 
         self.filters.append(lmfilter)
 
@@ -62,14 +102,15 @@ class ExLlamaV3Grammar:
                 regex=pattern,
                 trigger_token=trigger_token_id,
             )
-        except Exception:
-            traceback.print_exc()
+        except Exception as exc:
             xlogger.error(
-                "Skipping because the regex pattern couldn't be parsed. "
-                "Please read the above error for more information.",
+                "Regex pattern could not be compiled; rejecting the request instead "
+                "of generating without the constraint.",
                 {"pattern": pattern, "exception": traceback.format_exc()},
             )
-            return
+            if not _llguidance_ready():
+                raise
+            raise GrammarParseError(f"The regex pattern could not be compiled: {exc}") from exc
 
         self.filters.append(lmfilter)
 
@@ -94,13 +135,16 @@ class ExLlamaV3Grammar:
                 trigger_token=trigger_token_id,
                 **{grammar_kind: grammar_string},
             )
-        except Exception:
-            traceback.print_exc()
+        except Exception as exc:
             xlogger.error(
-                "Skipping because the grammar couldn't be parsed. "
-                "Please read the above error for more information.",
+                f"{grammar_kind} could not be compiled; rejecting the request instead "
+                "of generating without the constraint.",
                 {"grammar_string": grammar_string, "exception": traceback.format_exc()},
             )
-            return
+            if not _llguidance_ready():
+                raise
+            raise GrammarParseError(
+                f"The grammar ({grammar_kind}) could not be compiled: {exc}"
+            ) from exc
 
         self.filters.append(lmfilter)

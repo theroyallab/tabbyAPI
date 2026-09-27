@@ -3,6 +3,7 @@ import re
 
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature
 
 """
 Harmony (gpt-oss) - structural message format
@@ -25,6 +26,13 @@ TagStreamParser to scan for.
 
 TOOLCALL_START = None
 TOOLCALL_END = None
+
+DETECT = FormatSignature(
+    template_markers=("<|channel|>", "<|message|>", "<|call|>"),
+    special_tokens=("<|channel|>", "<|message|>", "<|call|>", "<|return|>"),
+    architectures=("GptOss",),
+    structured=True,
+)
 
 _RECIPIENT = re.compile(r"\bto=([^\s<]+)")
 

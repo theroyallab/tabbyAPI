@@ -3,12 +3,22 @@ from typing import Dict, Literal, Optional
 from uuid import uuid4
 
 
+def _no_parameters() -> Dict[str, object]:
+    # A tool without parameters is a function with an empty argument list. An
+    # empty object schema keeps templates that walk parameters.properties working
+    return {"type": "object", "properties": {}}
+
+
 class Function(BaseModel):
-    """Represents a description of a tool function."""
+    """
+    Represents a description of a tool function. As in the OpenAI API, only the
+    name is required: description defaults to empty and omitting parameters
+    declares a function that takes no arguments (#485).
+    """
 
     name: str
-    description: str
-    parameters: Dict[str, object]
+    description: str = ""
+    parameters: Dict[str, object] = Field(default_factory=_no_parameters)
 
 
 class ToolSpec(BaseModel):

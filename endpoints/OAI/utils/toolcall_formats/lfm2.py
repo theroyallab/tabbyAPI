@@ -5,6 +5,7 @@ import re
 
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature
 
 """
 LFM2 / LFM2.5 (Liquid AI) - Pythonic tool-call list
@@ -25,6 +26,13 @@ arguments are the (JSON-encoded) keyword arguments.
 
 TOOLCALL_START = "<|tool_call_start|>"
 TOOLCALL_END = "<|tool_call_end|>"
+
+DETECT = FormatSignature(
+    template_markers=("<|tool_call_start|>", "<|tool_call_end|>"),
+    special_tokens=("<|tool_call_start|>", "<|tool_call_end|>"),
+    architectures=("Lfm2",),
+    reasoning_tags=("<think>", "</think>"),
+)
 
 # Python reserved words that are illegal as keyword-argument names in a
 # literal call list (e.g. from=...). They are renamed during parsing and

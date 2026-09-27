@@ -48,6 +48,7 @@ class HuggingFaceConfig(BaseModel):
     """
 
     max_position_embeddings: int = None
+    architectures: Optional[List[str]] = None
     text_config: Optional[TextConfig] = None
     eos_token_id: Optional[Union[int, List[int]]] = None
     quantization_config: Optional[Dict] = None

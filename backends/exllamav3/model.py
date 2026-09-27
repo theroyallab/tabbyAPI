@@ -14,6 +14,7 @@ from typing import (
     List,
     Optional,
 )
+from exllamav3.constants import PAGE_SIZE
 from exllamav3 import (
     AsyncGenerator,
     AsyncJob,
@@ -52,7 +53,12 @@ from common.transformers_utils import HFModel
 from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import ChatCompletionLogprob, ChatCompletionLogprobLeaf
 from endpoints.core.types.model import ModelCard, ModelCardParameters
-from endpoints.OAI.utils.tools import is_supported_format
+from endpoints.OAI.utils.tools import (
+    canonical_format_name,
+    detect_reasoning_tags,
+    detect_tool_format,
+    is_supported_format,
+)
 
 
 def _merge_stream_results(results: List[dict]) -> dict:
@@ -139,6 +145,8 @@ class ExllamaV3Container:
     draft_num_tokens: Optional[int] = None
     dynamic_draft: Optional[bool] = False
     ngram_match_min: int = 0
+    recurrent_checkpoint_interval: Optional[int] = None
+    recurrent_checkpoint_interval_pp: Optional[int] = None
 
     def __init__(self):
         # Mutable state must be created per instance. A class-level default
@@ -179,7 +187,7 @@ class ExllamaV3Container:
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "1.4.7")
+        check_package_version("exllamav3", "1.5.1")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
@@ -298,6 +306,15 @@ class ExllamaV3Container:
         gpu_device_list = list(range(0, gpu_count))
         use_tp = unwrap(kwargs.get("tensor_parallel"), False)
 
+        # Reserve VRAM per GPU. Read for every split mode
+        default_reserve = [96]
+        autosplit_reserve_megabytes = unwrap(kwargs.get("autosplit_reserve"), default_reserve)
+        if isinstance(autosplit_reserve_megabytes, (int, float)) and not isinstance(
+            autosplit_reserve_megabytes, bool
+        ):
+            autosplit_reserve_megabytes = [autosplit_reserve_megabytes]
+        self.autosplit_reserve = [value / 1024 for value in autosplit_reserve_megabytes]
+
         # Set GPU split options
         if gpu_count == 1:
             self.gpu_split_auto = False
@@ -324,10 +341,6 @@ class ExllamaV3Container:
                 self.gpu_split_auto = False
                 self.gpu_split = gpu_split
 
-                # Causes crash if set with GPU split
-                # TODO: Remove when fixed in exllama upstream
-                self.autosplit_reserve = None
-
                 gpu_device_list = [
                     device_idx for device_idx, memory in enumerate(self.gpu_split) if memory > 0
                 ]
@@ -335,17 +348,22 @@ class ExllamaV3Container:
                 # Otherwise fallback to autosplit settings
                 self.gpu_split_auto = gpu_split_auto
 
-                autosplit_reserve_megabytes = unwrap(kwargs.get("autosplit_reserve"), [96])
-
-                # Reserve VRAM for each GPU
-                self.autosplit_reserve = [value / 1024 for value in autosplit_reserve_megabytes]
+        # A manual split states how much of each GPU to use, and exllamav3 takes
+        # either a reserve or a split, so the reserve is dropped for that model
+        if autosplit_reserve_megabytes != default_reserve:
+            if self.gpu_split:
+                xlogger.warning("autosplit_reserve is ignored when gpu_split is set.")
+            if self.draft_gpu_split:
+                xlogger.warning(
+                    "autosplit_reserve is ignored for the draft model when draft_gpu_split is set."
+                )
 
         if not hardware_supports_exllamav3(gpu_device_list):
             gpu_unsupported_message = (
                 "Unable to run ExllamaV3 because an unsupported GPU is "
                 "found in this configuration. \n"
-                "All GPUs must be ampere "
-                "(30 series) or newer. AMD GPUs are not supported."
+                "All GPUs must be turing "
+                "(20 series) or newer. AMD GPUs are not supported."
             )
 
             xlogger.warning(gpu_unsupported_message)
@@ -401,6 +419,18 @@ class ExllamaV3Container:
         default_mbs = 4 if self.model.caps.get("recurrent_states") else 128
         self.max_batch_size = unwrap(kwargs.get("max_batch_size"), default_mbs)
 
+        # Recurrent checkpoint intervals (None = engine defaults)
+        self.recurrent_checkpoint_interval = kwargs.get("recurrent_checkpoint_interval")
+        self.recurrent_checkpoint_interval_pp = kwargs.get("recurrent_checkpoint_interval_pp")
+        if (
+            self.recurrent_checkpoint_interval is not None
+            or self.recurrent_checkpoint_interval_pp is not None
+        ) and not self.model.caps.get("recurrent_states"):
+            xlogger.warning(
+                "recurrent_checkpoint_interval settings are ignored because "
+                "the model has no recurrent layers."
+            )
+
         # Create cache
         cache_mode_default = "FP16"
         self.cache_mode = unwrap(kwargs.get("cache_mode"), cache_mode_default)
@@ -421,18 +451,52 @@ class ExllamaV3Container:
         output_chunking = unwrap(kwargs.get("output_chunking"), True)
         self.max_rq_tokens = self.chunk_size if output_chunking else None
 
+        # Warm up kernels and graphs after loading, sized from the settings above
+        self.warmup_enabled = unwrap(kwargs.get("warmup"), False)
+
         # Template setup
         self.prompt_template = await find_prompt_template(
             kwargs.get("prompt_template"), model_directory
         )
 
-        # Tool calling
-        self.tool_format = kwargs.get("tool_format")
-        if self.tool_format and not is_supported_format(self.tool_format):
+        # Tool calling. "auto" resolves the format from the model itself: the
+        # literal markers its chat template renders around a tool call, the
+        # special tokens in its tokenizer and, as a tie-breaker, its architecture
+        template_text = self.prompt_template.raw_template if self.prompt_template else None
+        architecture = (self.hf_model.hf_config.architectures or [None])[0]
+
+        def has_token(token: str) -> bool:
+            return self.tokenizer.single_id(token) is not None
+
+        self.tool_format = kwargs.get("tool_format", "auto") or None
+        self.tool_format_evidence = "config"
+        if self.tool_format == "auto":
+            detection = detect_tool_format(template_text, has_token, architecture)
+            self.tool_format = detection.tool_format
+            self.tool_format_evidence = ", ".join(detection.evidence)
+            if detection.ambiguous:
+                xlogger.warning(
+                    "Could not auto-detect the tool call format: the model matches "
+                    + ", ".join(detection.ambiguous)
+                    + " equally. Set tool_format in the model config to choose one."
+                )
+            elif self.tool_format is None:
+                if template_text and "tools" in template_text:
+                    xlogger.warning(
+                        "No known tool call format matches this model's chat template, so "
+                        "tool calls will not be parsed. Set tool_format (and the reasoning "
+                        "tokens) manually in config.yml or the model's tabby_config.yml; "
+                        "see the Tool Calling docs for the supported formats."
+                    )
+                elif template_text:
+                    xlogger.info(
+                        "The chat template has no tool support; tool calls won't be parsed."
+                    )
+        elif not is_supported_format(self.tool_format):
             xlogger.warning(f"Unrecognized tool_format in config: {self.tool_format}")
             self.tool_format = None
         if self.tool_format:
-            xlogger.info(f"Using tool format: {self.tool_format}")
+            self.tool_format = canonical_format_name(self.tool_format)
 
         # Catch all for template lookup errors
         if self.prompt_template:
@@ -446,10 +510,15 @@ class ExllamaV3Container:
                 "template wasn't provided or auto-detected."
             )
 
-        # Reasoning mode
-        self.reasoning = kwargs.get("reasoning", False)
-        self.reasoning_start_token = kwargs.get("reasoning_start_token", "<think>")
-        self.reasoning_end_token = kwargs.get("reasoning_end_token", "</think>")
+        # Reasoning mode. "auto" tokens are resolved below, once the message
+        # format (Harmony, Glimmer or tags) is settled
+        self.reasoning = kwargs.get("reasoning", True)
+        self.reasoning_start_token = kwargs.get("reasoning_start_token", "auto")
+        self.reasoning_end_token = kwargs.get("reasoning_end_token", "auto")
+        self.reasoning_explicit = "auto" not in (
+            self.reasoning_start_token,
+            self.reasoning_end_token,
+        )
         self.tool_calls_in_reasoning = kwargs.get("tool_calls_in_reasoning", True)
 
         # Reasoning budget defaults, overridable per request
@@ -499,7 +568,7 @@ class ExllamaV3Container:
         self.harmony = bool(harmony)
         if self.harmony:
             xlogger.info("Using the Harmony format for reasoning and tool call parsing.")
-            if self.reasoning or (self.tool_format and self.tool_format != "harmony"):
+            if self.reasoning_explicit or (self.tool_format and self.tool_format != "harmony"):
                 xlogger.warning(
                     "Harmony supersedes the reasoning and tool format settings "
                     "in the model config; they will be ignored."
@@ -535,13 +604,54 @@ class ExllamaV3Container:
         self.muse_glimmer = bool(glimmer)
         if self.muse_glimmer:
             xlogger.info("Using the Muse Glimmer format for reasoning and tool call parsing.")
-            if self.reasoning or (
+            if self.reasoning_explicit or (
                 self.tool_format and self.tool_format not in ("muse_glimmer", "glimmer")
             ):
                 xlogger.warning(
                     "Muse Glimmer supersedes the reasoning and tool format "
                     "settings in the model config; they will be ignored."
                 )
+
+        # Resolve "auto" reasoning tokens. Harmony and Glimmer carry reasoning
+        # in their message structure, so tags don't apply there
+        reasoning_evidence = "config"
+        if self.harmony or self.muse_glimmer:
+            self.reasoning_start_token = None
+            self.reasoning_end_token = None
+        elif self.reasoning and not self.reasoning_explicit:
+            tags, reasoning_evidence = detect_reasoning_tags(
+                template_text, has_token, self.tool_format
+            )
+            if tags:
+                self.reasoning_start_token, self.reasoning_end_token = tags
+            else:
+                self.reasoning = False
+                self.reasoning_start_token = None
+                self.reasoning_end_token = None
+        elif not self.reasoning:
+            self.reasoning_start_token = None
+            self.reasoning_end_token = None
+
+        # One line saying what the server will parse and why
+        if self.harmony:
+            summary = "Harmony message format"
+        elif self.muse_glimmer:
+            summary = "Muse Glimmer message format"
+        else:
+            parts = []
+            if self.tool_format:
+                parts.append(f"tool format {self.tool_format} ({self.tool_format_evidence})")
+            else:
+                parts.append("no tool call parsing")
+            if self.reasoning:
+                parts.append(
+                    f"reasoning tags {self.reasoning_start_token} {self.reasoning_end_token} "
+                    f"({reasoning_evidence})"
+                )
+            else:
+                parts.append("no reasoning parsing")
+            summary = ", ".join(parts)
+        xlogger.info(f"Response parsing: {summary}")
 
         return self
 
@@ -597,12 +707,10 @@ class ExllamaV3Container:
 
     def log_recurrent_slot_cost(self):
         """
-        Logs the VRAM reserved for recurrent state slots when drafting is enabled.
+        Logs planned recurrent state storage when drafting is enabled.
 
-        Every batch slot of a recurrent (linear or sliding attention) model holds
-        max_history + 1 copies of the layer states, where max_history is the draft
-        length, so the allocation multiplies with both max_batch_size and
-        draft_num_tokens. It is reserved at load, before any request arrives.
+        Use the layer shapes: history layouts differ by architecture, and some
+        state tensors live on the CPU rather than the GPU.
         """
 
         recurrent_layers = getattr(self.cache, "recurrent_layers", None)
@@ -610,16 +718,14 @@ class ExllamaV3Container:
             return
 
         num_slots = self.cache.num_slots
-        num_states = self.cache.max_history + 1
         total_bytes = sum(layer.storage_size() for layer in recurrent_layers.values())
-        state_bytes = sum(layer.get_checkpoint_size() for layer in recurrent_layers.values())
         slot_word = "slot" if num_slots == 1 else "slots"
         hint = " Single-user setups can set max_batch_size: 1." if num_slots > 1 else ""
         xlogger.info(
-            f"Recurrent state history: {num_slots} {slot_word} x {num_states} states "
-            f"({self.cache.max_history} draft tokens + 1) of {state_bytes / 1024**2:.0f} MiB "
-            f"each, {total_bytes / 1024**2:.0f} MiB of VRAM "
-            f"({total_bytes / num_slots / 1024**2:.0f} MiB per slot).{hint}"
+            f"Recurrent state storage: {num_slots} {slot_word}, "
+            f"{total_bytes / 1024**2:.0f} MiB total "
+            f"({total_bytes / num_slots / 1024**2:.0f} MiB per slot), "
+            f"max_history: {self.cache.max_history}.{hint}"
         )
 
     def create_cache(self, raw_cache_mode: str, model: Model):
@@ -758,6 +864,12 @@ class ExllamaV3Container:
             async for value in iterate_in_threadpool(generator):
                 yield value
 
+            # Warm up before the generator attaches to the cache: the passes
+            # write into its leading pages and borrow recurrent-state slots
+            if self.warmup_enabled:
+                async for value in self.warmup_gen():
+                    yield value
+
             # Create async generator
             await self.create_generator()
 
@@ -775,11 +887,83 @@ class ExllamaV3Container:
             async with self.load_condition:
                 self.load_condition.notify_all()
 
+    async def warmup_gen(self):
+        """
+        Run exllamav3's warmup on the loaded model in a worker thread, yielding
+        (passes done, total passes) as it progresses so the caller can show a
+        bar. Pays kernel compilation, autotuning and graph capture up front for
+        the shapes this container will actually use. A failing pass is reported
+        by the engine and skipped; a failure of the whole routine is logged and
+        loading continues, since warmup is only an optimization.
+        """
+
+        loop = asyncio.get_running_loop()
+        progress: asyncio.Queue = asyncio.Queue()
+
+        def callback(done: int, total: int):
+            loop.call_soon_threadsafe(progress.put_nowait, (done, total))
+
+        # Match the decode step lengths the generator will run: single tokens,
+        # or draft windows plus the verified token when drafting is on
+        draft_tokens = 0
+        if self.use_draft_model or self.ngram_match_min:
+            draft_tokens = unwrap(self.draft_num_tokens, 4)
+        max_q_len = max(8, draft_tokens + 1)
+
+        finished = object()
+
+        @torch.inference_mode()
+        def run():
+            try:
+                return self.model.warmup(
+                    cache=self.cache,
+                    max_chunk_size=self.chunk_size,
+                    max_batch_size=self.max_batch_size,
+                    max_q_len=max_q_len,
+                    callback=callback,
+                )
+            finally:
+                # Queued after every progress callback, so the consumer below
+                # sees all of them before it stops
+                loop.call_soon_threadsafe(progress.put_nowait, finished)
+
+        started = time.perf_counter()
+        task = loop.run_in_executor(None, run)
+        announced = False
+        while True:
+            item = await progress.get()
+            if item is finished:
+                break
+            done, total = item
+            if not announced:
+                announced = True
+                yield 0, total
+            yield done, total
+
+        # The sentinel is queued from the worker before the executor future
+        # resolves, so wait for the result rather than reading it
+        try:
+            failures = await task
+        except Exception as exc:
+            xlogger.warning(f"Warmup failed and was skipped: {exc}")
+            return
+
+        elapsed = time.perf_counter() - started
+        if failures:
+            xlogger.warning(
+                f"Warmup finished in {elapsed:.1f} s with {len(failures)} failed pass(es): "
+                + ", ".join(failures)
+            )
+        else:
+            xlogger.info(f"Warmup finished in {elapsed:.1f} s")
+
     @torch.inference_mode()
     def load_model_sync(self, progress_callback=None):
+        # exllamav3 asserts on reserve_per_device and use_per_device together,
+        # so a model with a manual split gets the split and not the reserve
         if self.use_vision:
             for value in self.vision_model.load_gen(
-                reserve_per_device=self.autosplit_reserve,
+                reserve_per_device=None if self.gpu_split else self.autosplit_reserve,
                 use_per_device=self.gpu_split or None,
                 callback=progress_callback,
             ):
@@ -788,7 +972,9 @@ class ExllamaV3Container:
 
         if self.use_draft_model:
             for value in self.draft_model.load_gen(
-                reserve_per_device=self.autosplit_reserve,
+                reserve_per_device=(
+                    None if (self.gpu_split or self.draft_gpu_split) else self.autosplit_reserve
+                ),
                 use_per_device=self.draft_gpu_split or None,
                 callback=progress_callback,
             ):
@@ -807,7 +993,7 @@ class ExllamaV3Container:
         for value in self.model.load_gen(
             tensor_p=self.use_tp,
             tp_backend=self.tp_backend,
-            reserve_per_device=self.autosplit_reserve,
+            reserve_per_device=None if self.gpu_split else self.autosplit_reserve,
             use_per_device=self.gpu_split,
             callback=progress_callback,
             max_chunk_size=self.chunk_size,
@@ -836,6 +1022,18 @@ class ExllamaV3Container:
                 if self.generator is not None:
                     await self.generator.close()
 
+            # Recurrent checkpoint intervals are only passed when configured,
+            # so the engine defaults apply otherwise
+            checkpoint_kwargs = {}
+            if self.recurrent_checkpoint_interval is not None:
+                checkpoint_kwargs["recurrent_checkpoint_interval"] = (
+                    self.recurrent_checkpoint_interval
+                )
+            if self.recurrent_checkpoint_interval_pp is not None:
+                checkpoint_kwargs["recurrent_checkpoint_interval_pp"] = (
+                    self.recurrent_checkpoint_interval_pp
+                )
+
             # Create new generator
             self.generator = AsyncGenerator(
                 model=self.model,
@@ -850,11 +1048,22 @@ class ExllamaV3Container:
                 num_draft_tokens=self.draft_num_tokens,
                 dynamic_draft_tokens=self.dynamic_draft,
                 ngram_match_min=self.ngram_match_min,
+                **checkpoint_kwargs,
             )
 
             # Update the state of the container var
             if self.max_batch_size is None:
                 self.max_batch_size = self.generator.generator.max_batch_size
+
+            # Report the effective intervals (the engine rounds the ingestion
+            # interval up to a multiple of chunk_size)
+            generator = self.generator.generator
+            if checkpoint_kwargs and generator.recurrent_cache is not None:
+                xlogger.info(
+                    "Using recurrent checkpoint intervals: "
+                    f"{generator.recurrent_checkpoint_interval} tokens (generation), "
+                    f"{generator.recurrent_checkpoint_interval_pp} tokens (prompt ingestion)."
+                )
         finally:
             # This means the generator is being recreated
             # The load lock is already released in the load function
@@ -1302,6 +1511,16 @@ class ExllamaV3Container:
 
         return finish_chunk
 
+    @staticmethod
+    def _job_cached_tokens(job) -> int:
+        """Prompt tokens an enqueued job reused from the cache (whole pages plus a partial page)."""
+
+        inner = getattr(job, "job", None)
+        pages = getattr(inner, "cached_pages", 0) or 0
+        tokens = getattr(inner, "cached_tokens", 0) or 0
+        sequences = max(len(getattr(inner, "sequences", []) or []), 1)
+        return (pages * PAGE_SIZE + tokens) // sequences
+
     def _generator_latched(self) -> bool:
         """
         Whether the async generator is unusable. exllamav3 sets AsyncGenerator.error when
@@ -1532,6 +1751,10 @@ class ExllamaV3Container:
         generated_tokens = 0
         full_response = ""
         metrics_result = {}
+        # Only the OAI request types carry the flag; Kobold requests don't
+        return_progress = bool(getattr(params, "return_progress", False))
+        prefill_start_time: float | None = None
+        prefill_cached_tokens = 0
 
         # Get the generation status once it's ready
         try:
@@ -1540,9 +1763,28 @@ class ExllamaV3Container:
 
                 stage = result.get("stage")
                 if stage == "started":
-                    job_status.started(result.get("cached_tokens", 0))
+                    # The started event carries no counts; the job knows how
+                    # much of its prompt was found in the cache at allocation
+                    prefill_cached_tokens = self._job_cached_tokens(job)
+                    job_status.started(prefill_cached_tokens)
+                    prefill_start_time = time.time()
                 elif stage == "prefill":
                     job_status.prefill(result.get("curr_progress", 0))
+                    if return_progress and prefill_start_time is not None:
+                        # Time since the engine began prefill for this job. The
+                        # started event and the first prefill event often arrive
+                        # in the same batch, so the event stamp lags by a chunk
+                        started_at = getattr(job.job, "time_first_prefill", None)
+                        yield {
+                            "_prefill_progress": {
+                                "total": result.get("max_progress", 0),
+                                "cache": prefill_cached_tokens,
+                                "processed": result.get("curr_progress", 0),
+                                "time_ms": int(
+                                    (time.time() - (started_at or prefill_start_time)) * 1000
+                                ),
+                            }
+                        }
 
                 # The generator can produce several results per iteration
                 # (speculative decoding), while this consumer may only get one

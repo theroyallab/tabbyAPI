@@ -11,7 +11,11 @@ from asyncio import CancelledError
 from time import time
 
 from fastapi import HTTPException, Request
-from common.errors import ContextLengthExceededError, ContextLengthHTTPException
+from common.errors import (
+    ContextLengthExceededError,
+    ContextLengthHTTPException,
+    GrammarParseError,
+)
 from common.logger import xlogger
 from typing import List, Optional
 
@@ -30,8 +34,8 @@ from endpoints.OAI.types.completion import (
     CompletionRespChoice,
     chat_logprobs_to_completion_logprobs,
 )
-from endpoints.OAI.types.common import UsageStats
-from endpoints.OAI.utils.common_ import aggregate_usage_stats, get_usage_stats
+from endpoints.OAI.types.common import Timings, UsageStats
+from endpoints.OAI.utils.common_ import aggregate_usage_stats, get_timings, get_usage_stats
 
 
 def _gen_label(request: Request, endpoint: str, n: int, task_idx: int, stream: bool) -> str:
@@ -87,6 +91,8 @@ def _compose_response(
             if return_usage
             else None
         ),
+        # Timings describe one generation, so several choices report none
+        timings=(get_timings(generations[0]) if len(generations) == 1 else None),
     )
     return response
 
@@ -96,6 +102,7 @@ def _compose_serialize_stream_chunk(
     generation: Optional[dict] = None,
     model_name: Optional[str] = None,
     suppress_finish: bool = False,
+    timings: Optional[Timings] = None,
 ) -> (str, dict, str):
     """
     Compose a chat completion stream chunk from generation produced by _chat_stream_collector
@@ -110,7 +117,7 @@ def _compose_serialize_stream_chunk(
 
     choice = {
         "index": generation.get("index"),
-        "text": delta_content,
+        "text": delta_content or "",
         "finish_reason": finish_reason if not suppress_finish else None,
     }
     if not suppress_finish and finish_reason and generation.get("eos_reason"):
@@ -131,11 +138,20 @@ def _compose_serialize_stream_chunk(
     if model_name:
         data["model_name"] = model_name
 
+    # Prefill progress (llama.cpp's return_progress extension), top-level
+    # beside the choices, on an otherwise empty chunk
+    progress = generation.get("_prefill_progress")
+    if progress:
+        data["prompt_progress"] = progress
+
+    if timings is not None:
+        data["timings"] = timings.model_dump(mode="json")
+
     # Serialize
     s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
 
     # Check if no data
-    is_empty = not delta_content and not (finish_reason and not suppress_finish)
+    is_empty = not delta_content and not progress and not (finish_reason and not suppress_finish)
     return s, data, finish_reason, is_empty
 
 
@@ -145,6 +161,7 @@ def _compose_serialize_stream_usage_chunk(
     usage_index: int,
     last_finish_reason: str,
     model_name: Optional[str] = None,
+    timings: Optional[Timings] = None,
 ) -> (str, dict):
     """
     Compose a usage chunk to send at the end of a strema
@@ -167,6 +184,9 @@ def _compose_serialize_stream_usage_chunk(
 
     if model_name:
         data["model_name"] = model_name
+
+    if timings is not None:
+        data["timings"] = timings.model_dump(mode="json")
 
     # Serialize
     s = json.dumps(data, ensure_ascii=False)  # TODO: Investigate ensure_ascii
@@ -211,6 +231,13 @@ async def _stream_collector(
         generation = {"index": task_idx}
         async for generation in new_generation:
             generation["index"] = task_idx
+
+            # Forward prefill progress events straight to the stream
+            if "_prefill_progress" in generation:
+                if streaming_mode and gen_queue is not None:
+                    await gen_queue.put(generation)
+                continue
+
             delta_content = generation.get("text", "")
             full_content += delta_content
             finish_reason = generation.get("finish_reason")
@@ -312,12 +339,20 @@ async def stream_generate_completion(
             if isinstance(generation, Exception):
                 raise generation
 
+            # llama-server attaches timings to the stream's last chunk: the usage
+            # chunk when include_usage is set, otherwise the chunk carrying
+            # finish_reason. Timings describe one generation, so several choices
+            # or batch prompts report none.
+            timings = get_timings(generation) if total_n == 1 else None
+            suppress_finish = return_usage and remaining_n == 1
+
             # Create and serialize chunk
             chunk, _, finish_reason, is_empty = _compose_serialize_stream_chunk(
                 request.state.id,
                 generation,
                 model_path.name,
-                return_usage and remaining_n == 1,
+                suppress_finish,
+                None if suppress_finish else timings,
             )
             if not is_empty:
                 yield chunk
@@ -334,6 +369,7 @@ async def stream_generate_completion(
                             generation["index"],
                             finish_reason,
                             model_path.name,
+                            timings,
                         )
                         yield usage_chunk
                         xlogger.debug(
@@ -353,6 +389,9 @@ async def stream_generate_completion(
     except ContextLengthExceededError as exc:
         yield get_context_length_generator_error(str(exc))
 
+    except GrammarParseError as exc:
+        yield get_generator_error(str(exc), exc_info=False)
+
     except Exception as e:
         xlogger.error("Error during completion", str(e), details=f"\n{str(e)}")
         yield get_generator_error("Completion aborted. Please check the server console.")
@@ -371,7 +410,7 @@ async def generate_completion(
     """Non-streaming generate for completions"""
 
     gen_tasks: List[asyncio.Task] = []
-    return_usage = data.stream_options and data.stream_options.include_usage
+    return_usage = True  # non-streaming responses always carry usage
 
     if isinstance(prompts, str):
         prompts = [prompts]
@@ -430,6 +469,10 @@ async def generate_completion(
     except ContextLengthExceededError as exc:
         error_message = handle_request_error(str(exc), exc_info=False).error.message
         raise ContextLengthHTTPException(error_message) from exc
+
+    except GrammarParseError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise HTTPException(400, error_message) from exc
 
     except Exception as exc:
         error_message = handle_request_error(

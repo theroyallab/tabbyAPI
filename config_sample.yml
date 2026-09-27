@@ -86,8 +86,9 @@ model:
   model_dir: models
 
   # Allow direct loading of models from a completion or chat completion request (default: False).
-  # This method of loading is strict by default.
-  # Enable dummy models to add exceptions for invalid model names.
+  # This method of loading is strict: a request naming a model that doesn't exist or fails to load
+  # is rejected instead of running on the loaded model. Enable dummy models to add exceptions for
+  # model names that clients send without meaning a specific model.
   inline_model_loading: false
 
   # Sends dummy model names when the models endpoint is queried. (default: False)
@@ -140,8 +141,12 @@ model:
   # Not parsed for single GPU users.
   gpu_split_auto: true
 
-  # Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0).
+  # Reserve VRAM used when loading a model (default: 96 MB on GPU 0).
   # Represented as an array of MB per GPU.
+  # A negative value excludes that GPU from the model split, so
+  # excluding every GPU will fail to load.
+  # Ignored for a model whose placement is already set by gpu_split
+  # or draft_gpu_split.
   autosplit_reserve: [96]
 
   # Array of VRAM sizes to split between GPUs, in GB (default: []).
@@ -197,15 +202,36 @@ model:
   output_chunking: true
 
   # Set the maximum number of generation jobs that can run concurrently
-  # The default maximum batch size for transformer architectures is 32. Recurrent
+  # The default maximum batch size for transformer architectures is 128. Recurrent
   # models with linear or sliding attention use more VRAM to support larger batches,
   # so the default value is reduced to 4. If you do not require concurrency at all, you
   # can reduce it further to minimize VRAM overhead.
-  # With a draft model, every slot of a recurrent model reserves draft_num_tokens + 1
-  # copies of the recurrent state at load (728 MiB per slot for a 27B hybrid at the
-  # default draft length of 4; the total is logged at load), so single-user setups
-  # serving a recurrent model should set this to 1.
+  # Recurrent state storage is reserved per slot and depends on the architecture
+  # and draft length (for example, 728 MiB per slot for a 27B GDN hybrid with 4
+  # draft tokens). Planned state storage is logged when history is enabled; it
+  # does not include weights, the paged KV cache, or other runtime buffers.
+  # Single-user setups serving a recurrent model can set this to 1.
   max_batch_size:
+
+  # Tokens between recurrent state checkpoints near the end of the prompt and
+  # during generation (default: None, the engine's per-architecture default,
+  # 2048 for most models). Only used by models with recurrent (linear or sliding
+  # attention) layers. Must be a multiple of 256.
+  recurrent_checkpoint_interval:
+
+  # Tokens between recurrent state checkpoints during prompt ingestion, further
+  # than 2 * chunk_size from the end of the prompt (default: None, the engine
+  # default of 32768). Only used by models with recurrent layers. Must be a
+  # multiple of 256 and is rounded up to a multiple of chunk_size.
+  # Recurrent states cannot be rolled back, so a request that edits an earlier
+  # part of a cached prompt replays from the last checkpoint before the edit.
+  # With the default, a long prompt is only checkpointed near its end and an
+  # early edit costs a full re-prefill; with a denser grid the replay cost becomes
+  # proportional to the distance from the edit to the end of the prompt.
+  # Each checkpoint costs one recurrent state of system RAM (148 MiB for a 27B
+  # hybrid with 48 recurrent layers), bounded by memory.sysmem_recurrent_cache,
+  # and cold prefill is 2-3% slower at 2048 or 1024.
+  recurrent_checkpoint_interval_pp:
 
   # Set the prompt template for this model. (default: None)
   # If empty, attempts to look for the model's chat template.
@@ -216,6 +242,23 @@ model:
 
   # Enables vision support if the model supports it. (default: False)
   vision: false
+
+  # Sampler overrides for this model (default: None).
+  # Same syntax as the top-level sampling section: an optional override_preset plus any
+  # sampler written inline. Applied on top of the global sampling section while this model
+  # is loaded; meant for the model folder's tabby_config.yml. For example:
+  # sampling:
+  #   override_preset: my_model_preset
+  #   temperature:
+  #     override: 0.5
+  #     force: false
+  sampling:
+
+  # Warm up the model after loading (default: False).
+  # Runs a short schedule of forward passes so kernel compilation, autotuning and CUDA graph
+  # capture happen at load time instead of on the first requests. Adds some seconds to loading;
+  # sized from the cache, batch and chunk settings in effect.
+  warmup: false
 
   # Keep the vision model's weights in system RAM instead of VRAM (default: False).
   # Weights are stored in pinned host memory and streamed to the GPU during inference,
@@ -235,15 +278,19 @@ model:
   # as an alias for {enable_thinking: true}.
   template_vars_force: {}
 
-  # Enable reasoning parser (default: False).
-  # Do NOT enable this if the model is not a reasoning model (e.g. deepseek-r1 series)
-  reasoning: false
+  # Enable the reasoning parser (default: True).
+  # Splits the response into reasoning_content and content fields. With the tokens below
+  # left at auto, reasoning is only parsed when the model's template or tokenizer shows
+  # which tags it uses.
+  reasoning: true
 
-  # The start token for reasoning content (default: "<think>")
-  reasoning_start_token: "<think>"
+  # Start token for the reasoning parser (default: auto).
+  # auto takes the tags from the detected tool format or the chat template; set both
+  # tokens explicitly (e.g. "<think>" and "</think>") to override.
+  reasoning_start_token: auto
 
-  # The end token for reasoning content (default: "</think>")
-  reasoning_end_token: "</think>"
+  # End token for the reasoning parser (default: auto).
+  reasoning_end_token: auto
 
   # Whether generation starts inside a reasoning block (default: auto).
   # Options: auto, always, never
@@ -268,9 +315,11 @@ model:
   # per request via reasoning_budget_message.
   reasoning_budget_message:
 
-  # Tool format, e.g. 'qwen3_coder'. See docs for supported formats. If left blank,
-  # tool calls from the model will not be parsed by the server.
-  tool_format:
+  # Tool call format (default: auto).
+  # auto picks a parser from the model's chat template, tokenizer and architecture, and warns
+  # if none matches. Set a format name, e.g. 'qwen3_coder', to override; see the Tool Calling
+  # docs for the supported formats. Leave blank to disable tool call parsing.
+  tool_format: auto
 
   # Parse responses in the Harmony message format (gpt-oss models).
   # Auto-detected from the model's special tokens by default; set to true or false
@@ -340,6 +389,16 @@ sampling:
   # NOTE: safe_defaults is noob friendly and provides fallbacks for frontends that don't send sampling parameters.
   # for frontends that don't send sampling parameters. Leaving this blank means no fallbacks at all.
   override_preset: safe_defaults
+
+  # Individual overrides can also be written directly in this section, using the same
+  # syntax as a preset file. They apply on top of override_preset, or on their own if
+  # no preset is given. For example:
+  # temperature:
+  #   override: 0.5
+  #   force: false
+  # min_p:
+  #   override: 0.1
+  #   force: true
 
 # Options for Loras
 lora:

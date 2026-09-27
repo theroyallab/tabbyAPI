@@ -125,8 +125,24 @@ class ModelLoadRequest(BaseModel):
     )
     chunk_size: Optional[int] = None
     output_chunking: Optional[bool] = True
+    recurrent_checkpoint_interval: Optional[int] = Field(
+        description="Recurrent checkpoint interval during generation, multiple of 256",
+        default=None,
+        examples=[2048],
+        multiple_of=256,
+        gt=0,
+    )
+    recurrent_checkpoint_interval_pp: Optional[int] = Field(
+        description="Recurrent checkpoint interval during prompt ingestion, multiple of 256",
+        default=None,
+        examples=[2048],
+        multiple_of=256,
+        gt=0,
+    )
     prompt_template: Optional[str] = None
     vision: Optional[bool] = None
+    sampling: Optional[dict] = None
+    warmup: Optional[bool] = None
 
     # Non-config arguments
     draft_model: Optional[DraftModelLoadRequest] = None

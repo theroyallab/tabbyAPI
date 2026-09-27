@@ -916,3 +916,27 @@ class Lfm2ToolcallFormatTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Spark25ToolcallFormatTests(unittest.TestCase):
+    """
+    Spark X2.5's template renders tool calls in the GLM4.5 shape (bare
+    <tool_call>NAME<arg_key>..</arg_key><arg_value>..</arg_value></tool_call>,
+    all added tokens in its tokenizer), and the model emits exactly that, so
+    spark2_5 is an alias of the glm4_5 parser.
+    """
+
+    def test_alias_and_parse(self):
+        from endpoints.OAI.utils.tools import get_toolcall_tags, parse_toolcalls
+
+        self.assertEqual(get_toolcall_tags("spark2_5"), ("<tool_call>", "</tool_call>"))
+        calls = parse_toolcalls(
+            "<tool_call>add<arg_key>a</arg_key><arg_value>2</arg_value>"
+            "<arg_key>b</arg_key><arg_value>3</arg_value></tool_call>"
+            "<tool_call>get_weather<arg_key>city</arg_key><arg_value>Tokyo</arg_value></tool_call>",
+            "spark2_5",
+        )
+        self.assertEqual(
+            [(c.function.name, c.function.arguments) for c in calls],
+            [("add", '{"a": 2, "b": 3}'), ("get_weather", '{"city": "Tokyo"}')],
+        )

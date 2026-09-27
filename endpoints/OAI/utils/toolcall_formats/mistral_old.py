@@ -2,6 +2,7 @@ import re
 import json
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature
 
 """
 Mistral family, v2-v7 - JSON list
@@ -23,6 +24,13 @@ There is no end token; tool calls simply appear at the end of the response strea
 
 TOOLCALL_START = "[TOOL_CALLS]"
 TOOLCALL_END = None
+
+DETECT = FormatSignature(
+    template_markers=("[TOOL_CALLS]",),
+    template_exclude=("[ARGS]",),
+    special_tokens=("[TOOL_CALLS]",),
+    architectures=("Mistral",),
+)
 
 # Match [TOOL_CALLS] followed by a JSON array
 _TOOLCALL_BLOCK = re.compile(r"\[TOOL_CALLS]\s*(\[.*])", re.DOTALL)

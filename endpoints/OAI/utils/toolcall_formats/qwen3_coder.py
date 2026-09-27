@@ -2,7 +2,7 @@ import re
 import json
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
-from endpoints.OAI.utils.toolcall_formats.common import coerce_param_value
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, coerce_param_value
 
 """
 Qwen3.5 / Qwen3-Coder - pseudo-XML syntax
@@ -27,6 +27,13 @@ Raw format:
 
 TOOLCALL_START = "<tool_call>"
 TOOLCALL_END = "</tool_call>"
+
+DETECT = FormatSignature(
+    template_markers=("<tool_call>", "<function="),
+    special_tokens=("<tool_call>", "</tool_call>"),
+    architectures=("Qwen3_5", "Qwen3Next", "Qwen4", "Qwen3Coder", "Step3", "NemotronH"),
+    reasoning_tags=("<think>", "</think>"),
+)
 
 _OUTER = re.compile(r"<tool_call>(.*?)</tool_call>", re.DOTALL)
 _FUNC = re.compile(r"<function=([^>\s]+)[^>]*>(.*?)</function>", re.DOTALL)

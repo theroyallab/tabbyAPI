@@ -72,8 +72,7 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
     async with load_lock:
         if data.model:
             await load_inline_model(data.model, request)
-        else:
-            await check_model_container()
+        await check_model_container()
         model_path = model.container.model_dir
 
     # Prepare raw prompt (will be str or list[str])
@@ -127,8 +126,7 @@ async def chat_completion_request(
     async with load_lock:
         if data.model:
             await load_inline_model(data.model, request)
-        else:
-            await check_model_container()
+        await check_model_container()
         model_path = model.container.model_dir
 
     # Prepare raw prompt

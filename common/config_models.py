@@ -179,8 +179,10 @@ class ModelConfig(BaseConfigModel):
         description=(
             "Allow direct loading of models "
             "from a completion or chat completion request (default: False).\n"
-            "This method of loading is strict by default.\n"
-            "Enable dummy models to add exceptions for invalid model names."
+            "This method of loading is strict: a request naming a model that\n"
+            "doesn't exist or fails to load is rejected instead of running on the\n"
+            "loaded model. Enable dummy models to add exceptions for model names\n"
+            "that clients send without meaning a specific model."
         ),
     )
     use_dummy_models: Optional[bool] = Field(
@@ -274,8 +276,12 @@ class ModelConfig(BaseConfigModel):
     autosplit_reserve: List[float] = Field(
         [96],
         description=(
-            "Reserve VRAM used for autosplit loading (default: 96 MB on GPU 0).\n"
-            "Represented as an array of MB per GPU."
+            "Reserve VRAM used when loading a model (default: 96 MB on GPU 0).\n"
+            "Represented as an array of MB per GPU.\n"
+            "A negative value excludes that GPU from the model split, so\n"
+            "excluding every GPU will fail to load.\n"
+            "Ignored for a model whose placement is already set by gpu_split\n"
+            "or draft_gpu_split."
         ),
     )
     gpu_split: List[float] = Field(
@@ -366,16 +372,47 @@ class ModelConfig(BaseConfigModel):
         None,
         description=(
             "Set the maximum number of generation jobs that can run concurrently\n"
-            "The default maximum batch size for transformer architectures is 32. Recurrent\n"
+            "The default maximum batch size for transformer architectures is 128. Recurrent\n"
             "models with linear or sliding attention use more VRAM to support larger batches,\n"
             "so the default value is reduced to 4. If you do not require concurrency at all, you\n"
             "can reduce it further to minimize VRAM overhead.\n"
-            "With a draft model, every slot of a recurrent model reserves draft_num_tokens + 1\n"
-            "copies of the recurrent state at load (728 MiB per slot for a 27B hybrid at the\n"
-            "default draft length of 4; the total is logged at load), so single-user setups\n"
-            "serving a recurrent model should set this to 1."
+            "Recurrent state storage is reserved per slot and depends on the architecture\n"
+            "and draft length (for example, 728 MiB per slot for a 27B GDN hybrid with 4\n"
+            "draft tokens). Planned state storage is logged when history is enabled; it\n"
+            "does not include weights, the paged KV cache, or other runtime buffers.\n"
+            "Single-user setups serving a recurrent model can set this to 1."
         ),
         ge=1,
+    )
+    recurrent_checkpoint_interval: Optional[int] = Field(
+        None,
+        description=(
+            "Tokens between recurrent state checkpoints near the end of the prompt and\n"
+            "during generation (default: None, the engine's per-architecture default,\n"
+            "2048 for most models). Only used by models with recurrent (linear or sliding\n"
+            "attention) layers. Must be a multiple of 256."
+        ),
+        multiple_of=256,
+        gt=0,
+    )
+    recurrent_checkpoint_interval_pp: Optional[int] = Field(
+        None,
+        description=(
+            "Tokens between recurrent state checkpoints during prompt ingestion, further\n"
+            "than 2 * chunk_size from the end of the prompt (default: None, the engine\n"
+            "default of 32768). Only used by models with recurrent layers. Must be a\n"
+            "multiple of 256 and is rounded up to a multiple of chunk_size.\n"
+            "Recurrent states cannot be rolled back, so a request that edits an earlier\n"
+            "part of a cached prompt replays from the last checkpoint before the edit.\n"
+            "With the default, a long prompt is only checkpointed near its end and an\n"
+            "early edit costs a full re-prefill; with a denser grid the replay cost becomes\n"
+            "proportional to the distance from the edit to the end of the prompt.\n"
+            "Each checkpoint costs one recurrent state of system RAM (148 MiB for a 27B\n"
+            "hybrid with 48 recurrent layers), bounded by memory.sysmem_recurrent_cache,\n"
+            "and cold prefill is 2-3% slower at 2048 or 1024."
+        ),
+        multiple_of=256,
+        gt=0,
     )
     prompt_template: Optional[str] = Field(
         None,
@@ -391,13 +428,17 @@ class ModelConfig(BaseConfigModel):
         False,
         description=("Enables vision support if the model supports it. (default: False)"),
     )
-    vision_offload: Optional[bool] = Field(
-        False,
+    sampling: Optional[dict] = Field(
+        None,
         description=(
-            "Keep the vision model's weights in system RAM instead of VRAM\n"
-            "(default: False). Weights are stored in pinned host memory and\n"
-            "streamed to the GPU during inference, trading vision speed for\n"
-            "VRAM. Only applies when vision is enabled."
+            "Sampler overrides for this model (default: None).\n"
+            "Same syntax as the top-level sampling section: an optional\n"
+            "override_preset naming a file in sampler_overrides, plus any sampler\n"
+            "written inline as {override, force, additive}. Applied on top of the\n"
+            "global sampling section while this model is loaded. Meant for the\n"
+            "model folder's tabby_config.yml so each model can carry its own\n"
+            "sampling defaults; request parameters still take precedence unless\n"
+            "an override is forced."
         ),
     )
     template_vars_default: dict = Field(
@@ -421,19 +462,25 @@ class ModelConfig(BaseConfigModel):
         description=("DEPRECATED: Equivalent to template_vars_force: {enable_thinking: true}."),
     )
     reasoning: bool = Field(
-        False,
+        True,
         description=(
-            "Enable the reasoning parser (default: False).\n"
-            "Split response message into reasoning_content and content fields."
+            "Enable the reasoning parser (default: True).\n"
+            "Splits the response into reasoning_content and content fields. With the\n"
+            "tokens below left at auto, reasoning is only parsed when the model's\n"
+            "template or tokenizer shows which tags it uses."
         ),
     )
     reasoning_start_token: str = Field(
-        "<think>",
-        description="Start token for the reasoning parser (default: <think>).",
+        "auto",
+        description=(
+            "Start token for the reasoning parser (default: auto).\n"
+            "auto takes the tags from the detected tool format or the chat template;\n"
+            "set both tokens explicitly to override."
+        ),
     )
     reasoning_end_token: str = Field(
-        "</think>",
-        description="End token for the reasoning parser (default: </think>).",
+        "auto",
+        description="End token for the reasoning parser (default: auto).",
     )
     start_in_reasoning: str = Field(
         "auto",
@@ -476,10 +523,12 @@ class ModelConfig(BaseConfigModel):
         ),
     )
     tool_format: Optional[str] = Field(
-        None,
+        "auto",
         description=(
-            "Tool format, e.g. 'qwen3_coder'. See docs for supported formats. If left blank, \n"
-            "tool calls from the model will not be parsed by the server."
+            "Tool call format (default: auto). auto picks a parser from the model's\n"
+            "chat template, tokenizer and architecture, and warns if none matches.\n"
+            "Set a format name, e.g. 'qwen3_coder', to override; see the Tool Calling\n"
+            "docs for the supported formats. Leave blank to disable tool call parsing."
         ),
     )
     harmony: Optional[bool] = Field(
@@ -549,11 +598,13 @@ class DraftModelConfig(BaseConfigModel):
             "or auto-calculate."
         ),
     )
-    draft_cache_mode: Optional[CACHE_SIZES] = Field(
+    draft_cache_mode: Optional[CACHE_TYPE] = Field(
         "FP16",
         description=(
             "Cache mode for draft models to save VRAM (default: FP16).\n"
-            f"Possible values: {str(CACHE_SIZES)[15:-1]}."
+            "Specify the pair k_bits,v_bits where k_bits and v_bits "
+            "are integers from 2-8 (i.e. 8,8).\n"
+            f"The legacy values {str(CACHE_SIZES)[15:-1]} are also accepted."
         ),
     )
     draft_gpu_split: List[float] = Field(
@@ -589,7 +640,18 @@ class DraftModelConfig(BaseConfigModel):
 
 
 class SamplingConfig(BaseConfigModel):
-    """Options for Sampling"""
+    """
+    Options for Sampling. Besides override_preset, any sampler name may appear
+    directly in this section as an inline override, e.g.
+
+        temperature:
+          override: 0.5
+          force: false
+
+    Inline overrides apply on top of the preset, or on their own without one.
+    """
+
+    model_config = ConfigDict(extra="allow")
 
     override_preset: Optional[str] = Field(
         None,
@@ -601,9 +663,17 @@ class SamplingConfig(BaseConfigModel):
             "NOTE: safe_defaults provides llama.cpp-style fallbacks (temperature 0.8, "
             "top_k 40, top_p 0.95, min_p 0.05)\n"
             "for frontends that don't send sampling parameters. Leaving this blank "
-            "means no fallbacks at all."
+            "means no fallbacks at all.\n"
+            "Individual overrides can also be written directly in this section\n"
+            "(e.g. temperature: {override: 0.5, force: false}); they apply on top\n"
+            "of the preset, or on their own if no preset is given."
         ),
     )
+
+    def inline_overrides(self) -> dict:
+        """Sampler overrides written directly in this section, keyed by sampler name."""
+
+        return dict(self.model_extra or {})
 
 
 class LoraInstanceModel(BaseConfigModel):
