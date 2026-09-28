@@ -423,6 +423,25 @@ class ModelConfig(BaseConfigModel):
         False,
         description=("Enables vision support if the model supports it. (default: False)"),
     )
+    vision_offload: Optional[bool] = Field(
+        False,
+        description=(
+            "Keep the vision model's weights in system RAM instead of VRAM\n"
+            "(default: False). Weights are stored in pinned host memory and\n"
+            "streamed to the GPU during inference, trading vision speed for\n"
+            "VRAM. Only applies when vision is enabled."
+        ),
+    )
+    warmup: Optional[bool] = Field(
+        False,
+        description=(
+            "Warm up the model after loading (default: False).\n"
+            "Runs a short schedule of forward passes so kernel compilation, autotuning\n"
+            "and CUDA graph capture happen at load time instead of on the first\n"
+            "requests. Adds some seconds to loading; sized from the cache, batch and\n"
+            "chunk settings in effect."
+        ),
+    )
     sampling: Optional[dict] = Field(
         None,
         description=(
