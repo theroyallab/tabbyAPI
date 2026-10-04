@@ -979,7 +979,14 @@ class ExllamaV3Container:
                 yield value
 
     async def create_generator(self):
-        """Create and save a Exllama generator class."""
+        """
+        Create and save a Exllama generator class.
+
+        When a generator already exists (recovery after a latched generation
+        error) it is closed, dereferenced and garbage collected before the
+        replacement is constructed, so the two never hold their host-side caches
+        at the same time.
+        """
 
         try:
             # Don't acquire locks unless a model is loaded
@@ -997,6 +1004,18 @@ class ExllamaV3Container:
                 # After a latch the task has already exited, so this is a no-op there.
                 if self.generator is not None:
                     await self.generator.close()
+
+                    # close() only releases the CPU K/V page cache tier. The old
+                    # Generator still owns its recurrent checkpoint cache (up to
+                    # sysmem_recurrent_cache of system RAM) and its pinned staging
+                    # buffers until it is collected, and the generator/page table
+                    # reference cycle keeps it alive until the cyclic GC runs. Held
+                    # through the constructor below, the old and the new caches are
+                    # resident at once, which on a host sized for one set means
+                    # swapping or the OOM killer in the middle of recovery.
+                    self.generator = None
+                    gc.collect()
+                    torch.cuda.empty_cache()
 
             # Recurrent checkpoint intervals are only passed when configured,
             # so the engine defaults apply otherwise
