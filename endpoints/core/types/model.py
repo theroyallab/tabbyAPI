@@ -1,10 +1,12 @@
 """Contains model card types."""
 
-from pydantic import BaseModel, Field, ConfigDict
+import difflib
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from time import time
-from typing import List, Literal, Optional, Union
+from typing import ClassVar, List, Literal, Optional, Union
 
 from common.config_models import LoggingConfig
+from common.logger import xlogger
 from common.tabby_config import config
 
 
@@ -61,13 +63,46 @@ class ModelList(BaseModel):
     data: List[ModelCard] = Field(default_factory=list)
 
 
-class DraftModelLoadRequest(BaseModel):
+class _WarnOnUnknownFields(BaseModel):
+    """
+    Load requests ignore keys they don't know, so existing clients keep working,
+    but a silently dropped option is hard to notice. Log each unknown key once
+    per request, with the closest known option when it looks like a typo.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _warn_unknown_fields(cls, values):
+        if not isinstance(values, dict):
+            return values
+
+        known = set(cls.model_fields)
+        for name in values:
+            if name in known:
+                continue
+            close = difflib.get_close_matches(name, known, n=1, cutoff=0.75)
+            hint = f' Did you mean "{close[0]}"?' if close else ""
+            xlogger.warning(
+                f'Ignoring unknown option "{name}" in {cls._request_label} request.{hint}'
+            )
+
+        return values
+
+
+class DraftModelLoadRequest(_WarnOnUnknownFields):
     """Represents a draft model load request."""
 
-    # Required
-    draft_model_name: str
+    _request_label: ClassVar[str] = "the draft_model block of a model load"
+
+    # Not needed for the mtp and ngram draft modes
+    draft_model_name: Optional[str] = None
 
     # Config arguments
+    draft_mode: Optional[Literal["model", "disabled", "mtp", "ngram"]] = None
+    draft_cache_mode: Optional[str] = None
+    draft_num_tokens: Optional[int] = None
+    dynamic_draft: Optional[bool] = None
+    ngram_match_min: Optional[int] = None
     draft_rope_scale: Optional[float] = None
     draft_rope_alpha: Optional[Union[float, Literal["auto"]]] = Field(
         description='Automatically calculated if set to "auto"',
@@ -80,8 +115,14 @@ class DraftModelLoadRequest(BaseModel):
     )
 
 
-class ModelLoadRequest(BaseModel):
-    """Represents a model load request."""
+class ModelLoadRequest(_WarnOnUnknownFields):
+    """
+    Represents a model load request. Options left out fall back to the model
+    folder's tabby_config.yml, then the config's use_as_default keys, then the
+    backend defaults.
+    """
+
+    _request_label: ClassVar[str] = "a model load"
 
     # Avoids pydantic namespace warning
     model_config = ConfigDict(protected_namespaces=[])
@@ -139,10 +180,39 @@ class ModelLoadRequest(BaseModel):
         multiple_of=256,
         gt=0,
     )
+    max_batch_size: Optional[int] = None
     prompt_template: Optional[str] = None
     vision: Optional[bool] = None
+    vision_offload: Optional[bool] = None
     sampling: Optional[dict] = None
     warmup: Optional[bool] = None
+
+    # Memory and offload
+    ngram_ram: Optional[bool] = None
+    embed_stream_from_disk: Optional[bool] = None
+    cpu_moe_offload_layers: Optional[int] = None
+    cpu_moe_split_experts: Optional[int] = None
+    cpu_moe_threads: Optional[int] = None
+
+    # Template variables
+    template_vars_default: Optional[dict] = None
+    template_vars_force: Optional[dict] = None
+    force_enable_thinking: Optional[bool] = None
+
+    # Reasoning and tool call parsing
+    reasoning: Optional[bool] = None
+    reasoning_start_token: Optional[str] = None
+    reasoning_end_token: Optional[str] = None
+    start_in_reasoning: Optional[str] = None
+    tool_calls_in_reasoning: Optional[bool] = None
+    reasoning_budget_tokens: Optional[int] = None
+    reasoning_budget_message: Optional[str] = None
+    tool_format: Optional[str] = Field(
+        default=None,
+        description='Format name, "auto", or an empty string to disable tool call parsing',
+    )
+    harmony: Optional[bool] = None
+    muse_glimmer: Optional[bool] = None
 
     # Non-config arguments
     draft_model: Optional[DraftModelLoadRequest] = None
