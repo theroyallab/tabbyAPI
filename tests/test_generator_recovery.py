@@ -1,12 +1,14 @@
 """Tests for generator recovery after a generation error (PR #461)."""
 
 import asyncio
+import weakref
 from types import SimpleNamespace
 
 import pytest
 
 pytest.importorskip("exllamav3")
 
+import backends.exllamav3.model as model_module  # noqa: E402
 from backends.exllamav3.model import ExllamaV3Container  # noqa: E402
 from common.health import HealthManager  # noqa: E402
 
@@ -95,3 +97,64 @@ def test_wrapper_without_latch_attribute_recreates():
 
     assert container.recreations == 1
     assert len(HealthManager.issues) == 1
+
+
+class LatchedAsyncGenerator:
+    """Stand-in for the old exllamav3 AsyncGenerator after its iteration task died."""
+
+    def __init__(self, closed):
+        self.error = RuntimeError("engine died")
+        self.closed = closed
+
+    async def close(self):
+        self.closed.append(True)
+
+
+def make_loaded_container(generator):
+    container = ExllamaV3Container.__new__(ExllamaV3Container)
+    container.loaded = True
+    container.load_lock = asyncio.Lock()
+    container.load_condition = asyncio.Condition()
+    container.active_job_ids = {}
+    container.generator = generator
+    container.model = None
+    container.cache = None
+    container.draft_model = None
+    container.draft_cache = None
+    container.tokenizer = None
+    container.max_batch_size = 4
+    container.chunk_size = 1024
+    container.draft_num_tokens = None
+    container.dynamic_draft = False
+    container.ngram_match_min = 0
+    container.recurrent_checkpoint_interval = None
+    container.recurrent_checkpoint_interval_pp = None
+    return container
+
+
+def test_recreation_releases_old_generator_before_constructing_the_new_one(monkeypatch):
+    closed = []
+    old = LatchedAsyncGenerator(closed)
+    old_ref = weakref.ref(old)
+    container = make_loaded_container(old)
+    del old
+
+    observed = {}
+
+    class NewAsyncGenerator:
+        def __init__(self, **kwargs):
+            # The old generator and its host caches must be gone by the time the
+            # replacement allocates its own
+            observed["closed"] = list(closed)
+            observed["reference_dropped"] = container.generator is None
+            observed["old_collected"] = old_ref() is None
+            self.error = None
+            self.generator = SimpleNamespace(max_batch_size=4, recurrent_cache=None)
+
+    monkeypatch.setattr(model_module, "AsyncGenerator", NewAsyncGenerator)
+
+    asyncio.run(container.create_generator())
+
+    assert observed == {"closed": [True], "reference_dropped": True, "old_collected": True}
+    assert isinstance(container.generator, NewAsyncGenerator)
+    assert not container.load_lock.locked()
