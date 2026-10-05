@@ -32,6 +32,15 @@ async def entrypoint_async():
     host = config.network.host
     port = config.network.port
 
+    # Say so up front if the installed PyTorch can't use a GPU, rather than
+    # leaving it to surface as an obscure failure on the first model load
+    if dependencies.torch:
+        from common.hardware import torch_gpu_problem
+
+        gpu_problem = torch_gpu_problem()
+        if gpu_problem:
+            logger.error(gpu_problem)
+
     # Check if the port is available and attempt to bind a fallback
     if is_port_in_use(port):
         fallback_port = port + 1

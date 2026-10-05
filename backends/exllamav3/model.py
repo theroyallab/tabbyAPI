@@ -37,7 +37,7 @@ from common.gen_logging import (
     log_prompt,
     log_request_start,
 )
-from common.hardware import hardware_supports_exllamav3
+from common.hardware import hardware_supports_exllamav3, torch_gpu_problem
 from common.health import HealthManager
 from common.errors import ContextLengthExceededError, validate_context_requirements
 from common.logger import xlogger
@@ -364,12 +364,16 @@ class ExllamaV3Container:
                     "autosplit_reserve is ignored for the draft model when draft_gpu_split is set."
                 )
 
+        # A CPU-only PyTorch or a GPU build without devices can't load anything
+        gpu_problem = torch_gpu_problem()
+        if gpu_problem:
+            raise RuntimeError(gpu_problem)
+
         if not hardware_supports_exllamav3(gpu_device_list):
             gpu_unsupported_message = (
                 "Unable to run ExllamaV3 because an unsupported GPU is "
                 "found in this configuration. \n"
-                "All GPUs must be turing "
-                "(20 series) or newer. AMD GPUs are not supported."
+                "All NVIDIA GPUs must be turing (20 series) or newer."
             )
 
             xlogger.warning(gpu_unsupported_message)
