@@ -1,4 +1,5 @@
 import asyncio
+from dataclasses import dataclass
 import gc
 import pathlib
 import re
@@ -88,6 +89,60 @@ def _merge_stream_results(results: List[dict]) -> dict:
     return merged
 
 
+@dataclass
+class JobPhases:
+    """
+    The two sets of swappable settings of a running job: one for the model's
+    reasoning block, one for the rest of the response. Grammar filters belong
+    to the content phase only, so reasoning stays free-form.
+    """
+
+    job: Any
+    content_sampler: Any
+    reasoning_sampler: Any
+    content_banned: List[str]
+    reasoning_banned: List[str]
+    content_filters: list
+    reasoning: bool
+
+    # The content filters are on the job already, armed by the end-of-reasoning
+    # token: the engine activates them on the exact token, where a switch made
+    # from here lands a few tokens late (see set_generation_phase)
+    engine_trigger: bool = False
+
+    def differ(self) -> bool:
+        return bool(
+            self.content_filters
+            or self.reasoning_sampler is not self.content_sampler
+            or self.reasoning_banned != self.content_banned
+        )
+
+
+def reasoning_tag_conflicts(end_tag: Optional[str], strings: list) -> List[str]:
+    """
+    Stop strings and banned strings that contain the end-of-reasoning tag.
+    Text matching such a string is held back or rewound by the generator, so
+    the switch to the content settings can come late or not at all.
+    """
+
+    if not end_tag:
+        return []
+    tag = end_tag.lower()
+    return [s for s in strings if isinstance(s, str) and tag in s.lower()]
+
+
+def _describe_reasoning_settings(reasoning_params: BaseSamplerRequest) -> str:
+    """The reasoning-phase overrides as "name: value (source)" items."""
+
+    parts = []
+    for name, value, source in reasoning_params.reasoning_settings():
+        if isinstance(value, (list, dict)):
+            unit = "tokens" if name in ("banned_tokens", "logit_bias") else "strings"
+            value = f"{len(value)} {unit}"
+        parts.append(f"{name}: {value} ({source})")
+    return ", ".join(parts)
+
+
 class ExllamaV3Container:
     """Model container for the ExLlamaV3 backend."""
 
@@ -113,6 +168,7 @@ class ExllamaV3Container:
     # The lock keeps load tasks sequential
     # The condition notifies any waiting tasks
     active_job_ids: Dict[str, Any]
+    job_phases: Dict[str, JobPhases]
     loaded: bool = False
     load_lock: asyncio.Lock
     load_condition: asyncio.Condition
@@ -152,6 +208,7 @@ class ExllamaV3Container:
         # Mutable state must be created per instance. A class-level default
         # would be a single object shared by every container.
         self.active_job_ids = {}
+        self.job_phases = {}
         self.load_lock = asyncio.Lock()
         self.load_condition = asyncio.Condition()
         self.autosplit_reserve = [96 / 1024]
@@ -1287,7 +1344,7 @@ class ExllamaV3Container:
         params: BaseSamplerRequest,
         disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
-        filter_trigger: str = None,
+        reasoning_phase: Optional[bool] = None,
         label: Optional[str] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """
@@ -1299,8 +1356,12 @@ class ExllamaV3Container:
             params: Sampling and generation parameters.
             disconnect_handler: Disconnect context
             mm_embeddings: Optional multimodal embeddings.
-            filter_trigger: Delay filters (from params) until trigger text.
-                Must map to single token.
+            reasoning_phase: Whether the response starts inside a reasoning
+                block, for callers that track reasoning and report changes
+                through set_generation_phase(). While reasoning, the request's
+                reasoning overrides apply and grammar filters are off. None
+                (default) for callers that don't: one set of settings and
+                filters from the first token.
             label: Short name for the request in console logs.
 
         Yields:
@@ -1329,13 +1390,67 @@ class ExllamaV3Container:
                 params=params,
                 disconnect_handler=disconnect_handler,
                 mm_embeddings=mm_embeddings,
-                filter_trigger=filter_trigger,
+                reasoning_phase=reasoning_phase,
                 label=label,
             ):
                 yield generation_chunk
         finally:
             # Clean up and remove the job from active IDs
             del self.active_job_ids[request_id]
+
+    def set_generation_phase(self, request_id: str, reasoning: bool) -> bool:
+        """
+        Tell an active job that the response entered (True) or left (False) a
+        reasoning block, swapping in that phase's sampler, banned strings and
+        grammar filters. The swap applies from the next token the generator
+        samples; tokens it sampled ahead of the caller keep the old settings.
+        With speculative decoding that can be several tokens, which a sampler
+        tolerates and a grammar does not: it would start mid-answer. So where
+        the end-of-reasoning tag is a single token, the filters for the first
+        content block are armed by the engine on that token instead, and only
+        the cases it can't cover are switched from here.
+
+        Returns False if the swap has to wait (a forced-output injection is
+        still draining) and should be retried on the next chunk.
+        """
+
+        phases = self.job_phases.get(request_id)
+        if phases is None or phases.reasoning == reasoning:
+            return True
+
+        job = phases.job
+        if phases.content_filters:
+            # A forced-output injection (reasoning budget) switches a job's
+            # filters off, trigger included, so they have to be set again
+            suspended = getattr(getattr(job, "job", None), "filters_suspended", False)
+            if phases.engine_trigger and not reasoning and not suspended:
+                # The engine armed them itself when it sampled the end tag
+                phases.engine_trigger = False
+            else:
+                # Set from here they apply at once; the tag they were to wait
+                # for has passed
+                for content_filter in phases.content_filters:
+                    content_filter.trigger_token = None
+                phases.engine_trigger = False
+                try:
+                    job.set_filters([] if reasoning else phases.content_filters)
+                except ValueError:
+                    return False
+
+        if phases.reasoning_sampler is not phases.content_sampler:
+            job.set_sampler(phases.reasoning_sampler if reasoning else phases.content_sampler)
+
+        if phases.reasoning_banned != phases.content_banned:
+            try:
+                job.set_banned_strings(
+                    phases.reasoning_banned if reasoning else phases.content_banned
+                )
+            except AssertionError as ex:
+                # Recurrent models limit the length of a banned string
+                xlogger.warning(f"Could not switch banned strings: {ex}")
+
+        phases.reasoning = reasoning
+        return True
 
     def constrain_generation_output(self, request_id: str, text: str) -> bool:
         """
@@ -1558,7 +1673,7 @@ class ExllamaV3Container:
         params: BaseSamplerRequest,
         disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
-        filter_trigger: str = None,
+        reasoning_phase: Optional[bool] = None,
         label: Optional[str] = None,
     ):
         """
@@ -1580,6 +1695,15 @@ class ExllamaV3Container:
         )
         sampler = sampler_builder.build(params.temperature == 0)
         settings = list(sampler_builder.settings)
+
+        # A second stack for the reasoning block, if the request or the
+        # sampling config overrides anything there
+        reasoning_params = params.reasoning_params() if reasoning_phase is not None else None
+        reasoning_sampler = sampler
+        if reasoning_params is not None:
+            reasoning_sampler = ExllamaV3SamplerBuilder.from_params(
+                reasoning_params, self.tokenizer, self.max_seq_len
+            ).build(reasoning_params.temperature == 0)
 
         # Dynamically scale penalty range to output tokens
         # Only do this if freq/pres pen is enabled
@@ -1649,30 +1773,69 @@ class ExllamaV3Container:
             label,
         )
 
-        if params.json_schema or params.regex_pattern or params.grammar_string:
-            if filter_trigger is not None:
-                trigger_token_id = self.tokenizer.single_id(filter_trigger)
-                if trigger_token_id is None:
-                    xlogger.warning(
-                        "Unable to set trigger token for filters: no token ID for "
-                        f"`{filter_trigger}`."
-                    )
-            else:
-                trigger_token_id = None
+        # Grammar filters constrain the content only. With a caller tracking
+        # reasoning they come into force when the content begins: armed by the
+        # engine on the end-of-reasoning token if the tag is one token, else
+        # swapped in by set_generation_phase. Otherwise from the first token
+        trigger_token_id = None
+        constrained = params.json_schema or params.regex_pattern or params.grammar_string
+        if constrained and reasoning_phase and getattr(self, "reasoning", False):
+            if self.reasoning_end_token:
+                trigger_token_id = self.tokenizer.single_id(self.reasoning_end_token)
 
-            if params.json_schema:
-                grammar_handler.add_json_schema_filter(
-                    params.json_schema, self.tokenizer, trigger_token_id=trigger_token_id
-                )
+        if params.json_schema:
+            # After a reasoning block the model expects to start on a new line
+            grammar_handler.add_json_schema_filter(
+                params.json_schema,
+                self.tokenizer,
+                trigger_token_id=trigger_token_id,
+                allow_leading_whitespace=bool(reasoning_phase),
+            )
 
-            if params.regex_pattern:
-                grammar_handler.add_regex_filter(
-                    params.regex_pattern, self.tokenizer, trigger_token_id=trigger_token_id
-                )
+        if params.regex_pattern:
+            grammar_handler.add_regex_filter(
+                params.regex_pattern, self.tokenizer, trigger_token_id=trigger_token_id
+            )
 
-            if params.grammar_string:
-                grammar_handler.add_grammar_filter(
-                    params.grammar_string, self.tokenizer, trigger_token_id=trigger_token_id
+        if params.grammar_string:
+            grammar_handler.add_grammar_filter(
+                params.grammar_string, self.tokenizer, trigger_token_id=trigger_token_id
+            )
+
+        content_banned = list(params.banned_strings or [])
+        reasoning_banned = content_banned
+        if reasoning_params is not None:
+            reasoning_banned = list(reasoning_params.banned_strings or [])
+
+        phases = None
+        if reasoning_phase is not None:
+            phases = JobPhases(
+                job=None,
+                content_sampler=sampler,
+                reasoning_sampler=reasoning_sampler,
+                content_banned=content_banned,
+                reasoning_banned=reasoning_banned,
+                content_filters=list(grammar_handler.filters),
+                reasoning=reasoning_phase,
+                engine_trigger=trigger_token_id is not None,
+            )
+            if not phases.differ():
+                phases = None
+
+        # A stop or banned string spanning the end-of-reasoning tag delays or
+        # hides the tag from the caller that switches the settings on it
+        if phases is not None and getattr(self, "reasoning", False):
+            conflicts = reasoning_tag_conflicts(
+                self.reasoning_end_token,
+                [*(params.stop or []), *content_banned, *reasoning_banned],
+            )
+            if conflicts:
+                shown = ", ".join(repr(s) for s in dict.fromkeys(conflicts))
+                xlogger.warning(
+                    f"{label}: a stop string or banned string contains the end-of-reasoning "
+                    f"tag {self.reasoning_end_token!r} ({shown}). The switch from reasoning "
+                    "settings to content settings, including any grammar, relies on seeing "
+                    "that tag and may come late or not at all."
                 )
 
         # Generation controls, listed after the sampler settings
@@ -1701,36 +1864,41 @@ class ExllamaV3Container:
             settings.append(("loop_detect_window", params.loop_detect_window))
 
         settings_text = format_settings(settings, params)
-        log_request_start(
-            label,
-            context_len,
-            settings_text,
-            {
-                "request_id": request_id,
-                "prompt_tokens": context_len,
-                "settings": {name: str(value) for name, value in settings},
-            },
-        )
+        log_extra = {
+            "request_id": request_id,
+            "prompt_tokens": context_len,
+            "settings": {name: str(value) for name, value in settings},
+        }
+        if reasoning_params is not None:
+            reasoning_text = _describe_reasoning_settings(reasoning_params)
+            settings_text += f" · while reasoning: {reasoning_text}"
+            log_extra["reasoning_settings"] = reasoning_text
+        log_request_start(label, context_len, settings_text, log_extra)
+
+        in_reasoning = phases is not None and phases.reasoning
 
         generation = {}
         job = AsyncJob(
             self.generator,
-            sampler=sampler,
+            sampler=reasoning_sampler if in_reasoning else sampler,
             input_ids=input_ids,
             max_new_tokens=max_tokens,
             min_new_tokens=unwrap(params.min_tokens, 0),
             token_healing=unwrap(params.token_healing, False),
             decode_special_tokens=True,
             stop_conditions=stop_conditions,
-            banned_strings=params.banned_strings,
+            banned_strings=reasoning_banned if in_reasoning else content_banned,
             embeddings=mm_embeddings_content,
             return_top_tokens=params.top_logprobs,
             return_probs=bool(params.logprobs) or bool(params.top_logprobs),
             max_rq_tokens=max_rq_tokens,
             stop_on_loop=params.get_stop_on_loop(),
-            filters=grammar_handler.filters,
+            filters=([] if in_reasoning and not phases.engine_trigger else grammar_handler.filters),
         )
         self.active_job_ids[request_id] = job
+        if phases is not None:
+            phases.job = job
+            self.job_phases[request_id] = phases
         await disconnect_handler.add_cleanup_task(id(job), job.cancel, ())
         job_status = status_display.add_job(request_id, label, context_len)
 
@@ -1865,6 +2033,7 @@ class ExllamaV3Container:
             raise ex
         finally:
             status_display.remove_job(request_id)
+            self.job_phases.pop(request_id, None)
 
             # Log generation options to console
             # Some options are too large, so log the args instead

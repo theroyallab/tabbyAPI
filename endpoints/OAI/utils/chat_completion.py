@@ -709,15 +709,16 @@ async def _chat_stream_collector(
             xlogger.debug(
                 "A reasoning budget was requested but the model has no reasoning format; ignoring."
             )
-        elif params.json_schema or params.regex_pattern or params.grammar_string:
-            # Injection permanently disables a job's filters
-            xlogger.warning(
-                "The reasoning budget is ignored because the request uses "
-                "constrained generation (json_schema, regex_pattern or "
-                "grammar_string)."
-            )
-            budget_injection = None
     reasoning_tokens = 0
+
+    # The backend holds one set of sampler settings for reasoning and one for
+    # content (which alone carries any grammar); it's told here when the
+    # response moves between the two
+    phase_applied = parser.in_reasoning
+
+    # A JSON answer may be preceded by the blank line models put after their
+    # reasoning (the grammar allows it); the client gets the JSON alone
+    strip_content_lead = bool(params.json_schema)
 
     # Collect logprobs
     collected_logprobs = []
@@ -729,9 +730,7 @@ async def _chat_stream_collector(
             params,
             disconnect_handler,
             mm_embeddings,
-            filter_trigger=(
-                mc.reasoning_end_token if use_think and start_in_reasoning_mode else None
-            ),
+            reasoning_phase=phase_applied,
             label=label,
         )
         generation = {"index": task_idx}
@@ -758,10 +757,18 @@ async def _chat_stream_collector(
                     delta_reasoning += sub
                     full_reasoning += sub
                 elif channel == CONTENT:
+                    if strip_content_lead:
+                        sub = sub.lstrip()
+                        strip_content_lead = not sub
                     delta_content += sub
                     full_content += sub
                 else:
                     full_tool += sub
+
+            if parser.in_reasoning != phase_applied and not finish_reason:
+                # Retried on the next chunk if the backend can't switch yet
+                if mc.set_generation_phase(request_id, parser.in_reasoning):
+                    phase_applied = parser.in_reasoning
 
             # Count reasoning tokens and force the end of the reasoning phase
             # when the budget is exhausted. Attribution is approximate: a

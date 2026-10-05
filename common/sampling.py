@@ -11,6 +11,8 @@ from pydantic import (
     AliasChoices,
     BaseModel,
     Field,
+    PrivateAttr,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
@@ -33,6 +35,42 @@ UNSUPPORTED_PARAMS = {
     "mirostat_mode": 0,
     "temp_exponent": 1.0,
 }
+
+# Settings that can differ between a response's reasoning block and its
+# content. Given as a nested set of sampler settings under this key, in a
+# request (plain values) or in a sampling config / override preset (override
+# entries). Anything not set there is inherited from the regular settings.
+REASONING_OVERRIDE_KEY = "reasoning_override"
+
+# The settings the backend can swap mid-generation: the sampler stack and the
+# banned strings. Limits, stop conditions and grammars apply to the whole job
+REASONING_OVERRIDE_FIELDS = frozenset(
+    {
+        "banned_strings",
+        "banned_tokens",
+        "temperature",
+        "temperature_last",
+        "top_k",
+        "top_p",
+        "min_p",
+        "xtc_probability",
+        "xtc_threshold",
+        "frequency_penalty",
+        "presence_penalty",
+        "repetition_penalty",
+        "penalty_range",
+        "repetition_decay",
+        "dry_multiplier",
+        "dry_base",
+        "dry_allowed_length",
+        "dry_range",
+        "dry_penalty_last_n",
+        "dry_sequence_breakers",
+        "logit_bias",
+        "adaptive_target",
+        "adaptive_decay",
+    }
+)
 
 
 # Common class for sampler params
@@ -260,8 +298,9 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("json_schema"),
         description=(
             "Constrain generation to a JSON schema (also settable via "
-            "response_format). Output is compact JSON: optional whitespace is "
-            "disabled in the grammar so generation cannot stall on whitespace. Add "
+            'response_format). Output is single-line JSON with ": " and ", " '
+            "separators: optional whitespace is disabled in the grammar so "
+            "generation cannot stall on whitespace. Add "
             '{"x-guidance": {"whitespace_flexible": true}} to the schema to allow it.'
         ),
     )
@@ -329,6 +368,48 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
+    reasoning_override: Optional[dict] = Field(
+        default=None,
+        validation_alias=AliasChoices("reasoning_override", "reasoning_overrides"),
+        description=(
+            "Sampler settings that apply only while the model is reasoning, e.g. "
+            '{"temperature": 1.0, "banned_strings": ["but wait,"]}. Settings left '
+            "out are the same as for the rest of the response. Chat completions only."
+        ),
+        examples=[{"temperature": 1.0}],
+    )
+
+    # For a reasoning-phase copy: where each overridden value came from
+    _reasoning_sources: dict = PrivateAttr(default_factory=dict)
+
+    def reasoning_params(self) -> Optional["BaseSamplerRequest"]:
+        """
+        The sampler settings for the reasoning block: this request's settings
+        with the reasoning overrides (from the request and the sampling config)
+        applied on top. None when nothing is overridden, i.e. reasoning and
+        content are sampled alike.
+        """
+
+        values, sources = resolve_reasoning_overrides(self)
+        if not values:
+            return None
+
+        merged = {name: getattr(self, name) for name in REASONING_OVERRIDE_FIELDS}
+        # Already folded into dry_range / dry_multiplier for the content phase
+        merged["dry_penalty_last_n"] = None
+        merged.update(values)
+
+        result = BaseSamplerRequest.model_validate(merged, context={"reasoning_phase": True})
+        result._reasoning_sources = sources
+        return result
+
+    def reasoning_settings(self) -> list:
+        """(name, value, source) for each setting a reasoning-phase copy overrides."""
+
+        return [
+            (name, getattr(self, name), source) for name, source in self._reasoning_sources.items()
+        ]
+
     def param_source(self, name: str) -> str:
         """
         Where the effective value of a sampler param came from: "req" (sent with the
@@ -354,6 +435,31 @@ class BaseSamplerRequest(BaseModel):
             return self.loop_detect_window, 2
 
         return None
+
+    @field_validator("reasoning_override", mode="before")
+    def check_reasoning_override(cls, v):
+        """Keep the settings that can be swapped for the reasoning block."""
+
+        if v is None:
+            return None
+        if not isinstance(v, dict):
+            raise ValueError("reasoning_override must be an object of sampler settings")
+
+        checked = {}
+        for name, value in v.items():
+            if name not in REASONING_OVERRIDE_FIELDS:
+                xlogger.warning(
+                    f'Ignoring "{name}" in reasoning_override: '
+                    + (
+                        "it applies to the whole response and can't differ for reasoning."
+                        if name in cls.model_fields
+                        else "not a known sampler setting."
+                    )
+                )
+                continue
+            checked[name] = value
+
+        return checked
 
     @field_validator("top_k", mode="before")
     def convert_top_k(cls, v):
@@ -397,15 +503,20 @@ class BaseSamplerRequest(BaseModel):
             return []  # Return empty list if parsing fails
 
     @model_validator(mode="after")
-    def after_validate(self):
+    def after_validate(self, info: ValidationInfo):
         # For OAI requests, logprobs is a boolean and top_logprobs is integer
         # if self.logprobs and self.top_logprobs:
         #     self.logprobs = self.top_logprobs
 
+        # A reasoning-phase copy (see reasoning_params) is already resolved:
+        # the regular forced overrides must not be laid over it again
+        reasoning_copy = bool((info.context or {}).get("reasoning_phase"))
+
         # FIXME: find a better way to register this
         # Maybe make a function to assign values to the
         # model if they do not exist post creation
-        apply_forced_sampler_overrides(self)
+        if not reasoning_copy:
+            apply_forced_sampler_overrides(self)
 
         if self.min_temp and self.max_temp and self.min_temp > self.max_temp:
             raise ValidationError("min temp cannot be more then max temp")
@@ -421,7 +532,12 @@ class BaseSamplerRequest(BaseModel):
             else:
                 self.dry_range = max(self.dry_penalty_last_n, 0)
 
-        self.warn_unsupported_params()
+        if not reasoning_copy:
+            self.warn_unsupported_params()
+
+            # Resolve the reasoning overrides once here, so a bad value fails
+            # the request up front rather than when generation starts
+            self.reasoning_params()
 
         return self
 
@@ -466,7 +582,19 @@ class SamplerOverridesContainer(BaseModel):
     model_overrides: dict = {}
 
     def effective(self) -> dict:
-        return {**self.overrides, **self.model_overrides}
+        merged = {**self.overrides, **self.model_overrides}
+        merged.pop(REASONING_OVERRIDE_KEY, None)
+        return merged
+
+    def effective_reasoning(self) -> dict:
+        """The reasoning overrides of both layers; a model key replaces the global one."""
+
+        merged = {}
+        for layer in (self.overrides, self.model_overrides):
+            section = layer.get(REASONING_OVERRIDE_KEY)
+            if isinstance(section, dict):
+                merged.update(section)
+        return merged
 
 
 # Global for default overrides
@@ -507,19 +635,29 @@ def resolve_preset_path(preset_name: str) -> Optional[pathlib.Path]:
 def describe_overrides(overrides: dict) -> str:
     """One-line summary of a set of sampler overrides, e.g. "temperature 0.8, top_k 40"."""
 
-    parts = []
-    for key, value in overrides.items():
-        if not isinstance(value, dict) or "override" not in value:
-            continue
+    def describe(section: dict) -> list:
+        parts = []
+        for key, value in section.items():
+            if key == REASONING_OVERRIDE_KEY or not isinstance(value, dict):
+                continue
+            if "override" not in value:
+                continue
 
-        item = f"{key} {value['override']}"
-        if value.get("force"):
-            item += " (forced)"
-        elif value.get("additive"):
-            item += " (additive)"
-        parts.append(item)
+            item = f"{key} {value['override']}"
+            if value.get("force"):
+                item += " (forced)"
+            elif value.get("additive"):
+                item += " (additive)"
+            parts.append(item)
+        return parts
 
-    return ", ".join(parts) if parts else "no overrides"
+    text = ", ".join(describe(overrides)) or "no overrides"
+
+    reasoning = overrides.get(REASONING_OVERRIDE_KEY)
+    if isinstance(reasoning, dict) and (reasoning_parts := describe(reasoning)):
+        text += "; while reasoning: " + ", ".join(reasoning_parts)
+
+    return text
 
 
 async def _read_preset(preset_name: str) -> tuple[str, dict]:
@@ -577,6 +715,11 @@ def validate_inline_overrides(inline: Optional[dict], where: str) -> dict:
 
     checked = {}
     for name, value in inline.items():
+        if name == REASONING_OVERRIDE_KEY:
+            reasoning = validate_reasoning_overrides(value, where)
+            if reasoning:
+                checked[name] = reasoning
+            continue
         if not isinstance(value, dict) or "override" not in value:
             raise TypeError(
                 f'Inline sampler override "{name}" in {where} must be a mapping with an '
@@ -590,13 +733,98 @@ def validate_inline_overrides(inline: Optional[dict], where: str) -> dict:
     return checked
 
 
+def validate_reasoning_overrides(section: Optional[dict], where: str) -> dict:
+    """
+    Check a `reasoning_override` section: the same override entries as the
+    section around it, limited to the settings that can be swapped for the
+    reasoning block.
+    """
+
+    if not section:
+        return {}
+    if not isinstance(section, dict):
+        raise TypeError(f"{REASONING_OVERRIDE_KEY} in {where} must be a mapping")
+
+    checked = {}
+    for name, value in section.items():
+        if not isinstance(value, dict) or "override" not in value:
+            raise TypeError(
+                f'"{name}" under {REASONING_OVERRIDE_KEY} in {where} must be a mapping with '
+                'an "override" key (and optionally "force" / "additive")'
+            )
+        if name not in REASONING_OVERRIDE_FIELDS:
+            reason = (
+                "it applies to the whole response and can't differ for reasoning"
+                if name in BaseSamplerRequest.model_fields
+                else "not a known sampler setting"
+            )
+            xlogger.warning(
+                f'Skipping "{name}" under {REASONING_OVERRIDE_KEY} in {where}: {reason}'
+            )
+            continue
+        checked[name] = value
+
+    return checked
+
+
+def resolve_reasoning_overrides(params: BaseSamplerRequest) -> tuple[dict, dict]:
+    """
+    The values that differ while reasoning, with where each came from. Per
+    setting: a forced config override wins, then the request's
+    reasoning_override, then a plain config override. A config override here
+    outranks the request's regular (non-reasoning) value for the same setting,
+    being the more specific of the two.
+    """
+
+    layer = overrides_container.effective_reasoning()
+    request = params.reasoning_override or {}
+    if not layer and not request:
+        return {}, {}
+
+    values, sources = {}, {}
+    for name in BaseSamplerRequest.model_fields:
+        if name not in REASONING_OVERRIDE_FIELDS:
+            continue
+
+        entry = layer.get(name)
+        entry = entry if isinstance(entry, dict) else {}
+        override = deepcopy(entry.get("override"))
+        additive = unwrap(entry.get("additive"), False) and isinstance(override, list)
+
+        if override is not None and unwrap(entry.get("force"), False):
+            values[name], sources[name] = override, "forced"
+        elif name in request:
+            value = request[name]
+            if additive and isinstance(value, list):
+                value = override + value
+            values[name], sources[name] = value, "req"
+        elif override is not None:
+            inherited = getattr(params, name, None)
+            if additive and isinstance(inherited, list):
+                override = override + inherited
+            values[name], sources[name] = override, "preset"
+
+    return values, sources
+
+
 async def _build_layer(preset_name: Optional[str], inline: dict) -> tuple[Optional[str], dict]:
     """A layer's (preset name, merged overrides): inline entries win over the preset's."""
 
     name, overrides = None, {}
     if preset_name:
         name, overrides = await _read_preset(preset_name)
-    return name, {**overrides, **inline}
+
+    # The reasoning sections merge per setting rather than one replacing the other
+    preset_reasoning = validate_reasoning_overrides(
+        overrides.get(REASONING_OVERRIDE_KEY), f'the preset "{name}"'
+    )
+    reasoning = {**preset_reasoning, **(inline.get(REASONING_OVERRIDE_KEY) or {})}
+
+    merged = {**overrides, **inline}
+    merged.pop(REASONING_OVERRIDE_KEY, None)
+    if reasoning:
+        merged[REASONING_OVERRIDE_KEY] = reasoning
+    return name, merged
 
 
 async def overrides_from_file(preset_name: str):

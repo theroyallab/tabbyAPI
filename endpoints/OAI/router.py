@@ -78,8 +78,8 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
     # Prepare raw prompt (will be str or list[str])
     prompt = data.prompt
 
-    # Set an empty JSON schema if the request wants a JSON response
-    if data.response_format.type == "json":
+    # Any JSON object, no particular schema. "json_object" is OpenAI's name for it
+    if data.response_format.type in ("json_object", "json"):
         data.json_schema = {"type": "object"}
 
     # Also accept specific schema from response_format
@@ -139,8 +139,8 @@ async def chat_completion_request(
     prompt, mm_embeddings = await apply_chat_template(data)
     await write_chat_completion_prompt_log(request, prompt)
 
-    # Set an empty JSON schema if the request wants a JSON response
-    if data.response_format.type == "json":
+    # Any JSON object, no particular schema. "json_object" is OpenAI's name for it
+    if data.response_format.type in ("json_object", "json"):
         data.json_schema = {"type": "object"}
 
     # Also accept specific schema from response_format

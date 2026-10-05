@@ -401,6 +401,16 @@ sampling:
   #   override: 0.1
   #   force: true
 
+  # Settings nested under reasoning_override apply only while a model is reasoning;
+  # the response after the reasoning block uses the regular ones. Anything not listed
+  # is the same in both. Covers the sampler settings and banned_strings. For example:
+  # reasoning_override:
+  #   temperature:
+  #     override: 1.5
+  #     force: true
+  #   banned_strings:
+  #     override: ["but wait,"]
+
 # Options for Loras
 lora:
   # Directory to look for LoRAs (default: loras).
