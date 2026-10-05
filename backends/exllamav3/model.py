@@ -169,6 +169,7 @@ class ExllamaV3Container:
     # The condition notifies any waiting tasks
     active_job_ids: Dict[str, Any]
     job_phases: Dict[str, JobPhases]
+    recreate_task: Optional[asyncio.Task] = None
     loaded: bool = False
     load_lock: asyncio.Lock
     load_condition: asyncio.Condition
@@ -1051,8 +1052,9 @@ class ExllamaV3Container:
 
         When a generator already exists (recovery after a latched generation
         error) it is closed, dereferenced and garbage collected before the
-        replacement is constructed, so the two never hold their host-side caches
-        at the same time.
+        replacement is constructed. close() is what actually frees the old
+        generator's host-side caches: the failed jobs and their tracebacks keep
+        the object itself reachable for a while, so the collection is best-effort.
         """
 
         try:
@@ -1667,13 +1669,22 @@ class ExllamaV3Container:
         """
 
         if self._generator_latched():
-            xlogger.error(
-                "FATAL ERROR with generation. "
-                "Attempting to recreate the generator. "
-                "If this fails, please restart the server.\n",
-                {"exception": str(ex)},
-            )
-            asyncio.ensure_future(self.create_generator())
+            # Every request in flight at the latch gets the same error and
+            # lands here; one recreation serves them all
+            pending = getattr(self, "recreate_task", None)
+            if pending is not None and not pending.done():
+                xlogger.debug(
+                    "Generator latched; a recreation is already in progress.",
+                    {"exception": str(ex)},
+                )
+            else:
+                xlogger.error(
+                    "FATAL ERROR with generation. "
+                    "Attempting to recreate the generator. "
+                    "If this fails, please restart the server.\n",
+                    {"exception": str(ex)},
+                )
+                self.recreate_task = asyncio.ensure_future(self.create_generator())
 
             await HealthManager.add_unhealthy_event(ex)
         else:

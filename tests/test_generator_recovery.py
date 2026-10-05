@@ -23,13 +23,15 @@ class FakeJob:
         self.cancelled = True
 
 
-def make_container(generator):
+def make_container(generator, recreation_takes=0):
     container = ExllamaV3Container.__new__(ExllamaV3Container)
     container.generator = generator
     container.recreations = 0
 
     async def create_generator():
         container.recreations += 1
+        for _ in range(recreation_takes):
+            await asyncio.sleep(0)
 
     container.create_generator = create_generator
     return container
@@ -158,3 +160,27 @@ def test_recreation_releases_old_generator_before_constructing_the_new_one(monke
     assert observed == {"closed": [True], "reference_dropped": True, "old_collected": True}
     assert isinstance(container.generator, NewAsyncGenerator)
     assert not container.load_lock.locked()
+
+
+def test_concurrent_failures_share_one_recreation():
+    """Every in-flight request fails on a latch; only the first schedules a recreation."""
+
+    container = make_container(SimpleNamespace(error=RuntimeError("x")), recreation_takes=10)
+
+    async def run():
+        jobs = [FakeJob() for _ in range(3)]
+        for job in jobs:
+            await container._recover_from_generation_error(RuntimeError("boom"), job)
+        await asyncio.sleep(0)  # let the scheduled recreation start
+        assert container.recreations == 1
+        assert not container.recreate_task.done()
+        await container.recreate_task
+        assert container.recreations == 1
+
+        # A later latch, after that recreation finished, is handled afresh
+        await container._recover_from_generation_error(RuntimeError("again"), FakeJob())
+        await container.recreate_task
+        assert container.recreations == 2
+
+    asyncio.run(run())
+    assert len(HealthManager.issues) == 4
