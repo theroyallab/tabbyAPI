@@ -330,6 +330,16 @@ class ModelConfig(BaseConfigModel):
             "reads at the cost of tens of GB of system memory."
         ),
     )
+    embed_stream_from_disk: Optional[bool] = Field(
+        False,
+        description=(
+            "Stream token embeddings from disk on demand (default: False).\n"
+            "Rows of the token embedding table are read per forward pass instead\n"
+            "of holding the whole table in system RAM. Saves memory on models\n"
+            "with large vocabularies at the cost of small disk reads during\n"
+            "inference. Works for quantized and unquantized tables."
+        ),
+    )
 
     rope_scale: Optional[float] = Field(
         1.0,

@@ -176,6 +176,12 @@ model:
   # per-token disk reads at the cost of tens of GB of system memory.
   ngram_ram: false
 
+  # Stream token embeddings from disk on demand (default: False).
+  # Rows of the token embedding table are read per forward pass instead of holding the
+  # whole table in system RAM. Saves memory on models with large vocabularies at the cost
+  # of small disk reads during inference. Works for quantized and unquantized tables.
+  embed_stream_from_disk: false
+
   # NOTE: If a model has YaRN rope scaling, it will automatically be enabled by ExLlama.
   # rope_scale and rope_alpha settings won't apply in this case.
 

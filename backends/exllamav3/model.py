@@ -187,7 +187,7 @@ class ExllamaV3Container:
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "1.5.1")
+        check_package_version("exllamav3", "1.5.4")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
@@ -225,6 +225,12 @@ class ExllamaV3Container:
         if unwrap(kwargs.get("ngram_ram"), False):
             self.config.infer_params.ngram_stream_from_disk = False
             xlogger.info("Loading n-gram embeddings into system RAM (ngram_ram).")
+
+        # Stream token embedding rows from disk per forward instead of holding
+        # the table in system RAM. Must be set before the weights are loaded
+        if unwrap(kwargs.get("embed_stream_from_disk"), False):
+            self.config.infer_params.embed_stream_from_disk = True
+            xlogger.info("Streaming token embeddings from disk (embed_stream_from_disk).")
 
         # Prepare vision model if requested in config
         self.vision_model = None
