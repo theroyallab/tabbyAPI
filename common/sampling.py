@@ -351,6 +351,10 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
+    # Not part of the public sampler surface: /v1/decisions sets it to read the
+    # raw next-token logits at the answer position.
+    return_logits: bool = Field(default=False, exclude=True)
+
     adaptive_target: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("adaptive_target", 1.0)
     )

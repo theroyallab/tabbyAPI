@@ -10,6 +10,7 @@ from common.debug_requests import (
     log_chat_completion_request,
     write_chat_completion_prompt_log,
 )
+from common.errors import ContextLengthExceededError, ContextLengthHTTPException
 from common.model import check_embeddings_container, check_model_container
 from common.networking import (
     get_sse_ping_interval,
@@ -26,6 +27,7 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionResponse,
 )
 from endpoints.OAI.types.embedding import EmbeddingsRequest, EmbeddingsResponse
+from endpoints.OAI.types.decisions import DecisionsRequest, DecisionsResponse
 from endpoints.OAI.utils.common_ import load_inline_model
 from endpoints.OAI.utils.chat_completion import (
     apply_chat_template,
@@ -37,6 +39,7 @@ from endpoints.OAI.utils.completion import (
     stream_generate_completion,
 )
 from endpoints.OAI.utils.embeddings import get_embeddings
+from endpoints.OAI.utils.decisions import DecisionValidationError, generate_decisions
 
 
 api_name = "OAI"
@@ -44,6 +47,7 @@ router = APIRouter()
 urls = {
     "Completions": "http://{host}:{port}/v1/completions",
     "Chat completions": "http://{host}:{port}/v1/chat/completions",
+    "Decisions": "http://{host}:{port}/v1/decisions",
 }
 
 # Block when model is still loading while second inline load request comes in
@@ -167,6 +171,51 @@ async def chat_completion_request(
 
     except (CancelledError, InvalidStateError) as ex:
         raise HTTPException(422, "/v1/chat/completions request cancelled by user.") from ex
+
+
+# Decisions endpoint (SGLang-compatible)
+@router.post("/v1/decisions", dependencies=[Depends(check_api_key)])
+async def decisions_request(request: Request, data: DecisionsRequest) -> DecisionsResponse:
+    """
+    Answer typed choice, score, and yes/no questions with a probability for
+    every option, read from the model's next-token distribution at the answer
+    position. No text is generated.
+    """
+
+    raw_json = await request.json()
+    xlogger.debug("[ENDPOINT] /v1/decisions", {"raw": raw_json})
+
+    async with load_lock:
+        if data.model:
+            await load_inline_model(data.model, request)
+        await check_model_container()
+
+    if model.container.prompt_template is None:
+        error_message = handle_request_error(
+            "Decisions are disabled because a prompt template is not set.",
+            exc_info=False,
+        ).error.message
+        raise HTTPException(422, error_message)
+
+    try:
+        disconnect_handler = DisconnectHandler(request, f"{request_tag(request)} decisions")
+        await disconnect_handler.poll()
+
+        response = await generate_decisions(data, request, disconnect_handler)
+        return response
+
+    except (CancelledError, InvalidStateError) as ex:
+        raise HTTPException(422, "/v1/decisions request cancelled by user.") from ex
+
+    except DecisionValidationError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    except ContextLengthExceededError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise ContextLengthHTTPException(error_message) from exc
+
+    finally:
+        await disconnect_handler.cleanup()
 
 
 # Apply template endpoint (llama-server compatible)
