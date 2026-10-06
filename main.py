@@ -16,7 +16,7 @@ from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
 from common.actions import run_subcommand
 from common.logger import set_console_timestamps, setup_logger, xlogger
-from common.networking import is_port_in_use
+from common.networking import port_bind_error
 from common.optional_dependencies import dependencies
 from common.signals import signal_handler
 from common.status_display import status_display
@@ -41,22 +41,19 @@ async def entrypoint_async():
         if gpu_problem:
             logger.error(gpu_problem)
 
-    # Check if the port is available and attempt to bind a fallback
-    if is_port_in_use(port):
-        fallback_port = port + 1
+    # Make sure the configured address can be bound before spending time on
+    # a model load. No silent fallback to another port: clients are configured
+    # for this one, so a server that quietly moves is worse than one that stops
+    bind_error = port_bind_error(host, port)
+    if bind_error:
+        logger.error(
+            f"Cannot listen on {host}:{port}: {bind_error}\n"
+            "Another program is using that address. Stop it, or set a different "
+            "port with `network.port` in config.yml or --port.\n"
+            "Exiting."
+        )
 
-        if is_port_in_use(fallback_port):
-            logger.error(
-                f"Ports {port} and {fallback_port} are in use by different services.\n"
-                "Please free up those ports or specify a different one.\n"
-                "Exiting."
-            )
-
-            return
-        else:
-            logger.warning(f"Port {port} is currently in use. Switching to {fallback_port}.")
-
-            port = fallback_port
+        return
 
     # Set sampler parameter overrides if provided. Do this before the model
     # load so a bad preset name fails fast instead of after a long load

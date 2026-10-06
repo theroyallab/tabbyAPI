@@ -13,6 +13,7 @@ network:
   host: 127.0.0.1
 
   # The port to host on (default: 5000).
+  # TabbyAPI exits if the port is taken rather than moving to another one.
   port: 5000
 
   # Disable HTTP token authentication with requests.
