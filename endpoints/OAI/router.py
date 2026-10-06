@@ -197,8 +197,8 @@ async def decisions_request(request: Request, data: DecisionsRequest) -> Decisio
         ).error.message
         raise HTTPException(422, error_message)
 
+    disconnect_handler = DisconnectHandler(request, f"{request_tag(request)} decisions")
     try:
-        disconnect_handler = DisconnectHandler(request, f"{request_tag(request)} decisions")
         await disconnect_handler.poll()
 
         response = await generate_decisions(data, request, disconnect_handler)

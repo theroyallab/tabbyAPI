@@ -1921,7 +1921,7 @@ class ExllamaV3Container:
             embeddings=mm_embeddings_content,
             return_top_tokens=params.top_logprobs,
             return_probs=bool(params.logprobs) or bool(params.top_logprobs),
-            return_logits=bool(getattr(params, "return_logits", False)),
+            return_logits=bool(getattr(params, "_return_logits", False)),
             max_rq_tokens=max_rq_tokens,
             stop_on_loop=params.get_stop_on_loop(),
             filters=([] if in_reasoning and not phases.engine_trigger else grammar_handler.filters),

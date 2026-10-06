@@ -60,6 +60,9 @@ class DecisionsRequest(BaseModel):
     ] = Field(
         ...,
         min_length=1,
+        max_length=32,
+        description="Each question becomes one prefill; the cap keeps a single "
+        "request from monopolizing the batch.",
     )
     # Divides the label logits before the softmax over labels. Does not change
     # label_mass. Sampling itself is unaffected: no text is generated.

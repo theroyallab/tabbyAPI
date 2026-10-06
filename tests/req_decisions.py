@@ -59,9 +59,13 @@ def main():
             print(f"  score:         {answer['score']:.2f}")
     print(f"\nusage: {data['usage']}")
 
-    # Sanity: probabilities sum to 1 and the urgent answer leans yes
+    # Sanity: probabilities sum to 1, every question id is answered, and
+    # decision-type answers carry their decision field
     for answer in data["answers"].values():
         assert abs(sum(answer["probabilities"].values()) - 1.0) < 1e-4
+    assert set(data["answers"]) == {q["id"] for q in REQUEST["questions"]}
+    assert "choice" in data["answers"]["team"]
+    assert "score" in data["answers"]["frustration"]
     print("\nSanity checks passed")
 
 

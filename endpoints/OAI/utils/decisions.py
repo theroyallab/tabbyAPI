@@ -13,7 +13,7 @@ from typing import List, Tuple
 import torch
 
 from common import model
-from common.networking import handle_request_error, request_tag
+from common.networking import request_tag
 from common.sampling import BaseSamplerRequest
 from endpoints.OAI.types.chat_completion import ChatCompletionMessage
 from endpoints.OAI.types.decisions import (
@@ -118,7 +118,12 @@ def answer_label_token_ids(prompt: str, labels: List[str], tokenizer) -> List[in
     answer position (the token that directly follows the rendered prompt).
 
     The relative comparison (prompt+label vs prompt) cancels BOS handling and
-    matches how the generation pass encodes the prompt.
+    matches how the generation pass encodes the prompt. Labels are appended
+    with no leading space: the check measures the bare form, which matches
+    what the versioned prompt asks the model to emit after the template's
+    trailing newline. A tokenizer that would merge the preceding character
+    into the label can bias the measured distribution; such a model fails the
+    single-token check and is rejected rather than silently mis-scored.
     """
 
     base_ids = tokenizer.encode(prompt, add_bos=True, encode_special_tokens=True)
@@ -204,8 +209,12 @@ async def _answer_one_question(
     label_ids = answer_label_token_ids(prompt, labels, tokenizer)
 
     # The sampled token is discarded; greedy keeps the sampler stack trivial.
-    params = BaseSamplerRequest(max_tokens=1, temperature=0)
-    params.return_logits = True
+    # min_tokens=1 blocks the whole stop list at the single answer position
+    # (exllamav3 masks stop tokens until min_new_tokens is reached), so a
+    # model that would end its turn exactly here still yields its logits —
+    # otherwise the job emits no held logits at all and the answer is lost.
+    params = BaseSamplerRequest(max_tokens=1, min_tokens=1, temperature=0)
+    params._return_logits = True
 
     logits = None
     prompt_tokens = 0
@@ -222,11 +231,10 @@ async def _answer_one_question(
             prompt_tokens = generation["prompt_tokens"]
 
     if logits is None:
-        raise RuntimeError(
-            handle_request_error(
-                f"{request_tag(request)} decisions: the model returned no logits.",
-                exc_info=False,
-            ).error.message
+        raise DecisionValidationError(
+            "the model produced no next-token distribution at the answer "
+            "position; the prompt may not fit or the template may have "
+            "shifted the answer position"
         )
 
     probs, label_mass = label_distribution(logits, label_ids, data.temperature)
@@ -244,20 +252,24 @@ async def generate_decisions(
     validate_decisions_request(data)
 
     # Answer the questions independently and concurrently; the backend
-    # batches their prefills.
-    tasks = []
-    for idx, question in enumerate(data.questions):
-        request_id = f"{request.state.id}-{idx}"
-        tasks.append(
-            asyncio.create_task(
-                _answer_one_question(
-                    question, data.input, data, request, request_id, disconnect_handler
-                )
+    # batches their prefills. return_exceptions so one failed question can't
+    # orphan its siblings mid-prefill with their exceptions unretrieved: every
+    # task runs to completion (they are one-token jobs) and the first real
+    # exception is re-raised for the router's error mapping.
+    tasks = [
+        asyncio.create_task(
+            _answer_one_question(
+                question, data.input, data, request, f"{request.state.id}-{idx}", disconnect_handler
             )
         )
+        for idx, question in enumerate(data.questions)
+    ]
 
-    results = await asyncio.gather(*tasks)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
+    first_error = next((r for r in results if isinstance(r, BaseException)), None)
+    if first_error is not None:
+        raise first_error
     answers = {}
     prompt_tokens = 0
     for question_id, answer, tokens in results:

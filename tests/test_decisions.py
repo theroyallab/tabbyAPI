@@ -11,6 +11,8 @@ from endpoints.OAI.types.decisions import (
 )
 from endpoints.OAI.utils.decisions import (
     DecisionValidationError,
+    answer_label_token_ids,
+    compose_answer,
     label_distribution,
     question_labels,
     render_question_message,
@@ -79,6 +81,32 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaises(DecisionValidationError):
             validate_decisions_request(request)
 
+    def test_blank_option_name_rejected(self):
+        request = DecisionsRequest.model_validate(base_request([
+            {"id": "c", "type": "choice", "question": "q",
+             "options": [{"name": "ok"}, {"name": "   "}]}]))
+        with self.assertRaises(DecisionValidationError):
+            validate_decisions_request(request)
+
+    def test_control_char_in_option_name_rejected(self):
+        request = DecisionsRequest.model_validate(base_request([
+            {"id": "c", "type": "choice", "question": "q",
+             "options": [{"name": "ok"}, {"name": "bad\nname"}]}]))
+        with self.assertRaises(DecisionValidationError):
+            validate_decisions_request(request)
+
+    def test_blank_level_rejected(self):
+        request = DecisionsRequest.model_validate(base_request([
+            {"id": "s", "type": "score", "question": "q", "levels": ["ok", " "]}]))
+        with self.assertRaises(DecisionValidationError):
+            validate_decisions_request(request)
+
+    def test_blank_question_id_rejected(self):
+        request = DecisionsRequest.model_validate(base_request([
+            {"id": " ", "type": "yes_no", "question": "q"}]))
+        with self.assertRaises(DecisionValidationError):
+            validate_decisions_request(request)
+
     def test_option_count_bounds(self):
         one_option = base_request([
             {"id": "c", "type": "choice", "question": "q",
@@ -124,9 +152,9 @@ class LabelDistributionTests(unittest.TestCase):
         logits = torch.tensor([2.0, 0.0] + [-10.0] * 100)
         p_hot, _ = label_distribution(logits, [0, 1], temperature=0.5)
         p_cold, _ = label_distribution(logits, [0, 1], temperature=2.0)
-        self.assertGreater(p_hot[0], p_cold[0])
-        self.assertAlmostEqual(p_hot[0] + p_hot[1], 1.0)
-        self.assertAlmostEqual(p_cold[0] + p_cold[1], 1.0)
+        # scaled logits 4 and 0 -> exact softmax values
+        self.assertAlmostEqual(p_hot[0], math.exp(4) / (math.exp(4) + 1), places=6)
+        self.assertAlmostEqual(p_cold[0], math.exp(1) / (math.exp(1) + 1), places=6)
 
     def test_label_mass_ignores_temperature(self):
         logits = torch.tensor([2.0, 0.0] + [-10.0] * 100)
@@ -150,6 +178,105 @@ class QuestionLabelsTests(unittest.TestCase):
     def test_yes_no_labels(self):
         labels, _ = question_labels(YesNoQuestion(id="y", question="q"))
         self.assertEqual(labels, ["yes", "no"])
+
+
+class FakeTokenizer:
+    """Every character is one token (char code + 1), BOS = 0. A letter
+    directly following '.' merges with the dot into token 9, simulating a
+    tokenizer whose label is not one distinct token after that prompt."""
+
+    def encode(self, text, add_bos=True, encode_special_tokens=True):
+        import torch
+
+        ids = []
+        i = 0
+        while i < len(text):
+            if text[i] == "." and i + 1 < len(text) and text[i + 1].isalpha():
+                ids.append(9)
+                i += 2
+            else:
+                ids.append(ord(text[i]) % 1000 + 1)
+                i += 1
+        if add_bos:
+            ids = [0] + ids
+        return torch.tensor([ids])
+
+
+class AnswerLabelTokenIdsTests(unittest.TestCase):
+    def test_single_token_labels_map_to_last_id(self):
+        ids = answer_label_token_ids("Question?\n", ["A", "B"], FakeTokenizer())
+        # 'A' = ord('A') % 1000 + 1, 'B' likewise
+        self.assertEqual(ids, [ord("A") % 1000 + 1, ord("B") % 1000 + 1])
+
+    def test_multi_token_label_rejected(self):
+        # a two-character label is never one token
+        with self.assertRaises(DecisionValidationError):
+            answer_label_token_ids("Question?\n", ["AB"], FakeTokenizer())
+
+    def test_merged_label_rejected(self):
+        # '.' + letter merges into one token, so the label is not one distinct
+        # token *after the prompt*: the prompt's final '.' disappears into the
+        # merge and the length check fails
+        with self.assertRaises(DecisionValidationError):
+            answer_label_token_ids("Question.", ["A"], FakeTokenizer())
+
+    def test_bos_handling_cancels(self):
+        # same ids whether the tokenizer adds BOS or not
+        class NoBos(FakeTokenizer):
+            def encode(self, text, add_bos=True, encode_special_tokens=True):
+                return super().encode(text, add_bos=False, encode_special_tokens=encode_special_tokens)
+
+        self.assertEqual(
+            answer_label_token_ids("Question?\n", ["A"], FakeTokenizer()),
+            answer_label_token_ids("Question?\n", ["A"], NoBos()),
+        )
+
+
+class ComposeAnswerTests(unittest.TestCase):
+    def test_choice_maps_argmax_to_name(self):
+        question = ChoiceQuestion(id="c", question="q", options=[{"name": "x"}, {"name": "y"}])
+        answer = compose_answer(question, ["A", "B"], ["x", "y"], [0.1, 0.9], 1.0)
+        self.assertEqual(answer.choice, "y")
+        self.assertEqual(answer.probabilities, {"A": 0.1, "B": 0.9})
+
+    def test_choice_tie_picks_first_option(self):
+        question = ChoiceQuestion(id="c", question="q", options=[{"name": "x"}, {"name": "y"}])
+        answer = compose_answer(question, ["A", "B"], ["x", "y"], [0.5, 0.5], 1.0)
+        self.assertEqual(answer.choice, "x")
+
+    def test_score_is_weighted_mean_level(self):
+        question = ScoreQuestion(id="s", question="q", levels=["a", "b", "c"])
+        answer = compose_answer(question, ["0", "1", "2"], ["a", "b", "c"], [0.2, 0.3, 0.5], 1.0)
+        self.assertAlmostEqual(answer.score, 0.2 * 0 + 0.3 * 1 + 0.5 * 2)
+
+    def test_yes_no_has_no_choice_key(self):
+        question = YesNoQuestion(id="y", question="q")
+        answer = compose_answer(question, ["yes", "no"], ["yes", "no"], [0.7, 0.3], 1.0)
+        self.assertEqual(answer.type, "yes_no")
+        self.assertFalse(hasattr(answer, "choice"))
+
+
+class WireSchemaTests(unittest.TestCase):
+    def test_temperature_must_be_positive(self):
+        request = base_request([{"id": "u", "type": "yes_no", "question": "q"}])
+        request["temperature"] = 0
+        with self.assertRaises(ValueError):
+            DecisionsRequest.model_validate(request)
+
+    def test_empty_questions_rejected(self):
+        with self.assertRaises(ValueError):
+            DecisionsRequest.model_validate({"input": "x", "questions": []})
+
+    def test_unknown_question_type_rejected(self):
+        with self.assertRaises(ValueError):
+            DecisionsRequest.model_validate(
+                {"input": "x", "questions": [{"id": "q", "type": "rating", "question": "q"}]}
+            )
+
+    def test_question_cap(self):
+        questions = [{"id": f"q{i}", "type": "yes_no", "question": "q"} for i in range(33)]
+        with self.assertRaises(ValueError):
+            DecisionsRequest.model_validate({"input": "x", "questions": questions})
 
 
 if __name__ == "__main__":
