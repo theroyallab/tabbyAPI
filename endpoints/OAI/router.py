@@ -173,7 +173,7 @@ async def chat_completion_request(
         raise HTTPException(422, "/v1/chat/completions request cancelled by user.") from ex
 
 
-# Decisions endpoint (SGLang-compatible)
+# Decisions endpoint
 @router.post("/v1/decisions", dependencies=[Depends(check_api_key)])
 async def decisions_request(request: Request, data: DecisionsRequest) -> DecisionsResponse:
     """

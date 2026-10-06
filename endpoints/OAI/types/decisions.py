@@ -1,8 +1,4 @@
-"""Types for the /v1/decisions endpoint (SGLang-compatible shape).
-
-A decision endpoint answers typed questions with probabilities read from the
-model's next-token distribution at the answer position. No text is generated.
-"""
+"""Types for the /v1/decisions endpoint."""
 
 from typing import Annotated, List, Literal, Optional, Union
 
@@ -50,7 +46,6 @@ class YesNoQuestion(BaseModel):
 
 
 class DecisionsRequest(BaseModel):
-    # "input" is a Python keyword; keep the wire name
     input: Union[str, dict, list]
     questions: List[
         Annotated[
@@ -64,18 +59,15 @@ class DecisionsRequest(BaseModel):
         description="Each question becomes one prefill; the cap keeps a single "
         "request from monopolizing the batch.",
     )
-    # Divides the label logits before the softmax over labels. Does not change
-    # label_mass. Sampling itself is unaffected: no text is generated.
+    # Divides the label logits before the softmax over labels; does not change
+    # label_mass. The sampled token is discarded, so sampling is unaffected.
     temperature: float = Field(default=1.0, gt=0)
-    # Passthrough for the model's chat template, same semantics as on
-    # /v1/chat/completions. Merged over the model's template_vars_default, so
-    # a model that thinks by default still answers at the right position. The
-    # answer is read directly after the rendered prompt; a template that
-    # leaves a reasoning block open shifts the position and fails the label
-    # token check with a 400.
+    # Passthrough for the model's chat template, merged over
+    # template_vars_default like chat completions, so the answer position
+    # follows the model's default thinking toggle.
     template_vars: Optional[dict] = None
     enable_thinking: Optional[bool] = None
-    # Accepted for client convenience; selects an inline model like elsewhere.
+    # Selects an inline model, like the other routes.
     model: Optional[str] = None
 
     @field_validator("input", mode="after")

@@ -351,10 +351,8 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
-    # Private: set by /v1/decisions to read the raw next-token logits at the
-    # answer position. Deliberately not a request field: a client-supplied flag
-    # would force full-vocab logits materialization on every generated token
-    # of public endpoints with no consumer there.
+    # Private flag for /v1/decisions: read raw next-token logits at the answer
+    # position. Not a request field — no public endpoint consumes the logits.
     _return_logits: bool = PrivateAttr(default=False)
 
     adaptive_target: Optional[float] = Field(

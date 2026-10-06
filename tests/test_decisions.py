@@ -34,7 +34,12 @@ def valid_request():
                     "question": "Which team?",
                     "options": [{"name": "billing"}, {"name": "technical"}],
                 },
-                {"id": "angry", "type": "score", "question": "How angry?", "levels": ["Calm", "Fuming"]},
+                {
+                    "id": "angry",
+                    "type": "score",
+                    "question": "How angry?",
+                    "levels": ["Calm", "Fuming"],
+                },
                 {"id": "urgent", "type": "yes_no", "question": "Urgent?"},
             ]
         )
@@ -70,66 +75,108 @@ class ValidationTests(unittest.TestCase):
 
     def test_blank_input_rejected(self):
         with self.assertRaises(ValueError):
-            DecisionsRequest.model_validate({"input": "  ", "questions": [
-                {"id": "u", "type": "yes_no", "question": "q"}]})
+            DecisionsRequest.model_validate(
+                {"input": "  ", "questions": [{"id": "u", "type": "yes_no", "question": "q"}]}
+            )
 
     def test_repeated_question_id_rejected(self):
-        request = DecisionsRequest.model_validate(base_request([
-            {"id": "same", "type": "yes_no", "question": "q"},
-            {"id": "same", "type": "yes_no", "question": "q"},
-        ]))
+        request = DecisionsRequest.model_validate(
+            base_request(
+                [
+                    {"id": "same", "type": "yes_no", "question": "q"},
+                    {"id": "same", "type": "yes_no", "question": "q"},
+                ]
+            )
+        )
         with self.assertRaises(DecisionValidationError):
             validate_decisions_request(request)
 
     def test_blank_option_name_rejected(self):
-        request = DecisionsRequest.model_validate(base_request([
-            {"id": "c", "type": "choice", "question": "q",
-             "options": [{"name": "ok"}, {"name": "   "}]}]))
+        request = DecisionsRequest.model_validate(
+            base_request(
+                [
+                    {
+                        "id": "c",
+                        "type": "choice",
+                        "question": "q",
+                        "options": [{"name": "ok"}, {"name": "   "}],
+                    }
+                ]
+            )
+        )
         with self.assertRaises(DecisionValidationError):
             validate_decisions_request(request)
 
     def test_control_char_in_option_name_rejected(self):
-        request = DecisionsRequest.model_validate(base_request([
-            {"id": "c", "type": "choice", "question": "q",
-             "options": [{"name": "ok"}, {"name": "bad\nname"}]}]))
+        request = DecisionsRequest.model_validate(
+            base_request(
+                [
+                    {
+                        "id": "c",
+                        "type": "choice",
+                        "question": "q",
+                        "options": [{"name": "ok"}, {"name": "bad\nname"}],
+                    }
+                ]
+            )
+        )
         with self.assertRaises(DecisionValidationError):
             validate_decisions_request(request)
 
     def test_blank_level_rejected(self):
-        request = DecisionsRequest.model_validate(base_request([
-            {"id": "s", "type": "score", "question": "q", "levels": ["ok", " "]}]))
+        request = DecisionsRequest.model_validate(
+            base_request([{"id": "s", "type": "score", "question": "q", "levels": ["ok", " "]}])
+        )
         with self.assertRaises(DecisionValidationError):
             validate_decisions_request(request)
 
     def test_blank_question_id_rejected(self):
-        request = DecisionsRequest.model_validate(base_request([
-            {"id": " ", "type": "yes_no", "question": "q"}]))
+        request = DecisionsRequest.model_validate(
+            base_request([{"id": " ", "type": "yes_no", "question": "q"}])
+        )
         with self.assertRaises(DecisionValidationError):
             validate_decisions_request(request)
 
     def test_option_count_bounds(self):
-        one_option = base_request([
-            {"id": "c", "type": "choice", "question": "q",
-             "options": [{"name": "only"}]}])
+        one_option = base_request(
+            [{"id": "c", "type": "choice", "question": "q", "options": [{"name": "only"}]}]
+        )
         with self.assertRaises(DecisionValidationError):
             validate_decisions_request(DecisionsRequest.model_validate(one_option))
 
-        too_many = base_request([
-            {"id": "c", "type": "choice", "question": "q",
-             "options": [{"name": f"o{i}"} for i in range(27)]}])
+        too_many = base_request(
+            [
+                {
+                    "id": "c",
+                    "type": "choice",
+                    "question": "q",
+                    "options": [{"name": f"o{i}"} for i in range(27)],
+                }
+            ]
+        )
         with self.assertRaises(DecisionValidationError):
             validate_decisions_request(DecisionsRequest.model_validate(too_many))
 
     def test_repeated_option_names_rejected(self):
-        request = DecisionsRequest.model_validate(base_request([
-            {"id": "c", "type": "choice", "question": "q",
-             "options": [{"name": "same"}, {"name": "SAME"}]}]))
+        request = DecisionsRequest.model_validate(
+            base_request(
+                [
+                    {
+                        "id": "c",
+                        "type": "choice",
+                        "question": "q",
+                        "options": [{"name": "same"}, {"name": "SAME"}],
+                    }
+                ]
+            )
+        )
         with self.assertRaises(DecisionValidationError):
             validate_decisions_request(request)
 
     def test_level_count_bounds(self):
-        request = DecisionsRequest.model_validate(base_request([
-            {"id": "s", "type": "score", "question": "q", "levels": ["only"]}]))
+        request = DecisionsRequest.model_validate(
+            base_request([{"id": "s", "type": "score", "question": "q", "levels": ["only"]}])
+        )
         with self.assertRaises(DecisionValidationError):
             validate_decisions_request(request)
 
@@ -224,7 +271,9 @@ class AnswerLabelTokenIdsTests(unittest.TestCase):
         # same ids whether the tokenizer adds BOS or not
         class NoBos(FakeTokenizer):
             def encode(self, text, add_bos=True, encode_special_tokens=True):
-                return super().encode(text, add_bos=False, encode_special_tokens=encode_special_tokens)
+                return super().encode(
+                    text, add_bos=False, encode_special_tokens=encode_special_tokens
+                )
 
         self.assertEqual(
             answer_label_token_ids("Question?\n", ["A"], FakeTokenizer()),

@@ -24,7 +24,6 @@ from endpoints.OAI.types.decisions import (
     DecisionsRequest,
     DecisionsResponse,
     ScoreQuestion,
-    YesNoQuestion,
 )
 from endpoints.OAI.utils.chat_completion import format_messages_with_template
 
@@ -105,7 +104,7 @@ def validate_decisions_request(data: DecisionsRequest) -> None:
                 bad(f"question {name}: option names must not repeat")
             for option in question.options:
                 if any(ord(c) < 32 or ord(c) == 127 for c in option.name):
-                    bad(f"question {name}: option names must not contain control or line break characters")
+                    bad(f"question {name}: control characters or line breaks in option names")
         elif isinstance(question, ScoreQuestion):
             if not (2 <= len(question.levels) <= 10):
                 bad(f"question {name}: score needs 2 to 10 levels")
@@ -119,11 +118,8 @@ def answer_label_token_ids(prompt: str, labels: List[str], tokenizer) -> List[in
 
     The relative comparison (prompt+label vs prompt) cancels BOS handling and
     matches how the generation pass encodes the prompt. Labels are appended
-    with no leading space: the check measures the bare form, which matches
-    what the versioned prompt asks the model to emit after the template's
-    trailing newline. A tokenizer that would merge the preceding character
-    into the label can bias the measured distribution; such a model fails the
-    single-token check and is rejected rather than silently mis-scored.
+    with no leading space; a tokenizer that merges the preceding character
+    into the label fails the length check and is rejected.
     """
 
     base_ids = tokenizer.encode(prompt, add_bos=True, encode_special_tokens=True)
@@ -137,7 +133,7 @@ def answer_label_token_ids(prompt: str, labels: List[str], tokenizer) -> List[in
                 f"label {label!r} is not one distinct token at the answer position "
                 "for this model's tokenizer. If the chat template opens a "
                 "reasoning block by default, pass template_vars to turn it off "
-                "(e.g. {\"enable_thinking\": false})."
+                '(e.g. {"enable_thinking": false}).'
             )
         token_ids.append(with_label[0, -1].item())
     return token_ids
@@ -162,13 +158,11 @@ def label_distribution(
 
 
 def compose_answer(question, labels, names, probs, label_mass):
-    probabilities = dict(zip(labels, probs))
+    probabilities = dict(zip(labels, probs, strict=True))
 
     if isinstance(question, ChoiceQuestion):
         best = max(range(len(probs)), key=probs.__getitem__)
-        return AnswerChoice(
-            probabilities=probabilities, label_mass=label_mass, choice=names[best]
-        )
+        return AnswerChoice(probabilities=probabilities, label_mass=label_mass, choice=names[best])
     if isinstance(question, ScoreQuestion):
         weighted = sum(idx * p for idx, p in enumerate(probs))
         return AnswerScore(probabilities=probabilities, label_mass=label_mass, score=weighted)
@@ -186,9 +180,8 @@ async def _answer_one_question(
     """Render, generate one position, and read the label distribution."""
 
     message_text = render_question_message(request_input, question)
-    # Same merge order as chat completions: model defaults, request overrides,
-    # model force. Without the defaults the answer position can land inside a
-    # reasoning block (e.g. Gemma thinking on by default).
+    # Same merge order as chat completions; without the model defaults the
+    # answer position can land inside a reasoning block.
     request_vars = {}
     if data.enable_thinking is not None:
         request_vars["enable_thinking"] = data.enable_thinking
@@ -209,10 +202,8 @@ async def _answer_one_question(
     label_ids = answer_label_token_ids(prompt, labels, tokenizer)
 
     # The sampled token is discarded; greedy keeps the sampler stack trivial.
-    # min_tokens=1 blocks the whole stop list at the single answer position
-    # (exllamav3 masks stop tokens until min_new_tokens is reached), so a
-    # model that would end its turn exactly here still yields its logits —
-    # otherwise the job emits no held logits at all and the answer is lost.
+    # min_tokens=1 masks the stop list at the single answer position, so a
+    # model that would end its turn exactly here still yields its logits.
     params = BaseSamplerRequest(max_tokens=1, min_tokens=1, temperature=0)
     params._return_logits = True
 
@@ -251,11 +242,9 @@ async def generate_decisions(
 
     validate_decisions_request(data)
 
-    # Answer the questions independently and concurrently; the backend
-    # batches their prefills. return_exceptions so one failed question can't
-    # orphan its siblings mid-prefill with their exceptions unretrieved: every
-    # task runs to completion (they are one-token jobs) and the first real
-    # exception is re-raised for the router's error mapping.
+    # Each question is an independent one-token job; the backend batches
+    # their prefills. Wait for all of them even on failure so no task is
+    # orphaned, then re-raise the first error for the router's error mapping.
     tasks = [
         asyncio.create_task(
             _answer_one_question(
