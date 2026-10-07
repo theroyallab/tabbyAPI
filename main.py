@@ -176,8 +176,22 @@ def entrypoint(
             api_key=config.developer.seqlog_api_key,
         )
 
+    # A ROCm torch needs two things settled before it or Triton is imported
+    from common.hardware import installed_torch_is_rocm
+
+    rocm_torch = installed_torch_is_rocm()
+    if rocm_torch:
+        # AMD's Triton build ships both backends and refuses to pick one on a machine
+        # that also has the NVIDIA driver
+        os.environ.setdefault("TRITON_DEFAULT_BACKEND", "amd")
+
     # We need to configure the allocator before importing Torch
-    if config.memory.cuda_malloc_async:
+    if config.memory.cuda_malloc_async and rocm_torch:
+        xlogger.warning(
+            "memory.cuda_malloc_async is ignored on ROCm: the cudaMallocAsync "
+            "allocator backend is CUDA-only."
+        )
+    elif config.memory.cuda_malloc_async:
         env_key1 = "PYTORCH_ALLOC_CONF"
         env_key2 = "PYTORCH_CUDA_ALLOC_CONF"
         new_alloc_config = "backend:cudaMallocAsync"

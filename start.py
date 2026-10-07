@@ -2,8 +2,10 @@
 
 import argparse
 import json
+import os
 import pathlib
 import platform
+import re
 import subprocess
 import sys
 import traceback
@@ -14,6 +16,55 @@ from typing import List
 has_uv = which("uv") is not None
 
 start_options = {}
+
+# AMD's pip-native ROCm distribution: torch and its per-GPU device packages on one
+# index, the ROCm runtime on another, both flat (pin by version, as the rocm extra
+# does). TABBY_ROCM_INDEX_URLS (comma-separated) overrides them for a mirror or an
+# offline copy.
+ROCM_INDEX_URLS = [
+    url.strip()
+    for url in os.environ.get(
+        "TABBY_ROCM_INDEX_URLS",
+        "https://stable.repo.amd.com/rocm/pytorch/whl-next/,"
+        "https://stable.repo.amd.com/rocm/core/whl-next/",
+    ).split(",")
+    if url.strip()
+]
+
+
+def rocm_device_package(target: str) -> str:
+    """
+    The per-GPU torch device package, e.g. gfx1100 -> amd-torch-device-gfx1100. It
+    holds torch's device code for that chip and pulls in the ROCm libraries' code
+    objects (rocm-sdk-device-*), which exllamav3's hipBLAS path needs. One per chip
+    on a box with several different AMD GPUs.
+    """
+
+    return f"amd-torch-device-{target.lower()}"
+
+
+def detect_amd_gpu_targets() -> List[str]:
+    """
+    The gfx targets of the AMD GPUs in this machine, read from the kernel's KFD
+    topology (no ROCm needed): gfx_target_version 110000 is gfx1100, 110501 is
+    gfx1151, 120001 is gfx1201, 100300 is gfx1030. CPU nodes report 0.
+    """
+
+    targets = []
+    for node in sorted(pathlib.Path("/sys/class/kfd/kfd/topology/nodes").glob("*/properties")):
+        try:
+            text = node.read_text()
+        except OSError:
+            continue
+        match = re.search(r"^gfx_target_version\s+(\d+)$", text, re.MULTILINE)
+        if not match or int(match.group(1)) == 0:
+            continue
+        version = int(match.group(1))
+        major, minor, step = version // 10000, (version // 100) % 100, version % 100
+        target = f"gfx{major}{minor:x}{step:x}"
+        if target not in targets:
+            targets.append(target)
+    return targets
 
 
 def get_user_choice(question: str, options_dict: dict):
@@ -43,22 +94,28 @@ def get_user_choice(question: str, options_dict: dict):
 def get_install_features(lib_name: str = None):
     """Fetches the appropriate requirements file depending on the GPU"""
     install_features = None
-    possible_features = ["cu12", "cu13"]
+    possible_features = ["cu12", "cu13", "rocm"]
 
     if not lib_name:
         has_nvidia = which("nvidia-smi") is not None
+        has_amd = platform.system() == "Linux" and pathlib.Path("/dev/kfd").exists()
 
         if has_nvidia:
             lib_name = "cu12"
             print("Auto-detected NVIDIA GPU. Using CUDA 12.x backend.")
+        elif has_amd:
+            lib_name = "rocm"
+            print("Auto-detected AMD GPU. Using the ROCm backend.")
         else:
             gpu_lib_choices = {
                 "A": {"pretty": "NVIDIA Cuda 12.x", "internal": "cu12"},
                 "B": {"pretty": "NVIDIA Cuda 13.x", "internal": "cu13"},
+                "C": {"pretty": "AMD ROCm (RDNA2 to RDNA4, Linux)", "internal": "rocm"},
             }
             print(
                 "WARNING: Auto-detection failed. "
-                "Please ensure you have an NVIDIA GPU (with nvidia-smi) installed."
+                "Please ensure you have an NVIDIA GPU (with nvidia-smi) "
+                "or an AMD GPU (with /dev/kfd) installed."
             )
             user_input = get_user_choice(
                 "Select your GPU. If you don't know, select Cuda 12.x (A)",
@@ -69,6 +126,23 @@ def get_install_features(lib_name: str = None):
         # Write to start options
         start_options["gpu_lib"] = lib_name
         print("Saving your choice to start options.")
+
+    if lib_name == "rocm" and not start_options.get("rocm_targets"):
+        targets = detect_amd_gpu_targets()
+        if targets:
+            print(f"Auto-detected AMD GPU target(s): {', '.join(targets)}")
+        else:
+            print(
+                "Could not read the AMD GPU targets from /sys/class/kfd. Enter the gfx "
+                "target(s) of your GPU(s), comma-separated, e.g. gfx1100 for a Radeon RX "
+                "7900 XTX, gfx1201 for an RX 9070 XT, gfx1151 for Strix Halo."
+            )
+            targets = [t.strip() for t in input("Input> ").split(",") if t.strip()]
+            while not all(re.fullmatch(r"gfx[0-9a-f]{3,4}", t) for t in targets) or not targets:
+                print("Invalid target. Please try again (e.g. gfx1100).")
+                targets = [t.strip() for t in input("Input> ").split(",") if t.strip()]
+        start_options["rocm_targets"] = targets
+        print("Saving your GPU target(s) to start options.")
 
     # Assume default if the file is invalid
     if lib_name and lib_name in possible_features:
@@ -130,7 +204,16 @@ def add_start_args(parser: argparse.ArgumentParser):
     start_group.add_argument(
         "--gpu-lib",
         type=str,
-        help="Select GPU library. Options: cu12, cu13",
+        help="Select GPU library. Options: cu12, cu13, rocm",
+    )
+    start_group.add_argument(
+        "--rocm-targets",
+        type=str,
+        help=(
+            "AMD GPU target(s) for the ROCm device packages, comma-separated (e.g. gfx1100, "
+            "gfx1201, gfx1151). Detected from /sys/class/kfd when not given. Only with "
+            "--gpu-lib rocm"
+        ),
     )
 
 
@@ -209,6 +292,12 @@ if __name__ == "__main__":
     else:
         gpu_lib = None
 
+    if args.rocm_targets:
+        start_options["rocm_targets"] = [
+            t.strip() for t in args.rocm_targets.split(",") if t.strip()
+        ]
+        do_start_options_write = True
+
     # Pull from GitHub
     if args.update_repository:
         print("Pulling latest changes from Github.")
@@ -226,6 +315,15 @@ if __name__ == "__main__":
         install_features = None if args.nowheel else get_install_features(gpu_lib)
         features = f".[{install_features}]" if install_features else "."
         install_command.append(features)
+
+        if install_features == "rocm":
+            # torch and the ROCm runtime only exist on AMD's indexes, and the per-GPU
+            # device packages have to be asked for by name
+            for url in ROCM_INDEX_URLS:
+                install_command += ["--extra-index-url", url]
+            install_command += [
+                rocm_device_package(target) for target in start_options["rocm_targets"]
+            ]
 
         # pip install .[features]
         print(f"Running install command: {' '.join(install_command)}")

@@ -66,7 +66,7 @@ docker run --gpus all --shm-size=8g --name tabbyapi -p 5000:5000 -v /path/to/mod
 
 Replace `/path/to/models` with the folder that contains your local model directories. The API is exposed on `http://localhost:5000`. Keep the `--shm-size` flag: ExLlamaV3 uses POSIX shared memory for tensor parallelism and CPU MoE offload, and Docker's default of 64 MiB is too small for either.
 
-Available tags: `latest` (CUDA 12.8), `cu13` (CUDA 13), and `latest-extras` (CUDA 12.8 with the optional embeddings stack included). When building from source, pass `--build-arg EXTRAS=1` to include the embeddings stack.
+Available tags: `latest` (CUDA 12.8), `cu13` (CUDA 13), `latest-rocm` (AMD, Radeon RX 7900 series; other GPUs build from `docker/Dockerfile.rocm`), and `latest-extras` (CUDA 12.8 with the optional embeddings stack included). When building from source, pass `--build-arg EXTRAS=1` to include the embeddings stack.
 
 For Docker Compose, custom config mounts, or building the image locally, see the [Docker instructions](docs/01.-Getting-Started.md#docker).
 

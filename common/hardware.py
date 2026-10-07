@@ -7,6 +7,21 @@ import torch
 MIN_CUDA_COMPUTE_CAPABILITY = (7, 5)
 
 
+def installed_torch_is_rocm() -> bool:
+    """
+    Whether the installed torch package is a ROCm build, read from its version
+    metadata so it can be known before torch is imported (some environment
+    variables only take effect if set before the import).
+    """
+
+    try:
+        from importlib.metadata import version
+
+        return "rocm" in version("torch")
+    except Exception:
+        return False
+
+
 def torch_backend() -> Optional[str]:
     """The GPU backend the installed PyTorch was built for: "cuda", "rocm" or None."""
 

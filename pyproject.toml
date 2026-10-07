@@ -112,6 +112,26 @@ cu13 = [
     "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.6.0/exllamav3-1.6.0%2Bcu132.torch2.11.0-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
     "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.6.0/exllamav3-1.6.0%2Bcu132.torch2.11.0-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
 ]
+rocm = [
+    # AMD's pip-native ROCm 10 stack ("TheRock"): the runtime comes from pip, no system
+    # ROCm needed, only the kernel driver. These resolve from AMD's indexes
+    # (stable.repo.amd.com/rocm/pytorch/whl-next and .../rocm/core/whl-next), which
+    # start.py and docker/Dockerfile.rocm pass on the command line (pyproject can't carry
+    # an index URL), together with a per-GPU amd-torch-device-gfxNNNN package. The indexes
+    # also carry newer lines, so everything is pinned. The torch pinned here is the AMD
+    # build the exllamav3 ROCm wheels are built against; bump the two together. Linux
+    # only; Windows ROCm stays on a JIT build of exllamav3 for now.
+    "torch == 2.13.0+rocm10.0.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    "rocm[libraries] == 10.0.0 ; platform_system == 'Linux' and platform_machine == 'x86_64'",
+    # Triton: torch's own pin pulls in the matching ROCm build. flash-linear-attention is
+    # not needed: exllamav3 vendors the kernels it uses
+
+    # Exl3. One wheel covers every RDNA generation (gfx10-1, gfx10-3, gfx11 and gfx12
+    # generic targets); CDNA (Instinct) needs a JIT build
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.6.0/exllamav3-1.6.0%2Brocm10.0.torch2.13.0-cp314-cp314-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.14'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.6.0/exllamav3-1.6.0%2Brocm10.0.torch2.13.0-cp313-cp313-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.13'",
+    "exllamav3 @ https://github.com/turboderp-org/exllamav3/releases/download/v1.6.0/exllamav3-1.6.0%2Brocm10.0.torch2.13.0-cp312-cp312-linux_x86_64.whl ; platform_system == 'Linux' and platform_machine == 'x86_64' and python_version == '3.12'",
+]
 # MARK: Ruff options
 
 [tool.ruff]
