@@ -5,6 +5,7 @@ services:
     #  context: ..
     #  dockerfile: ./docker/Dockerfile
     #  # For CUDA 13.x builds, use ./docker/Dockerfile.cu13
+    #  # For AMD GPUs, see the tabbyapi-rocm service below
     #  # Uncomment to include the optional embeddings stack (infinity-emb)
     #  #args:
     #  #  EXTRAS: 1
@@ -33,3 +34,46 @@ services:
       - ./models:/app/models                                # Change me
       # - /path/to/config.yml:/app/config.yml               # Change me
       # - /path/to/api_tokens.yml:/app/api_tokens.yml       # Change me
+
+  # AMD GPUs. Start with: docker compose --profile rocm up
+  # The image is built per GPU target (see docker/Dockerfile.rocm); the host needs
+  # only the amdgpu kernel driver, the ROCm runtime is inside the image.
+  tabbyapi-rocm:
+    profiles: ["rocm"]
+    # Uncomment this to build a docker image from source
+    #build:
+    #  context: ..
+    #  dockerfile: ./docker/Dockerfile.rocm
+    #  args:
+    #    ROCM_TARGETS: gfx1100          # e.g. gfx1201, gfx1030, gfx1151; several: "gfx1100 gfx1201"
+    #    # EXTRAS: 1
+
+    # Comment this to build a docker image from source
+    image: ghcr.io/theroyallab/tabbyapi:latest-rocm
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    # The container user needs the host's video and render groups to open the
+    # GPU devices. Images don't define a render group, so give its numeric id:
+    # RENDER_GID=$(getent group render | cut -d: -f3) docker compose --profile rocm up
+    group_add:
+      - video
+      - "${RENDER_GID:-44}"
+    ports:
+      - "5000:5000"
+    shm_size: "8g"
+    ulimits:
+      memlock: -1
+      nofile: 1048576
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      - NAME=TabbyAPI
+    volumes:
+      - ./models:/app/models                                # Change me
+      # - /path/to/config.yml:/app/config.yml               # Change me
+      # - /path/to/api_tokens.yml:/app/api_tokens.yml       # Change me
+

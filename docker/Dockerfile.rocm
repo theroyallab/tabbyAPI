@@ -1,0 +1,79 @@
+# AMD GPUs through AMD's pip-native ROCm 10 distribution. The ROCm runtime comes
+# from pip, so a plain Ubuntu base is enough; the host only needs the amdgpu
+# kernel driver, with /dev/kfd and /dev/dri passed into the container.
+FROM ubuntu:24.04
+
+# The GPU target(s) the image is built for, space-separated: the per-chip torch
+# device packages (torch's device code plus the ROCm libraries' code objects).
+#   gfx1100 / gfx1101 / gfx1102   RDNA3 discrete (Radeon RX 7900 / 7800, 7700 / 7600)
+#   gfx1200 / gfx1201             RDNA4 (Radeon RX 9060 / 9070)
+#   gfx1030 / gfx1031 / gfx1032   RDNA2 discrete (Radeon RX 6000)
+#   gfx1150 / gfx1151             RDNA3.5 APUs (Ryzen AI 300 / Strix Halo)
+# The host's targets: grep gfx_target_version /sys/class/kfd/kfd/topology/nodes/*/properties
+ARG ROCM_TARGETS=gfx1100
+# AMD's indexes: torch and the device packages on one, the ROCm runtime on the other
+# (keep in sync with ROCM_INDEX_URLS in start.py)
+ARG ROCM_TORCH_INDEX_URL=https://stable.repo.amd.com/rocm/pytorch/whl-next/
+ARG ROCM_CORE_INDEX_URL=https://stable.repo.amd.com/rocm/core/whl-next/
+
+# Install system dependencies. python3.12-dev supplies Python.h, which Triton's
+# runtime JIT needs to build its utility extension inside the container.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    ca-certificates \
+    python3.12 \
+    python3.12-dev \
+    python3-pip \
+    python3.12-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a virtual environment
+RUN python3 -m venv /opt/venv
+
+# Activate the venv and set the PATH
+ENV PATH="/opt/venv/bin:$PATH"
+
+# AMD's Triton build ships both backends; pick the right one up front
+ENV TRITON_DEFAULT_BACKEND=amd
+
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Get requirements
+COPY pyproject.toml .
+
+# Install the rocm group: torch and the ROCm runtime from AMD's indexes, the
+# device package for each target, and the exllamav3 ROCm wheel.
+# The image is large: the ROCm libraries alone are several gigabytes.
+RUN pip install --no-cache-dir \
+      --extra-index-url "$ROCM_TORCH_INDEX_URL" --extra-index-url "$ROCM_CORE_INDEX_URL" \
+      .[rocm] $(for t in $ROCM_TARGETS; do echo "amd-torch-device-$t"; done)
+
+# Optionally install the embeddings stack (infinity-emb, sentence-transformers)
+# with --build-arg EXTRAS=1 (disabled by default). torch is pinned through a
+# constraints file so the resolver can't swap in a CUDA or CPU wheel.
+ARG EXTRAS=
+RUN if [ -n "$EXTRAS" ]; then \
+      pip freeze | grep -E '^torch(==| @)' > /tmp/torch-constraint.txt && \
+      pip install --no-cache-dir \
+        --extra-index-url "$ROCM_TORCH_INDEX_URL" --extra-index-url "$ROCM_CORE_INDEX_URL" \
+        -c /tmp/torch-constraint.txt .[extras]; \
+    fi
+
+RUN rm pyproject.toml
+
+# Copy the current directory contents into the container
+COPY . .
+
+# Make port 5000 available to the world outside this container
+EXPOSE 5000
+
+# Set the entry point
+ENTRYPOINT ["python3"]
+
+# Run main.py when the container launches
+CMD ["main.py", "--host", "0.0.0.0"]
