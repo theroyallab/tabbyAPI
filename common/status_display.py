@@ -247,7 +247,9 @@ class StatusDisplay:
             line.append(" · ")
             queued = stats["pending_jobs"]
 
-        line.append(f"{len(self.jobs)} active")
+        # Every request here is either active or still queued in the engine
+        active = max(len(self.jobs) - queued, 0)
+        line.append(f"{active} active")
         if queued:
             line.append(f", {queued} queued")
 
