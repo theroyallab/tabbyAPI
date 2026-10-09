@@ -1025,12 +1025,16 @@ class ExllamaV3Container:
                 if value:
                     yield value
 
+        # Without a manual split the engine autosplits with the reserve, over
+        # however many devices are visible
         if self.use_tp:
             split_mode = "tensor parallel"
-        elif self.gpu_split_auto:
-            split_mode = "autosplit"
-        else:
+        elif self.gpu_split:
             split_mode = "manual GPU split"
+        elif torch.cuda.device_count() == 1:
+            split_mode = "single GPU"
+        else:
+            split_mode = "autosplit"
 
         xlogger.info(f"Loading model {self.model_dir} ({split_mode})")
 
