@@ -1921,6 +1921,7 @@ class ExllamaV3Container:
             embeddings=mm_embeddings_content,
             return_top_tokens=params.top_logprobs,
             return_probs=bool(params.logprobs) or bool(params.top_logprobs),
+            return_logits=bool(getattr(params, "_return_logits", False)),
             max_rq_tokens=max_rq_tokens,
             stop_on_loop=params.get_stop_on_loop(),
             filters=([] if in_reasoning and not phases.engine_trigger else grammar_handler.filters),
@@ -2028,6 +2029,10 @@ class ExllamaV3Container:
                         "generated_tokens": generated_tokens,
                         "offset": len(full_response),
                     }
+
+                    # Raw logits for the generated positions, when requested
+                    if result.get("logits") is not None:
+                        generation["logits"] = result["logits"]
 
                     if params.logprobs > 0:
                         self.handle_logprobs(result, generation)
