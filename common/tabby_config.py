@@ -16,6 +16,56 @@ from common.utils import deep_merge_dicts, filter_none_values, unwrap
 yaml = YAML(typ=["rt", "safe"])
 
 
+# Model and draft options that are not properties of one model load, so an
+# inline load isn't expected to inherit them
+_SERVER_LEVEL_MODEL_KEYS = {
+    "model_dir",
+    "model_name",
+    "inline_model_loading",
+    "use_as_default",
+    "use_dummy_models",
+    "dummy_model_names",
+}
+_SERVER_LEVEL_DRAFT_KEYS = {"draft_model_dir"}
+
+
+def inline_loading_warnings(merged: dict) -> list[str]:
+    """
+    Options in the config's model and draft_model sections only apply to the
+    model loaded at startup. A model loaded by request (inline loading) gets its
+    options from the model folder's tabby_config.yml and from the keys named in
+    use_as_default, and the built-in defaults otherwise, which for context and
+    cache size means the model's native maximum. Say so when inline loading is
+    on and the config sets options that would be skipped that way.
+    """
+
+    # The merged dict holds what the file, environment and arguments actually
+    # set (validators fill in more on the model, so its fields_set is no guide)
+    model = unwrap(merged.get("model"), {})
+    if not model.get("inline_model_loading"):
+        return []
+
+    inherited = set(unwrap(model.get("use_as_default"), []))
+    skipped = sorted(set(model) - _SERVER_LEVEL_MODEL_KEYS - inherited)
+    draft = unwrap(merged.get("draft_model"), {})
+    skipped_draft = sorted(set(draft) - _SERVER_LEVEL_DRAFT_KEYS - inherited)
+    if not skipped and not skipped_draft:
+        return []
+
+    listed = ", ".join(skipped + [f"draft_model.{key}" for key in skipped_draft])
+    message = (
+        "inline_model_loading is on, but these options only apply to the model "
+        f"named by model_name, not to models loaded by request: {listed}. A model "
+        "loaded by request falls back to the built-in defaults, including the "
+        "model's native context length as max_seq_len and cache_size, unless the "
+        "option is listed in model.use_as_default or set in a tabby_config.yml "
+        "next to the model."
+    )
+    if not model.get("model_name"):
+        message += " No model_name is set, so these options currently apply to nothing."
+    return [message]
+
+
 class TabbyConfig(TabbyConfigModel):
     # Persistent defaults
     # TODO: make this pydantic?
@@ -54,6 +104,9 @@ class TabbyConfig(TabbyConfigModel):
                 self.draft_model_defaults[field] = getattr(config.draft_model, field)
             else:
                 logger.error(f"invalid item {field} in config option `model.use_as_default`")
+
+        for message in inline_loading_warnings(merged_config):
+            logger.warning(message)
 
     def _from_file(self, config_path: pathlib.Path):
         """loads config from a given file path"""
