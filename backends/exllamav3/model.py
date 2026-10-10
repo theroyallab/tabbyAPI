@@ -1,8 +1,10 @@
 import asyncio
 from dataclasses import dataclass
 import gc
+import json
 import pathlib
 import re
+import struct
 import time
 from asyncio import CancelledError
 
@@ -214,6 +216,39 @@ class ExllamaV3Container:
         self.load_condition = asyncio.Condition()
         self.autosplit_reserve = [96 / 1024]
 
+    def _has_mtp_weights(self) -> bool:
+        """True if the model dir actually ships MTP tensors.
+
+        Some repos declare MTP layers in config but omit the weights.
+        weight_map is ground truth when sharded; single-file layouts
+        have no index, so scan the safetensors headers instead.
+        """
+        if "mtp" not in self.config.model_classes:
+            return False
+        index_path = self.model_dir / "model.safetensors.index.json"
+        if index_path.exists():
+            try:
+                with open(index_path, "r", encoding="utf-8") as f:
+                    weight_map = json.load(f).get("weight_map", {})
+            except (OSError, ValueError) as exc:
+                xlogger.warning(f"Could not read {index_path.name}: {exc}")
+                return False
+            return any(key.startswith("mtp.") for key in weight_map)
+        # No index: single-file (or nonstandard) layout, peek at headers.
+        # Reads 8 bytes + one JSON header per file, never loads tensors.
+        for st_file in sorted(self.model_dir.glob("*.safetensors")):
+            try:
+                with open(st_file, "rb") as f:
+                    (header_len,) = struct.unpack("<Q", f.read(8))
+                    header = json.loads(f.read(header_len))
+                if any(
+                    key.startswith("mtp.") for key in header.keys() if key != "__metadata__"
+                ):
+                    return True
+            except (OSError, ValueError, struct.error):
+                continue
+        return False
+
     # Required methods
     @classmethod
     async def create(cls, model_directory: pathlib.Path, hf_model: HFModel, **kwargs):
@@ -346,8 +381,32 @@ class ExllamaV3Container:
             if draft_mode == "mtp":
                 self.draft_model_dir = self.model_dir
                 self.draft_config = self.config
-                self.draft_model = Model.from_config(self.draft_config, component="mtp")
-                xlogger.info("Using main model MTP component for drafting")
+                if self._has_mtp_weights():
+                    try:
+                        self.draft_model = Model.from_config(self.draft_config, component="mtp")
+                    except Exception as exc:
+                        self.use_draft_model = False
+                        self.draft_model = None
+                        self.draft_model_dir = None
+                        self.draft_config = None
+                        self.draft_num_tokens = None
+                        xlogger.warning(
+                            "Failed to load MTP draft component, disabling MTP drafting "
+                            f"({exc}). Set draft_model.draft_mode to \"ngram\" for "
+                            "n-gram drafting."
+                        )
+                    else:
+                        xlogger.info("Using main model MTP component for drafting")
+                else:
+                    self.use_draft_model = False
+                    self.draft_model = None
+                    self.draft_model_dir = None
+                    self.draft_config = None
+                    self.draft_num_tokens = None
+                    xlogger.warning(
+                        "Main model has no MTP tensors, disabling MTP drafting. "
+                        "Set draft_model.draft_mode to \"ngram\" for n-gram drafting."
+                    )
             else:
                 draft_model_path = pathlib.Path(unwrap(draft_args.get("draft_model_dir"), "models"))
                 draft_model_path = draft_model_path / draft_model_name
