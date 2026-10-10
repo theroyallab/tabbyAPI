@@ -249,7 +249,13 @@ class ExllamaV3Container:
 
         self.model_dir = model_directory
         self.hf_model = hf_model
-        self.config = Config.from_directory(str(model_directory.resolve()))
+        # Optional RYS layer map (list of layer indices or a string spec such
+        # as "0..6,4..6"); must be set when the config is created so the model
+        # is built with the mapped layer order
+        self.config = Config.from_directory(
+            str(model_directory.resolve()),
+            layer_map=kwargs.get("layer_map"),
+        )
         self.model = Model.from_config(self.config)
         self.tokenizer = Tokenizer.from_config(self.config)
 
