@@ -181,6 +181,7 @@ def _compose_serialize_stream_chunk(
     model_name: Optional[str] = None,
     suppress_finish: bool = False,
     timings: Optional[Timings] = None,
+    include_role: bool = False,
 ) -> tuple[str, dict, Optional[str], bool]:
     """
     Compose a chat completion stream chunk from generation produced by _chat_stream_collector
@@ -202,6 +203,12 @@ def _compose_serialize_stream_chunk(
         delta["reasoning_content"] = delta_reasoning_content
     if delta_tool:
         delta["tool_calls"] = delta_tool
+
+    # The first delta of a choice names the role, as OpenAI does. Clients that
+    # infer the message type from it (LangChain's ChatOpenAI) otherwise build a
+    # generic chunk and drop the tool_calls.
+    if include_role and delta:
+        delta = {"role": "assistant", **delta}
 
     choice = {
         "index": generation.get("index"),
@@ -876,6 +883,9 @@ async def stream_generate_chat_completion(
         # For aggregating usage
         usage_stats_list = []
 
+        # Choice indices whose role has been sent
+        role_sent = set()
+
         # Create a stream collector for each choice
         remaining_n = data.n
         for idx in range(0, data.n):
@@ -912,14 +922,17 @@ async def stream_generate_chat_completion(
             suppress_finish = return_usage and remaining_n == 1
 
             # Create and serialize chunk
-            chunk, _, finish_reason, is_empty = _compose_serialize_stream_chunk(
+            chunk, chunk_dict, finish_reason, is_empty = _compose_serialize_stream_chunk(
                 request.state.id,
                 generation,
                 model_path.name,
                 suppress_finish,
                 None if suppress_finish else timings,
+                include_role=generation.get("index") not in role_sent,
             )
             if not is_empty:
+                if "role" in chunk_dict["choices"][0]["delta"]:
+                    role_sent.add(generation.get("index"))
                 yield chunk
 
             # Send usage chunk on completing last choice
