@@ -382,10 +382,15 @@ class ModelConfig(BaseConfigModel):
         None,
         description=(
             "Set the maximum number of generation jobs that can run concurrently\n"
-            "The default maximum batch size for transformer architectures is 32. Recurrent\n"
+            "The default maximum batch size for transformer architectures is 128. Recurrent\n"
             "models with linear or sliding attention use more VRAM to support larger batches,\n"
             "so the default value is reduced to 4. If you do not require concurrency at all, you\n"
-            "can reduce it further to minimize VRAM overhead."
+            "can reduce it further to minimize VRAM overhead.\n"
+            "Recurrent state storage is reserved per slot and depends on the architecture\n"
+            "and draft length (for example, 728 MiB per slot for a 27B GDN hybrid with 4\n"
+            "draft tokens). Planned state storage is logged when history is enabled; it\n"
+            "does not include weights, the paged KV cache, or other runtime buffers.\n"
+            "Single-user setups serving a recurrent model can set this to 1."
         ),
         ge=1,
     )

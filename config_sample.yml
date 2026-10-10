@@ -209,10 +209,15 @@ model:
   output_chunking: true
 
   # Set the maximum number of generation jobs that can run concurrently
-  # The default maximum batch size for transformer architectures is 32. Recurrent
+  # The default maximum batch size for transformer architectures is 128. Recurrent
   # models with linear or sliding attention use more VRAM to support larger batches,
   # so the default value is reduced to 4. If you do not require concurrency at all, you
   # can reduce it further to minimize VRAM overhead.
+  # Recurrent state storage is reserved per slot and depends on the architecture
+  # and draft length (for example, 728 MiB per slot for a 27B GDN hybrid with 4
+  # draft tokens). Planned state storage is logged when history is enabled; it
+  # does not include weights, the paged KV cache, or other runtime buffers.
+  # Single-user setups serving a recurrent model can set this to 1.
   max_batch_size:
 
   # Tokens between recurrent state checkpoints near the end of the prompt and

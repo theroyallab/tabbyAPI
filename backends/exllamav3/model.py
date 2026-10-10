@@ -503,6 +503,7 @@ class ExllamaV3Container:
         cache_mode_default = "FP16"
         self.cache_mode = unwrap(kwargs.get("cache_mode"), cache_mode_default)
         self.cache = self.create_cache(self.cache_mode, self.model)
+        self.log_recurrent_slot_cost()
 
         # Draft cache
         if self.use_draft_model:
@@ -771,6 +772,29 @@ class ExllamaV3Container:
             return None
 
         return self.max_rq_tokens
+
+    def log_recurrent_slot_cost(self):
+        """
+        Logs planned recurrent state storage when drafting is enabled.
+
+        Use the layer shapes: history layouts differ by architecture, and some
+        state tensors live on the CPU rather than the GPU.
+        """
+
+        recurrent_layers = getattr(self.cache, "recurrent_layers", None)
+        if not recurrent_layers or not self.cache.max_history:
+            return
+
+        num_slots = self.cache.num_slots
+        total_bytes = sum(layer.storage_size() for layer in recurrent_layers.values())
+        slot_word = "slot" if num_slots == 1 else "slots"
+        hint = " Single-user setups can set max_batch_size: 1." if num_slots > 1 else ""
+        xlogger.info(
+            f"Recurrent state storage: {num_slots} {slot_word}, "
+            f"{total_bytes / 1024**2:.0f} MiB total "
+            f"({total_bytes / num_slots / 1024**2:.0f} MiB per slot), "
+            f"max_history: {self.cache.max_history}.{hint}"
+        )
 
     def create_cache(self, raw_cache_mode: str, model: Model):
         # Cast exl2 types to exl3
