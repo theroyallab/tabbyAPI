@@ -320,6 +320,15 @@ class ModelConfig(BaseConfigModel):
             "variable, then half the CPU core count."
         ),
     )
+    layer_map: Optional[Union[List[int], str]] = Field(
+        None,
+        description=(
+            "RYS layer map for the exllamav3 backend (default: None).\n"
+            "Either a list of layer indices or a string spec of comma-separated\n"
+            "ints and inclusive ranges, e.g. '0..6,4..6'. Forward passes traverse\n"
+            "the model in this order; repeated layers get individual cache tensors."
+        ),
+    )
     ngram_ram: Optional[bool] = Field(
         False,
         description=(
