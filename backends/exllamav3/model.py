@@ -861,8 +861,8 @@ class ExllamaV3Container:
             default_draft_tokens = 4
         else:
             default_draft_tokens = 0
-        # A recurrent model's state history has to cover the widest
-        # verification pass a round can take, a hybrid draft included
+        # A recurrent model's rollback window (max_history) has to cover the
+        # widest verification pass a round can take, a hybrid draft included
         draft_tokens = unwrap(self.draft_num_tokens, default_draft_tokens)
         batch_draft_args = {
             "max_batch_size": self.max_batch_size,

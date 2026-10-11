@@ -377,9 +377,6 @@ draft_model:
   draft_gpu_split: []
 
   # Number of tokens to draft per iteration (default: draft model default)
-  # Recurrent (linear or sliding attention) models use more VRAM for longer drafts.
-  # This overhead multiplies with the max batch size, so for models with long drafts
-  # (e.g. DFlash with 15 tokens by default) shorter drafts may be preferable.
   draft_num_tokens:
 
   # Adjust number of draft tokens dynamically based on observed acceptance rates (default: False)

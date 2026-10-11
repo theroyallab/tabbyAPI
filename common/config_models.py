@@ -649,12 +649,7 @@ class DraftModelConfig(BaseConfigModel):
     )
     draft_num_tokens: Optional[int] = Field(
         None,
-        description=(
-            "Number of tokens to draft per iteration (default: draft model default)\n"
-            "Recurrent (linear or sliding attention) models use more VRAM for longer drafts.\n"
-            "This overhead multiplies with the max batch size, so for models with long drafts\n"
-            "(e.g. DFlash with 15 tokens by default) shorter drafts may be preferable."
-        ),
+        description=("Number of tokens to draft per iteration (default: draft model default)"),
     )
     dynamic_draft: Optional[bool] = Field(
         False,
