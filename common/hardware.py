@@ -1,10 +1,21 @@
 from typing import Optional
 
-import torch
-
 # Oldest NVIDIA compute capability ExLlamaV3's kernels run on: Turing (20 series).
 # Volta is 7.0 and lacks instructions they rely on
 MIN_CUDA_COMPUTE_CAPABILITY = (7, 5)
+
+
+def _torch():
+    """
+    torch, imported on first use. main.py asks this module about the installed
+    build before it sets the allocator environment, and torch reads that
+    environment when it is imported, so importing it here at module level would
+    pin the allocator to its default before the config has been applied.
+    """
+
+    import torch
+
+    return torch
 
 
 def installed_torch_is_rocm() -> bool:
@@ -25,6 +36,7 @@ def installed_torch_is_rocm() -> bool:
 def torch_backend() -> Optional[str]:
     """The GPU backend the installed PyTorch was built for: "cuda", "rocm" or None."""
 
+    torch = _torch()
     if torch.version.hip:
         return "rocm"
     if torch.version.cuda:
@@ -40,6 +52,7 @@ def torch_gpu_problem() -> Optional[str]:
     replacing the CUDA or ROCm one), and a GPU build that finds no device.
     """
 
+    torch = _torch()
     backend = torch_backend()
     if backend is None:
         return (
@@ -82,6 +95,7 @@ def hardware_supports_exllamav3(gpu_device_list: list[int]):
     if not gpu_device_list:
         return False
 
+    torch = _torch()
     min_compute_capability = min(
         torch.cuda.get_device_capability(device=device_idx) for device_idx in gpu_device_list
     )

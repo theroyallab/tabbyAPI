@@ -191,14 +191,12 @@ def entrypoint(
             "allocator backend is CUDA-only."
         )
     elif config.memory.cuda_malloc_async:
+        import sys
+
         env_key1 = "PYTORCH_ALLOC_CONF"
         env_key2 = "PYTORCH_CUDA_ALLOC_CONF"
         new_alloc_config = "backend:cudaMallocAsync"
         prev_alloc_config = os.environ.get(env_key1, os.environ.get(env_key2))
-        os.environ[env_key1] = new_alloc_config
-        os.environ[env_key2] = new_alloc_config
-        import sys
-
         if "torch" in sys.modules and prev_alloc_config != new_alloc_config:
             xlogger.warning(
                 "`torch` was imported before config could be loaded. Unable to configure "
@@ -206,6 +204,8 @@ def entrypoint(
                 + (prev_alloc_config or "(Torch default)")
             )
         else:
+            os.environ[env_key1] = new_alloc_config
+            os.environ[env_key2] = new_alloc_config
             xlogger.info("Configured backend: cudaMallocAsync")
 
     # branch to default paths if required
