@@ -171,6 +171,13 @@ model:
   # defers to the EXL3_MOE_CPU_THREADS environment variable, then half the CPU core count.
   cpu_moe_threads:
 
+  # RYS layer map for the exllamav3 backend (default: unset).
+  # Either a list of layer indices or a string spec of comma-separated ints and
+  # inclusive ranges, e.g. "0..6,4..6". Forward passes traverse the model in this
+  # order; repeated layers get individual cache tensors. Weights still load in the
+  # original layer order.
+  layer_map:
+
   # Load a model's n-gram embedding table fully into system RAM (default: False).
   # Only affects PLE models with n-gram embeddings (e.g. Qwen3.8-Flash-Next). By default
   # the table is streamed from disk during inference; loading it into RAM avoids
