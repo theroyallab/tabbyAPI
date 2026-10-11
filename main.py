@@ -15,7 +15,7 @@ from common import gen_logging, sampling
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
 from common.actions import run_subcommand
-from common.logger import set_console_timestamps, setup_logger, xlogger
+from common.logger import setup_logger, xlogger
 from common.networking import port_bind_error
 from common.optional_dependencies import dependencies
 from common.signals import signal_handler
@@ -165,9 +165,8 @@ def entrypoint(
 
     dict_args = convert_args_to_dict(args, parser)
 
-    # load config
+    # load config (also applies logging.log_timestamps to the console)
     config.load(dict_args)
-    set_console_timestamps(config.logging.log_timestamps)
 
     # optionally enable seqlog logging
     if config.developer.seqlog:

@@ -10,7 +10,13 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
 from ruamel.yaml.scalarstring import PreservedScalarString
 
-from common.config_models import BaseConfigModel, TabbyConfigModel
+from common.config_models import (
+    BaseConfigModel,
+    DraftModelConfig,
+    ModelConfig,
+    TabbyConfigModel,
+)
+from common.logger import set_console_timestamps
 from common.utils import deep_merge_dicts, filter_none_values, unwrap
 
 yaml = YAML(typ=["rt", "safe"])
@@ -29,6 +35,15 @@ _SERVER_LEVEL_MODEL_KEYS = {
 _SERVER_LEVEL_DRAFT_KEYS = {"draft_model_dir"}
 
 
+def _is_default(model_cls, key: str, value) -> bool:
+    """Whether a config value equals the field's default (unknown keys never do)."""
+
+    field = model_cls.model_fields.get(key)
+    if field is None:
+        return False
+    return value == field.get_default(call_default_factory=True)
+
+
 def inline_loading_warnings(merged: dict) -> list[str]:
     """
     Options in the config's model and draft_model sections only apply to the
@@ -45,24 +60,31 @@ def inline_loading_warnings(merged: dict) -> list[str]:
     if not model.get("inline_model_loading"):
         return []
 
+    # An option set to its default value is skipped without effect
     inherited = set(unwrap(model.get("use_as_default"), []))
-    skipped = sorted(set(model) - _SERVER_LEVEL_MODEL_KEYS - inherited)
+    skipped = sorted(
+        key
+        for key in set(model) - _SERVER_LEVEL_MODEL_KEYS - inherited
+        if not _is_default(ModelConfig, key, model[key])
+    )
     draft = unwrap(merged.get("draft_model"), {})
-    skipped_draft = sorted(set(draft) - _SERVER_LEVEL_DRAFT_KEYS - inherited)
+    skipped_draft = sorted(
+        key
+        for key in set(draft) - _SERVER_LEVEL_DRAFT_KEYS - inherited
+        if not _is_default(DraftModelConfig, key, draft[key])
+    )
     if not skipped and not skipped_draft:
         return []
 
     listed = ", ".join(skipped + [f"draft_model.{key}" for key in skipped_draft])
     message = (
-        "inline_model_loading is on, but these options only apply to the model "
-        f"named by model_name, not to models loaded by request: {listed}. A model "
-        "loaded by request falls back to the built-in defaults, including the "
-        "model's native context length as max_seq_len and cache_size, unless the "
-        "option is listed in model.use_as_default or set in a tabby_config.yml "
-        "next to the model."
+        "Models loaded by request ignore these options unless they are in "
+        f"model.use_as_default or the model's tabby_config.yml: {listed} "
+        "(max_seq_len and cache_size then default to the model's native context "
+        "length)."
     )
     if not model.get("model_name"):
-        message += " No model_name is set, so these options currently apply to nothing."
+        message += " No model_name is set, so they currently apply to nothing."
     return [message]
 
 
@@ -94,6 +116,10 @@ class TabbyConfig(TabbyConfigModel):
         for field in TabbyConfigModel.model_fields.keys():
             value = getattr(merged_config_model, field)
             setattr(self, field, value)
+
+        # Before anything below logs, so the config's own warnings are
+        # formatted the way it asks
+        set_console_timestamps(self.logging.log_timestamps)
 
         # Set model defaults dict once to prevent on-demand reconstruction
         # TODO: clean this up a bit

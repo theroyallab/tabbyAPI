@@ -670,6 +670,17 @@ class DraftModelConfig(BaseConfigModel):
             "Only used when draft_mode is ngram."
         ),
     )
+    hybrid_draft_tokens: Optional[int] = Field(
+        0,
+        description=(
+            "Hybrid drafting: when the model is repeating a passage of its context\n"
+            "verbatim (reciting a drafted reply, editing source), draft this many\n"
+            "tokens of the earlier continuation in one verification pass (default: 0,\n"
+            "off). Works on top of any draft mode, or on its own. Longer values advance\n"
+            "more tokens at prefill speed on a hit, and cost a wider verification pass."
+        ),
+        ge=0,
+    )
 
 
 class SamplingConfig(BaseConfigModel):

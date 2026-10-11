@@ -390,6 +390,13 @@ draft_model:
   # Only used when draft_mode is ngram.
   ngram_match_min: 2
 
+  # Hybrid drafting: when the model is repeating a passage of its context verbatim (reciting
+  # a drafted reply, editing source), draft this many tokens of the earlier continuation in
+  # one verification pass (default: 0, off). Works on top of any draft mode, or on its own.
+  # Longer values advance more tokens at prefill speed on a hit, and cost a wider
+  # verification pass.
+  hybrid_draft_tokens: 0
+
 # Options for Sampling
 sampling:
   # Select a sampler override preset (default: None).

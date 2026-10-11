@@ -247,6 +247,7 @@ class ExllamaV3Container:
     draft_num_tokens: Optional[int] = None
     dynamic_draft: Optional[bool] = False
     ngram_match_min: int = 0
+    hybrid_draft_tokens: int = 0
     recurrent_checkpoint_interval: Optional[int] = None
     recurrent_checkpoint_interval_pp: Optional[int] = None
     # Generator arguments for the persistent disk cache tier, resolved per load
@@ -293,7 +294,7 @@ class ExllamaV3Container:
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "1.5.4")
+        check_package_version("exllamav3", "1.6.1")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
@@ -388,6 +389,13 @@ class ExllamaV3Container:
         )
         self.dynamic_draft = draft_args.get("dynamic_draft", False)
 
+        # Long suffix-match drafting on top of whichever drafting mode is
+        # active, or on its own: a job repeating its own context verbatim gets
+        # this many tokens of the earlier continuation as the round's draft
+        self.hybrid_draft_tokens = unwrap(draft_args.get("hybrid_draft_tokens"), 0)
+        if self.hybrid_draft_tokens < 0:
+            raise ValueError("hybrid_draft_tokens must be 0 (off) or greater")
+
         # Always disable draft if params are incorrectly configured
         if draft_mode == "model" and draft_args and draft_model_name is None:
             xlogger.warning(
@@ -416,6 +424,11 @@ class ExllamaV3Container:
                 xlogger.info(
                     f"Using n-gram drafting with minimum match length {self.ngram_match_min}"
                 )
+        if self.hybrid_draft_tokens:
+            xlogger.info(
+                f"Using hybrid drafting: {self.hybrid_draft_tokens} tokens drafted from a "
+                "matching earlier passage of the context."
+            )
 
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
@@ -848,11 +861,12 @@ class ExllamaV3Container:
             default_draft_tokens = 4
         else:
             default_draft_tokens = 0
+        # A recurrent model's state history has to cover the widest
+        # verification pass a round can take, a hybrid draft included
+        draft_tokens = unwrap(self.draft_num_tokens, default_draft_tokens)
         batch_draft_args = {
             "max_batch_size": self.max_batch_size,
-            "max_history": (
-                self.draft_num_tokens if self.draft_num_tokens is not None else default_draft_tokens
-            ),
+            "max_history": max(draft_tokens, self.hybrid_draft_tokens),
         }
 
         if split_cache_mode:
@@ -1010,6 +1024,7 @@ class ExllamaV3Container:
         draft_tokens = 0
         if self.use_draft_model or self.ngram_match_min:
             draft_tokens = unwrap(self.draft_num_tokens, 4)
+        draft_tokens = max(draft_tokens, self.hybrid_draft_tokens)
         max_q_len = max(8, draft_tokens + 1)
 
         finished = object()
@@ -1174,6 +1189,7 @@ class ExllamaV3Container:
                 num_draft_tokens=self.draft_num_tokens,
                 dynamic_draft_tokens=self.dynamic_draft,
                 ngram_match_min=self.ngram_match_min,
+                hybrid_draft_tokens=self.hybrid_draft_tokens,
                 **checkpoint_kwargs,
                 **self.disk_cache_kwargs,
             )
