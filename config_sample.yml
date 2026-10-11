@@ -448,6 +448,29 @@ memory:
   # Size of system memory second-tier K/V cache, in MB (default: 0)
   sysmem_kv_cache: 0
 
+  # Directory for a persistent third-tier cache on disk (default: None).
+  # K/V pages entering the system memory tier and recurrent checkpoints are written through
+  # to disk and read back when a prompt's pages are in no other tier, also in a later server
+  # process. Requires sysmem_kv_cache > 0 and ExLlamaV3 1.6.2 or later (ignored with a warning
+  # otherwise). Each model and cache configuration gets its own subdirectory, so one directory
+  # serves every model. Experimental.
+  disk_cache_dir:
+
+  # Size budget of the whole disk cache directory, in MB (default: 51200).
+  # Shared by every model and cache configuration stored under disk_cache_dir; the least
+  # recently used entries are removed to stay within it.
+  disk_cache_size: 51200
+
+  # Also write every complete page still in VRAM to the disk cache whenever the generator
+  # goes idle, so a context is persisted without having to be evicted first (default: True).
+  disk_cache_flush_on_idle: true
+
+  # Minimum spacing, in tokens, between the recurrent checkpoints the disk cache keeps along
+  # a chain of cached pages (default: 4096). A resumed prompt replays at most this many
+  # tokens. Checkpoints take far more space than pages on hybrid models. 0 keeps every
+  # checkpoint.
+  disk_cache_checkpoint_interval: 4096
+
   # Size of the image embedding cache in system memory, in MB (default: 1024).
   # Encoded images are kept so repeated turns of a conversation don't re-run the vision model.
   # Images already in use by a request are never evicted; a context whose images exceed the

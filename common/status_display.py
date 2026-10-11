@@ -238,12 +238,34 @@ class StatusDisplay:
             line.append(f"{used:,}/{max_tokens:,} tokens in use")
             line.append(f" ({used / max_tokens * 100:.0f}%)", style="dim")
             line.append(f" · {stats['cached_tokens']:,} reusable")
-            if stats.get("tier_max_tokens"):
-                line.append(f" + {stats['tier_cached_tokens']:,} in sysmem")
+            # Each tier's count is what it holds beyond the tiers above it: a
+            # page restored from disk is in VRAM, so it no longer counts as
+            # reusable *from* disk even though the file is still there
+            has_tier = bool(stats.get("tier_max_tokens"))
+            # The disk tier's entries are only present in engines that have one
+            has_disk = bool(stats.get("disk_max_bytes"))
+            if has_tier:
+                line.append(f", +{stats['tier_cached_tokens']:,} more in sysmem")
+            if has_disk:
+                line.append(f", +{stats['disk_cached_tokens']:,} more on disk")
+                line.append(
+                    f" · disk {stats['disk_used_bytes'] / 1024**3:.1f}"
+                    f"/{stats['disk_max_bytes'] / 1024**3:.0f} GB"
+                )
             if stats["hit_rate"] is not None:
                 line.append(f" · hit rate {stats['hit_rate'] * 100:.0f}%")
-                if stats.get("tier_max_tokens") and stats.get("tier_hit_rate") is not None:
-                    line.append(f" incl. {stats['tier_hit_rate'] * 100:.0f}% from sysmem")
+                # Where the hits came from; the rest was still in VRAM. The
+                # engine's tier rate includes pages promoted from disk
+                tier_rate = stats.get("tier_hit_rate") if has_tier else None
+                disk_rate = stats.get("disk_hit_rate") if has_disk else None
+                sources = []
+                if tier_rate is not None:
+                    sysmem_rate = max(tier_rate - (disk_rate or 0), 0)
+                    sources.append(f"{sysmem_rate * 100:.0f}% from sysmem")
+                if disk_rate is not None:
+                    sources.append(f"{disk_rate * 100:.0f}% from disk")
+                if sources:
+                    line.append(" incl. " + ", ".join(sources))
             line.append(" · ")
             queued = stats["pending_jobs"]
 

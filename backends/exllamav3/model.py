@@ -21,6 +21,7 @@ from exllamav3 import (
     AsyncJob,
     Cache,
     Config,
+    Generator,
     Model,
     Tokenizer,
 )
@@ -131,6 +132,50 @@ def reasoning_tag_conflicts(end_tag: Optional[str], strings: list) -> List[str]:
     return [s for s in strings if isinstance(s, str) and tag in s.lower()]
 
 
+def engine_supports_disk_cache() -> bool:
+    """
+    Whether the installed engine has the persistent disk cache tier
+    (exllamav3 1.6.2). Checked by attribute so a development checkout of the
+    engine qualifies regardless of its version string.
+    """
+
+    return hasattr(Generator, "flush_cache_to_disk")
+
+
+def disk_cache_kwargs(memory_config) -> dict:
+    """
+    The generator arguments for the persistent disk cache tier configured
+    under memory:, or an empty dict when it is disabled or can't be used.
+    The tier writes through from the system memory K/V tier, so it needs one.
+    """
+
+    directory = memory_config.disk_cache_dir
+    if not directory:
+        return {}
+
+    if not engine_supports_disk_cache():
+        xlogger.warning(
+            "disk_cache_dir needs ExLlamaV3 1.6.2 or later; the installed version "
+            "has no disk cache tier. Continuing without it."
+        )
+        return {}
+
+    if not memory_config.sysmem_kv_cache:
+        xlogger.warning(
+            "disk_cache_dir is set but sysmem_kv_cache is 0. The disk cache writes "
+            "through from the system memory K/V cache, so it needs one. "
+            "Continuing without the disk cache."
+        )
+        return {}
+
+    return {
+        "disk_cache_dir": str(pathlib.Path(directory).expanduser()),
+        "disk_cache_size": memory_config.disk_cache_size * 1024**2,
+        "disk_cache_flush_on_idle": bool(memory_config.disk_cache_flush_on_idle),
+        "disk_cache_checkpoint_interval": memory_config.disk_cache_checkpoint_interval,
+    }
+
+
 def _describe_reasoning_settings(reasoning_params: BaseSamplerRequest) -> str:
     """The reasoning-phase overrides as "name: value (source)" items."""
 
@@ -204,6 +249,9 @@ class ExllamaV3Container:
     ngram_match_min: int = 0
     recurrent_checkpoint_interval: Optional[int] = None
     recurrent_checkpoint_interval_pp: Optional[int] = None
+    # Generator arguments for the persistent disk cache tier, resolved per load
+    # from memory.disk_cache_* (empty when disabled); never mutated in place
+    disk_cache_kwargs: dict = {}
 
     def __init__(self):
         # Mutable state must be created per instance. A class-level default
@@ -498,6 +546,10 @@ class ExllamaV3Container:
                 "recurrent_checkpoint_interval settings are ignored because "
                 "the model has no recurrent layers."
             )
+
+        # Persistent disk cache tier (resolved once per load, so the warnings
+        # don't repeat when the generator is recreated)
+        self.disk_cache_kwargs = disk_cache_kwargs(config.memory)
 
         # Create cache
         cache_mode_default = "FP16"
@@ -1117,6 +1169,7 @@ class ExllamaV3Container:
                 dynamic_draft_tokens=self.dynamic_draft,
                 ngram_match_min=self.ngram_match_min,
                 **checkpoint_kwargs,
+                **self.disk_cache_kwargs,
             )
 
             # Update the state of the container var
@@ -1131,6 +1184,19 @@ class ExllamaV3Container:
                     "Using recurrent checkpoint intervals: "
                     f"{generator.recurrent_checkpoint_interval} tokens (generation), "
                     f"{generator.recurrent_checkpoint_interval_pp} tokens (prompt ingestion)."
+                )
+
+            # What the disk cache directory already holds for this model and
+            # cache configuration (from an earlier process, usually)
+            disk_cache = getattr(generator, "disk_page_cache", None)
+            if disk_cache is not None:
+                stats = generator.get_cache_stats()
+                xlogger.info(
+                    f"Disk cache: {disk_cache.dir} holds {stats['disk_pages']:,} pages "
+                    f"({stats['disk_cached_tokens']:,} reusable tokens) and "
+                    f"{stats['disk_states']:,} recurrent checkpoints, "
+                    f"{stats['disk_used_bytes'] / 1024**3:.2f} GB of "
+                    f"{stats['disk_max_bytes'] / 1024**3:.2f} GB."
                 )
         finally:
             # This means the generator is being recreated
@@ -1168,6 +1234,13 @@ class ExllamaV3Container:
             # Clear the image embedding cache
             clear_image_embedding_cache()
 
+            # Retire the generator while the cache tensors are still there:
+            # closing it persists what is only in VRAM to the disk cache, and
+            # releases the host tiers through the tensor-parallel ranks
+            if self.generator is not None:
+                await self.generator.close()
+                self.generator = None
+
             self.model.unload()
             self.model = None
             self.config = None
@@ -1183,11 +1256,6 @@ class ExllamaV3Container:
             if self.use_vision:
                 self.vision_model.unload()
                 self.vision_model = None
-
-            # Cleanup the generator from any pending jobs
-            if self.generator is not None:
-                await self.generator.close()
-                self.generator = None
 
             gc.collect()
             torch.cuda.empty_cache()

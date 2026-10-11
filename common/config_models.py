@@ -764,6 +764,45 @@ class MemoryConfig(BaseConfigModel):
         0,
         description=("Size of system memory second-tier K/V cache, in MB (default: 0)"),
     )
+    disk_cache_dir: Optional[str] = Field(
+        None,
+        description=(
+            "Directory for a persistent third-tier cache on disk (default: None).\n"
+            "K/V pages entering the system memory tier and recurrent checkpoints are\n"
+            "written through to disk and read back when a prompt's pages are in no\n"
+            "other tier, also in a later server process. Requires sysmem_kv_cache > 0\n"
+            "and ExLlamaV3 1.6.2 or later (ignored with a warning otherwise). Each\n"
+            "model and cache configuration gets its own subdirectory, so one directory\n"
+            "serves every model. Experimental."
+        ),
+    )
+    disk_cache_size: Optional[int] = Field(
+        51200,
+        description=(
+            "Size budget of the whole disk cache directory, in MB (default: 51200).\n"
+            "Shared by every model and cache configuration stored under disk_cache_dir;\n"
+            "the least recently used entries are removed to stay within it."
+        ),
+        gt=0,
+    )
+    disk_cache_flush_on_idle: Optional[bool] = Field(
+        True,
+        description=(
+            "Also write every complete page still in VRAM to the disk cache whenever\n"
+            "the generator goes idle, so a context is persisted without having to be\n"
+            "evicted first (default: True)."
+        ),
+    )
+    disk_cache_checkpoint_interval: Optional[int] = Field(
+        4096,
+        description=(
+            "Minimum spacing, in tokens, between the recurrent checkpoints the disk\n"
+            "cache keeps along a chain of cached pages (default: 4096). A resumed prompt\n"
+            "replays at most this many tokens. Checkpoints take far more space than\n"
+            "pages on hybrid models. 0 keeps every checkpoint."
+        ),
+        ge=0,
+    )
     sysmem_multimodal_cache: Optional[int] = Field(
         1024,
         description=(
