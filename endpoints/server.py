@@ -4,8 +4,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from typing import Optional
+from urllib.parse import quote
 
-from common import signals
+from common import auth, signals
 from common.logger import UVICORN_LOG_CONFIG
 from common.errors import ContextLengthHTTPException, context_length_exception_handler
 from common.networking import get_global_depends
@@ -13,6 +14,7 @@ from common.tabby_config import config
 from endpoints.Kobold import router as KoboldRouter
 from endpoints.OAI import router as OAIRouter
 from endpoints.core.router import router as CoreRouter
+from endpoints.ui.router import mount_ui
 
 
 def setup_app(host: Optional[str] = None, port: Optional[int] = None):
@@ -70,6 +72,17 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
 
     # Include core API request paths
     app.include_router(CoreRouter)
+
+    if config.network.web_ui:
+        mount_ui(app)
+
+        if host is not None:
+            # Log in with a click: the admin key is printed at startup anyway,
+            # and a URL fragment never reaches the server or its logs
+            link = f"http://{host}:{port}/ui/"
+            if not auth.DISABLE_AUTH and auth.AUTH_KEYS:
+                link += "#key=" + quote(auth.AUTH_KEYS.admin_key, safe="")
+            logger.info(f"Chat client at {link}")
 
     return app
 

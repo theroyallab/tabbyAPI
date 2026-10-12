@@ -4,6 +4,8 @@ from typing import Optional
 from common.multimodal import MultimodalEmbeddingWrapper
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from ruamel.yaml import YAML
+from ruamel.yaml.error import YAMLError
 from sse_starlette import EventSourceResponse
 
 from common import model, sampling
@@ -25,9 +27,12 @@ from endpoints.core.types.download import DownloadRequest, DownloadResponse
 from endpoints.core.types.lora import LoraList, LoraLoadRequest, LoraLoadResponse
 from endpoints.core.types.model import (
     EmbeddingModelLoadRequest,
+    LoadOptionsParseRequest,
+    LoadOptionsParseResponse,
     ModelCard,
     ModelDefaultGenerationSettings,
     ModelList,
+    ModelLoadConfigResponse,
     ModelLoadRequest,
     ModelLoadResponse,
     ModelPropsModalities,
@@ -51,6 +56,7 @@ from endpoints.core.utils.model import (
     get_current_model_list,
     get_dummy_models,
     get_model_list,
+    get_model_load_config,
     stream_model_load,
 )
 
@@ -204,6 +210,62 @@ async def load_model(data: ModelLoadRequest) -> ModelLoadResponse:
         raise HTTPException(400, error_message)
 
     return EventSourceResponse(stream_model_load(data, model_path), ping=get_sse_ping_interval())
+
+
+@router.get("/v1/model/load_config", dependencies=[Depends(check_admin_key)])
+async def model_load_config(model_name: str) -> ModelLoadConfigResponse:
+    """
+    The load options that apply to a model when a load request leaves them
+    out: the model folder's tabby_config.yml over config.yml's use_as_default
+    keys. Also given as YAML, ready to edit and send back with a load request.
+    """
+
+    model_path = pathlib.Path(config.model.model_dir) / model_name
+    if not model_path.is_dir():
+        error_message = handle_request_error(
+            f"Model {model_name} was not found in the model directory.",
+            exc_info=False,
+        ).error.message
+
+        raise HTTPException(404, error_message)
+
+    try:
+        return await get_model_load_config(model_name, model_path)
+    except (YAMLError, ValueError) as exc:
+        error_message = handle_request_error(
+            f"Could not read the tabby_config.yml of {model_name}: {exc}",
+            exc_info=False,
+        ).error.message
+
+        raise HTTPException(400, error_message) from exc
+
+
+@router.post("/v1/model/load_config/parse", dependencies=[Depends(check_admin_key)])
+async def parse_load_options(data: LoadOptionsParseRequest) -> LoadOptionsParseResponse:
+    """
+    Turn load options written as YAML (or JSON) into a load request body, so
+    clients can edit them as YAML without a YAML parser of their own.
+    """
+
+    try:
+        settings = YAML(typ="safe").load(data.yaml)
+    except YAMLError as exc:
+        error_message = handle_request_error(
+            f"Load options are not valid YAML: {exc}", exc_info=False
+        ).error.message
+
+        raise HTTPException(400, error_message) from exc
+
+    if settings is None:
+        settings = {}
+    if not isinstance(settings, dict):
+        error_message = handle_request_error(
+            "Load options must be a mapping of option names to values.", exc_info=False
+        ).error.message
+
+        raise HTTPException(400, error_message)
+
+    return LoadOptionsParseResponse(settings=settings)
 
 
 # Unload model endpoint

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TabbyAPI Chat</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23c2410c'/%3E%3Ctext x='16' y='22' font-family='sans-serif' font-size='16' font-weight='700' fill='white' text-anchor='middle'%3ET%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Sessions -->
+    <aside id="sidebar" class="drawer drawer-left">
+      <button id="new-chat" class="new-chat" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        New chat
+      </button>
+      <nav id="session-list" aria-label="Chat sessions"></nav>
+      <div class="sidebar-footer">
+        <button id="open-connection" class="sidebar-item" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7h3a5 5 0 0 1 0 10h-3M9 17H6A5 5 0 0 1 6 7h3M8 12h8"/></svg>
+          <span>Connection</span>
+          <span id="connection-state" class="pill"></span>
+        </button>
+        <button id="toggle-markdown" class="sidebar-item" type="button" title="Show replies formatted as Markdown, or as the exact text the model wrote">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V5h16v2M9 19h6M12 5v14"/></svg>
+          <span id="markdown-label">Replies</span>
+        </button>
+        <button id="toggle-theme" class="sidebar-item" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+          <span id="theme-label">Theme</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Conversation -->
+    <main id="main">
+      <header id="topbar">
+        <button class="icon-button only-narrow" data-drawer="sidebar" type="button" aria-label="Chats">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div id="topbar-model" class="topbar-model">
+          <span id="model-dot" class="dot"></span>
+          <span id="topbar-model-name">No model</span>
+        </div>
+        <button class="icon-button only-medium" data-drawer="panel" type="button" aria-label="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+        </button>
+      </header>
+
+      <div id="thread" aria-live="polite">
+        <div id="system-row" class="row row-system">
+          <div class="row-inner">
+            <details id="system-details">
+              <summary>System prompt <span id="system-preview" class="muted"></span></summary>
+              <textarea id="system-prompt" rows="3" placeholder="Optional system message for this chat"></textarea>
+            </details>
+          </div>
+        </div>
+        <div id="messages"></div>
+        <div id="empty-state" class="empty-state">
+          <h1>TabbyAPI</h1>
+          <p>Load a model from the panel on the right, then start typing.</p>
+        </div>
+      </div>
+
+      <footer id="composer-area">
+        <div class="composer-actions">
+          <button id="regenerate" class="ghost-button" type="button" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+            Regenerate response
+          </button>
+          <button id="stop" class="ghost-button" type="button" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+            Stop generating
+          </button>
+        </div>
+        <form id="composer" class="composer">
+          <textarea id="input" rows="1" placeholder="Send a message" autocomplete="off"></textarea>
+          <button id="send" type="submit" class="send-button" aria-label="Send">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg>
+          </button>
+        </form>
+        <p id="status-line" class="status-line"></p>
+      </footer>
+    </main>
+
+    <!-- Model and sampling -->
+    <aside id="panel" class="drawer drawer-right">
+      <section class="panel-section">
+        <div class="section-head">
+          <h2>Model</h2>
+          <button id="refresh-models" class="icon-button small" type="button" aria-label="Refresh model list" title="Refresh">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+          </button>
+        </div>
+        <div id="model-info" class="model-info"></div>
+        <input id="model-filter" class="filter" type="search" placeholder="Filter, or type a path to load">
+        <ul id="model-list" class="model-list" role="listbox" aria-label="Available models"></ul>
+        <details id="load-options-details" class="load-options">
+          <summary>Load options <span id="load-options-note" class="muted"></span></summary>
+          <textarea id="load-options" rows="9" wrap="off" spellcheck="false" placeholder="max_seq_len: 16384&#10;cache_mode: Q8&#10;draft_model:&#10;  draft_mode: ngram"></textarea>
+          <p class="hint">YAML fields for /v1/model/load. Picking a model fills in what would apply to it from its tabby_config.yml and config.yml's use_as_default; values here override both. A model_name here takes precedence over the list.
+            <button id="reset-load-options" class="link-button" type="button">Reset to model defaults</button></p>
+        </details>
+        <div class="button-row">
+          <button id="load-model" class="primary" type="button" disabled>Load</button>
+          <button id="unload-model" type="button" disabled>Unload</button>
+        </div>
+        <p id="load-target" class="hint load-target"></p>
+        <div id="load-progress" class="progress" hidden><div></div></div>
+        <p id="model-message" class="hint"></p>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-head">
+          <h2>Sampling</h2>
+          <button id="reset-params" class="link-button" type="button">Reset all</button>
+        </div>
+        <label class="field">
+          <span>Server preset</span>
+          <select id="preset-select"></select>
+        </label>
+        <p id="preset-info" class="hint"></p>
+        <div id="params"></div>
+      </section>
+    </aside>
+
+    <div id="scrim" hidden></div>
+  </div>
+
+  <dialog id="connection-dialog">
+    <form id="connection-form">
+      <h2>Connection</h2>
+      <label class="field">
+        <span>Server URL</span>
+        <input id="conn-url" type="url" placeholder="This server">
+      </label>
+      <label class="field">
+        <span>API key</span>
+        <input id="conn-key" type="password" autocomplete="off" placeholder="From api_tokens.yml">
+      </label>
+      <p class="hint">An admin key is needed to list and load models. The key is kept in this browser's local storage.</p>
+      <p id="conn-result" class="hint"></p>
+      <div class="button-row end">
+        <button id="conn-cancel" type="button">Cancel</button>
+        <button id="conn-save" class="primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="vendor/markdown-it.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

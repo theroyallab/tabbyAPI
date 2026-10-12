@@ -1,0 +1,90 @@
+{
+  "_comment": "Controls in the chat client's sampling panel. Each key is a chat completion request field; 'default' is only what the panel shows when the server has no override for it. tests/test_web_ui.py checks this covers every supported sampler.",
+  "groups": [
+    {
+      "name": "Length",
+      "open": true,
+      "params": [
+        { "key": "max_tokens", "label": "Max tokens", "type": "int", "min": 0, "default": "auto", "hint": "Unset fills the rest of the context." },
+        { "key": "min_tokens", "label": "Min tokens", "type": "int", "min": 0, "default": 0 },
+        { "key": "stop", "label": "Stop strings", "type": "lines", "default": "", "hint": "One per line. \\n, \\t and \\\\ are unescaped." },
+        { "key": "loop_detect_window", "label": "Loop detect window", "type": "int", "min": 0, "default": 800, "hint": "Stop when the last N tokens repeat a pattern. 0 disables." }
+      ]
+    },
+    {
+      "name": "Truncation",
+      "open": true,
+      "params": [
+        { "key": "temperature", "label": "Temperature", "type": "float", "min": 0, "max": 2, "step": 0.01, "default": 1.0 },
+        { "key": "top_k", "label": "Top K", "type": "int", "min": 0, "max": 200, "step": 1, "default": 0 },
+        { "key": "top_p", "label": "Top P", "type": "float", "min": 0, "max": 1, "step": 0.01, "default": 1.0 },
+        { "key": "min_p", "label": "Min P", "type": "float", "min": 0, "max": 1, "step": 0.01, "default": 0.0 },
+        { "key": "temperature_last", "label": "Temperature last", "type": "bool", "default": false },
+        { "key": "xtc_probability", "label": "XTC probability", "type": "float", "min": 0, "max": 1, "step": 0.01, "default": 0.0 },
+        { "key": "xtc_threshold", "label": "XTC threshold", "type": "float", "min": 0, "max": 1, "step": 0.01, "default": 0.1 },
+        { "key": "adaptive_target", "label": "Adaptive-P target", "type": "float", "min": 0, "max": 1, "step": 0.01, "default": 1.0, "hint": "Below 1.0 enables adaptive-P sampling." },
+        { "key": "adaptive_decay", "label": "Adaptive-P decay", "type": "float", "min": 0, "max": 1, "step": 0.01, "default": 0.9 }
+      ]
+    },
+    {
+      "name": "Penalties",
+      "open": false,
+      "params": [
+        { "key": "repetition_penalty", "label": "Repetition penalty", "type": "float", "min": 1, "max": 2, "step": 0.01, "default": 1.0 },
+        { "key": "frequency_penalty", "label": "Frequency penalty", "type": "float", "min": 0, "max": 2, "step": 0.01, "default": 0.0 },
+        { "key": "presence_penalty", "label": "Presence penalty", "type": "float", "min": 0, "max": 2, "step": 0.01, "default": 0.0 },
+        { "key": "penalty_range", "label": "Penalty range", "type": "int", "min": -1, "default": -1, "hint": "-1 covers the whole context." },
+        { "key": "repetition_decay", "label": "Repetition decay", "type": "int", "min": 0, "default": 0 }
+      ]
+    },
+    {
+      "name": "DRY",
+      "open": false,
+      "params": [
+        { "key": "dry_multiplier", "label": "Multiplier", "type": "float", "min": 0, "max": 5, "step": 0.05, "default": 0.0, "hint": "0 disables DRY." },
+        { "key": "dry_base", "label": "Base", "type": "float", "min": 1, "max": 4, "step": 0.05, "default": 1.75 },
+        { "key": "dry_allowed_length", "label": "Allowed length", "type": "int", "min": 0, "max": 20, "step": 1, "default": 2 },
+        { "key": "dry_range", "label": "Range", "type": "int", "min": 0, "default": 0, "hint": "0 scans the whole context." },
+        { "key": "dry_sequence_breakers", "label": "Sequence breakers", "type": "lines", "default": "", "hint": "One per line. Empty uses the backend's default set." }
+      ]
+    },
+    {
+      "name": "Tokens",
+      "open": false,
+      "params": [
+        { "key": "banned_strings", "label": "Banned strings", "type": "lines", "default": "", "hint": "One per line." },
+        { "key": "banned_tokens", "label": "Banned token IDs", "type": "ints", "default": "", "hint": "Comma-separated." },
+        { "key": "logit_bias", "label": "Logit bias", "type": "json", "default": "", "hint": "JSON object, token ID to bias, e.g. {\"128\": -5}" },
+        { "key": "token_healing", "label": "Token healing", "type": "bool", "default": false }
+      ]
+    },
+    {
+      "name": "Constraints",
+      "open": false,
+      "params": [
+        { "key": "json_schema", "label": "JSON schema", "type": "json", "default": "" },
+        { "key": "regex_pattern", "label": "Regex pattern", "type": "text", "default": "" },
+        { "key": "grammar_string", "label": "Grammar", "type": "text", "default": "", "hint": "Lark or GBNF syntax." }
+      ]
+    },
+    {
+      "name": "Reasoning",
+      "open": false,
+      "params": [
+        { "key": "enable_thinking", "label": "Enable thinking", "type": "bool", "default": "template" },
+        { "key": "reasoning_effort", "label": "Reasoning effort", "type": "string", "default": "", "hint": "Passed to the chat template; values depend on the model." },
+        { "key": "reasoning_budget_tokens", "label": "Reasoning budget", "type": "int", "min": 0, "default": "server", "hint": "Tokens of reasoning before the answer is forced." },
+        { "key": "reasoning_budget_message", "label": "Budget message", "type": "text", "default": "" },
+        { "key": "reasoning_override", "label": "Reasoning override", "type": "json", "default": "", "hint": "Sampler settings used only while reasoning, e.g. {\"temperature\": 1.0}" }
+      ]
+    },
+    {
+      "name": "Template",
+      "open": false,
+      "params": [
+        { "key": "template_vars", "label": "Template variables", "type": "json", "default": "", "hint": "JSON object passed to the chat template." },
+        { "key": "response_prefix", "label": "Response prefix", "type": "text", "default": "", "hint": "Appended to the prompt after the generation prompt. Not part of the returned text." }
+      ]
+    }
+  ]
+}

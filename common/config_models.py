@@ -104,6 +104,14 @@ class NetworkConfig(BaseConfigModel):
             "such as model list and health polls."
         ),
     )
+    web_ui: Optional[bool] = Field(
+        True,
+        description=(
+            "Serve the built-in chat client at /ui (default: True).\n"
+            "A static page for testing models and settings; it only uses the\n"
+            "regular API, so it does nothing until a browser opens it."
+        ),
+    )
 
     # Converts all strings in the api_servers list to lowercase
     # NOTE: Expand if more models need this validator
