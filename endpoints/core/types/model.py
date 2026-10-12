@@ -221,6 +221,40 @@ class ModelLoadRequest(_WarnOnUnknownFields):
     skip_queue: Optional[bool] = False
 
 
+class ModelLoadConfigResponse(BaseModel):
+    """The load options that apply to a model when a load request leaves them out."""
+
+    # Avoids pydantic namespace warning
+    model_config = ConfigDict(protected_namespaces=[])
+
+    model_name: str
+    has_tabby_config: bool = Field(description="Whether the model folder has a tabby_config.yml")
+    settings: dict = Field(
+        description=(
+            "Load request fields from the model's tabby_config.yml and the use_as_default "
+            "keys of config.yml, with draft options under draft_model"
+        )
+    )
+    sources: dict = Field(
+        description='Where each setting comes from: "tabby_config.yml" or "use_as_default"'
+    )
+    ignored: List[str] = Field(
+        default_factory=list,
+        description="Keys in tabby_config.yml that a load request can't set; they still apply",
+    )
+    yaml: str = Field(description="The settings as YAML, annotated with their sources")
+
+
+class LoadOptionsParseRequest(BaseModel):
+    """Load options written as YAML (or JSON), to turn into a load request body."""
+
+    yaml: str = Field(max_length=65536)
+
+
+class LoadOptionsParseResponse(BaseModel):
+    settings: dict
+
+
 class EmbeddingModelLoadRequest(BaseModel):
     embedding_model_name: str
 
