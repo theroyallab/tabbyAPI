@@ -15,20 +15,74 @@ from endpoints.core.types.model import (
 )
 
 
+# How deep below `model_dir` to look for a model. Guards against following
+# pointless trees (dataset dumps, backup folders) instead of checkpoints.
+MAX_MODEL_SEARCH_DEPTH = 4
+
+
+def relative_model_id(directory: pathlib.Path, root: pathlib.Path) -> str:
+    """
+    The id a model is advertised with: its path relative to `model_dir`.
+
+    This is the same string `/v1/model/load` and inline model loading take, so
+    every advertised model can actually be loaded. For a model directly inside
+    `model_dir` the result is the directory name, exactly as before.
+    """
+
+    try:
+        return directory.relative_to(root).as_posix()
+    except ValueError:
+        return directory.name
+
+
 def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = None):
-    """Get the list of models from the provided path."""
+    """Get the list of models from the provided path.
+
+    Nested directories are searched, so quant-style layouts such as
+    `<model>/exl3/<bpw>` are advertised and not just the parent folder. A
+    directory that holds a `config.json` is treated as a checkpoint and is not
+    searched any deeper, which keeps a checkpoint's own subfolders from being
+    listed as models.
+    """
 
     # Convert the provided draft model path to a pathlib path for
     # equality comparisons
     if draft_model_path:
         draft_model_path = pathlib.Path(draft_model_path).resolve()
 
+    root = model_path.resolve()
     model_card_list = ModelList()
-    for path in model_path.iterdir():
-        # Don't include the draft models path
-        if path.is_dir() and path != draft_model_path:
-            model_card = ModelCard(id=path.name, meta=read_model_meta(path))
-            model_card_list.data.append(model_card)  # pylint: disable=no-member
+
+    def in_draft_tree(directory: pathlib.Path) -> bool:
+        """True for the draft model directory and anything inside it."""
+
+        if draft_model_path is None:
+            return False
+        resolved = directory.resolve()
+        return resolved == draft_model_path or draft_model_path in resolved.parents
+
+    def search(directory: pathlib.Path, depth: int):
+        try:
+            entries = sorted(directory.iterdir(), key=lambda entry: entry.name.casefold())
+        except OSError:
+            return
+
+        for path in entries:
+            # Hidden directories are never checkpoints. HuggingFace keeps its
+            # download cache in `.cache`, which holds snapshot `config.json`
+            # files that would otherwise be advertised as models.
+            if not path.is_dir() or path.name.startswith(".") or in_draft_tree(path):
+                continue
+
+            if (path / "config.json").exists():
+                model_card = ModelCard(id=relative_model_id(path, root), meta=read_model_meta(path))
+                model_card_list.data.append(model_card)  # pylint: disable=no-member
+                continue
+
+            if depth < MAX_MODEL_SEARCH_DEPTH:
+                search(path, depth + 1)
+
+    search(model_path, 1)
 
     return model_card_list
 
@@ -59,7 +113,10 @@ async def get_current_model_list(model_type: str = "model"):
 
     if model_path:
         meta = read_model_meta(model_path, n_ctx=n_ctx, include_size=True)
-        current_models.append(ModelCard(id=model_path.name, meta=meta))
+        root = pathlib.Path(config.model.model_dir).resolve()
+        current_models.append(
+            ModelCard(id=relative_model_id(model_path.resolve(), root), meta=meta)
+        )
 
     return ModelList(data=current_models)
 
