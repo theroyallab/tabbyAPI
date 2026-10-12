@@ -38,6 +38,39 @@ def read_model_meta(
     return meta
 
 
+def is_model_dir(model_dir: pathlib.Path) -> bool:
+    """
+    Whether a directory holds a model: its config.json names the architecture,
+    as a string or a list of at least one string. Cached per config.json mtime
+    like read_model_meta, since listings check every folder under model_dir.
+    """
+
+    config_path = model_dir / "config.json"
+    try:
+        mtime = config_path.stat().st_mtime_ns
+    except OSError:
+        return False
+
+    return _config_names_architecture(config_path, mtime)
+
+
+@lru_cache(maxsize=1024)
+def _config_names_architecture(config_path: pathlib.Path, mtime: int) -> bool:
+    try:
+        cfg = json.loads(config_path.read_text(encoding="utf8"))
+    except (OSError, ValueError):
+        return False
+
+    architectures = cfg.get("architectures") if isinstance(cfg, dict) else None
+    if isinstance(architectures, str):
+        return bool(architectures)
+    return (
+        isinstance(architectures, list)
+        and len(architectures) > 0
+        and all(isinstance(name, str) for name in architectures)
+    )
+
+
 @lru_cache(maxsize=256)
 def _read_config_meta(config_path: pathlib.Path, mtime: int) -> Optional[ModelCardMeta]:
     try:
