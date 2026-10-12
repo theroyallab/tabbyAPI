@@ -64,6 +64,8 @@
         </div>
       </div>
 
+      <div id="drop-overlay" class="drop-overlay" hidden><span>Drop images to attach them</span></div>
+
       <footer id="composer-area">
         <div class="composer-actions">
           <button id="regenerate" class="ghost-button" type="button" hidden>
@@ -76,6 +78,11 @@
           </button>
         </div>
         <form id="composer" class="composer">
+          <div id="attachments" class="attachments" hidden></div>
+          <button id="attach" type="button" class="attach-button" aria-label="Attach images" title="Attach images (or paste, or drop them anywhere)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 11-8.6 8.6a5 5 0 0 1-7-7l8.5-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.3-2.3l7.9-8"/></svg>
+          </button>
+          <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple hidden>
           <textarea id="input" rows="1" placeholder="Send a message" autocomplete="off"></textarea>
           <button id="send" type="submit" class="send-button" aria-label="Send">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg>
@@ -147,6 +154,10 @@
         <button id="conn-save" class="primary" type="submit">Save</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="image-viewer" class="image-viewer" aria-label="Image">
+    <img alt="Attached image">
   </dialog>
 
   <script src="vendor/markdown-it.min.js"></script>

@@ -10,9 +10,10 @@ STATIC_DIR = pathlib.Path(__file__).parent / "static"
 
 # The client keeps an API key in local storage, so it gets a strict policy:
 # only its own scripts and styles, no framing. Requests may go to any server,
-# since the client can be pointed at another TabbyAPI instance.
+# since the client can be pointed at another TabbyAPI instance. Images can be
+# data: URLs (SVG previews) and blob: URLs (attached images), never remote.
 CONTENT_SECURITY_POLICY = (
-    "default-src 'self'; connect-src *; img-src 'self' data:; "
+    "default-src 'self'; connect-src *; img-src 'self' data: blob:; "
     "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"
 )
 

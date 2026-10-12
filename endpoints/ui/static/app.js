@@ -162,6 +162,7 @@ const ICONS = {
   check: '<path d="M20 6 9 17l-5-5"/>',
   reset: '<path d="M18 6 6 18M6 6l12 12"/>',
   star: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
 };
 
 function icon(name) {
@@ -313,6 +314,230 @@ function setContent(node, msg) {
 }
 
 // ---------------------------------------------------------------------------
+// Images
+
+// Formats the server takes as data: URLs (its check only allows plain
+// subtypes, so no image/svg+xml or image/x-ms-bmp)
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "image/bmp"]);
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+// Well below the ~179 megapixels at which PIL refuses an image outright
+const MAX_IMAGE_PIXELS = 50_000_000;
+const MAX_IMAGES_PER_MESSAGE = 16;
+
+// Images waiting to be sent with the next message
+let attachments = [];
+
+// Image data lives in IndexedDB, since local storage (where the chats are)
+// holds only a few megabytes. Messages refer to images by id. Without
+// IndexedDB (some private windows) images last until the page closes.
+const imageBlobs = new Map();
+const imageUrls = new Map();
+let imageDb = null;
+
+function openImageDb() {
+  imageDb ??= new Promise((resolve) => {
+    try {
+      const request = indexedDB.open("tabby-ui", 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("images");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+  return imageDb;
+}
+
+async function imageDbRequest(mode, action) {
+  const db = await openImageDb();
+  if (!db) return undefined;
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("images", mode);
+    const request = action(tx.objectStore("images"));
+    tx.oncomplete = () => resolve(request?.result);
+    tx.onerror = tx.onabort = () => reject(tx.error);
+  });
+}
+
+async function storeImage(id, blob) {
+  imageBlobs.set(id, blob);
+  try {
+    await imageDbRequest("readwrite", (store) => store.put(blob, id));
+  } catch (e) {
+    setStatus(`Could not save an image in browser storage (${e?.name || e}); it lasts until the page closes.`, true);
+  }
+}
+
+async function getImage(id) {
+  if (!imageBlobs.has(id)) {
+    try {
+      const blob = await imageDbRequest("readonly", (store) => store.get(id));
+      if (blob) imageBlobs.set(id, blob);
+    } catch {
+      // Treated as missing
+    }
+  }
+  return imageBlobs.get(id) || null;
+}
+
+async function imageUrl(id) {
+  if (!imageUrls.has(id)) {
+    const blob = await getImage(id);
+    if (!blob) return null;
+    imageUrls.set(id, URL.createObjectURL(blob));
+  }
+  return imageUrls.get(id);
+}
+
+function readDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Delete stored images that no chat refers to any more
+async function collectImages() {
+  const used = new Set(attachments.map((a) => a.id));
+  for (const item of sessionIndex) {
+    const s = item.id === session?.id ? session : load(`session.${item.id}`, null);
+    for (const m of s?.messages || []) for (const id of m.images || []) used.add(id);
+  }
+
+  for (const id of [...imageBlobs.keys()]) {
+    if (used.has(id)) continue;
+    imageBlobs.delete(id);
+    if (imageUrls.has(id)) URL.revokeObjectURL(imageUrls.get(id));
+    imageUrls.delete(id);
+  }
+
+  try {
+    const keys = (await imageDbRequest("readonly", (store) => store.getAllKeys())) || [];
+    const unused = keys.filter((key) => !used.has(key));
+    if (unused.length) await imageDbRequest("readwrite", (store) => unused.forEach((key) => store.delete(key)));
+  } catch {
+    // Try again next time
+  }
+}
+
+function formatBytes(bytes) {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`;
+}
+
+// The image's size from its header, without decoding the pixels
+function imageDimensions(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
+    image.onerror = reject;
+    image.src = url;
+  });
+}
+
+function warnIfNoVision() {
+  if (state.currentModel && !state.currentModel.parameters?.use_vision) {
+    setStatus("The loaded model has no vision support, so the server will ignore images.", true);
+    return true;
+  }
+  return false;
+}
+
+async function addAttachments(files) {
+  const problems = [];
+  for (const file of files) {
+    const name = file.name || "Pasted image";
+    if (attachments.length >= MAX_IMAGES_PER_MESSAGE) {
+      problems.push(`At most ${MAX_IMAGES_PER_MESSAGE} images per message`);
+      break;
+    }
+    // Type and size come from the file listing, so nothing is read for these
+    if (!IMAGE_TYPES.has(file.type)) {
+      problems.push(`${name} is not a PNG, JPEG, WebP, GIF or BMP image`);
+      continue;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      problems.push(`${name} is ${formatBytes(file.size)}, over the ${formatBytes(MAX_IMAGE_BYTES)} limit`);
+      continue;
+    }
+
+    const url = URL.createObjectURL(file);
+    let width, height;
+    try {
+      [width, height] = await imageDimensions(url);
+    } catch {
+      URL.revokeObjectURL(url);
+      problems.push(`${name} could not be read as an image`);
+      continue;
+    }
+    if (width * height > MAX_IMAGE_PIXELS) {
+      URL.revokeObjectURL(url);
+      problems.push(`${name} is ${width}×${height}, over ${MAX_IMAGE_PIXELS / 1e6} megapixels`);
+      continue;
+    }
+
+    attachments.push({ id: newId(), blob: file, url, name, width, height });
+  }
+
+  renderAttachments();
+  if (problems.length) setStatus(problems.join(". ") + ".", true);
+  else if (attachments.length && !warnIfNoVision()) setStatus("");
+}
+
+function removeAttachment(id) {
+  const index = attachments.findIndex((a) => a.id === id);
+  if (index < 0) return;
+  URL.revokeObjectURL(attachments[index].url);
+  attachments.splice(index, 1);
+  renderAttachments();
+}
+
+function renderAttachments() {
+  const strip = $("attachments");
+  strip.hidden = !attachments.length;
+  strip.replaceChildren(
+    ...attachments.map((a) =>
+      el(
+        "div",
+        { class: "attachment", title: `${a.name}, ${a.width}×${a.height}, ${formatBytes(a.blob.size)}` },
+        el("img", { src: a.url, alt: a.name }),
+        el(
+          "button",
+          { type: "button", class: "attachment-remove", "aria-label": `Remove ${a.name}`, onclick: () => removeAttachment(a.id) },
+          icon("reset"),
+        ),
+      ),
+    ),
+  );
+}
+
+function openImageViewer(url) {
+  const viewer = $("image-viewer");
+  viewer.querySelector("img").src = url;
+  viewer.showModal();
+}
+
+function renderImages(ids) {
+  return el(
+    "div",
+    { class: "message-images" },
+    ids.map((id) => {
+      const thumb = el("img", { alt: "Attached image", class: "thumb" });
+      // Usually cached, but a reload has to fetch it from IndexedDB first
+      const cached = imageUrls.get(id);
+      if (cached) thumb.src = cached;
+      imageUrl(id).then((url) => {
+        if (!url) thumb.replaceWith(el("span", { class: "thumb missing" }, "Image no longer stored"));
+        else if (!cached) thumb.src = url;
+      });
+      thumb.addEventListener("click", () => thumb.src && openImageViewer(thumb.src));
+      return thumb;
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sessions
 
 function sessionSummary(s) {
@@ -378,6 +603,7 @@ function deleteSession(id) {
   remove(`session.${id}`);
   sessionIndex = sessionIndex.filter((x) => x.id !== id);
   save("sessions", sessionIndex);
+  collectImages();
 
   if (session?.id === id) {
     session = null;
@@ -509,6 +735,8 @@ function renderMessage(msg, index) {
     body.append(reasoningBox);
   }
 
+  if (msg.images?.length) body.append(renderImages(msg.images));
+
   const content = el("div", { class: "content" });
   setContent(content, msg);
   body.append(content);
@@ -607,6 +835,7 @@ function deleteMessage(index) {
   session.messages.splice(index, 1);
   persistSession();
   renderThread();
+  collectImages();
 }
 
 function editMessage(index, body) {
@@ -621,7 +850,10 @@ function editMessage(index, body) {
     if (resubmit) session.messages.length = index + 1;
     persistSession();
     renderThread();
-    if (resubmit) generate();
+    if (resubmit) {
+      collectImages();
+      generate();
+    }
   };
 
   const buttons = el(
@@ -646,14 +878,28 @@ function editMessage(index, body) {
 // ---------------------------------------------------------------------------
 // Generation
 
-function buildMessages(s) {
+async function buildMessages(s) {
   const messages = [];
+  let missing = 0;
   if (s.system && s.system.trim()) messages.push({ role: "system", content: s.system });
   for (const m of s.messages) {
     // Skip failed or stopped-before-output turns
     if (m.role === "assistant" && !m.content) continue;
-    messages.push({ role: m.role, content: m.content });
+    if (!m.images?.length) {
+      messages.push({ role: m.role, content: m.content });
+      continue;
+    }
+
+    const parts = [];
+    for (const id of m.images) {
+      const blob = await getImage(id);
+      if (blob) parts.push({ type: "image_url", image_url: { url: await readDataUrl(blob) } });
+      else missing++;
+    }
+    if (m.content) parts.push({ type: "text", text: m.content });
+    messages.push({ role: m.role, content: parts });
   }
+  if (missing) setStatus(`${missing} image${missing === 1 ? " is" : "s are"} no longer stored and left out.`, true);
   return messages;
 }
 
@@ -677,14 +923,15 @@ async function generate() {
   setStatus("");
   renderThread();
 
-  const body = {
-    messages: buildMessages({ ...s, messages: s.messages.slice(0, -1) }),
-    stream: true,
-    stream_options: { include_usage: true },
-    ...samplerParams,
-  };
-
   try {
+    const body = {
+      messages: await buildMessages({ ...s, messages: s.messages.slice(0, -1) }),
+      stream: true,
+      stream_options: { include_usage: true },
+      ...samplerParams,
+    };
+    if (s.messages.some((m) => m.images?.length)) warnIfNoVision();
+
     const res = await api("/v1/chat/completions", { method: "POST", body, signal: controller.signal });
 
     for await (const data of sseData(res)) {
@@ -725,21 +972,31 @@ async function generate() {
   }
 }
 
-function send() {
+async function send() {
   if (state.generating) return;
   const input = $("input");
   const text = input.value;
   const last = session.messages[session.messages.length - 1];
 
-  if (!text.trim()) {
+  if (!text.trim() && !attachments.length) {
     // An empty send answers a trailing user message, e.g. after an edit
     if (last?.role === "user") generate();
     return;
   }
 
-  session.messages.push({ role: "user", content: text });
+  const sent = attachments;
+  attachments = [];
+  renderAttachments();
+  for (const a of sent) {
+    imageUrls.set(a.id, a.url);
+    await storeImage(a.id, a.blob);
+  }
+
+  const msg = { role: "user", content: text };
+  if (sent.length) msg.images = sent.map((a) => a.id);
+  session.messages.push(msg);
   if (session.title === "New chat") {
-    session.title = text.replace(/\s+/g, " ").trim().slice(0, 48);
+    session.title = text.replace(/\s+/g, " ").trim().slice(0, 48) || (sent.length > 1 ? "Images" : "Image");
   }
   input.value = "";
   autosize();
@@ -1474,6 +1731,49 @@ function bindEvents() {
   });
   $("input").addEventListener("input", autosize);
 
+  $("input").addEventListener("paste", (e) => {
+    const files = [...(e.clipboardData?.files || [])];
+    if (!files.length) return;
+    // Text that comes along (e.g. a file's path) is still pasted
+    if (!e.clipboardData.types.includes("text/plain")) e.preventDefault();
+    addAttachments(files);
+  });
+
+  $("attach").addEventListener("click", () => $("file-input").click());
+  $("file-input").addEventListener("change", () => {
+    addAttachments([...$("file-input").files]);
+    $("file-input").value = "";
+  });
+
+  // Files can be dropped anywhere on the page. Without this the browser would
+  // open a dropped file in place of the client.
+  let dragDepth = 0;
+  const carriesFiles = (e) => e.dataTransfer?.types.includes("Files");
+  document.addEventListener("dragenter", (e) => {
+    if (!carriesFiles(e)) return;
+    e.preventDefault();
+    dragDepth++;
+    $("drop-overlay").hidden = false;
+  });
+  document.addEventListener("dragover", (e) => {
+    if (carriesFiles(e)) e.preventDefault();
+  });
+  document.addEventListener("dragleave", (e) => {
+    if (carriesFiles(e) && --dragDepth <= 0) {
+      dragDepth = 0;
+      $("drop-overlay").hidden = true;
+    }
+  });
+  document.addEventListener("drop", (e) => {
+    if (!carriesFiles(e)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    $("drop-overlay").hidden = true;
+    addAttachments([...e.dataTransfer.files]);
+  });
+
+  $("image-viewer").addEventListener("click", () => $("image-viewer").close());
+
   $("stop").addEventListener("click", () => state.generating?.controller.abort());
   $("regenerate").addEventListener("click", regenerate);
   document.addEventListener("keydown", (e) => {
@@ -1597,6 +1897,7 @@ async function init() {
 
   await connect();
   $("input").focus();
+  collectImages();
 }
 
 init();
