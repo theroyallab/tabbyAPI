@@ -200,7 +200,7 @@ async def stream_model_load(
                 break
 
             if isinstance(progress, Exception):
-                yield get_generator_error(str(progress))
+                yield get_generator_error(str(progress), exception=progress)
                 break
 
             module, modules, model_type = progress

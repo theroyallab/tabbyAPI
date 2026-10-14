@@ -328,6 +328,18 @@ class ModelConfig(BaseConfigModel):
             "variable, then half the CPU core count."
         ),
     )
+    cpu_moe_pinned_arena: Optional[bool] = Field(
+        None,
+        description=(
+            "keep the CPU MoE worker's expert weights in shared, page-locked\n"
+            "memory (default: None). Streamed prefill then copies experts\n"
+            "straight from it to the GPU, and cpu_moe_split_experts can\n"
+            "promote frequently used experts into spare VRAM slots on the fly.\n"
+            "Costs about 0.2 s per GiB of offloaded experts at load. Only has an\n"
+            "effect with cpu_moe_offload_layers or cpu_moe_split_experts. When\n"
+            "unset, defers to the EXL3_MOE_PINNED_ARENA environment variable."
+        ),
+    )
     layer_map: Optional[Union[List[int], str]] = Field(
         None,
         description=(

@@ -332,6 +332,22 @@ class ExllamaV3Container:
         if cpu_moe_threads is not None:
             self.config.infer_params.moe_cpu_threads = cpu_moe_threads
 
+        # Experimental: back the CPU MoE worker's expert arena with shared,
+        # page-locked memory, so streamed prefill DMAs experts straight from
+        # it and the expert split can promote experts into spare VRAM slots.
+        # None defers to the EXL3_MOE_PINNED_ARENA env variable
+        cpu_moe_pinned_arena = kwargs.get("cpu_moe_pinned_arena")
+        if cpu_moe_pinned_arena is not None:
+            self.config.infer_params.moe_cpu_pinned_arena = cpu_moe_pinned_arena
+        if getattr(self.config.infer_params, "moe_cpu_pinned_arena", False):
+            if self.config.infer_params.moe_cpu_offload or self.config.infer_params.moe_cpu_split:
+                xlogger.info("Using a pinned expert arena for CPU MoE (cpu_moe_pinned_arena).")
+            elif cpu_moe_pinned_arena:
+                xlogger.warning(
+                    "cpu_moe_pinned_arena has no effect without cpu_moe_offload_layers "
+                    "or cpu_moe_split_experts."
+                )
+
         # Load an n-gram embedding table (PLE models) fully into system RAM
         # instead of streaming rows from disk per forward. Must be set before
         # the model weights are loaded
@@ -415,6 +431,9 @@ class ExllamaV3Container:
                 draft_model_path = draft_model_path / draft_model_name
                 self.draft_model_dir = draft_model_path
                 self.draft_config = Config.from_directory(str(draft_model_path.resolve()))
+                self.draft_config.infer_params.moe_cpu_pinned_arena = getattr(
+                    self.config.infer_params, "moe_cpu_pinned_arena", False
+                )
                 self.draft_model = Model.from_config(self.draft_config)
                 xlogger.info(f"Using draft model: {str(draft_model_path.resolve())}")
         else:

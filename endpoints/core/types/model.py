@@ -194,6 +194,7 @@ class ModelLoadRequest(_WarnOnUnknownFields):
     cpu_moe_offload_layers: Optional[int] = None
     cpu_moe_split_experts: Optional[int] = None
     cpu_moe_threads: Optional[int] = None
+    cpu_moe_pinned_arena: Optional[bool] = None
     layer_map: Optional[Union[List[int], str]] = None
 
     # Template variables
