@@ -4,6 +4,7 @@ import aiofiles
 import asyncio
 import copy
 import pathlib
+import traceback
 from enum import Enum
 from fastapi import HTTPException
 from common.logger import xlogger
@@ -175,6 +176,25 @@ async def unload_model(skip_wait: bool = False, shutdown: bool = False):
     sampling.clear_model_overrides()
 
 
+async def unload_failed_container(failed_container, exc: Exception):
+    """
+    Release what a load got through before it failed. The container never
+    becomes the global one, so nothing else would unload it: modules already
+    in VRAM, and CPU MoE worker processes with their (possibly pinned) expert
+    arenas, would stay allocated for the life of the server.
+    """
+
+    # The failed frames still reference the tensors being loaded. Clearing
+    # their locals keeps the traceback printable but lets the memory go
+    traceback.clear_frames(exc.__traceback__)
+
+    xlogger.info("Model load failed, releasing the partially loaded model.")
+    try:
+        await failed_container.unload(skip_wait=True)
+    except Exception as unload_exc:
+        xlogger.warning(f"Could not release the partially loaded model: {unload_exc}")
+
+
 async def load_model_gen(model_path: pathlib.Path, request_wins: bool = False, **kwargs):
     """
     Generator to load a model. request_wins lets the kwargs override the model
@@ -283,6 +303,10 @@ async def load_model_gen(model_path: pathlib.Path, request_wins: bool = False, *
                             progress.stop()
 
                 container = new_container
+            except Exception as exc:
+                progress.stop()
+                await unload_failed_container(new_container, exc)
+                raise
             finally:
                 progress.stop()
 
