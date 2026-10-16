@@ -44,6 +44,8 @@ ALL_TOOLCALL_FORMATS = {
     "hy_v3": hy3,
     "laguna": glm4_5,
     "poolside_v1": glm4_5,
+    "ling": glm4_5,
+    "ling3": glm4_5,
     "lfm": lfm2,
     "lfm2": lfm2,
     "lfm2_5": lfm2,

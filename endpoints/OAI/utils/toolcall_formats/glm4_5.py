@@ -7,6 +7,7 @@ from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, coerce_
 
 """
 GLM-4.5 / GLM-4.6 / GLM-4.7 family - XML with interleaved key/value pairs
+Also used verbatim by inclusionAI's Ling 3.x models (BailingMoeV3).
 
 Raw format:
     <tool_call>__FUNCTION_NAME__
@@ -32,7 +33,7 @@ TOOLCALL_END = "</tool_call>"
 DETECT = FormatSignature(
     template_markers=("<tool_call>", "<arg_key>"),
     special_tokens=("<arg_key>", "<arg_value>"),
-    architectures=("Glm4", "Glm5", "GlmMoe", "Laguna", "Spark2_5"),
+    architectures=("Glm4", "Glm5", "GlmMoe", "Laguna", "Spark2_5", "BailingMoe"),
     reasoning_tags=("<think>", "</think>"),
 )
 
