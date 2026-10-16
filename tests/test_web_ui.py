@@ -64,7 +64,7 @@ def test_ui_served(monkeypatch):
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
     assert response.headers["cache-control"] == "no-cache"
 
-    for asset in ("app.js", "style.css", "samplers.json"):
+    for asset in ("app.js", "effects.js", "theme.js", "style.css", "themes.css", "samplers.json"):
         assert client.get(f"/ui/{asset}").status_code == 200
 
     # The vendored Markdown renderer ships with its license

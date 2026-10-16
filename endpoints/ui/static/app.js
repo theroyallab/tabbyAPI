@@ -2,6 +2,8 @@
 // the regular API (chat completions, model and sampler override endpoints) and
 // keeps its chats and settings in the browser's local storage.
 
+import "./effects.js";
+
 const $ = (id) => document.getElementById(id);
 const STORE = "tabby-ui.";
 
@@ -42,6 +44,8 @@ function remove(key) {
 // State
 
 const settings = Object.assign({ baseUrl: "", apiKey: "", theme: "", markdown: true }, load("settings", {}));
+// Theme names from before the theme menu ("light", "dark") map to their new names
+settings.theme = window.tabbyTheme.normalize(settings.theme);
 let params = load("params", {});
 // Model names loaded through the client, newest first. The model list only has
 // the top-level folders of the model directory, so nested ones (typed as a
@@ -1690,10 +1694,15 @@ async function connect() {
 // ---------------------------------------------------------------------------
 // Layout
 
+function renderThemeMenu() {
+  $("theme-select").replaceChildren(
+    ...window.tabbyTheme.THEMES.map((t) => el("option", { value: t.id }, t.label)),
+  );
+}
+
 function applyTheme() {
-  if (settings.theme) document.documentElement.dataset.theme = settings.theme;
-  else delete document.documentElement.dataset.theme;
-  $("theme-label").textContent = `Theme: ${settings.theme || "system"}`;
+  window.tabbyTheme.apply(settings.theme);
+  $("theme-select").value = settings.theme;
 }
 
 function applyFormatting() {
@@ -1830,9 +1839,8 @@ function bindEvents() {
     renderThread();
   });
 
-  $("toggle-theme").addEventListener("click", () => {
-    const order = ["", "light", "dark"];
-    settings.theme = order[(order.indexOf(settings.theme) + 1) % order.length];
+  $("theme-select").addEventListener("change", () => {
+    settings.theme = $("theme-select").value;
     save("settings", settings);
     applyTheme();
   });
@@ -1876,6 +1884,7 @@ function takeKeyFromLink() {
 
 async function init() {
   takeKeyFromLink();
+  renderThemeMenu();
   applyTheme();
   applyFormatting();
   bindEvents();

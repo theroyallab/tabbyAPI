@@ -1,9 +1,15 @@
 /* TabbyAPI chat client. Layout follows the early ChatGPT page: dark session
-   sidebar, full-width alternating message rows, floating composer. */
+   sidebar, full-width alternating message rows, floating composer.
+
+   The palette below is the "Gippity" theme, and the base the others build
+   on. theme.js sets data-theme on <html> before the first paint, and
+   themes.css holds the other themes, as token overrides plus any restyling
+   of their own. */
 
 :root {
   --sidebar-bg: #202123;
   --sidebar-fg: #ececf1;
+  --sidebar-muted: #c5c5d2;
   --sidebar-hover: #2a2b32;
   --sidebar-active: #343541;
   --sidebar-border: rgba(255, 255, 255, 0.2);
@@ -21,59 +27,30 @@
   --accent-fg: #ffffff;
   --accent-soft: rgba(194, 65, 12, 0.12);
   --user-avatar: #5436da;
+  --assistant-avatar: #c2410c;
+  --avatar-fg: #ffffff;
   --danger: #dc2626;
   --ok: #16a34a;
   --warn: #d97706;
+  --star: #eab308;
+  --rename-border: #3b82f6;
+
+  --pill-bg: rgba(255, 255, 255, 0.12);
+  --pill-ok-bg: rgba(74, 222, 128, 0.18);
+  --pill-ok-fg: #86efac;
+  --pill-bad-bg: rgba(248, 113, 113, 0.2);
+  --pill-bad-fg: #fca5a5;
 
   --inline-code-bg: rgba(0, 0, 0, 0.06);
   --code-block-bg: #202123;
   --code-block-fg: #ececf1;
   --code-head-bg: #343541;
+  --code-head-fg: #acacbe;
 
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   --sans: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, "Helvetica Neue", Arial, sans-serif;
 
   color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #343541;
-    --bg-alt: #444654;
-    --fg: #ececf1;
-    --fg-muted: #acacbe;
-    --border: rgba(32, 33, 35, 0.5);
-    --input-bg: #40414f;
-    --panel-bg: #2a2b32;
-    --shadow: 0 0 15px rgba(0, 0, 0, 0.25);
-    --accent: #f97316;
-    --accent-fg: #1a1a1a;
-    --accent-soft: rgba(249, 115, 22, 0.16);
-    --inline-code-bg: rgba(255, 255, 255, 0.1);
-    --danger: #f87171;
-    --ok: #4ade80;
-    --warn: #fbbf24;
-    color-scheme: dark;
-  }
-}
-
-:root[data-theme="dark"] {
-  --bg: #343541;
-  --bg-alt: #444654;
-  --fg: #ececf1;
-  --fg-muted: #acacbe;
-  --border: rgba(32, 33, 35, 0.5);
-  --input-bg: #40414f;
-  --panel-bg: #2a2b32;
-  --shadow: 0 0 15px rgba(0, 0, 0, 0.25);
-  --accent: #f97316;
-  --accent-fg: #1a1a1a;
-  --accent-soft: rgba(249, 115, 22, 0.16);
-  --inline-code-bg: rgba(255, 255, 255, 0.1);
-  --danger: #f87171;
-  --ok: #4ade80;
-  --warn: #fbbf24;
-  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -170,15 +147,22 @@ svg {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  /* Room for the rename box's border, which the overflow would clip */
+  padding: 3px 0;
+  margin: -3px 0;
 }
 
-.session-title input {
+/* [type] so this outranks the general input style further down. The
+   negative margin keeps the border from making the row taller */
+.session-title input[type="text"] {
   width: 100%;
+  margin: -2px 0;
   background: transparent;
-  border: 1px solid #3b82f6;
+  border: 1px solid var(--rename-border);
   border-radius: 3px;
   padding: 0 4px;
   outline: none;
+  vertical-align: top;
 }
 
 .session-actions {
@@ -192,13 +176,17 @@ svg {
 .session-actions button {
   background: none;
   border: 0;
-  color: #c5c5d2;
+  color: var(--sidebar-muted);
   padding: 2px;
   cursor: pointer;
   border-radius: 3px;
 }
 
-.session-actions button:hover { color: #fff; }
+.session-actions button:hover { color: var(--sidebar-fg); }
+
+/* Without a text line around the icon the buttons are shorter than the
+   title, so rows keep their height when the buttons appear on hover */
+.session-actions svg { display: block; }
 
 .sidebar-footer {
   border-top: 1px solid var(--sidebar-border);
@@ -223,15 +211,31 @@ svg {
 .sidebar-item:hover { background: var(--sidebar-hover); }
 .sidebar-item span:first-of-type { flex: 1; }
 
+.theme-picker { cursor: default; }
+
+.theme-picker select {
+  background: var(--sidebar-hover);
+  color: var(--sidebar-fg);
+  border: 1px solid var(--sidebar-border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 13px;
+  cursor: pointer;
+  max-width: 140px;
+}
+
+.theme-picker select:focus { border-color: var(--accent); }
+.theme-picker option { background: var(--sidebar-bg); color: var(--sidebar-fg); }
+
 .pill {
   font-size: 11px;
   padding: 1px 7px;
   border-radius: 99px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--pill-bg);
 }
 
-.pill.ok { background: rgba(74, 222, 128, 0.18); color: #86efac; }
-.pill.bad { background: rgba(248, 113, 113, 0.2); color: #fca5a5; }
+.pill.ok { background: var(--pill-ok-bg); color: var(--pill-ok-fg); }
+.pill.bad { background: var(--pill-bad-bg); color: var(--pill-bad-fg); }
 
 /* ---- Conversation ---- */
 
@@ -288,7 +292,7 @@ svg {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-  padding-bottom: 24px;
+  padding-bottom: 64px;
 }
 
 .row {
@@ -333,13 +337,13 @@ svg {
   flex: none;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--avatar-fg);
   font-size: 13px;
   font-weight: 600;
 }
 
 .row-user .avatar { background: var(--user-avatar); }
-.row-assistant .avatar { background: #c2410c; }
+.row-assistant .avatar { background: var(--assistant-avatar); }
 
 .message-body {
   flex: 1;
@@ -444,7 +448,7 @@ svg {
   gap: 8px;
   padding: 4px 8px 4px 14px;
   background: var(--code-head-bg);
-  color: #acacbe;
+  color: var(--code-head-fg);
   font-size: 12px;
 }
 
@@ -460,7 +464,7 @@ svg {
   cursor: pointer;
 }
 
-.code-copy:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+.code-copy:hover { color: var(--code-block-fg); background: rgba(255, 255, 255, 0.1); }
 
 /* SVGs mostly assume a white page, so previews get one in both themes */
 .svg-preview {
@@ -583,10 +587,14 @@ svg {
   background: var(--border);
 }
 
+/* Edited as the exact text sent to the model, so whitespace and Markdown show as written */
 .edit-box textarea {
   width: 100%;
   min-height: 80px;
   resize: vertical;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.55;
 }
 
 .edit-box .button-row { margin-top: 8px; }
@@ -769,7 +777,8 @@ svg {
   background: transparent;
   resize: none;
   max-height: 200px;
-  padding: 2px 0;
+  /* As tall as the buttons beside it (36px), so a single line sits level with them */
+  padding: 6px 0;
   line-height: 24px;
 }
 
@@ -908,7 +917,7 @@ svg {
 
 .model-list .star:hover { color: var(--fg); background: var(--border); }
 .model-list .star svg { width: 14px; height: 14px; }
-.model-list .star.starred { color: #eab308; }
+.model-list .star.starred { color: var(--star); }
 .model-list .star.starred svg { fill: currentColor; }
 
 .load-options {
