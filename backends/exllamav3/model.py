@@ -225,6 +225,7 @@ class ExllamaV3Container:
     draft_model: Optional[Model] = None
     draft_cache: Optional[Cache] = None
     tokenizer: Optional[Tokenizer] = None
+    bos_token_id: Optional[int] = None
     config: Optional[Config] = None
     draft_config: Optional[Config] = None
     generator: Optional[AsyncGenerator] = None
@@ -307,6 +308,7 @@ class ExllamaV3Container:
         )
         self.model = Model.from_config(self.config)
         self.tokenizer = Tokenizer.from_config(self.config)
+        self.bos_token_id = self.find_bos_token()
 
         # Set CPU offload layers
         self.config.infer_params.moe_cpu_offload = unwrap(kwargs.get("cpu_moe_offload_layers"), 0)
@@ -1309,6 +1311,21 @@ class ExllamaV3Container:
                 async with self.load_condition:
                     self.load_condition.notify_all()
 
+    def find_bos_token(self) -> Optional[int]:
+        """
+        The model's BOS token ID, or None if it has none. When the config files
+        don't name one, the tokenizer falls back to ID 1. That's right for
+        Mistral's <s>, but in GLM's vocabulary (4.7 onwards) it's a quotation
+        mark, so the fallback only counts if it's a special token.
+        """
+
+        bos_id = self.tokenizer.bos_token_id
+        if bos_id is None or self.hf_model.declares_bos_token():
+            return bos_id
+
+        token = self.tokenizer.tokenizer.get_added_tokens_decoder().get(bos_id)
+        return bos_id if token is not None and token.special else None
+
     def encode_tokens(self, text: str, **kwargs) -> List[int]:
         """
         Encodes a string of text into a list of token IDs.
@@ -1324,10 +1341,13 @@ class ExllamaV3Container:
         mm_embeddings: MultimodalEmbeddingWrapper = kwargs.get("embeddings")
         mm_embeddings_content = mm_embeddings.content if mm_embeddings else []
 
+        # A model without a BOS token gets none, even if the request asks
+        add_bos_token = unwrap(kwargs.get("add_bos_token"), self.hf_model.add_bos_token())
+
         return (
             self.tokenizer.encode(
                 text,
-                add_bos=unwrap(kwargs.get("add_bos_token"), self.hf_model.add_bos_token()),
+                add_bos=add_bos_token and self.bos_token_id is not None,
                 encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
                 embeddings=mm_embeddings_content,
             )
@@ -1366,7 +1386,9 @@ class ExllamaV3Container:
         """
 
         return {
-            "bos_token": self.tokenizer.bos_token if add_bos_token else "",
+            "bos_token": (
+                self.tokenizer.bos_token if add_bos_token and self.bos_token_id is not None else ""
+            ),
             "eos_token": self.tokenizer.eos_token if not ban_eos_token else "",
             "pad_token": self.tokenizer.pad_token,
             "unk_token": self.tokenizer.unk_token,
@@ -1612,7 +1634,11 @@ class ExllamaV3Container:
         # a BOS post-processor (Llama-3 style) prepend BOS regardless of
         # add_bos, which would corrupt the injection
         ids = self.tokenizer.encode(text, encode_special_tokens=True, add_bos=False)
-        if ids.shape[-1] > 0 and ids[0, 0].item() == self.tokenizer.bos_token_id:
+        if (
+            ids.shape[-1] > 0
+            and self.bos_token_id is not None
+            and ids[0, 0].item() == self.bos_token_id
+        ):
             ids = ids[:, 1:]
         if ids.shape[-1] == 0:
             return False
@@ -1860,6 +1886,7 @@ class ExllamaV3Container:
         prompts = [prompt]
         stop_conditions = params.stop
         add_bos_token = unwrap(params.add_bos_token, self.hf_model.add_bos_token())
+        add_bos_token = add_bos_token and self.bos_token_id is not None
         grammar_handler = ExLlamaV3Grammar()
 
         # Get multimodal embeddings if present
@@ -2183,7 +2210,7 @@ class ExllamaV3Container:
             log_generation_params(
                 label,
                 request_id=request_id,
-                bos_token_id=self.tokenizer.bos_token_id,
+                bos_token_id=self.bos_token_id,
                 eos_token_id=eos_tokens,
                 prompt=prompt,
                 **params.model_dump(exclude={"prompt"}),

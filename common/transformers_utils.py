@@ -39,6 +39,7 @@ class GenerationConfig(BaseModel):
 
 class TextConfig(BaseModel):
     max_position_embeddings: int = None
+    bos_token_id: Optional[Union[int, List[int]]] = None
 
 
 class HuggingFaceConfig(BaseModel):
@@ -50,6 +51,7 @@ class HuggingFaceConfig(BaseModel):
     max_position_embeddings: int = None
     architectures: Optional[List[str]] = None
     text_config: Optional[TextConfig] = None
+    bos_token_id: Optional[Union[int, List[int]]] = None
     eos_token_id: Optional[Union[int, List[int]]] = None
     quantization_config: Optional[Dict] = None
 
@@ -96,6 +98,7 @@ class TokenizerConfig(BaseModel):
     """
 
     add_bos_token: Optional[bool] = True
+    bos_token: Optional[Union[str, Dict]] = None
 
     @classmethod
     async def from_directory(cls, model_directory: pathlib.Path):
@@ -169,6 +172,19 @@ class HFModel:
 
         # Convert back to a list
         return list(eos_ids)
+
+    def declares_bos_token(self):
+        """Whether the config files name a BOS token (or don't exist to say)"""
+
+        if not self.tokenizer_config:
+            return True
+
+        text_config = self.hf_config.text_config
+        return (
+            self.hf_config.bos_token_id is not None
+            or (text_config is not None and text_config.bos_token_id is not None)
+            or self.tokenizer_config.bos_token is not None
+        )
 
     def add_bos_token(self):
         """Wrapper for tokenizer config"""
