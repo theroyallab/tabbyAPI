@@ -485,6 +485,8 @@ svg {
   font-size: 13px;
 }
 
+.svg-preview img + p { margin-top: 8px; }
+
 .markdown pre code {
   background: none;
   padding: 0;

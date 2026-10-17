@@ -294,15 +294,93 @@ function svgError() {
   return el("p", { class: "svg-error" }, "This SVG could not be displayed.");
 }
 
-function addSvgPreviews(node) {
-  for (const frame of node.querySelectorAll(".svg-preview")) {
+// While a reply streams in, an unfinished SVG is previewed as far as it has
+// got: the lenient HTML parser closes whatever is still open and drops a tag
+// cut off midway, and the serializer turns the result back into an SVG file.
+function partialSvg(source) {
+  const svg = new DOMParser().parseFromString(source, "text/html").querySelector("svg");
+  return svg ? new XMLSerializer().serializeToString(svg) : null;
+}
+
+// Live previews belong to the streaming reply's content node, one per SVG
+// block, and outlive its re-renders so the picture doesn't flicker. Each is
+// redrawn at most every LIVE_SVG_INTERVAL ms, and swapped in only once the
+// new image has loaded.
+const LIVE_SVG_INTERVAL = 250;
+const liveSvgs = new WeakMap();
+
+function liveSvgPreview(node, index) {
+  let list = liveSvgs.get(node);
+  if (!list) liveSvgs.set(node, (list = []));
+  return (list[index] ??= {
+    view: el("p", { class: "svg-pending" }, "Drawing preview…"),
+    source: "",
+    drawn: null,
+    last: 0,
+    timer: null,
+    shown: 0,
+    seq: 0,
+  });
+}
+
+function drawLiveSvg(preview) {
+  preview.timer = null;
+  preview.last = performance.now();
+  const svg = partialSvg(preview.source);
+  if (!svg || svg === preview.drawn) return;
+  preview.drawn = svg;
+
+  const seq = ++preview.seq;
+  const loader = new Image();
+  loader.addEventListener("load", () => {
+    // Loads can finish out of order; never go back to an older picture
+    if (seq < preview.shown) return;
+    preview.shown = seq;
+    if (preview.view.tagName !== "IMG") {
+      const image = el("img", { alt: "SVG preview" });
+      preview.view.replaceWith(image);
+      preview.view = image;
+    }
+    preview.view.src = loader.src;
+  });
+  loader.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+}
+
+function updateLiveSvg(preview, source) {
+  preview.source = source;
+  if (!preview.timer) {
+    const wait = Math.max(0, preview.last + LIVE_SVG_INTERVAL - performance.now());
+    preview.timer = setTimeout(() => drawLiveSvg(preview), wait);
+  }
+}
+
+function addSvgPreviews(node, streaming) {
+  node.querySelectorAll(".svg-preview").forEach((frame, index) => {
     const source = frame.parentElement.querySelector("code")?.textContent || "";
+    const live = streaming ? liveSvgPreview(node, index) : null;
+
     // A block still streaming in has no closing tag yet
     if (/<\/svg>\s*$/i.test(source)) {
       const image = svgPreview(source);
-      frame.append(image.dataset.failed ? svgError() : image);
-    } else frame.append(el("p", { class: "svg-pending" }, "Preview appears when the SVG is complete."));
-  }
+      if (image.dataset.failed) {
+        frame.append(svgError());
+      } else if (live?.shown && !image.complete) {
+        // Keep the live picture up until the finished one is ready
+        clearTimeout(live.timer);
+        frame.append(live.view);
+        image.addEventListener("load", () => live.view.replaceWith(image), { once: true });
+      } else frame.append(image);
+    } else if (live) {
+      updateLiveSvg(live, source);
+      frame.append(live.view);
+    } else {
+      // Generation stopped partway, so show what there is
+      const svg = partialSvg(source);
+      const image = svg && svgPreview(svg);
+      if (image && !image.dataset.failed) frame.append(image);
+      frame.append(el("p", { class: "svg-pending" }, "This SVG is incomplete."));
+    }
+  });
 }
 
 // Only replies are formatted; the raw setting shows exactly what the model wrote
@@ -310,7 +388,7 @@ function setContent(node, msg) {
   if (markdown && settings.markdown && msg.role === "assistant") {
     node.classList.add("markdown");
     node.innerHTML = markdown.render(msg.content);
-    addSvgPreviews(node);
+    addSvgPreviews(node, state.generating?.message === msg);
   } else {
     node.classList.remove("markdown");
     node.textContent = msg.content;
