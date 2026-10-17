@@ -1,4 +1,5 @@
 import asyncio
+from collections import OrderedDict
 from dataclasses import dataclass
 import gc
 import pathlib
@@ -61,6 +62,17 @@ from endpoints.OAI.utils.tools import (
     detect_tool_format,
     is_supported_format,
 )
+
+
+# Recent prompt encodings kept per container. The same text is routinely
+# encoded twice in a row: a streaming request measures its prompt before the
+# response commits to HTTP 200 and then encodes it again for the job, and clients
+# commonly measure a context with /v1/token/encode before sending it. At about
+# a microsecond per token that is half a second twice over for a 500k-token
+# prompt, against a few milliseconds of engine work when the pages are cached.
+# An entry holds the prompt text and its ids (8 bytes per token), so the cache
+# tops out around 100 MB with twenty 500k-token prompts
+ENCODE_CACHE_ENTRIES = 20
 
 
 def _merge_stream_results(results: List[dict]) -> dict:
@@ -263,6 +275,7 @@ class ExllamaV3Container:
         self.load_lock = asyncio.Lock()
         self.load_condition = asyncio.Condition()
         self.autosplit_reserve = [96 / 1024]
+        self.encode_cache = OrderedDict()
 
     # Required methods
     @classmethod
@@ -1326,6 +1339,52 @@ class ExllamaV3Container:
         token = self.tokenizer.tokenizer.get_added_tokens_decoder().get(bos_id)
         return bos_id if token is not None and token.special else None
 
+    def encode_prompt(
+        self,
+        text: str,
+        add_bos: bool,
+        encode_special_tokens: bool = True,
+        embeddings: Optional[list] = None,
+    ) -> torch.Tensor:
+        """
+        Token IDs for a prompt as a (1, n) tensor, from the encode cache when the
+        same text was encoded recently with the same options. The tensor is
+        shared between callers and must not be modified in place (the engine
+        copies it into the job's own buffer). Prompts with multimodal
+        embeddings are never cached: their placeholder IDs belong to the
+        embeddings passed in.
+        """
+
+        if embeddings:
+            return self.tokenizer.encode(
+                text,
+                add_bos=add_bos,
+                encode_special_tokens=encode_special_tokens,
+                embeddings=embeddings,
+            )
+
+        # Containers are also built without __init__ in places
+        cache = getattr(self, "encode_cache", None)
+        if cache is None:
+            cache = self.encode_cache = OrderedDict()
+
+        key = (text, bool(add_bos), bool(encode_special_tokens))
+        ids = cache.get(key)
+        if ids is not None:
+            cache.move_to_end(key)
+            return ids
+
+        ids = self.tokenizer.encode(
+            text,
+            add_bos=add_bos,
+            encode_special_tokens=encode_special_tokens,
+            embeddings=[],
+        )
+        cache[key] = ids
+        while len(cache) > ENCODE_CACHE_ENTRIES:
+            cache.popitem(last=False)
+        return ids
+
     def encode_tokens(self, text: str, **kwargs) -> List[int]:
         """
         Encodes a string of text into a list of token IDs.
@@ -1345,7 +1404,7 @@ class ExllamaV3Container:
         add_bos_token = unwrap(kwargs.get("add_bos_token"), self.hf_model.add_bos_token())
 
         return (
-            self.tokenizer.encode(
+            self.encode_prompt(
                 text,
                 add_bos=add_bos_token and self.bos_token_id is not None,
                 encode_special_tokens=unwrap(kwargs.get("encode_special_tokens"), True),
@@ -1400,13 +1459,13 @@ class ExllamaV3Container:
         params: BaseSamplerRequest,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
     ):
-        context_len = len(
-            self.encode_tokens(
-                prompt,
-                add_bos_token=unwrap(params.add_bos_token, self.hf_model.add_bos_token()),
-                embeddings=mm_embeddings,
-            )
-        )
+        # Only the count is needed, and the encoding is reused by the job
+        add_bos_token = unwrap(params.add_bos_token, self.hf_model.add_bos_token())
+        context_len = self.encode_prompt(
+            prompt,
+            add_bos=add_bos_token and self.bos_token_id is not None,
+            embeddings=mm_embeddings.content if mm_embeddings else [],
+        ).numel()
         max_tokens = unwrap(params.max_tokens, 0)
         if max_tokens <= 0:
             max_tokens = self.max_seq_len - context_len - 1
@@ -1902,7 +1961,7 @@ class ExllamaV3Container:
         stop_conditions = list(set(stop_conditions))
 
         input_ids = [
-            self.tokenizer.encode(
+            self.encode_prompt(
                 prompt,
                 add_bos=add_bos_token,
                 encode_special_tokens=True,
