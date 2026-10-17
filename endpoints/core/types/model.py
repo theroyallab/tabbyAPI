@@ -147,6 +147,7 @@ class ModelLoadRequest(_WarnOnUnknownFields):
         examples=[4096],
     )
     cache_mode: Optional[str] = None
+    recurrent_state_fp32: Optional[bool] = None
     tensor_parallel: Optional[bool] = None
     tensor_parallel_backend: Optional[str] = "native"
     gpu_split_auto: Optional[bool] = None

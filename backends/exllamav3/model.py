@@ -253,6 +253,7 @@ class ExllamaV3Container:
     max_seq_len: int = 4096
     cache_size: int = 4096
     cache_mode: str = "FP16"
+    recurrent_state_fp32: bool = False
     draft_cache_mode: str = "FP16"
     chunk_size: int = 2048
     max_rq_tokens: Optional[int] = 2048
@@ -607,6 +608,8 @@ class ExllamaV3Container:
         # Create cache
         cache_mode_default = "FP16"
         self.cache_mode = unwrap(kwargs.get("cache_mode"), cache_mode_default)
+        self.recurrent_state_fp32 = unwrap(kwargs.get("recurrent_state_fp32"), False)
+        xlogger.info(f"Recurrent state storage: {'fp32' if self.recurrent_state_fp32 else 'fp16'}")
         self.cache = self.create_cache(self.cache_mode, self.model)
 
         # Draft cache
@@ -901,6 +904,7 @@ class ExllamaV3Container:
         batch_draft_args = {
             "max_batch_size": self.max_batch_size,
             "max_history": max(draft_tokens, self.hybrid_draft_tokens),
+            "recurrent_dtype": torch.float if self.recurrent_state_fp32 else torch.half,
         }
 
         if split_cache_mode:
