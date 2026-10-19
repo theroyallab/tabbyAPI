@@ -102,6 +102,13 @@ class DraftModelLoadRequest(_WarnOnUnknownFields):
     draft_cache_mode: Optional[str] = None
     draft_num_tokens: Optional[int] = None
     dynamic_draft: Optional[bool] = None
+    draft_confidence: Optional[float] = Field(
+        description="Target acceptance probability for dynamic drafting, in (0, 1)",
+        default=None,
+        examples=[0.4],
+        gt=0,
+        lt=1,
+    )
     ngram_match_min: Optional[int] = None
     hybrid_draft_tokens: Optional[int] = None
     draft_rope_scale: Optional[float] = None
