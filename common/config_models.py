@@ -678,6 +678,19 @@ class DraftModelConfig(BaseConfigModel):
             "Ceiling is given by num_draft_tokens."
         ),
     )
+    draft_confidence: Optional[float] = Field(
+        0.4,
+        description=(
+            "Target acceptance probability for drafted positions when dynamic_draft is "
+            "enabled (default: 0.4).\n"
+            "Evaluated against an online mapping from drafter confidence scores to "
+            "observed acceptance rates.\n"
+            "Lower values keep longer drafts; higher values truncate more aggressively.\n"
+            "Must be between 0 and 1. Ignored for n-gram drafting."
+        ),
+        gt=0,
+        lt=1,
+    )
     ngram_match_min: Optional[int] = Field(
         2,
         description=(

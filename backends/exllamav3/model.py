@@ -259,6 +259,7 @@ class ExllamaV3Container:
     max_batch_size: Optional[int] = None
     draft_num_tokens: Optional[int] = None
     dynamic_draft: Optional[bool] = False
+    draft_confidence: float = 0.4
     ngram_match_min: int = 0
     hybrid_draft_tokens: int = 0
     recurrent_checkpoint_interval: Optional[int] = None
@@ -419,6 +420,9 @@ class ExllamaV3Container:
             else None
         )
         self.dynamic_draft = draft_args.get("dynamic_draft", False)
+        self.draft_confidence = unwrap(draft_args.get("draft_confidence"), 0.4)
+        if not 0.0 < self.draft_confidence < 1.0:
+            raise ValueError("draft_confidence must be between 0 and 1")
 
         # Long suffix-match drafting on top of whichever drafting mode is
         # active, or on its own: a job repeating its own context verbatim gets
@@ -1222,6 +1226,7 @@ class ExllamaV3Container:
                 cpu_cache_size=config.memory.sysmem_kv_cache * 1024**2,
                 num_draft_tokens=self.draft_num_tokens,
                 dynamic_draft_tokens=self.dynamic_draft,
+                draft_confidence=self.draft_confidence,
                 ngram_match_min=self.ngram_match_min,
                 hybrid_draft_tokens=self.hybrid_draft_tokens,
                 **checkpoint_kwargs,

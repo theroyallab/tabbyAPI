@@ -395,6 +395,12 @@ draft_model:
   # Ceiling is given by num_draft_tokens.
   dynamic_draft:
 
+  # Target acceptance probability for drafted positions when dynamic_draft is enabled
+  # (default: 0.4). Evaluated against an online mapping from drafter confidence scores
+  # to observed acceptance rates. Lower values keep longer drafts; higher values
+  # truncate more aggressively. Must be between 0 and 1. Ignored for n-gram drafting.
+  draft_confidence: 0.4
+
   # Minimum match length for exllamav3 n-gram drafting (default: 2).
   # Only used when draft_mode is ngram.
   ngram_match_min: 2
