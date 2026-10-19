@@ -1794,6 +1794,39 @@ function closeDrawers() {
   $("scrim").hidden = true;
 }
 
+// The buttons at either end of the top bar hide and show the side panels, or
+// open them as drawers on screens too narrow to fit them alongside the chat
+const SIDE_PANELS = {
+  sidebar: { setting: "hideSidebar", label: "chats", drawer: matchMedia("(max-width: 760px)") },
+  panel: { setting: "hidePanel", label: "settings", drawer: matchMedia("(max-width: 1100px)") },
+};
+
+function toggleSidePanel(name) {
+  const side = SIDE_PANELS[name];
+  if (side.drawer.matches) {
+    const drawer = $(name);
+    const open = !drawer.classList.contains("open");
+    closeDrawers();
+    drawer.classList.toggle("open", open);
+    $("scrim").hidden = !open;
+  } else {
+    settings[side.setting] = !settings[side.setting];
+    save("settings", settings);
+    applySidePanels();
+  }
+}
+
+function applySidePanels() {
+  for (const [name, side] of Object.entries(SIDE_PANELS)) {
+    const hidden = !!settings[side.setting];
+    document.documentElement.classList.toggle(`${name}-hidden`, hidden);
+    const label = side.drawer.matches || hidden ? `Show ${side.label}` : `Hide ${side.label}`;
+    const button = document.querySelector(`[data-drawer="${name}"]`);
+    button.title = label;
+    button.setAttribute("aria-label", label);
+  }
+}
+
 function bindEvents() {
   $("new-chat").addEventListener("click", newChat);
 
@@ -1924,14 +1957,9 @@ function bindEvents() {
   });
 
   for (const button of document.querySelectorAll("[data-drawer]")) {
-    button.addEventListener("click", () => {
-      const drawer = $(button.dataset.drawer);
-      const open = !drawer.classList.contains("open");
-      closeDrawers();
-      drawer.classList.toggle("open", open);
-      $("scrim").hidden = !open;
-    });
+    button.addEventListener("click", () => toggleSidePanel(button.dataset.drawer));
   }
+  for (const side of Object.values(SIDE_PANELS)) side.drawer.addEventListener("change", applySidePanels);
   $("scrim").addEventListener("click", closeDrawers);
 
   // Another tab may have changed the chats; pick up the session list
@@ -1965,6 +1993,7 @@ async function init() {
   renderThemeMenu();
   applyTheme();
   applyFormatting();
+  applySidePanels();
   bindEvents();
 
   const current = load("current", null);

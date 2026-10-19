@@ -1,6 +1,7 @@
 // Picks the page theme before the first paint (loaded synchronously in <head>,
 // ahead of the stylesheets' first use), so a dark theme doesn't flash white.
 // app.js builds the theme menu from this list and calls apply() on changes.
+// Side panels the user has hidden are hidden here too, so they don't flash.
 
 (() => {
   const THEMES = [
@@ -46,7 +47,10 @@
   prefersDark.addEventListener("change", () => apply(choice));
 
   try {
-    apply(JSON.parse(localStorage.getItem("tabby-ui.settings") || "{}").theme);
+    const settings = JSON.parse(localStorage.getItem("tabby-ui.settings") || "{}");
+    apply(settings.theme);
+    document.documentElement.classList.toggle("sidebar-hidden", !!settings.hideSidebar);
+    document.documentElement.classList.toggle("panel-hidden", !!settings.hidePanel);
   } catch {
     apply("");
   }

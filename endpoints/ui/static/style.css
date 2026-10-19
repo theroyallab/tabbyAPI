@@ -1166,7 +1166,21 @@ dialog h2 {
 
 /* ---- Narrow screens: sidebars become drawers ---- */
 
-.only-narrow, .only-medium { display: none; }
+/* The side panel toggles sit at either end of the top bar (after anything a
+   theme adds there). On wide screens they hide and show the columns */
+#topbar .panel-toggle[data-drawer="sidebar"] { order: -1; }
+#topbar .panel-toggle[data-drawer="panel"] { order: 1; }
+
+@media (min-width: 761px) {
+  .sidebar-hidden #sidebar { display: none; }
+}
+
+@media (min-width: 1101px) {
+  .panel-hidden #panel { display: none; }
+  .sidebar-hidden #app { grid-template-columns: minmax(0, 1fr) 320px; }
+  .panel-hidden #app { grid-template-columns: 260px minmax(0, 1fr); }
+  .sidebar-hidden.panel-hidden #app { grid-template-columns: minmax(0, 1fr); }
+}
 
 #scrim {
   position: fixed;
@@ -1177,7 +1191,7 @@ dialog h2 {
 
 @media (max-width: 1100px) {
   #app { grid-template-columns: 260px minmax(0, 1fr); }
-  .only-medium { display: inline-grid; }
+  .sidebar-hidden #app { grid-template-columns: minmax(0, 1fr); }
 
   .drawer-right {
     position: fixed;
@@ -1195,7 +1209,6 @@ dialog h2 {
 
 @media (max-width: 760px) {
   #app { grid-template-columns: minmax(0, 1fr); }
-  .only-narrow { display: inline-grid; }
 
   .drawer-left {
     position: fixed;
