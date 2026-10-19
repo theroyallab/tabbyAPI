@@ -257,6 +257,13 @@ class ModelConfig(BaseConfigModel):
             f"The legacy values {str(CACHE_SIZES)[15:-1]} are also accepted."
         ),
     )
+    recurrent_state_fp32: Optional[bool] = Field(
+        False,
+        description=(
+            "Store GatedDeltaNet/KDA recurrent state in FP32 instead of FP16. "
+            "Uses twice the state and checkpoint memory; scans compute in FP32 either way."
+        ),
+    )
     tensor_parallel: Optional[bool] = Field(
         False,
         description=(

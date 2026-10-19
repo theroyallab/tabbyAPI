@@ -132,6 +132,10 @@ model:
   # The legacy values 'FP16', 'Q8', 'Q6', 'Q4' are also accepted.
   cache_mode: FP16
 
+  # Store GatedDeltaNet/KDA recurrent state in FP32 instead of FP16 (default: False).
+  # Uses twice the state and checkpoint memory; scans compute in FP32 either way.
+  recurrent_state_fp32: false
+
   # Load model with tensor parallelism.
   # Falls back to autosplit if GPU split isn't provided.
   # This ignores the gpu_split_auto value.
