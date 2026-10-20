@@ -216,6 +216,52 @@ def test_fetch_disabled_503(monkeypatch):
     assert exc_info.value.status_code == 503
 
 
+def test_fetch_redirect_is_502(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _fetch_cfg())
+    response = _FakeResponse(status=301, headers={"Location": "http://evil/x"})
+    _patch_session(monkeypatch, response)
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(web_tools.fetch_page("http://127.0.0.1/x", None))
+    assert exc_info.value.status_code == 502
+    assert "redirects" in exc_info.value.detail
+
+
+def test_fetch_non_text_content_is_502(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _fetch_cfg())
+    response = _FakeResponse(data=b"\x00\x01", headers={"Content-Type": "application/octet-stream"})
+    _patch_session(monkeypatch, response)
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(web_tools.fetch_page("http://127.0.0.1/x", None))
+    assert exc_info.value.status_code == 502
+    assert "text" in exc_info.value.detail
+
+
+def test_fetch_too_large_is_502(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _fetch_cfg())
+    big = b"x" * (web_tools.MAX_DOWNLOAD_BYTES + 1)
+    _patch_session(monkeypatch, _FakeResponse(data=big, headers={"Content-Type": "text/plain"}))
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(web_tools.fetch_page("http://127.0.0.1/x", None))
+    assert exc_info.value.status_code == 502
+    assert "too large" in exc_info.value.detail
+
+
+def test_fetch_json_body_is_pretty_printed(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _fetch_cfg())
+    body = json.dumps({"a": 1, "b": [2, 3]})
+    _patch_session(
+        monkeypatch, _FakeResponse(data=body.encode(), headers={"Content-Type": "application/json"})
+    )
+    response = asyncio.run(web_tools.fetch_page("http://127.0.0.1/x", None))
+    assert '"a": 1' in response.text
+    assert "\n" in response.text
+
+
+def test_validate_public_url_allows_private_when_configured():
+    result = asyncio.run(validate_public_url("http://127.0.0.1:5000/x", allow_private=True))
+    assert result == "http://127.0.0.1:5000/x"
+
+
 def _client(monkeypatch, disable_auth):
     monkeypatch.setattr(auth, "DISABLE_AUTH", disable_auth)
     monkeypatch.setattr(auth, "AUTH_KEYS", auth.AuthKeys(api_key="api", admin_key="admin"))

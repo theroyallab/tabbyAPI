@@ -28,6 +28,7 @@ from common.tools_config import (
     HARD_MAX_PAGE_CHARS,
     HARD_MAX_RESULT_CHARS,
     HARD_MAX_RESULTS,
+    HARD_TIMEOUT,
 )
 from endpoints.OAI.types.web_tools import (
     FetchURLResponse,
@@ -162,7 +163,7 @@ async def searxng_search(
     if searxng.token:
         headers["Authorization"] = f"Bearer {searxng.token}"
 
-    timeout = aiohttp.ClientTimeout(total=min(searxng.timeout, 30.0))
+    timeout = aiohttp.ClientTimeout(total=min(searxng.timeout, HARD_TIMEOUT))
     try:
         async with aiohttp.ClientSession(timeout=timeout, trust_env=False) as session:
             async with session.get(search_url, headers=headers, follow_redirects=False) as response:
@@ -217,7 +218,7 @@ async def fetch_page(url: str, max_page_chars: Optional[int]) -> FetchURLRespons
     url = await validate_public_url(url, allow_private=fetch.allow_private_urls)
     chars = _clamp(max_page_chars, fetch.max_page_chars, HARD_MAX_PAGE_CHARS, 500)
 
-    timeout = aiohttp.ClientTimeout(total=min(fetch.timeout, 30.0))
+    timeout = aiohttp.ClientTimeout(total=min(fetch.timeout, HARD_TIMEOUT))
     try:
         async with aiohttp.ClientSession(timeout=timeout, trust_env=False) as session:
             async with session.get(
