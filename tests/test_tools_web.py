@@ -225,13 +225,17 @@ def _client(monkeypatch, disable_auth):
 def test_tools_status_requires_key(monkeypatch):
     client = _client(monkeypatch, False)
     assert client.get("/v1/tools/status").status_code == 401
-    body = client.get(
-        "/v1/tools/status", headers={"Authorization": "Bearer api"}
-    ).json()
+    body = client.get("/v1/tools/status", headers={"Authorization": "Bearer api"}).json()
     assert body["web_search"]["enabled"] is False
     assert body["fetch_url"]["enabled"] is False
     assert body["limits"]["max_results"] == 20
     assert "token" not in str(body)
+
+
+def test_tools_status_open_when_auth_disabled(monkeypatch):
+    client = _client(monkeypatch, True)
+    response = client.get("/v1/tools/status")
+    assert response.status_code == 200
 
 
 def test_web_search_disabled_by_default(monkeypatch):

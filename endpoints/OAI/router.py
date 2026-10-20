@@ -244,8 +244,11 @@ async def tools_status() -> dict:
     """What the built-in web tools are configured to do. Never includes the
     SearXNG URL or token: only booleans and the limits clients may lower."""
 
-    searxng = tools_config.TOOLS_CONFIG.searxng
-    fetch = tools_config.TOOLS_CONFIG.fetch_url
+    # One reference per call: a watcher reload mid-request cannot mix
+    # old and new options into a single status response.
+    cfg = tools_config.TOOLS_CONFIG
+    searxng = cfg.searxng
+    fetch = cfg.fetch_url
     return {
         "web_search": {
             "enabled": searxng.enabled and bool(searxng.url),
