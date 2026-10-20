@@ -2,6 +2,7 @@
 panel keeps up with the sampler params the server supports."""
 
 import json
+import re
 
 from fastapi.testclient import TestClient
 from loguru import logger
@@ -73,6 +74,24 @@ def test_ui_served(monkeypatch):
     license_text = client.get("/ui/vendor/markdown-it.LICENSE.txt").text
     for package in ("markdown-it", "entities", "linkify-it", "mdurl", "punycode.js", "uc.micro"):
         assert package in license_text, package
+
+    # So do the code highlighter and the math typesetter the client loads when
+    # a reply needs them, with every file it asks for
+    app_js = client.get("/ui/app.js").text
+    for path in (
+        "vendor/highlight.js/highlight.min.js",
+        "vendor/katex/katex.min.js",
+        "vendor/katex/katex.min.css",
+    ):
+        assert path in app_js, path
+        assert client.get(f"/ui/{path}").status_code == 200, path
+    for language in ("dockerfile", "powershell", "cmake", "latex"):
+        assert client.get(f"/ui/vendor/highlight.js/languages/{language}.min.js").status_code == 200
+    assert "BSD 3-Clause" in client.get("/ui/vendor/highlight.js/LICENSE.txt").text
+    assert "MIT" in client.get("/ui/vendor/katex/LICENSE.txt").text
+    katex_css = client.get("/ui/vendor/katex/katex.min.css").text
+    for font in set(re.findall(r"url\((fonts/[^)]+\.woff2)\)", katex_css)):
+        assert client.get(f"/ui/vendor/katex/{font}").status_code == 200, font
 
     # Not part of the API schema
     assert not any(path.startswith("/ui") for path in client.get("/openapi.json").json()["paths"])

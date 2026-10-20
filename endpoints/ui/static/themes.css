@@ -64,6 +64,16 @@
   --inline-code-bg: rgba(222, 220, 209, 0.09);
   --code-block-bg: #1a1918;
   --code-block-fg: #e8e6dc;
+  /* Warm syntax colors */
+  --hl-comment: #8a8478;
+  --hl-keyword: #e08a5f;
+  --hl-string: #b5c48a;
+  --hl-number: #d8a657;
+  --hl-title: #e9c584;
+  --hl-type: #9fb7c9;
+  --hl-attr: #d8a657;
+  --hl-meta: #c49a6c;
+  --hl-variable: #e6a28c;
   --code-head-bg: #232220;
   --code-head-fg: #a6a39a;
 
@@ -280,6 +290,16 @@
   --inline-code-bg: rgba(20, 30, 60, 0.06);
   --code-block-bg: #f4f5f8;
   --code-block-fg: #1d1f27;
+  /* Syntax colors for light code blocks, from the gradient's blue, violet, coral and amber */
+  --hl-comment: #7b8193;
+  --hl-keyword: #7c4ddb;
+  --hl-string: #0f7b5f;
+  --hl-number: #c2410c;
+  --hl-title: #2f62d8;
+  --hl-type: #b8327a;
+  --hl-attr: #a15c00;
+  --hl-meta: #5b6bd0;
+  --hl-variable: #c2410c;
   --code-head-bg: #eceef3;
   --code-head-fg: #6b6f7e;
 
@@ -350,6 +370,16 @@
   --inline-code-bg: rgba(255, 255, 255, 0.08);
   --code-block-bg: #111114;
   --code-block-fg: #e6e6ea;
+  /* The same hues, lighter for dark code blocks */
+  --hl-comment: #7c7f8f;
+  --hl-keyword: #b49cff;
+  --hl-string: #8fd6a8;
+  --hl-number: #ffb38a;
+  --hl-title: #7aa7ff;
+  --hl-type: #f08fb4;
+  --hl-attr: #ffcf7a;
+  --hl-meta: #8ea2ff;
+  --hl-variable: #ff9b85;
   --code-head-bg: #18181d;
   --code-head-fg: #8b8b96;
 
@@ -758,6 +788,16 @@
   --inline-code-bg: rgba(255, 0, 0, 0.15);
   --code-block-bg: #000000;
   --code-block-fg: #ffff00;
+  /* Ketchup, mustard and onion */
+  --hl-comment: #a6a600;
+  --hl-keyword: #ff2a2a;
+  --hl-string: #ffffff;
+  --hl-number: #ff9900;
+  --hl-title: #ff6b6b;
+  --hl-type: #ff2a2a;
+  --hl-attr: #ffbb33;
+  --hl-meta: #ff9900;
+  --hl-variable: #ffffff;
   --code-head-bg: #ff0000;
   --code-head-fg: #ffff00;
 
@@ -1001,6 +1041,16 @@
   --inline-code-bg: rgba(195, 168, 255, 0.22);
   --code-block-bg: #3d2c55;
   --code-block-fg: #fbeaff;
+  /* A pastel rainbow */
+  --hl-comment: #b9a6d4;
+  --hl-keyword: #ff9de2;
+  --hl-string: #a8f0c6;
+  --hl-number: #ffd59e;
+  --hl-title: #9ecbff;
+  --hl-type: #d6b4ff;
+  --hl-attr: #fff3a0;
+  --hl-meta: #9ee7ff;
+  --hl-variable: #ffb3c7;
   --code-head-bg: linear-gradient(90deg, #ffd6e0, #fff1c9, #d6f5e3, #d6ecff, #eadcff);
   --code-head-fg: #5e3a7d;
 
@@ -1061,6 +1111,16 @@
   --inline-code-bg: rgba(200, 170, 255, 0.16);
   --code-block-bg: #120e1d;
   --code-block-fg: #f6e8ff;
+  /* A pastel rainbow */
+  --hl-comment: #9d8db8;
+  --hl-keyword: #ff9de2;
+  --hl-string: #a8f0c6;
+  --hl-number: #ffd59e;
+  --hl-title: #9ecbff;
+  --hl-type: #d6b4ff;
+  --hl-attr: #fff3a0;
+  --hl-meta: #9ee7ff;
+  --hl-variable: #ffb3c7;
   --code-head-bg: linear-gradient(90deg, rgba(255, 143, 190, 0.28), rgba(255, 214, 130, 0.22), rgba(130, 235, 190, 0.22), rgba(130, 200, 255, 0.26), rgba(190, 160, 255, 0.28)), #1f1830;
   --code-head-fg: #f6e8ff;
 
@@ -1277,6 +1337,16 @@
   --inline-code-bg: rgba(0, 255, 65, 0.12);
   --code-block-bg: rgba(0, 0, 0, 0.92);
   --code-block-fg: #7dff9b;
+  /* Every color, as long as it's green */
+  --hl-comment: #2f8f4e;
+  --hl-keyword: #00ff41;
+  --hl-string: #b8ffc4;
+  --hl-number: #c6ff00;
+  --hl-title: #5dffb1;
+  --hl-type: #00e676;
+  --hl-attr: #9dffb0;
+  --hl-meta: #4dff88;
+  --hl-variable: #d4ffd9;
   --code-head-bg: rgba(0, 255, 65, 0.12);
   --code-head-fg: #00ff41;
 
