@@ -1495,6 +1495,56 @@ async function parseLoadOptions() {
   return (await res.json()).settings;
 }
 
+// Save the load options as the target model's tabby_config.yml. The server
+// leaves out whatever only repeats config.yml's use_as_default
+async function saveLoadOptions() {
+  const message = $("model-message");
+  message.classList.remove("error");
+  let options;
+  try {
+    options = await parseLoadOptions();
+  } catch (e) {
+    message.textContent = e.message.startsWith("Load options") ? e.message : `Load options: ${e.message}`;
+    message.classList.add("error");
+    return;
+  }
+
+  const named = typeof options.model_name === "string" ? options.model_name.trim() : "";
+  const name = named || listTarget();
+  if (!name) return;
+  const question =
+    `Save these load options to the tabby_config.yml of ${name}?\n\n` +
+    "Options that only repeat config.yml's use_as_default are left out, unless the file already has them. " +
+    "An existing file is kept as tabby_config.bak.";
+  if (!confirm(question)) return;
+
+  const button = $("save-load-options");
+  button.disabled = true;
+  try {
+    const res = await api("/v1/model/load_config/save", { method: "POST", body: { model_name: name, settings: options } });
+    const data = await res.json();
+    const { draft_model: draft = {}, ...rest } = data.saved;
+    const count = Object.keys(rest).length + Object.keys(draft).length;
+    const backup = data.backup ? ` The previous file is kept as ${data.backup}.` : "";
+    if (data.removed) {
+      message.textContent = `Removed the tabby_config.yml of ${name}, since every option matches use_as_default.${backup}`;
+    } else if (!count) {
+      message.textContent = "Nothing to save: every option matches use_as_default.";
+    } else {
+      message.textContent = `Saved ${count} option${count === 1 ? "" : "s"} to the tabby_config.yml of ${name}.${backup}`;
+    }
+
+    // Show what applies to the model now
+    editedOptions.delete(name);
+    if (name === optionsTarget) syncLoadOptions(true);
+  } catch (e) {
+    message.textContent = e.message;
+    message.classList.add("error");
+  } finally {
+    updateModelButtons();
+  }
+}
+
 function rememberModel(name) {
   if (state.models.some((m) => m.id === name)) return;
   recentModels = [name, ...recentModels.filter((n) => n !== name)].slice(0, 8);
@@ -1510,6 +1560,7 @@ function updateModelButtons() {
   loadButton.disabled = !admin || state.loading || !name;
   $("load-target").textContent = admin && name ? `Load target: ${name}` + (optionsModelName() ? " (from load options)" : "") : "";
   $("unload-model").disabled = !admin || state.loading || !state.currentModel;
+  $("save-load-options").disabled = !admin || !name;
 }
 
 function renderModelInfo() {
@@ -1922,6 +1973,7 @@ function bindEvents() {
     updateModelButtons();
   });
   $("reset-load-options").addEventListener("click", () => syncLoadOptions(true));
+  $("save-load-options").addEventListener("click", saveLoadOptions);
   $("load-model").addEventListener("click", loadModel);
   $("unload-model").addEventListener("click", unloadModel);
   $("preset-select").addEventListener("change", switchPreset);

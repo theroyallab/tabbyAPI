@@ -264,6 +264,52 @@ class LoadOptionsParseResponse(BaseModel):
     settings: dict
 
 
+class ModelLoadConfigSaveRequest(BaseModel):
+    """Load options to save as a model's tabby_config.yml, as YAML or as a mapping."""
+
+    # Avoids pydantic namespace warning
+    model_config = ConfigDict(protected_namespaces=[])
+
+    model_name: str
+    yaml: Optional[str] = Field(
+        default=None,
+        max_length=65536,
+        description="The options as YAML (or JSON), in the shape of a load request",
+    )
+    settings: Optional[dict] = Field(
+        default=None, description="The options as a mapping, in the shape of a load request"
+    )
+
+    @model_validator(mode="after")
+    def _one_source(self):
+        if (self.yaml is None) == (self.settings is None):
+            raise ValueError("Give the options as either yaml or settings")
+        return self
+
+
+class ModelLoadConfigSaveResponse(BaseModel):
+    """What was written to a model's tabby_config.yml."""
+
+    # Avoids pydantic namespace warning
+    model_config = ConfigDict(protected_namespaces=[])
+
+    model_name: str
+    saved: dict = Field(
+        description=(
+            "The load options now in the file, with draft options under draft_model. "
+            "Options that only repeat a use_as_default value are left out, unless the "
+            "file already had them"
+        )
+    )
+    backup: Optional[str] = Field(
+        default=None, description="The file the previous tabby_config.yml was copied to"
+    )
+    removed: bool = Field(
+        default=False,
+        description="Whether the file was removed, since nothing was left to save in it",
+    )
+
+
 class EmbeddingModelLoadRequest(BaseModel):
     embedding_model_name: str
 

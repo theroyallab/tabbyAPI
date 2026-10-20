@@ -1,4 +1,5 @@
 import asyncio
+import os
 import pathlib
 from typing import Optional
 from common.multimodal import MultimodalEmbeddingWrapper
@@ -33,6 +34,8 @@ from endpoints.core.types.model import (
     ModelDefaultGenerationSettings,
     ModelList,
     ModelLoadConfigResponse,
+    ModelLoadConfigSaveRequest,
+    ModelLoadConfigSaveResponse,
     ModelLoadRequest,
     ModelLoadResponse,
     ModelPropsModalities,
@@ -57,6 +60,7 @@ from endpoints.core.utils.model import (
     get_dummy_models,
     get_model_list,
     get_model_load_config,
+    save_model_load_config,
     stream_model_load,
 )
 
@@ -240,15 +244,11 @@ async def model_load_config(model_name: str) -> ModelLoadConfigResponse:
         raise HTTPException(400, error_message) from exc
 
 
-@router.post("/v1/model/load_config/parse", dependencies=[Depends(check_admin_key)])
-async def parse_load_options(data: LoadOptionsParseRequest) -> LoadOptionsParseResponse:
-    """
-    Turn load options written as YAML (or JSON) into a load request body, so
-    clients can edit them as YAML without a YAML parser of their own.
-    """
+def parse_load_options_yaml(text: str) -> dict:
+    """Load options written as YAML (or JSON), as a mapping."""
 
     try:
-        settings = YAML(typ="safe").load(data.yaml)
+        settings = YAML(typ="safe").load(text)
     except YAMLError as exc:
         error_message = handle_request_error(
             f"Load options are not valid YAML: {exc}", exc_info=False
@@ -265,7 +265,62 @@ async def parse_load_options(data: LoadOptionsParseRequest) -> LoadOptionsParseR
 
         raise HTTPException(400, error_message)
 
-    return LoadOptionsParseResponse(settings=settings)
+    return settings
+
+
+@router.post("/v1/model/load_config/parse", dependencies=[Depends(check_admin_key)])
+async def parse_load_options(data: LoadOptionsParseRequest) -> LoadOptionsParseResponse:
+    """
+    Turn load options written as YAML (or JSON) into a load request body, so
+    clients can edit them as YAML without a YAML parser of their own.
+    """
+
+    return LoadOptionsParseResponse(settings=parse_load_options_yaml(data.yaml))
+
+
+@router.post("/v1/model/load_config/save", dependencies=[Depends(check_admin_key)])
+async def save_load_options(data: ModelLoadConfigSaveRequest) -> ModelLoadConfigSaveResponse:
+    """
+    Save load options as the model folder's tabby_config.yml, for loads that
+    leave them out. Options that only repeat a use_as_default value are left
+    out, unless the file already has them. An existing file is copied to
+    tabby_config.bak first, and keeps its comments and any keys a load request
+    can't set.
+    """
+
+    # Only model folders under the model directory, by name, not by where a
+    # symlinked folder points
+    model_root = pathlib.Path(os.path.normpath(config.model.model_dir))
+    model_path = pathlib.Path(os.path.normpath(model_root / data.model_name))
+    if (
+        model_path == model_root
+        or not model_path.is_relative_to(model_root)
+        or not (model_path / "config.json").is_file()
+    ):
+        error_message = handle_request_error(
+            f"Model {data.model_name} was not found in the model directory.",
+            exc_info=False,
+        ).error.message
+
+        raise HTTPException(404, error_message)
+
+    settings = data.settings if data.yaml is None else parse_load_options_yaml(data.yaml)
+    try:
+        return await save_model_load_config(data.model_name, model_path, settings)
+    except (YAMLError, ValueError) as exc:
+        error_message = handle_request_error(
+            f"Could not save the load options of {data.model_name}: {exc}",
+            exc_info=False,
+        ).error.message
+
+        raise HTTPException(400, error_message) from exc
+    except OSError as exc:
+        error_message = handle_request_error(
+            f"Could not write the tabby_config.yml of {data.model_name}: {exc}",
+            exc_info=False,
+        ).error.message
+
+        raise HTTPException(500, error_message) from exc
 
 
 # Unload model endpoint

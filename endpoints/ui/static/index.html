@@ -110,6 +110,9 @@
         <details id="load-options-details" class="load-options">
           <summary>Load options <span id="load-options-note" class="muted"></span></summary>
           <textarea id="load-options" rows="9" wrap="off" spellcheck="false" placeholder="max_seq_len: 16384&#10;cache_mode: Q8&#10;draft_model:&#10;  draft_mode: ngram"></textarea>
+          <div class="button-row">
+            <button id="save-load-options" type="button" disabled title="Write these options to the model's tabby_config.yml, leaving out any that only repeat config.yml's use_as_default. An existing file is kept as tabby_config.bak.">Save to tabby_config.yml</button>
+          </div>
           <p class="hint">YAML fields for /v1/model/load. Picking a model fills in what would apply to it from its tabby_config.yml and config.yml's use_as_default; values here override both. A model_name here takes precedence over the list.
             <button id="reset-load-options" class="link-button" type="button">Reset to model defaults</button></p>
         </details>

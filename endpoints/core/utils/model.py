@@ -1,11 +1,16 @@
 import asyncio
 import io
+import os
 import pathlib
+import shutil
 from asyncio import CancelledError
 from typing import Optional
 
+import aiofiles
+from pydantic import ValidationError
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from ruamel.yaml.tokens import CommentToken
 
 from common import model
 from common.networking import get_generator_error, handle_request_disconnect
@@ -17,6 +22,7 @@ from endpoints.core.types.model import (
     ModelCard,
     ModelList,
     ModelLoadConfigResponse,
+    ModelLoadConfigSaveResponse,
     ModelLoadRequest,
     ModelLoadResponse,
 )
@@ -293,18 +299,20 @@ async def get_model_load_config(model_name: str, model_path: pathlib.Path):
     )
 
 
+def yaml_node(value):
+    """A value for ruamel to write, with lists such as gpu_split on one line."""
+
+    if isinstance(value, dict):
+        return CommentedMap((key, yaml_node(item)) for key, item in value.items())
+    if isinstance(value, list):
+        seq = CommentedSeq(yaml_node(item) for item in value)
+        seq.fa.set_flow_style()
+        return seq
+    return value
+
+
 def load_settings_yaml(model_name: str, settings: dict, sources: dict, ignored: list) -> str:
     """Load settings as YAML in the shape of a load request, each line noting its source."""
-
-    def node(value):
-        if isinstance(value, dict):
-            return CommentedMap((key, node(item)) for key, item in value.items())
-        if isinstance(value, list):
-            # Lists such as gpu_split read best on one line
-            seq = CommentedSeq(node(item) for item in value)
-            seq.fa.set_flow_style()
-            return seq
-        return value
 
     header = [
         f"# Load options for {model_name}",
@@ -322,7 +330,7 @@ def load_settings_yaml(model_name: str, settings: dict, sources: dict, ignored: 
     yaml = YAML()
     yaml.width = 4096
     stream = io.StringIO()
-    yaml.dump(node(settings), stream)
+    yaml.dump(yaml_node(settings), stream)
     lines = stream.getvalue().splitlines()
 
     # Note each setting's source after its key line, in one aligned column.
@@ -347,3 +355,189 @@ def load_settings_yaml(model_name: str, settings: dict, sources: dict, ignored: 
         lines[index] = lines[index].ljust(column) + f"# {source}"
 
     return "\n".join(header + lines) + "\n"
+
+
+MODEL_CONFIG_BACKUP_FILE = "tabby_config.bak"
+
+
+def explicit_settings(settings: dict, defaults: dict, existing: dict) -> dict:
+    """
+    The part of some load settings that use_as_default doesn't already supply:
+    values that differ from the default or have none, and anything the model's
+    tabby_config.yml already sets, even to the default value. Nested options
+    (sampling, say) are compared key by key. Unset (null) values are dropped.
+    """
+
+    result = {}
+    for key, value in settings.items():
+        if value is None:
+            continue
+
+        default = defaults.get(key)
+        if isinstance(value, dict) and isinstance(default, dict):
+            in_file = existing.get(key)
+            value = explicit_settings(value, default, in_file if isinstance(in_file, dict) else {})
+            if value:
+                result[key] = value
+        elif key in existing or key not in defaults or value != default:
+            result[key] = value
+
+    return result
+
+
+def move_trailing_blank_lines(section: CommentedMap, old_last, new_last):
+    """
+    Keep the blank lines that ended a section of a YAML file at its end once
+    keys are added. ruamel keeps them with the last key, so the new keys would
+    otherwise come after them. Comment lines stay with the key they follow.
+    """
+
+    if old_last is None or new_last == old_last:
+        return
+
+    comment = section.ca.items.get(old_last)
+    token = comment[2] if comment and len(comment) > 2 else None
+    if token is None:
+        return
+
+    text = token.value.rstrip("\n")
+    blank_lines = len(token.value) - len(text) - 1
+    if blank_lines > 0:
+        token.value = text + "\n"
+        trailing = CommentToken("\n" * (blank_lines + 1), token.start_mark)
+        section.ca.items[new_last] = [None, None, trailing, None]
+
+
+def yaml_indent(text: str) -> int:
+    """The indentation of a YAML file, taken from its first indented line."""
+
+    for line in text.splitlines():
+        stripped = line.lstrip(" ")
+        if stripped and not stripped.startswith("#") and len(stripped) < len(line):
+            return len(line) - len(stripped)
+
+    return 2
+
+
+async def save_model_load_config(model_name: str, model_path: pathlib.Path, settings: dict):
+    """
+    Save load settings, in the shape of a load request, as the model folder's
+    tabby_config.yml. Settings that only repeat a use_as_default value are left
+    out, unless the file already has them. An existing file is copied to
+    tabby_config.bak first, and keeps its comments, other sections and the
+    keys a load request can't set.
+    """
+
+    settings = {
+        key: value
+        for key, value in settings.items()
+        if key not in NON_SETTING_FIELDS or key == "draft_model"
+    }
+    draft_settings = settings.get("draft_model")
+    draft_settings = {} if draft_settings is None else draft_settings
+    if not isinstance(draft_settings, dict):
+        raise ValueError("draft_model must be a mapping of draft model options.")
+
+    model_fields = set(ModelLoadRequest.model_fields) - NON_SETTING_FIELDS
+    draft_fields = set(DraftModelLoadRequest.model_fields)
+    unknown = [key for key in settings if key not in model_fields and key != "draft_model"]
+    unknown += [f"draft_model.{key}" for key in draft_settings if key not in draft_fields]
+    if unknown:
+        raise ValueError("Not load options: " + ", ".join(unknown))
+
+    # The same checks as a load request with these settings
+    try:
+        ModelLoadRequest.model_validate(
+            {**settings, "model_name": model_name, "draft_model": draft_settings}
+        )
+    except ValidationError as exc:
+        problems = [
+            ".".join(str(part) for part in error["loc"]) + ": " + error["msg"]
+            for error in exc.errors()
+        ]
+        raise ValueError("; ".join(problems)) from exc
+    settings.pop("draft_model", None)
+
+    config_path = model_path / model.MODEL_CONFIG_FILE
+    yaml = YAML()
+    yaml.width = 4096
+
+    exists = config_path.exists()
+    if exists:
+        async with aiofiles.open(config_path, "r", encoding="utf8") as config_file:
+            text = await config_file.read()
+        document = yaml.load(text)
+        if document is None:
+            document = CommentedMap()
+        if not isinstance(document, dict) or not all(
+            isinstance(document.get(section), (dict, type(None)))
+            for section in ("model", "draft_model")
+        ):
+            raise ValueError(
+                f"The existing {model.MODEL_CONFIG_FILE} must hold mappings of options "
+                "under model: and draft_model:, so it can't be updated."
+            )
+        indent = yaml_indent(text)
+        yaml.indent(mapping=indent, sequence=indent + 2, offset=indent)
+    else:
+        document = CommentedMap()
+        document.yaml_set_start_comment(
+            f"Load options for {model_name}. Options that only repeat config.yml's\n"
+            "use_as_default values are left out."
+        )
+
+    defaults = model.use_as_default_settings()
+    draft_defaults = defaults.pop("draft_model")
+
+    def update(section: str, new: dict, fields: set):
+        current = document.get(section)
+        if current is None:
+            current = CommentedMap()
+            if section in document or section != "model":
+                document[section] = current
+            else:
+                document.insert(0, section, current)
+
+        # Keys a load request can't set are left alone
+        for key in [key for key in current if key in fields and key not in new]:
+            del current[key]
+        last_key = next(reversed(current), None)
+        for key, value in new.items():
+            if key not in current or current[key] != value:
+                current[key] = yaml_node(value)
+        move_trailing_blank_lines(current, last_key, next(reversed(current), None))
+
+        if not current:
+            del document[section]
+
+    saved = explicit_settings(settings, defaults, document.get("model") or {})
+    saved_draft = explicit_settings(
+        draft_settings, draft_defaults, document.get("draft_model") or {}
+    )
+    update("model", saved, model_fields)
+    update("draft_model", saved_draft, draft_fields)
+    if saved_draft:
+        saved["draft_model"] = saved_draft
+
+    backup = None
+    if exists:
+        shutil.copy2(config_path, model_path / MODEL_CONFIG_BACKUP_FILE)
+        backup = MODEL_CONFIG_BACKUP_FILE
+
+    # Nothing left to say: no file at all reads the same, without the warning
+    # an empty one gets at load
+    if not document:
+        if exists:
+            config_path.unlink()
+        return ModelLoadConfigSaveResponse(
+            model_name=model_name, saved=saved, backup=backup, removed=exists
+        )
+
+    stream = io.StringIO()
+    yaml.dump(document, stream)
+    temp_path = config_path.with_name(config_path.name + ".tmp")
+    async with aiofiles.open(temp_path, "w", encoding="utf8") as config_file:
+        await config_file.write(stream.getvalue())
+    os.replace(temp_path, config_path)
+
+    return ModelLoadConfigSaveResponse(model_name=model_name, saved=saved, backup=backup)

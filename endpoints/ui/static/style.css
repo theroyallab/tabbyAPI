@@ -941,6 +941,9 @@ svg {
   font-size: 12px;
 }
 
+.load-options .button-row { margin-top: 4px; }
+.load-options .button-row button { padding: 3px 10px; font-size: 12.5px; }
+
 .button-row {
   display: flex;
   gap: 8px;
