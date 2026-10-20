@@ -1267,3 +1267,72 @@ dialog h2 {
   .message-actions { opacity: 1; }
   .model-list .star { visibility: visible; }
 }
+
+/* ---- Tools ---- */
+
+.tools-button {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg-muted);
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+}
+
+.tools-button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; }
+
+.tools-button.active { color: var(--accent); border-color: var(--accent); }
+
+.tools-menu {
+  position: absolute;
+  right: 10px;
+  bottom: calc(100% + 8px);
+  width: 280px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  padding: 12px;
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+}
+
+.toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.toggle-row input { width: auto; }
+
+.tools-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+
+.tool-approvals { display: grid; gap: 8px; margin-bottom: 8px; }
+
+.tool-approval {
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--bg);
+  display: grid;
+  gap: 8px;
+}
+
+.tool-head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.tool-name { font-weight: 600; color: var(--accent); }
+.tool-args { font-family: monospace; font-size: 12px; color: var(--fg-muted); word-break: break-all; white-space: pre-wrap; }
+
+pre.tool-result {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 180px;
+  overflow: auto;
+}
+
+details.tool-calls { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; }
+details.tool-calls summary { cursor: pointer; font-size: 12.5px; color: var(--fg-muted); }
+.tool-call { border-top: 1px solid var(--border); padding: 6px 0; display: grid; gap: 4px; }
+.tool-call:first-of-type { border-top: none; }
