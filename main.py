@@ -14,6 +14,7 @@ from typing import Optional
 from common import gen_logging, sampling
 from common.args import convert_args_to_dict, init_argparser
 from common.auth import load_auth_keys
+from common.tools_config import load_tools_config
 from common.actions import run_subcommand
 from common.logger import setup_logger, xlogger
 from common.networking import port_bind_error
@@ -120,6 +121,9 @@ async def entrypoint_async():
 
     # Initialize auth keys
     await load_auth_keys(config.network.disable_auth)
+
+    # Initialize the built-in web tools configuration
+    await load_tools_config()
 
     gen_logging.broadcast_status()
 
