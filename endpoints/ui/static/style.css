@@ -1291,7 +1291,9 @@ dialog h2 {
   position: absolute;
   right: 10px;
   bottom: calc(100% + 8px);
-  width: 280px;
+  width: min(280px, calc(100vw - 20px));
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 10px;
