@@ -18,6 +18,7 @@ from urllib.parse import quote_plus, urlparse
 import aiohttp
 from fastapi import HTTPException
 
+from common.logger import xlogger
 from common.tools_config import (
     HARD_MAX_PAGE_CHARS,
     HARD_MAX_RESULT_CHARS,
@@ -158,10 +159,9 @@ async def searxng_search(
     timeout = aiohttp.ClientTimeout(total=min(searxng.timeout, 30.0))
     try:
         async with aiohttp.ClientSession(timeout=timeout, trust_env=False) as session:
-            async with session.get(
-                search_url, headers=headers, follow_redirects=False
-            ) as response:
+            async with session.get(search_url, headers=headers, follow_redirects=False) as response:
                 if response.status != 200:
+                    xlogger.warning(f"SearXNG search failed: status {response.status}.")
                     raise HTTPException(
                         502,
                         f"SearXNG returned {response.status}. Public instances often "
@@ -169,24 +169,35 @@ async def searxng_search(
                     )
                 raw = await response.content.read(MAX_DOWNLOAD_BYTES + 1)
                 if len(raw) > MAX_DOWNLOAD_BYTES:
+                    xlogger.warning("SearXNG search failed: response too large.")
                     raise HTTPException(502, "The search response is too large.")
                 try:
                     payload = json.loads(raw.decode("utf8", errors="replace"))
                 except json.JSONDecodeError as exc:
+                    xlogger.warning("SearXNG search failed: invalid JSON.")
                     raise HTTPException(502, "SearXNG returned invalid JSON.") from exc
-    except aiohttp.ClientError as exc:
-        raise HTTPException(502, f"Could not reach SearXNG: {exc}") from exc
+                if not isinstance(payload, dict):
+                    xlogger.warning("SearXNG search failed: unexpected JSON shape.")
+                    raise HTTPException(502, "SearXNG returned an unexpected JSON shape.")
     except asyncio.TimeoutError as exc:
+        xlogger.warning("SearXNG search timed out.")
         raise HTTPException(502, "The search timed out.") from exc
+    except aiohttp.ClientError as exc:
+        xlogger.warning(f"SearXNG search failed: {exc}")
+        raise HTTPException(502, f"Could not reach SearXNG: {exc}") from exc
 
+    raw_results = payload.get("results")
+    if not isinstance(raw_results, list):
+        raw_results = []
     results = [
         SearchResult(
             title=_clean_snippet(item.get("title"), chars),
             url=str(item.get("url") or ""),
             snippet=_clean_snippet(item.get("content"), chars),
         )
-        for item in (payload.get("results") or [])[:limit]
-    ]
+        for item in raw_results
+        if isinstance(item, dict)
+    ][:limit]
     return WebSearchResponse(query=query, results=results)
 
 
@@ -210,23 +221,29 @@ async def fetch_page(url: str, max_page_chars: Optional[int]) -> FetchURLRespons
             ) as response:
                 if 300 <= response.status < 400:
                     target = response.headers.get("Location", "")
+                    xlogger.warning(f"Page fetch failed: redirect (status {response.status}).")
                     raise HTTPException(
                         502,
                         f"The page redirects to {target}. Ask for that URL "
                         "directly if you want its content.",
                     )
                 if response.status != 200:
+                    xlogger.warning(f"Page fetch failed: status {response.status}.")
                     raise HTTPException(502, f"The server returned {response.status}.")
                 ctype = response.headers.get("Content-Type", "")
                 if not ctype.startswith(TEXT_PREFIXES):
+                    xlogger.warning("Page fetch failed: non-text content type.")
                     raise HTTPException(502, "The URL does not return text content.")
                 raw = await response.content.read(MAX_DOWNLOAD_BYTES + 1)
                 if len(raw) > MAX_DOWNLOAD_BYTES:
+                    xlogger.warning("Page fetch failed: page too large.")
                     raise HTTPException(502, "The page is too large to fetch.")
-    except aiohttp.ClientError as exc:
-        raise HTTPException(502, f"Could not fetch the page: {exc}") from exc
     except asyncio.TimeoutError as exc:
+        xlogger.warning("Page fetch timed out.")
         raise HTTPException(502, "The page fetch timed out.") from exc
+    except aiohttp.ClientError as exc:
+        xlogger.warning(f"Page fetch failed: {exc}")
+        raise HTTPException(502, f"Could not fetch the page: {exc}") from exc
 
     body = raw.decode("utf8", errors="replace")
     if ctype.startswith("application/json"):
