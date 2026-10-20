@@ -1,0 +1,42 @@
+# Sample YAML file for the built-in web tools.
+# Copy it to tools_config.yml to enable them. The file is watched: changes
+# apply without a server restart. Every value has a default in the server.
+
+searxng:
+  # Enable the web_search tool. External fetching stays off until you turn
+  # this on, like network.disable_fetch_requests.
+  enabled: false
+
+  # Base URL of a SearXNG instance, e.g. http://127.0.0.1:8080
+  # The instance must allow the json output format (formats: [html, json]
+  # in its settings.yml). A self-hosted instance is recommended: a public
+  # one sees every query the model makes.
+  url:
+
+  # Optional bearer token for the SearXNG instance. Stays server-side:
+  # never sent to clients, never logged, never shown in the UI.
+  token:
+
+  # Seconds before a search request is aborted (default: 10)
+  timeout: 10
+
+  # Maximum results returned to the model per search (default: 8)
+  max_results: 8
+
+  # Maximum characters per result snippet sent to the model (default: 2000)
+  max_result_chars: 2000
+
+fetch_url:
+  # Enable the fetch_url tool. It downloads pages by URL; public addresses
+  # only unless allow_private_urls is set.
+  enabled: false
+
+  # Seconds before a page fetch is aborted (default: 10)
+  timeout: 10
+
+  # Maximum characters of extracted page text sent to the model (default: 8000)
+  max_page_chars: 8000
+
+  # Allow fetching private, loopback and link-local addresses (default: False)
+  # Keep it False unless every client of this instance is fully trusted.
+  allow_private_urls: false
