@@ -48,31 +48,31 @@ async def context_length_exception_handler(
 def validate_context_requirements(
     context_len: int,
     max_seq_len: int,
-    max_tokens: int,
     cache_capacity: int,
-    max_rq_tokens: int | None = None,
-    allocation_boundary: int = 256,
+    draft_headroom: int = 0,
 ):
-    """Validate the initial cache allocation required by an ExLlamaV3 job."""
+    """
+    Reject a prompt the engine cannot start a job on. ExLlamaV3 caps a job's
+    response at the room left in the cache past its prompt: one token per step
+    plus the drafter's speculative window (draft_headroom = the generator's
+    max_draft_tokens), which a verification pass writes beyond the budget. A
+    request asking for more tokens than that is served up to the room and ends
+    with finish_reason "length"; a prompt that leaves no room at all fails here.
+    """
 
     if context_len > max_seq_len:
         raise ContextLengthExceededError(
             f"Prompt length {context_len} exceeds the available context size "
-            f"of {max_seq_len} tokens"
+            f"of {max_seq_len} tokens (this model's maximum context length)"
         )
 
-    if max_tokens <= 0:
-        max_tokens = max_seq_len - context_len - 1
-
-    if max_rq_tokens is not None:
-        required_tokens = (
-            (context_len - 1 + max_rq_tokens + allocation_boundary - 1) // allocation_boundary
-        ) * allocation_boundary
-    else:
-        required_tokens = context_len + max_tokens
-
+    # One output token, plus the one past it the engine budgets for (Job.prepare_for_queue)
+    required_tokens = context_len + 2 + draft_headroom
     if required_tokens > cache_capacity:
         raise ContextLengthExceededError(
-            f"Initial job allocation requires {required_tokens} cache tokens, "
-            f"which exceeds the available context size of {cache_capacity} tokens"
+            f"Prompt length {context_len} leaves no room to generate: the job needs "
+            f"{required_tokens} cache tokens (the prompt, one output token and the one past it"
+            + (f", and a {draft_headroom}-token speculative window" if draft_headroom else "")
+            + f"), which exceeds the available context size of {cache_capacity} tokens "
+            "(this model's maximum context length)"
         )

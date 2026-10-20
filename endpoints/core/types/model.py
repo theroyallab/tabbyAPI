@@ -54,6 +54,12 @@ class ModelCard(BaseModel):
     logging: Optional[LoggingConfig] = None
     parameters: Optional[ModelCardParameters] = None
     meta: Optional[ModelCardMeta] = None
+    # The loaded context length under the name vLLM and SGLang give it, which is the
+    # one OpenAI-compatible clients that size their context window from /v1/models
+    # (OpenCode's discovery, for one) already read. Only the loaded model has it
+    max_model_len: Optional[int] = Field(
+        None, description="Loaded context length (max_seq_len) of the loaded model"
+    )
 
 
 class ModelList(BaseModel):

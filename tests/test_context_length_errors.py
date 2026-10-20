@@ -80,31 +80,25 @@ class ContextLengthErrorTests(unittest.IsolatedAsyncioTestCase):
 
     def test_prompt_limit_message_is_litellm_compatible(self):
         with self.assertRaises(ContextLengthExceededError) as raised:
-            validate_context_requirements(4097, 4096, 1, 4096)
+            validate_context_requirements(4097, 4096, 4096)
 
         self.assertIn("exceeds the available context size", str(raised.exception))
+        self.assertIn("maximum context length", str(raised.exception))
 
-    def test_exllamav3_preflight_accounts_for_requested_completion(self):
+    def test_preflight_only_requires_room_to_start(self):
+        """The engine caps the response at the room left in the cache, so a request
+        asking for more than fits is served up to the room, not rejected; only a
+        prompt that leaves no room at all is."""
+
+        validate_context_requirements(3500, 8192, 4096)
+        # The engine fills the cache to one token short of the end (its budget is
+        # max_new_tokens + 1), so a 4,094-token prompt can still produce one token
+        validate_context_requirements(4094, 8192, 4096)
         with self.assertRaises(ContextLengthExceededError) as raised:
-            validate_context_requirements(3500, 8192, 1000, 4096)
-
-        self.assertIn("requires 4500 cache tokens", str(raised.exception))
+            validate_context_requirements(4095, 8192, 4096)
+        self.assertIn("leaves no room to generate", str(raised.exception))
+        self.assertIn("needs 4097 cache tokens", str(raised.exception))
         self.assertIn("exceeds the available context size of 4096 tokens", str(raised.exception))
-
-    def test_exllamav3_preflight_allows_requeueable_completion(self):
-        validate_context_requirements(1000, 8192, 1000, 4096, max_rq_tokens=2048)
-
-    def test_exllamav3_preflight_uses_automatic_completion_limit(self):
-        validate_context_requirements(3000, 4096, 0, 4096)
-
-    def test_exllamav3_preflight_accounts_for_requeue_allocation_window(self):
-        with self.assertRaises(ContextLengthExceededError) as raised:
-            validate_context_requirements(4000, 8192, 10, 4096, max_rq_tokens=2048)
-
-        self.assertIn("requires 6144 cache tokens", str(raised.exception))
-
-    def test_exllamav3_preflight_ignores_later_requeue_windows(self):
-        validate_context_requirements(1000, 8192, 10_000_000, 4096, max_rq_tokens=2048)
 
     def test_streaming_preflight_returns_400_for_context_length_error(self):
         error = ContextLengthExceededError("Prompt length 9 is greater than max_seq_len 8")
@@ -216,3 +210,23 @@ class ContextLengthErrorTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DraftHeadroomTests(unittest.TestCase):
+    """A drafter's speculative window is written past the budget, so it has to fit
+    in the cache beyond the prompt as well (rq_headroom = max_draft_tokens)."""
+
+    def test_the_opencode_case_now_starts(self):
+        # 61,446 prompt tokens in a 65,536 cache with a 31-token hybrid draft window: the
+        # aligned chunk budget reached the end of the cache and the engine refused the job
+        # outright; the engine now cuts the final segment to fit, so the prompt is accepted
+        validate_context_requirements(61446, 65536, 65536, draft_headroom=31)
+
+    def test_window_counts_against_the_room(self):
+        validate_context_requirements(65503, 65536, 65536, draft_headroom=31)
+        with self.assertRaises(ContextLengthExceededError) as raised:
+            validate_context_requirements(65504, 65536, 65536, draft_headroom=31)
+        self.assertIn("31-token speculative window", str(raised.exception))
+        self.assertIn("needs 65537 cache tokens", str(raised.exception))
+        # Without a drafter the same prompt fits
+        validate_context_requirements(65504, 65536, 65536)

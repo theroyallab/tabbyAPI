@@ -190,3 +190,35 @@ class RelativeModelIdTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LoadedModelContextTests(unittest.TestCase):
+    """Both model lists say how the loaded model is loaded: n_ctx in the llama-server
+    meta and max_model_len in the vLLM/SGLang field, which clients that size their
+    context window from /v1/models read. Other listed models leave both unset."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = pathlib.Path(self._tmp.name).resolve()
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def test_full_and_current_lists_carry_the_loaded_context(self):
+        loaded = make_model(self.root / "big" / "exl3" / "4bpw")
+        make_model(self.root / "other" / "exl3" / "4bpw")
+        container = SimpleNamespace(model_dir=loaded, draft_model_dir=None, max_seq_len=65536)
+
+        with (
+            mock.patch.object(model, "container", container),
+            mock.patch.object(config.model, "model_dir", str(self.root)),
+        ):
+            cards = {card.id: card for card in get_model_list(self.root).data}
+            self.assertEqual(cards["big/exl3/4bpw"].max_model_len, 65536)
+            self.assertEqual(cards["big/exl3/4bpw"].meta.n_ctx, 65536)
+            self.assertIsNone(cards["other/exl3/4bpw"].max_model_len)
+            self.assertIsNone(cards["other/exl3/4bpw"].meta.n_ctx)
+
+            (current,) = asyncio.run(get_current_model_list("model")).data
+            self.assertEqual(current.max_model_len, 65536)
+            self.assertEqual(current.meta.n_ctx, 65536)

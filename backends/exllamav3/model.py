@@ -956,6 +956,7 @@ class ExllamaV3Container:
             id=self.model_dir.name,
             parameters=model_params,
             meta=read_model_meta(self.model_dir, n_ctx=self.max_seq_len, include_size=True),
+            max_model_len=self.max_seq_len,
         )
 
         return model_card
@@ -1475,23 +1476,11 @@ class ExllamaV3Container:
             add_bos=add_bos_token and self.bos_token_id is not None,
             embeddings=mm_embeddings.content if mm_embeddings else [],
         ).numel()
-        max_tokens = unwrap(params.max_tokens, 0)
-        if max_tokens <= 0:
-            max_tokens = self.max_seq_len - context_len - 1
-
-        generator = self.generator.generator
-        allocation_boundary = (
-            generator.recurrent_checkpoint_interval
-            if generator.recurrent_cache is not None
-            else 256
-        )
         validate_context_requirements(
             context_len,
             self.max_seq_len,
-            max_tokens,
             self.cache.max_num_tokens,
-            self.job_max_rq_tokens(max_tokens),
-            allocation_boundary,
+            self.generator.generator.max_draft_tokens,
         )
 
     async def generate(
@@ -1988,21 +1977,14 @@ class ExllamaV3Container:
         if max_tokens <= 0:
             max_tokens = self.max_seq_len - context_len - 1
 
-        # Validate the initial job before the generator's page-allocation assertion
+        # Validate the prompt before the generator's page-allocation assertion; the
+        # engine caps the response at the room left in the cache
         max_rq_tokens = self.job_max_rq_tokens(max_tokens)
-        generator = self.generator.generator
-        allocation_boundary = (
-            generator.recurrent_checkpoint_interval
-            if generator.recurrent_cache is not None
-            else 256
-        )
         validate_context_requirements(
             context_len,
             self.max_seq_len,
-            max_tokens,
             self.cache.max_num_tokens,
-            max_rq_tokens,
-            allocation_boundary,
+            self.generator.generator.max_draft_tokens,
         )
 
         # Log prompt to console. Add the BOS token if specified
@@ -2116,23 +2098,36 @@ class ExllamaV3Container:
         in_reasoning = phases is not None and phases.reasoning
 
         generation = {}
-        job = AsyncJob(
-            self.generator,
-            sampler=reasoning_sampler if in_reasoning else sampler,
-            input_ids=input_ids,
-            max_new_tokens=max_tokens,
-            min_new_tokens=unwrap(params.min_tokens, 0),
-            token_healing=unwrap(params.token_healing, False),
-            decode_special_tokens=True,
-            stop_conditions=stop_conditions,
-            banned_strings=reasoning_banned if in_reasoning else content_banned,
-            embeddings=mm_embeddings_content,
-            return_top_tokens=params.top_logprobs,
-            return_probs=bool(params.logprobs) or bool(params.top_logprobs),
-            max_rq_tokens=max_rq_tokens,
-            stop_on_loop=params.get_stop_on_loop(),
-            filters=([] if in_reasoning and not phases.engine_trigger else grammar_handler.filters),
-        )
+        try:
+            job = AsyncJob(
+                self.generator,
+                sampler=reasoning_sampler if in_reasoning else sampler,
+                input_ids=input_ids,
+                max_new_tokens=max_tokens,
+                min_new_tokens=unwrap(params.min_tokens, 0),
+                token_healing=unwrap(params.token_healing, False),
+                decode_special_tokens=True,
+                stop_conditions=stop_conditions,
+                banned_strings=reasoning_banned if in_reasoning else content_banned,
+                embeddings=mm_embeddings_content,
+                return_top_tokens=params.top_logprobs,
+                return_probs=bool(params.logprobs) or bool(params.top_logprobs),
+                max_rq_tokens=max_rq_tokens,
+                stop_on_loop=params.get_stop_on_loop(),
+                filters=(
+                    [] if in_reasoning and not phases.engine_trigger else grammar_handler.filters
+                ),
+            )
+        except AssertionError as ex:
+            # The engine's own page check; the preflight above mirrors it, but a request
+            # it misses must still reach the client as a context-length error and not
+            # as a generic failure
+            if "cannot be enqueued" not in str(ex):
+                raise
+            raise ContextLengthExceededError(
+                f"{ex}. The request exceeds the available context size "
+                "(this model's maximum context length)."
+            ) from ex
         self.active_job_ids[request_id] = job
         if phases is not None:
             phases.job = job

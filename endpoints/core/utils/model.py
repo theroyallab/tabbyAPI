@@ -66,6 +66,14 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = N
     root = model_path.resolve()
     model_card_list = ModelList()
 
+    # The loaded model's entry also says how it is loaded, as the current-model
+    # list does, so a client reading the full list can size its context window
+    loaded_path = None
+    loaded_n_ctx = None
+    if model.container:
+        loaded_path = pathlib.Path(model.container.model_dir).resolve()
+        loaded_n_ctx = model.container.max_seq_len
+
     # Draft models are only kept out when they have their own folder inside
     # model_dir. A draft_model_dir that is model_dir (or holds it) would
     # otherwise hide every model.
@@ -96,7 +104,16 @@ def get_model_list(model_path: pathlib.Path, draft_model_path: Optional[str] = N
                 continue
 
             if is_model_dir(path):
-                model_card = ModelCard(id=relative_model_id(path, root), meta=read_model_meta(path))
+                if loaded_path is not None and path.resolve() == loaded_path:
+                    model_card = ModelCard(
+                        id=relative_model_id(path, root),
+                        meta=read_model_meta(path, n_ctx=loaded_n_ctx, include_size=True),
+                        max_model_len=loaded_n_ctx,
+                    )
+                else:
+                    model_card = ModelCard(
+                        id=relative_model_id(path, root), meta=read_model_meta(path)
+                    )
                 model_card_list.data.append(model_card)  # pylint: disable=no-member
                 continue
 
@@ -140,7 +157,9 @@ async def get_current_model_list(model_type: str = "model"):
         meta = read_model_meta(model_path, n_ctx=n_ctx, include_size=True)
         root = pathlib.Path(model_root).resolve()
         current_models.append(
-            ModelCard(id=relative_model_id(model_path.resolve(), root), meta=meta)
+            ModelCard(
+                id=relative_model_id(model_path.resolve(), root), meta=meta, max_model_len=n_ctx
+            )
         )
 
     return ModelList(data=current_models)
