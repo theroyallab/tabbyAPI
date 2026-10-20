@@ -11,7 +11,7 @@ from typing import Optional
 
 import aiofiles
 from loguru import logger
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from ruamel.yaml import YAML
 
 from common.logger import xlogger
@@ -120,7 +120,22 @@ TOOLS_CONFIG: ToolsConfig = ToolsConfig()
 
 # Serializes reloads of the tools file
 _reload_lock = asyncio.Lock()
-_watch_task = None
+_watch_task: Optional[asyncio.Task] = None
+
+
+def _safe_error_text(exc: Exception) -> str:
+    """
+    Describe a tools file error without echoing the file's contents.
+
+    The tools file can hold a secret bearer token, and both pydantic and the
+    YAML parser quote the offending input in their error messages. Only field
+    locations and error types are safe to log, never str(exc).
+    """
+
+    if isinstance(exc, ValidationError):
+        errors = exc.errors(include_url=False, include_input=False)
+        return f"invalid tools config at {[(e['loc'], e['type']) for e in errors]}"
+    return type(exc).__name__
 
 
 async def _read_tools_file(path: str = TOOLS_FILE) -> ToolsConfig:
@@ -163,10 +178,13 @@ async def _watch_tools_file():
 
         async with _reload_lock:
             try:
-                TOOLS_CONFIG = await _read_tools_file()
+                # Pass the path explicitly: the default argument binds at def
+                # time and would not follow a re-assigned TOOLS_FILE.
+                TOOLS_CONFIG = await _read_tools_file(TOOLS_FILE)
             except Exception as exc:
                 xlogger.warning(
-                    f"Failed to reload {TOOLS_FILE}, keeping the previous tools config: {exc}"
+                    f"Failed to reload {TOOLS_FILE}, keeping the previous tools config: "
+                    f"{_safe_error_text(exc)}"
                 )
                 continue
 
@@ -181,7 +199,7 @@ async def load_tools_config():
     global _watch_task
 
     try:
-        TOOLS_CONFIG = await _read_tools_file()
+        TOOLS_CONFIG = await _read_tools_file(TOOLS_FILE)
     except FileNotFoundError:
         TOOLS_CONFIG = ToolsConfig()
         logger.info(
@@ -189,7 +207,9 @@ async def load_tools_config():
             "tools_config_sample.yml to tools_config.yml to enable them."
         )
     except Exception as exc:
-        xlogger.warning(f"Failed to load {TOOLS_FILE}: {exc}. Web tools stay disabled.")
+        xlogger.warning(
+            f"Failed to load {TOOLS_FILE}: {_safe_error_text(exc)}. Web tools stay disabled."
+        )
         TOOLS_CONFIG = ToolsConfig()
 
     # Reload the options whenever the file changes, so the SearXNG instance
