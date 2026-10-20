@@ -112,6 +112,11 @@ def test_clean_snippet():
     assert _clean_snippet(None, 10) == ""
 
 
+def test_clean_snippet_coerces_non_strings():
+    assert _clean_snippet(5, 10) == "5"
+    assert "'a'" in _clean_snippet({"a": 1}, 100)
+
+
 def test_extract_text_drops_scripts():
     title, text = _extract_text(
         "<html><head><title>T</title><style>x</style></head>"
@@ -157,6 +162,16 @@ def test_search_results_string_gives_empty(monkeypatch):
     _patch_session(monkeypatch, _FakeResponse(data=json.dumps({"results": "nope"}).encode()))
     response = asyncio.run(web_tools.searxng_search("q", None, None))
     assert response.results == []
+
+
+def test_search_scalar_fields_coerced(monkeypatch):
+    monkeypatch.setattr(web_tools, "TOOLS_CONFIG", _searxng_cfg())
+    payload = {"results": [{"title": 5, "url": "http://x", "content": None}]}
+    _patch_session(monkeypatch, _FakeResponse(data=json.dumps(payload).encode()))
+    response = asyncio.run(web_tools.searxng_search("q", None, None))
+    assert len(response.results) == 1
+    assert response.results[0].title == "5"
+    assert response.results[0].snippet == ""
 
 
 def test_search_reports_timeout_not_unreachable(monkeypatch):

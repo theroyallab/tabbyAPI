@@ -130,10 +130,12 @@ def _extract_text(html: str) -> Tuple[Optional[str], str]:
 
 
 def _clean_snippet(text: Optional[str], limit: int) -> str:
-    """Collapse whitespace and cap a snippet's length."""
+    """Collapse whitespace, stringify non-text values, and cap a snippet's length."""
 
     if not text:
         return ""
+    if not isinstance(text, str):
+        text = str(text)
     return " ".join(text.split())[:limit]
 
 
