@@ -4,7 +4,7 @@ from asyncio import CancelledError, InvalidStateError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sse_starlette import EventSourceResponse
 
-from common import model
+from common import model, tools_config
 from common.auth import check_api_key
 from common.debug_requests import (
     log_chat_completion_request,
@@ -20,12 +20,27 @@ from common.networking import (
 )
 from common.tabby_config import config
 from common.logger import xlogger
+
+# Hard ceilings by value: constants that never change across reloads. The
+# working set of options is read through the module so that a hot reload,
+# which replaces the object, is visible here too.
+from common.tools_config import (
+    HARD_MAX_PAGE_CHARS,
+    HARD_MAX_RESULT_CHARS,
+    HARD_MAX_RESULTS,
+)
 from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionRequest,
     ChatCompletionResponse,
 )
 from endpoints.OAI.types.embedding import EmbeddingsRequest, EmbeddingsResponse
+from endpoints.OAI.types.web_tools import (
+    FetchURLRequest,
+    FetchURLResponse,
+    WebSearchRequest,
+    WebSearchResponse,
+)
 from endpoints.OAI.utils.common_ import load_inline_model
 from endpoints.OAI.utils.chat_completion import (
     apply_chat_template,
@@ -37,6 +52,7 @@ from endpoints.OAI.utils.completion import (
     stream_generate_completion,
 )
 from endpoints.OAI.utils.embeddings import get_embeddings
+from endpoints.OAI.utils.web_tools import fetch_page, searxng_search
 
 
 api_name = "OAI"
@@ -206,3 +222,44 @@ async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsRes
     )
 
     return response
+
+
+# Built-in web tools
+@router.post("/v1/tools/web_search", dependencies=[Depends(check_api_key)])
+async def web_search_request(data: WebSearchRequest) -> WebSearchResponse:
+    """Search the web with the configured SearXNG instance."""
+
+    return await searxng_search(data.query, data.max_results, data.max_result_chars)
+
+
+@router.post("/v1/tools/fetch_url", dependencies=[Depends(check_api_key)])
+async def fetch_url_request(data: FetchURLRequest) -> FetchURLResponse:
+    """Fetch a web page by URL and return its text."""
+
+    return await fetch_page(data.url, data.max_page_chars)
+
+
+@router.get("/v1/tools/status", dependencies=[Depends(check_api_key)])
+async def tools_status() -> dict:
+    """What the built-in web tools are configured to do. Never includes the
+    SearXNG URL or token: only booleans and the limits clients may lower."""
+
+    searxng = tools_config.TOOLS_CONFIG.searxng
+    fetch = tools_config.TOOLS_CONFIG.fetch_url
+    return {
+        "web_search": {
+            "enabled": searxng.enabled and bool(searxng.url),
+            "max_results": searxng.max_results,
+            "max_result_chars": searxng.max_result_chars,
+        },
+        "fetch_url": {
+            "enabled": fetch.enabled,
+            "max_page_chars": fetch.max_page_chars,
+            "allow_private_urls": fetch.allow_private_urls,
+        },
+        "limits": {
+            "max_results": HARD_MAX_RESULTS,
+            "max_result_chars": HARD_MAX_RESULT_CHARS,
+            "max_page_chars": HARD_MAX_PAGE_CHARS,
+        },
+    }

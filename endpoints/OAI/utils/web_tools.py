@@ -18,12 +18,16 @@ from urllib.parse import quote_plus, urlparse
 import aiohttp
 from fastapi import HTTPException
 
+from common import tools_config
 from common.logger import xlogger
+
+# Hard ceilings by value: they are constants and never change across reloads.
+# The working set of options is read through the module (tools_config.TOOLS_CONFIG)
+# so that a hot reload, which replaces the object, is seen by in-flight code.
 from common.tools_config import (
     HARD_MAX_PAGE_CHARS,
     HARD_MAX_RESULT_CHARS,
     HARD_MAX_RESULTS,
-    TOOLS_CONFIG,
 )
 from endpoints.OAI.types.web_tools import (
     FetchURLResponse,
@@ -144,7 +148,7 @@ async def searxng_search(
 ) -> WebSearchResponse:
     """Run a search against the configured SearXNG instance."""
 
-    searxng = TOOLS_CONFIG.searxng
+    searxng = tools_config.TOOLS_CONFIG.searxng
     if not searxng.enabled:
         raise HTTPException(503, "web_search is disabled in tools_config.yml.")
     if not searxng.url:
@@ -206,7 +210,7 @@ async def searxng_search(
 async def fetch_page(url: str, max_page_chars: Optional[int]) -> FetchURLResponse:
     """Download a page by URL and return its text."""
 
-    fetch = TOOLS_CONFIG.fetch_url
+    fetch = tools_config.TOOLS_CONFIG.fetch_url
     if not fetch.enabled:
         raise HTTPException(503, "fetch_url is disabled in tools_config.yml.")
 

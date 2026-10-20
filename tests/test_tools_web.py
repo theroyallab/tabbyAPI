@@ -7,7 +7,9 @@ from types import SimpleNamespace
 import aiohttp
 import pytest
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
+from common import auth, tools_config
 from endpoints.OAI.utils import web_tools
 from endpoints.OAI.utils.web_tools import (
     _blocked_ip,
@@ -16,6 +18,7 @@ from endpoints.OAI.utils.web_tools import (
     _extract_text,
     validate_public_url,
 )
+from endpoints.server import setup_app
 
 
 def _searxng_cfg(**overrides):
@@ -142,7 +145,7 @@ def test_validate_public_url_rejects_private():
 
 
 def test_search_non_dict_payload_is_502(monkeypatch):
-    monkeypatch.setattr(web_tools, "TOOLS_CONFIG", _searxng_cfg())
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
     _patch_session(monkeypatch, _FakeResponse(data=json.dumps([1, 2]).encode()))
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(web_tools.searxng_search("q", None, None))
@@ -150,7 +153,7 @@ def test_search_non_dict_payload_is_502(monkeypatch):
 
 
 def test_search_skips_non_dict_results(monkeypatch):
-    monkeypatch.setattr(web_tools, "TOOLS_CONFIG", _searxng_cfg())
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
     payload = {"results": ["junk", 5, {"title": "ok", "url": "http://x", "content": "c"}]}
     _patch_session(monkeypatch, _FakeResponse(data=json.dumps(payload).encode()))
     response = asyncio.run(web_tools.searxng_search("q", None, None))
@@ -158,14 +161,14 @@ def test_search_skips_non_dict_results(monkeypatch):
 
 
 def test_search_results_string_gives_empty(monkeypatch):
-    monkeypatch.setattr(web_tools, "TOOLS_CONFIG", _searxng_cfg())
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
     _patch_session(monkeypatch, _FakeResponse(data=json.dumps({"results": "nope"}).encode()))
     response = asyncio.run(web_tools.searxng_search("q", None, None))
     assert response.results == []
 
 
 def test_search_scalar_fields_coerced(monkeypatch):
-    monkeypatch.setattr(web_tools, "TOOLS_CONFIG", _searxng_cfg())
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
     payload = {"results": [{"title": 5, "url": "http://x", "content": None}]}
     _patch_session(monkeypatch, _FakeResponse(data=json.dumps(payload).encode()))
     response = asyncio.run(web_tools.searxng_search("q", None, None))
@@ -175,7 +178,7 @@ def test_search_scalar_fields_coerced(monkeypatch):
 
 
 def test_search_reports_timeout_not_unreachable(monkeypatch):
-    monkeypatch.setattr(web_tools, "TOOLS_CONFIG", _searxng_cfg())
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
     _patch_session(monkeypatch, error=aiohttp.ServerTimeoutError())
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(web_tools.searxng_search("q", None, None))
@@ -184,7 +187,7 @@ def test_search_reports_timeout_not_unreachable(monkeypatch):
 
 
 def test_fetch_reports_timeout_not_unreachable(monkeypatch):
-    monkeypatch.setattr(web_tools, "TOOLS_CONFIG", _fetch_cfg())
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _fetch_cfg())
     _patch_session(monkeypatch, error=aiohttp.ServerTimeoutError())
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(web_tools.fetch_page("http://127.0.0.1/x", None))
@@ -193,21 +196,59 @@ def test_fetch_reports_timeout_not_unreachable(monkeypatch):
 
 
 def test_search_disabled_503(monkeypatch):
-    monkeypatch.setattr(web_tools, "TOOLS_CONFIG", _searxng_cfg(enabled=False))
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg(enabled=False))
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(web_tools.searxng_search("q", None, None))
     assert exc_info.value.status_code == 503
 
 
 def test_search_missing_url_503(monkeypatch):
-    monkeypatch.setattr(web_tools, "TOOLS_CONFIG", _searxng_cfg(url=None))
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg(url=None))
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(web_tools.searxng_search("q", None, None))
     assert exc_info.value.status_code == 503
 
 
 def test_fetch_disabled_503(monkeypatch):
-    monkeypatch.setattr(web_tools, "TOOLS_CONFIG", _fetch_cfg(enabled=False))
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _fetch_cfg(enabled=False))
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(web_tools.fetch_page("http://example.com/x", None))
     assert exc_info.value.status_code == 503
+
+
+def _client(monkeypatch, disable_auth):
+    monkeypatch.setattr(auth, "DISABLE_AUTH", disable_auth)
+    monkeypatch.setattr(auth, "AUTH_KEYS", auth.AuthKeys(api_key="api", admin_key="admin"))
+    return TestClient(setup_app())
+
+
+def test_tools_status_requires_key(monkeypatch):
+    client = _client(monkeypatch, False)
+    assert client.get("/v1/tools/status").status_code == 401
+    body = client.get(
+        "/v1/tools/status", headers={"Authorization": "Bearer api"}
+    ).json()
+    assert body["web_search"]["enabled"] is False
+    assert body["fetch_url"]["enabled"] is False
+    assert body["limits"]["max_results"] == 20
+    assert "token" not in str(body)
+
+
+def test_web_search_disabled_by_default(monkeypatch):
+    client = _client(monkeypatch, False)
+    response = client.post(
+        "/v1/tools/web_search",
+        headers={"Authorization": "Bearer api"},
+        json={"query": "test"},
+    )
+    assert response.status_code == 503
+
+
+def test_fetch_url_disabled_by_default(monkeypatch):
+    client = _client(monkeypatch, False)
+    response = client.post(
+        "/v1/tools/fetch_url",
+        headers={"Authorization": "Bearer api"},
+        json={"url": "https://example.com"},
+    )
+    assert response.status_code == 503
