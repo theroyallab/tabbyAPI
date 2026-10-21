@@ -1,6 +1,6 @@
 """Request and response types for the built-in web tools."""
 
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +14,18 @@ class WebSearchRequest(BaseModel):
     )
     max_result_chars: Optional[int] = Field(
         None, ge=200, description="Clamped to the server's hard limit."
+    )
+    categories: Optional[str] = Field(
+        None,
+        max_length=64,
+        pattern=r"^[A-Za-z][A-Za-z0-9_ ,+-]*$",
+        description=(
+            "SearXNG category to search in, e.g. general, news, images, "
+            "science, social media. Instance-dependent."
+        ),
+    )
+    time_range: Optional[Literal["day", "week", "month", "year"]] = Field(
+        None, description="Restrict results to the last day, week, month or year."
     )
 
 

@@ -9,8 +9,10 @@ import aiohttp
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from common import auth, tools_config
+from endpoints.OAI.types.web_tools import WebSearchRequest
 from endpoints.OAI.utils import web_tools
 from endpoints.OAI.utils.web_tools import (
     _blocked_ip,
@@ -68,6 +70,8 @@ class _FakeResponse:
 
 
 def _patch_session(monkeypatch, response=None, error=None):
+    urls = []
+
     class _FakeSession:
         def __init__(self, *args, **kwargs):
             assert set(kwargs) == {"timeout", "trust_env"}, (
@@ -81,6 +85,7 @@ def _patch_session(monkeypatch, response=None, error=None):
             # test instead of being silently swallowed by **kwargs.
             assert allow_redirects is False, "redirects must never be followed"
             assert not kwargs, f"unexpected aiohttp kwargs: {sorted(kwargs)}"
+            urls.append(url)
             if error is not None:
                 raise error
             return response
@@ -92,6 +97,7 @@ def _patch_session(monkeypatch, response=None, error=None):
             return False
 
     monkeypatch.setattr(web_tools.aiohttp, "ClientSession", _FakeSession)
+    return urls
 
 
 def test_aiohttp_redirect_kwarg_name():
@@ -202,6 +208,52 @@ def test_search_reports_timeout_not_unreachable(monkeypatch):
     assert "timed out" in exc_info.value.detail
 
 
+def test_search_omits_categories_and_time_range_by_default(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
+    urls = _patch_session(monkeypatch, _FakeResponse(data=b'{"results": []}'))
+    asyncio.run(web_tools.searxng_search("hello world", None, None))
+    assert "categories" not in urls[0]
+    assert "time_range" not in urls[0]
+    assert "q=hello+world" in urls[0]
+
+
+def test_search_forwards_categories_and_time_range(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
+    urls = _patch_session(monkeypatch, _FakeResponse(data=b'{"results": []}'))
+    asyncio.run(web_tools.searxng_search("q", None, None, "news", "day"))
+    assert "categories=news" in urls[0]
+    assert "time_range=day" in urls[0]
+
+
+def test_search_time_range_only(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
+    urls = _patch_session(monkeypatch, _FakeResponse(data=b'{"results": []}'))
+    asyncio.run(web_tools.searxng_search("q", None, None, None, "week"))
+    assert "time_range=week" in urls[0]
+    assert "categories" not in urls[0]
+
+
+def test_search_encodes_categories_with_space(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
+    urls = _patch_session(monkeypatch, _FakeResponse(data=b'{"results": []}'))
+    asyncio.run(web_tools.searxng_search("q", None, None, "social media", None))
+    assert "categories=social+media" in urls[0]
+
+
+def test_search_request_rejects_bad_time_range():
+    with pytest.raises(ValidationError):
+        WebSearchRequest(query="q", time_range="hour")
+
+
+def test_search_request_rejects_bad_categories():
+    with pytest.raises(ValidationError):
+        WebSearchRequest(query="q", categories="general!;rm -rf")
+
+
+def test_search_request_accepts_social_media_category():
+    assert WebSearchRequest(query="q", categories="social media").categories == "social media"
+
+
 def test_fetch_reports_timeout_not_unreachable(monkeypatch):
     monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _fetch_cfg())
     _patch_session(monkeypatch, error=aiohttp.ServerTimeoutError())
@@ -308,6 +360,16 @@ def test_web_search_disabled_by_default(monkeypatch):
         json={"query": "test"},
     )
     assert response.status_code == 503
+
+
+def test_web_search_endpoint_rejects_bad_time_range(monkeypatch):
+    client = _client(monkeypatch, False)
+    response = client.post(
+        "/v1/tools/web_search",
+        headers={"Authorization": "Bearer api"},
+        json={"query": "q", "time_range": "hour"},
+    )
+    assert response.status_code == 422
 
 
 def test_fetch_url_disabled_by_default(monkeypatch):

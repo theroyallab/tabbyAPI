@@ -145,7 +145,11 @@ def _clean_snippet(text: Optional[str], limit: int) -> str:
 
 
 async def searxng_search(
-    query: str, max_results: Optional[int], max_result_chars: Optional[int]
+    query: str,
+    max_results: Optional[int],
+    max_result_chars: Optional[int],
+    categories: Optional[str] = None,
+    time_range: Optional[str] = None,
 ) -> WebSearchResponse:
     """Run a search against the configured SearXNG instance."""
 
@@ -159,6 +163,10 @@ async def searxng_search(
     chars = _clamp(max_result_chars, searxng.max_result_chars, HARD_MAX_RESULT_CHARS, 200)
 
     search_url = f"{searxng.url.rstrip('/')}/search?q={quote_plus(query)}&format=json"
+    if categories:
+        search_url += f"&categories={quote_plus(categories)}"
+    if time_range:
+        search_url += f"&time_range={quote_plus(time_range)}"
     headers = {"Accept": "application/json"}
     if searxng.token:
         headers["Authorization"] = f"Bearer {searxng.token}"

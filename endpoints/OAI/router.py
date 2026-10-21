@@ -229,7 +229,13 @@ async def embeddings(request: Request, data: EmbeddingsRequest) -> EmbeddingsRes
 async def web_search_request(data: WebSearchRequest) -> WebSearchResponse:
     """Search the web with the configured SearXNG instance."""
 
-    return await searxng_search(data.query, data.max_results, data.max_result_chars)
+    return await searxng_search(
+        data.query,
+        data.max_results,
+        data.max_result_chars,
+        data.categories,
+        data.time_range,
+    )
 
 
 @router.post("/v1/tools/fetch_url", dependencies=[Depends(check_api_key)])

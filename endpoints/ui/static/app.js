@@ -1249,10 +1249,24 @@ function activeTools() {
       type: "function",
       function: {
         name: "web_search",
-        description: "Search the web with SearXNG. Returns result titles, URLs and snippets.",
+        description:
+          "Search the web with SearXNG. Returns result titles, URLs and snippets. " +
+          "For news or recent events set categories=news and time_range=day or week.",
         parameters: {
           type: "object",
-          properties: { query: { type: "string", description: "The search query" } },
+          properties: {
+            query: { type: "string", description: "The search query" },
+            categories: {
+              type: "string",
+              description:
+                "SearXNG category to search in: general, news, images, science, social media…",
+            },
+            time_range: {
+              type: "string",
+              enum: ["day", "week", "month", "year"],
+              description: "Only results from the last day, week, month or year",
+            },
+          },
           required: ["query"],
         },
       },
@@ -1407,6 +1421,12 @@ async function executeToolCall(call) {
     switch (call.name) {
       case "web_search": {
         const body = { query: String(args.query ?? "") };
+        if (typeof args.categories === "string" && args.categories.trim()) {
+          body.categories = args.categories.trim();
+        }
+        if (["day", "week", "month", "year"].includes(args.time_range)) {
+          body.time_range = args.time_range;
+        }
         if (toolSettings.maxResults) body.max_results = toolSettings.maxResults;
         if (toolSettings.maxResultChars) body.max_result_chars = toolSettings.maxResultChars;
         return await (await api("/v1/tools/web_search", { method: "POST", body })).json();
