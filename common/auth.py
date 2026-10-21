@@ -174,12 +174,15 @@ async def load_auth_keys(disable_from_config: bool):
     if _watch_task is None:
         _watch_task = asyncio.create_task(_watch_auth_file())
 
-    logger.info(
-        f"Your API key is: {_format_api_keys(AUTH_KEYS)}\n"
-        f"Your admin key is: {AUTH_KEYS.admin_key}\n"
-        "If these keys get compromised, make sure to delete api_tokens.yml "
-        "and restart the server. Have fun!"
-    )
+    from common.tabby_config import config
+
+    if config.logging.log_api_keys:
+        logger.info(
+            f"Your API key is: {_format_api_keys(AUTH_KEYS)}\n"
+            f"Your admin key is: {AUTH_KEYS.admin_key}\n"
+            "If these keys get compromised, make sure to delete api_tokens.yml "
+            "and restart the server. Have fun!"
+        )
 
 
 def get_key_permission(request: Request):

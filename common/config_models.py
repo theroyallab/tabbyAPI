@@ -154,6 +154,15 @@ class LoggingConfig(BaseConfigModel):
             "The log files under logs/ always carry full timestamps."
         ),
     )
+    log_api_keys: Optional[bool] = Field(
+        True,
+        description=(
+            "Print the API key and admin key to the console on startup (default: True).\n"
+            "Turn this off to keep the keys out of terminal scrollback and log files.\n"
+            "The keys themselves are unaffected and can always be read from "
+            "api_tokens.yml."
+        ),
+    )
     log_chat_completion_requests: Optional[bool] = Field(
         False,
         description=(
