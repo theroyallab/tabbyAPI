@@ -1287,11 +1287,13 @@ dialog h2 {
 
 .tools-button.active { color: var(--accent); border-color: var(--accent); }
 
+.composer-wrap { position: relative; max-width: 768px; margin: 0 auto; }
+
 .tools-menu {
   position: absolute;
-  right: 10px;
+  right: 46px;
   bottom: calc(100% + 8px);
-  width: min(280px, calc(100vw - 20px));
+  width: min(280px, calc(100vw - 66px));
   max-height: calc(100dvh - 120px);
   overflow-y: auto;
   background: var(--bg);
@@ -1302,14 +1304,54 @@ dialog h2 {
   z-index: 20;
   display: grid;
   gap: 8px;
+  transform-origin: bottom right;
 }
 
-.toggle-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.toggle-row input { width: auto; }
+.tools-menu:not([hidden]) { animation: tools-menu-in 0.14s ease-out; }
+
+@keyframes tools-menu-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tools-menu:not([hidden]) { animation: none; }
+}
+
+.toggle-row { display: flex; flex-direction: row; justify-content: space-between; align-items: center; gap: 8px; }
+
+.toggle-row input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.toggle-row input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease;
+}
+
+.toggle-row input[type="checkbox"]:checked { background: var(--accent); }
+.toggle-row input[type="checkbox"]:checked::after { transform: translateX(16px); }
+.toggle-row input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .tools-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 
-.tool-approvals { display: grid; gap: 8px; margin-bottom: 8px; }
+.tool-approvals { display: grid; gap: 8px; max-width: 768px; margin: 0 auto 8px; }
 
 .tool-approval {
   border: 1px solid var(--accent);

@@ -2570,13 +2570,17 @@ function bindEvents() {
     connect();
   });
 
+  const setToolsMenu = (open) => {
+    $("tools-menu").hidden = !open;
+    $("tools").setAttribute("aria-expanded", String(open));
+  };
   $("tools").addEventListener("click", (e) => {
     e.stopPropagation();
-    $("tools-menu").hidden = !$("tools-menu").hidden;
+    setToolsMenu($("tools-menu").hidden);
   });
   document.addEventListener("click", (e) => {
     const menu = $("tools-menu");
-    if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true;
+    if (!menu.hidden && !menu.contains(e.target)) setToolsMenu(false);
   });
   for (const [id, key] of [["tool-web", "web"], ["tool-calc", "calc"], ["tool-date", "date"], ["tool-auto", "auto"]]) {
     $(id).addEventListener("change", () => {
@@ -2615,7 +2619,7 @@ function bindEvents() {
   for (const button of document.querySelectorAll("[data-drawer]")) {
     button.addEventListener("click", () => {
       // Drawers paint over the tools menu, so the menu must not stay open
-      $("tools-menu").hidden = true;
+      setToolsMenu(false);
       toggleSidePanel(button.dataset.drawer);
     });
   }

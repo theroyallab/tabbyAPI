@@ -81,49 +81,51 @@
           </button>
         </div>
         <div id="tool-approvals" class="tool-approvals" hidden></div>
-        <div id="tools-menu" class="tools-menu" hidden>
-          <label class="field toggle-row">
-            <span>Web search</span>
-            <input id="tool-web" type="checkbox">
-          </label>
-          <label class="field toggle-row">
-            <span>Calculator</span>
-            <input id="tool-calc" type="checkbox">
-          </label>
-          <label class="field toggle-row">
-            <span>Date and time</span>
-            <input id="tool-date" type="checkbox">
-          </label>
-          <label class="field toggle-row">
-            <span>Auto-approve tool calls</span>
-            <input id="tool-auto" type="checkbox">
-          </label>
-          <div class="tools-nums">
-            <label class="field"><span>Max results</span><input id="tool-max-results" type="number" min="1" step="1"></label>
-            <label class="field"><span>Snippet chars</span><input id="tool-max-result-chars" type="number" min="200" step="100"></label>
-            <label class="field"><span>Page chars</span><input id="tool-max-page-chars" type="number" min="500" step="500"></label>
+        <div class="composer-wrap">
+          <div id="tools-menu" class="tools-menu" hidden>
+            <label class="field toggle-row">
+              <span>Web search</span>
+              <input id="tool-web" type="checkbox">
+            </label>
+            <label class="field toggle-row">
+              <span>Calculator</span>
+              <input id="tool-calc" type="checkbox">
+            </label>
+            <label class="field toggle-row">
+              <span>Date and time</span>
+              <input id="tool-date" type="checkbox">
+            </label>
+            <label class="field toggle-row">
+              <span>Auto-approve tool calls</span>
+              <input id="tool-auto" type="checkbox">
+            </label>
+            <div class="tools-nums">
+              <label class="field"><span>Max results</span><input id="tool-max-results" type="number" min="1" step="1"></label>
+              <label class="field"><span>Snippet chars</span><input id="tool-max-result-chars" type="number" min="200" step="100"></label>
+              <label class="field"><span>Page chars</span><input id="tool-max-page-chars" type="number" min="500" step="500"></label>
+            </div>
+            <p id="tools-status" class="hint"></p>
+            <details class="tools-custom">
+              <summary>Custom tools (JSON)</summary>
+              <textarea id="custom-tools" rows="6" spellcheck="false" aria-label="Custom tools JSON" placeholder='[{"type":"function","function":{"name":"my_tool","description":"Calls my API","parameters":{"type":"object","properties":{"q":{"type":"string"}}},"x_tabby_execute":{"url":"https://api.example.com/search?q={{q}}","headers":{"Authorization":"Bearer ..."}}}]'></textarea>
+              <p id="custom-tools-error" class="hint"></p>
+            </details>
           </div>
-          <p id="tools-status" class="hint"></p>
-          <details class="tools-custom">
-            <summary>Custom tools (JSON)</summary>
-            <textarea id="custom-tools" rows="6" spellcheck="false" aria-label="Custom tools JSON" placeholder='[{"type":"function","function":{"name":"my_tool","description":"Calls my API","parameters":{"type":"object","properties":{"q":{"type":"string"}}},"x_tabby_execute":{"url":"https://api.example.com/search?q={{q}}","headers":{"Authorization":"Bearer ..."}}}]'></textarea>
-            <p id="custom-tools-error" class="hint"></p>
-          </details>
+          <form id="composer" class="composer">
+            <div id="attachments" class="attachments" hidden></div>
+            <button id="attach" type="button" class="attach-button" aria-label="Attach images" title="Attach images (or paste, or drop them anywhere)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 11-8.6 8.6a5 5 0 0 1-7-7l8.5-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.3-2.3l7.9-8"/></svg>
+            </button>
+            <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple hidden>
+            <textarea id="input" rows="1" placeholder="Send a message" autocomplete="off"></textarea>
+            <button id="tools" type="button" class="tools-button" aria-label="Tools" aria-expanded="false" aria-controls="tools-menu" title="Tools">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7m7.4-3.5c0 .55-.07 1.1-.2 1.6l2 1.6-1.7 2.9-2.4-.9a7 7 0 0 1-2.3 1.3l-.5 2.5h-3.3l-.5-2.5a7 7 0 0 1-2.3-1.3l-2.4.9L6.6 15.2l2-1.6a7 7 0 0 1 0-3.2l-2-1.6L8.3 5.4l2.4.9a7 7 0 0 1 2.3-1.3l.5-2.5h3.3l.5 2.5a7 7 0 0 1 2.3 1.3l2.4-.9 1.7 2.9-2 1.6c.13.5.2 1.05.2 1.6"/></svg>
+            </button>
+            <button id="send" type="submit" class="send-button" aria-label="Send">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg>
+            </button>
+          </form>
         </div>
-        <form id="composer" class="composer">
-          <div id="attachments" class="attachments" hidden></div>
-          <button id="attach" type="button" class="attach-button" aria-label="Attach images" title="Attach images (or paste, or drop them anywhere)">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 11-8.6 8.6a5 5 0 0 1-7-7l8.5-8.6a3.3 3.3 0 0 1 4.7 4.7l-8.6 8.6a1.7 1.7 0 0 1-2.3-2.3l7.9-8"/></svg>
-          </button>
-          <input id="file-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp" multiple hidden>
-          <textarea id="input" rows="1" placeholder="Send a message" autocomplete="off"></textarea>
-          <button id="tools" type="button" class="tools-button" aria-label="Tools" title="Tools">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7m7.4-3.5c0 .55-.07 1.1-.2 1.6l2 1.6-1.7 2.9-2.4-.9a7 7 0 0 1-2.3 1.3l-.5 2.5h-3.3l-.5-2.5a7 7 0 0 1-2.3-1.3l-2.4.9L6.6 15.2l2-1.6a7 7 0 0 1 0-3.2l-2-1.6L8.3 5.4l2.4.9a7 7 0 0 1 2.3-1.3l.5-2.5h3.3l.5 2.5a7 7 0 0 1 2.3 1.3l2.4-.9 1.7 2.9-2 1.6c.13.5.2 1.05.2 1.6"/></svg>
-          </button>
-          <button id="send" type="submit" class="send-button" aria-label="Send">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-8-6 16-2.5-6.5z"/></svg>
-          </button>
-        </form>
         <p id="status-line" class="status-line"></p>
       </footer>
     </main>
