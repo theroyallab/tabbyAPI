@@ -73,6 +73,9 @@ const state = {
   loading: false,
   overrides: null,
   generating: null,
+  // Last /v1/tools/status payload; tools are only offered to the model when
+  // the server says they are enabled.
+  toolsStatus: null,
 };
 
 let samplerGroups = [];
@@ -1231,20 +1234,28 @@ function syncToolsButton() {
 async function refreshToolsStatus() {
   try {
     const status = await (await api("/v1/tools/status")).json();
+    state.toolsStatus = status;
     $("tools-status").textContent =
       `web_search: ${status.web_search.enabled ? "available" : "off (tools_config.yml)"} · ` +
       `fetch_url: ${status.fetch_url.enabled ? "available" : "off (tools_config.yml)"}`;
     $("tool-max-results").max = status.limits.max_results;
     $("tool-max-result-chars").max = status.limits.max_result_chars;
     $("tool-max-page-chars").max = status.limits.max_page_chars;
+    // Like the sampler fields, an empty input shows the server default.
+    $("tool-max-results").placeholder = String(status.web_search.max_results);
+    $("tool-max-result-chars").placeholder = String(status.web_search.max_result_chars);
+    $("tool-max-page-chars").placeholder = String(status.fetch_url.max_page_chars);
   } catch {
+    state.toolsStatus = null;
     $("tools-status").textContent = "Tool status unavailable.";
   }
+  syncToolsButton();
 }
 
 function activeTools() {
   const tools = [];
-  if (toolSettings.web) {
+  const serverEnabled = (name) => Boolean(state.toolsStatus?.[name]?.enabled);
+  if (toolSettings.web && serverEnabled("web_search")) {
     tools.push({
       type: "function",
       function: {
@@ -1271,6 +1282,8 @@ function activeTools() {
         },
       },
     });
+  }
+  if (toolSettings.web && serverEnabled("fetch_url")) {
     tools.push({
       type: "function",
       function: {
@@ -2622,6 +2635,9 @@ function bindEvents() {
     validateCustomTools();
     syncToolsButton();
   });
+  const toolsGroup = $("tools-group");
+  toolsGroup.open = load("tools-group-open", true);
+  toolsGroup.addEventListener("toggle", () => save("tools-group-open", toolsGroup.open));
 
   $("toggle-markdown").addEventListener("click", () => {
     settings.markdown = !settings.markdown;
