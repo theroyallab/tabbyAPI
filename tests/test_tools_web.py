@@ -1,6 +1,7 @@
 """The built-in web tools: URL guards, result shaping, and endpoint auth."""
 
 import asyncio
+import inspect
 import json
 from types import SimpleNamespace
 
@@ -69,9 +70,17 @@ class _FakeResponse:
 def _patch_session(monkeypatch, response=None, error=None):
     class _FakeSession:
         def __init__(self, *args, **kwargs):
-            pass
+            assert set(kwargs) == {"timeout", "trust_env"}, (
+                f"unexpected session kwargs: {sorted(kwargs)}"
+            )
+            assert kwargs["trust_env"] is False, "environment proxies must never be used"
 
-        def get(self, url, **kwargs):
+        def get(self, url, *, headers=None, allow_redirects=True, **kwargs):
+            # Mirror the real aiohttp.ClientSession.get signature so a wrong
+            # or misspelled keyword (e.g. httpx's follow_redirects) fails the
+            # test instead of being silently swallowed by **kwargs.
+            assert allow_redirects is False, "redirects must never be followed"
+            assert not kwargs, f"unexpected aiohttp kwargs: {sorted(kwargs)}"
             if error is not None:
                 raise error
             return response
@@ -83,6 +92,13 @@ def _patch_session(monkeypatch, response=None, error=None):
             return False
 
     monkeypatch.setattr(web_tools.aiohttp, "ClientSession", _FakeSession)
+
+
+def test_aiohttp_redirect_kwarg_name():
+    # Guards the _FakeSession.get signature against a future aiohttp rename.
+    params = inspect.signature(aiohttp.ClientSession.get).parameters
+    assert "allow_redirects" in params
+    assert "follow_redirects" not in params
 
 
 def test_blocked_ips():

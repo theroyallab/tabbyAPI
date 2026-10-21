@@ -166,7 +166,7 @@ async def searxng_search(
     timeout = aiohttp.ClientTimeout(total=min(searxng.timeout, HARD_TIMEOUT))
     try:
         async with aiohttp.ClientSession(timeout=timeout, trust_env=False) as session:
-            async with session.get(search_url, headers=headers, follow_redirects=False) as response:
+            async with session.get(search_url, headers=headers, allow_redirects=False) as response:
                 if response.status != 200:
                     xlogger.warning(f"SearXNG search failed: status {response.status}.")
                     raise HTTPException(
@@ -224,7 +224,7 @@ async def fetch_page(url: str, max_page_chars: Optional[int]) -> FetchURLRespons
             async with session.get(
                 url,
                 headers={"Accept": "text/html, text/plain, application/json"},
-                follow_redirects=False,
+                allow_redirects=False,
             ) as response:
                 if 300 <= response.status < 400:
                     target = response.headers.get("Location", "")
