@@ -52,9 +52,12 @@ def _fetch_cfg(**overrides):
 class _FakeContent:
     def __init__(self, data: bytes):
         self._data = data
+        self._pos = 0
 
     async def read(self, limit: int) -> bytes:
-        return self._data[:limit]
+        chunk = self._data[self._pos : self._pos + limit]
+        self._pos += len(chunk)
+        return chunk
 
 
 class _FakeResponse:
@@ -357,6 +360,42 @@ def test_fetch_too_large_is_502(monkeypatch):
         asyncio.run(web_tools.fetch_page("http://127.0.0.1/x", None))
     assert exc_info.value.status_code == 502
     assert "too large" in exc_info.value.detail
+
+
+class _ChunkedContent:
+    """Mimics aiohttp's StreamReader.read(n): one buffered chunk per call."""
+
+    def __init__(self, data: bytes, chunk_size: int = 65536):
+        self._data = data
+        self._pos = 0
+        self._chunk_size = chunk_size
+
+    async def read(self, limit: int) -> bytes:
+        chunk = self._data[self._pos : self._pos + self._chunk_size]
+        self._pos += len(chunk)
+        return chunk[:limit]
+
+
+def test_fetch_chunked_oversize_is_502(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _fetch_cfg())
+    big = b"x" * (web_tools.MAX_DOWNLOAD_BYTES + 65_536)
+    response = _FakeResponse(data=big, headers={"Content-Type": "text/plain"})
+    response.content = _ChunkedContent(big)
+    _patch_session(monkeypatch, response)
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(web_tools.fetch_page("http://127.0.0.1/x", None))
+    assert exc_info.value.status_code == 502
+    assert "too large" in exc_info.value.detail
+
+
+def test_fetch_chunked_body_is_fully_read(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _fetch_cfg(max_page_chars=300_000))
+    body = b"A" * 200_000 + b"MARKER-END"
+    response = _FakeResponse(data=body, headers={"Content-Type": "text/plain"})
+    response.content = _ChunkedContent(body, chunk_size=50_000)
+    _patch_session(monkeypatch, response)
+    result = asyncio.run(web_tools.fetch_page("http://127.0.0.1/x", None))
+    assert "MARKER-END" in result.text
 
 
 def test_fetch_json_body_is_pretty_printed(monkeypatch):

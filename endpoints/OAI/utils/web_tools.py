@@ -182,7 +182,15 @@ async def searxng_search(
                         f"SearXNG returned {response.status}. Public instances often "
                         "refuse format=json; enable it in the instance's settings.yml.",
                     )
-                raw = await response.content.read(MAX_DOWNLOAD_BYTES + 1)
+                # aiohttp's StreamReader.read(n) returns whatever is buffered at
+                # call time, so chunked bodies arrive one chunk per call: keep
+                # reading until the cap or EOF instead of trusting one call.
+                raw = b""
+                while len(raw) <= MAX_DOWNLOAD_BYTES:
+                    chunk = await response.content.read(MAX_DOWNLOAD_BYTES + 1)
+                    if not chunk:
+                        break
+                    raw += chunk
                 if len(raw) > MAX_DOWNLOAD_BYTES:
                     xlogger.warning("SearXNG search failed: response too large.")
                     raise HTTPException(502, "The search response is too large.")
@@ -253,7 +261,14 @@ async def fetch_page(url: str, max_page_chars: Optional[int]) -> FetchURLRespons
                 if not ctype.startswith(TEXT_PREFIXES):
                     xlogger.warning("Page fetch failed: non-text content type.")
                     raise HTTPException(502, "The URL does not return text content.")
-                raw = await response.content.read(MAX_DOWNLOAD_BYTES + 1)
+                # Same chunked-body rule as the search path above: read until the
+                # cap or EOF, never trust a single read(n) call.
+                raw = b""
+                while len(raw) <= MAX_DOWNLOAD_BYTES:
+                    chunk = await response.content.read(MAX_DOWNLOAD_BYTES + 1)
+                    if not chunk:
+                        break
+                    raw += chunk
                 if len(raw) > MAX_DOWNLOAD_BYTES:
                     xlogger.warning("Page fetch failed: page too large.")
                     raise HTTPException(502, "The page is too large to fetch.")
