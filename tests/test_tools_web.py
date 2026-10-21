@@ -261,6 +261,18 @@ def test_search_response_too_large_is_502(monkeypatch):
     assert exc_info.value.status_code == 502
 
 
+def test_search_chunked_oversize_is_502(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
+    big = b'{"results": []}' + b" " * (MAX_DOWNLOAD_BYTES + 65_536)
+    response = _FakeResponse(data=big)
+    response.content = _ChunkedContent(big)
+    _patch_session(monkeypatch, response)
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(web_tools.searxng_search("q", None, None))
+    assert exc_info.value.status_code == 502
+    assert "too large" in exc_info.value.detail
+
+
 def test_search_non_200_status_is_502(monkeypatch):
     monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
     _patch_session(monkeypatch, _FakeResponse(status=302))
