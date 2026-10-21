@@ -199,7 +199,9 @@ async def searxng_search(
         raise HTTPException(502, "The search timed out.") from exc
     except aiohttp.ClientError as exc:
         xlogger.warning(f"SearXNG search failed: {exc}")
-        raise HTTPException(502, f"Could not reach SearXNG: {exc}") from exc
+        # The instance's address comes from tools_config.yml and stays out of
+        # client-facing errors.
+        raise HTTPException(502, "Could not reach SearXNG.") from exc
 
     raw_results = payload.get("results")
     if not isinstance(raw_results, list):
@@ -207,7 +209,9 @@ async def searxng_search(
     results = [
         SearchResult(
             title=_clean_snippet(item.get("title"), chars),
-            url=str(item.get("url") or ""),
+            # Hostile search payloads must not stuff the model's context with
+            # oversized URL strings; real result URLs stay far below this cap.
+            url=str(item.get("url") or "")[:1024],
             snippet=_clean_snippet(item.get("content"), chars),
         )
         for item in raw_results

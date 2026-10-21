@@ -15,6 +15,7 @@ from common import auth, tools_config
 from endpoints.OAI.types.web_tools import WebSearchRequest
 from endpoints.OAI.utils import web_tools
 from endpoints.OAI.utils.web_tools import (
+    MAX_DOWNLOAD_BYTES,
     _blocked_ip,
     _clamp,
     _clean_snippet,
@@ -240,6 +241,50 @@ def test_search_encodes_categories_with_space(monkeypatch):
     assert "categories=social+media" in urls[0]
 
 
+def test_search_url_field_is_capped(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
+    payload = {"results": [{"title": "t", "url": "http://x/" + "y" * 5000, "content": "c"}]}
+    _patch_session(monkeypatch, _FakeResponse(data=json.dumps(payload).encode()))
+    response = asyncio.run(web_tools.searxng_search("q", None, None))
+    assert len(response.results[0].url) == 1024
+
+
+def test_search_response_too_large_is_502(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
+    big = b'{"results": []}' + b" " * (MAX_DOWNLOAD_BYTES + 10)
+    _patch_session(monkeypatch, _FakeResponse(data=big))
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(web_tools.searxng_search("q", None, None))
+    assert exc_info.value.status_code == 502
+
+
+def test_search_non_200_status_is_502(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
+    _patch_session(monkeypatch, _FakeResponse(status=302))
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(web_tools.searxng_search("q", None, None))
+    assert exc_info.value.status_code == 502
+
+
+def test_search_results_dict_and_number_give_empty(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
+    _patch_session(monkeypatch, _FakeResponse(data=json.dumps({"results": {"a": 1}}).encode()))
+    response = asyncio.run(web_tools.searxng_search("q", None, None))
+    assert response.results == []
+    _patch_session(monkeypatch, _FakeResponse(data=json.dumps({"results": 5}).encode()))
+    response = asyncio.run(web_tools.searxng_search("q", None, None))
+    assert response.results == []
+
+
+def test_search_client_error_is_502(monkeypatch):
+    monkeypatch.setattr(tools_config, "TOOLS_CONFIG", _searxng_cfg())
+    _patch_session(monkeypatch, error=aiohttp.ClientConnectionError("boom"))
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(web_tools.searxng_search("q", None, None))
+    assert exc_info.value.status_code == 502
+    assert exc_info.value.detail == "Could not reach SearXNG."
+
+
 def test_search_request_rejects_bad_time_range():
     with pytest.raises(ValidationError):
         WebSearchRequest(query="q", time_range="hour")
@@ -368,6 +413,16 @@ def test_web_search_endpoint_rejects_bad_time_range(monkeypatch):
         "/v1/tools/web_search",
         headers={"Authorization": "Bearer api"},
         json={"query": "q", "time_range": "hour"},
+    )
+    assert response.status_code == 422
+
+
+def test_web_search_endpoint_rejects_long_query(monkeypatch):
+    client = _client(monkeypatch, False)
+    response = client.post(
+        "/v1/tools/web_search",
+        headers={"Authorization": "Bearer api"},
+        json={"query": "x" * 2001},
     )
     assert response.status_code == 422
 
