@@ -66,7 +66,7 @@ class ExllamaV3SamplerBuilder:
             params.frequency_penalty,
             params.presence_penalty,
             penalty_range,
-            max(repetition_decay, 1),  # TODO: Allow decay = 0 when exl3 kernel fix is pushed
+            repetition_decay,
         )
 
         penalties_active = False
@@ -121,21 +121,26 @@ class ExllamaV3SamplerBuilder:
         if not params.temperature_last:
             builder.temperature(params.temperature)
 
+        # min-P, top-K, top-P is the order the backend's fused sampling kernel
+        # accepts (and the order its own ComboSampler uses). Any other order with
+        # two or more of them active falls back to the step-by-step path, which
+        # sorts and renormalizes between steps and costs several times as much
+        # per token
+        builder.min_p(params.min_p)
         builder.top_k(params.top_k)
         builder.top_p(params.top_p)
-        builder.min_p(params.min_p)
 
         if params.temperature_last:
             builder.temperature(params.temperature)
 
         if params.temperature != 1.0:
             shaping.append(("temperature", params.temperature))
+        if params.min_p > 0:
+            shaping.append(("min_p", params.min_p))
         if params.top_k > 0:
             shaping.append(("top_k", params.top_k))
         if params.top_p < 1.0:
             shaping.append(("top_p", params.top_p))
-        if params.min_p > 0:
-            shaping.append(("min_p", params.min_p))
         if params.temperature_last and params.temperature != 1.0:
             shaping.append(("temperature_last", True))
 
@@ -144,12 +149,15 @@ class ExllamaV3SamplerBuilder:
             shaping.append(("xtc_probability", params.xtc_probability))
             shaping.append(("xtc_threshold", params.xtc_threshold))
 
-        if params.adaptive_target < 1.0:
+        # Adaptive-P samples from the distribution, so temperature 0 wins over it
+        # (as in the backend's ComboSampler): a temperature-0 step ahead of it
+        # would divide the logits by zero
+        if params.adaptive_target < 1.0 and not greedy:
             builder.adaptive_p(params.adaptive_target, params.adaptive_decay)
             shaping.append(("adaptive_target", params.adaptive_target))
             shaping.append(("adaptive_decay", params.adaptive_decay))
 
-        if greedy and not (shaping and shaping[-1][0] == "adaptive_decay"):
+        if greedy:
             settings.append(("temperature", "0, greedy"))
         else:
             settings.extend(shaping)
@@ -212,15 +220,16 @@ class ExllamaV3SamplerBuilder:
     def build(self, greedy):
         """Builds the final sampler from stack."""
 
+        # Use greedy if temp is 0. Probability-shaping steps (Adaptive-P included)
+        # are dropped, but logit biases, penalties and token bans still affect
+        # the argmax
+        if greedy:
+            kept = [s for s in self.stack if isinstance(s, _GREEDY_KEPT_STEPS)]
+            return CustomSampler(kept + [SS_Argmax()])
+
         # Adaptive-P does categorical sampling already
         if len(self.stack) and isinstance(self.stack[-1], SS_AdaptiveP):
             return CustomSampler(self.stack)
 
-        # Use greedy if temp is 0. Probability-shaping steps are dropped, but
-        # logit biases, penalties and token bans still affect the argmax
-        if greedy:
-            kept = [s for s in self.stack if isinstance(s, _GREEDY_KEPT_STEPS)]
-            return CustomSampler(kept + [SS_Argmax()])
-        else:
-            self.stack.append(SS_Sample())
-            return CustomSampler(self.stack)
+        self.stack.append(SS_Sample())
+        return CustomSampler(self.stack)
