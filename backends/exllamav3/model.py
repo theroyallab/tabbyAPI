@@ -972,8 +972,8 @@ class ExllamaV3Container:
         if not self.generator:
             return
 
-        # Immediately abort all jobs if asked
-        if skip_wait:
+        # Immediately abort all jobs if asked (and say so only if there are any)
+        if skip_wait and self.active_job_ids:
             xlogger.warning(
                 "Immediately terminating all jobs. Clients will have their requests cancelled.\n"
             )
