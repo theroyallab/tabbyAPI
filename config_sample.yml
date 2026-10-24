@@ -75,6 +75,11 @@ logging:
   # The log files under logs/ always carry full timestamps.
   log_timestamps: true
 
+  # Print the API key and admin key to the console on startup (default: True).
+  #   Turn this off to keep the keys out of terminal scrollback and log files.
+  #   The keys themselves are unaffected and can always be read from api_tokens.yml.
+  log_api_keys: true
+
   # Write every /v1/chat/completions request to logs/debug/ as JSON (default: False).
   # Also saves the fully templated prompt (the exact text sent to the tokenizer)
   # as a .txt file with the same basename.
