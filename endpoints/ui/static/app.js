@@ -54,6 +54,12 @@ let recentModels = load("recent-models", []);
 // Starred model names, shown at the top of the model list
 let favoriteModels = load("favorite-models", []);
 let sessionIndex = load("sessions", []);
+// Tool settings: which tools the model may call, and how results are capped
+const toolSettings = Object.assign(
+  { web: false, calc: false, date: false, auto: false, maxResults: null, maxResultChars: null, maxPageChars: null, custom: "" },
+  load("tools", {}),
+);
+const MAX_TOOL_ITERATIONS = 8;
 let session = null;
 
 const state = {
@@ -67,6 +73,9 @@ const state = {
   loading: false,
   overrides: null,
   generating: null,
+  // Last /v1/tools/status payload; tools are only offered to the model when
+  // the server says they are enabled.
+  toolsStatus: null,
 };
 
 let samplerGroups = [];
@@ -1020,6 +1029,34 @@ function renderMessage(msg, index) {
     body.append(reasoningBox);
   }
 
+  if (msg.tool_calls?.length) {
+    const box = el(
+      "details",
+      { class: "tool-calls", open: streaming || !msg.content },
+      el("summary", {}, `Tools (${msg.tool_calls.length})`),
+    );
+    for (const call of msg.tool_calls) {
+      box.append(
+        el(
+          "div",
+          { class: "tool-call" },
+          el(
+            "div",
+            { class: "tool-head" },
+            el("span", { class: "tool-name" }, call.name),
+            el("code", { class: "tool-args" }, call.args || "{}"),
+          ),
+          el(
+            "pre",
+            { class: "tool-result" },
+            call.result === undefined ? "Waiting for approval…" : JSON.stringify(call.result, null, 2).slice(0, 2000),
+          ),
+        ),
+      );
+    }
+    body.append(box);
+  }
+
   if (msg.images?.length) body.append(renderImages(msg.images));
 
   const content = el("div", { class: "content" });
@@ -1161,6 +1198,318 @@ function editMessage(index, body) {
 }
 
 // ---------------------------------------------------------------------------
+// Tools
+
+function customTools() {
+  try {
+    const list = JSON.parse(toolSettings.custom || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function validateCustomTools() {
+  const error = $("custom-tools-error");
+  try {
+    const list = JSON.parse(toolSettings.custom || "[]");
+    if (!Array.isArray(list)) throw new Error("Expected a JSON array of tools.");
+    const names = new Set(["web_search", "fetch_url", "calculator", "datetime"]);
+    for (const spec of list) {
+      const name = spec?.function?.name;
+      if (typeof name !== "string" || !name) throw new Error("Every tool needs function.name.");
+      if (names.has(name)) throw new Error(`"${name}" collides with a built-in tool.`);
+      names.add(name);
+    }
+    error.textContent = "";
+  } catch (e) {
+    error.textContent = e.message;
+  }
+}
+
+function syncToolsButton() {
+  $("tools").classList.toggle("active", activeTools().length > 0);
+}
+
+async function refreshToolsStatus() {
+  try {
+    const status = await (await api("/v1/tools/status")).json();
+    state.toolsStatus = status;
+    $("tools-status").textContent =
+      `web_search: ${status.web_search.enabled ? "available" : "off (tools_config.yml)"} · ` +
+      `fetch_url: ${status.fetch_url.enabled ? "available" : "off (tools_config.yml)"}`;
+    $("tool-max-results").max = status.limits.max_results;
+    $("tool-max-result-chars").max = status.limits.max_result_chars;
+    $("tool-max-page-chars").max = status.limits.max_page_chars;
+    // Like the sampler fields, an empty input shows the server default.
+    $("tool-max-results").placeholder = String(status.web_search.max_results);
+    $("tool-max-result-chars").placeholder = String(status.web_search.max_result_chars);
+    $("tool-max-page-chars").placeholder = String(status.fetch_url.max_page_chars);
+  } catch {
+    state.toolsStatus = null;
+    $("tools-status").textContent = "Tool status unavailable.";
+  }
+  syncToolsButton();
+}
+
+function activeTools() {
+  const tools = [];
+  const serverEnabled = (name) => Boolean(state.toolsStatus?.[name]?.enabled);
+  if (toolSettings.web && serverEnabled("web_search")) {
+    tools.push({
+      type: "function",
+      function: {
+        name: "web_search",
+        description:
+          "Search the web with SearXNG. Returns result titles, URLs and snippets. " +
+          "For news or recent events set categories=news and time_range=day or week.",
+        parameters: {
+          type: "object",
+          properties: {
+            query: { type: "string", description: "The search query" },
+            categories: {
+              type: "string",
+              description:
+                "SearXNG category to search in: general, news, images, science, social media…",
+            },
+            time_range: {
+              type: "string",
+              enum: ["day", "week", "month", "year"],
+              description: "Only results from the last day, week, month or year",
+            },
+          },
+          required: ["query"],
+        },
+      },
+    });
+  }
+  if (toolSettings.web && serverEnabled("fetch_url")) {
+    tools.push({
+      type: "function",
+      function: {
+        name: "fetch_url",
+        description: "Fetch a web page by URL and return its text. Only public http/https URLs are allowed.",
+        parameters: {
+          type: "object",
+          properties: { url: { type: "string", description: "The page URL" } },
+          required: ["url"],
+        },
+      },
+    });
+  }
+  if (toolSettings.calc) {
+    tools.push({
+      type: "function",
+      function: {
+        name: "calculator",
+        description: "Evaluate an arithmetic expression. Supports + - * / % ^ and parentheses.",
+        parameters: {
+          type: "object",
+          properties: { expression: { type: "string", description: "The expression, e.g. (2+3)*4" } },
+          required: ["expression"],
+        },
+      },
+    });
+  }
+  if (toolSettings.date) {
+    tools.push({
+      type: "function",
+      function: {
+        name: "datetime",
+        description: "Get the current date and time.",
+        parameters: { type: "object", properties: {} },
+      },
+    });
+  }
+  for (const spec of customTools()) {
+    if (spec?.type === "function" && typeof spec.function?.name === "string" && spec.function.name) {
+      tools.push({ type: "function", function: spec.function });
+    }
+  }
+  return tools;
+}
+
+function calcEval(expr) {
+  const src = String(expr || "").trim();
+  if (!src || src.length > 200) throw new Error("empty or too long expression");
+  // Whitespace only separates tokens; drop it so the parse loop sees numbers and operators
+  const tokens = (src.match(/\d+(?:\.\d+)?|[+\-*/%^()]|\s+/g) || []).filter((t) => t.trim() !== "");
+  if (tokens.join("") !== src.replace(/\s+/g, "")) {
+    throw new Error("invalid characters in expression");
+  }
+  // Unary minus: negate the next number directly, or turn -( ...) into 0 - ( ...)
+  const out = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t === "-" && (i === 0 || "+-*/%^(".includes(tokens[i - 1]))) {
+      const next = tokens[i + 1];
+      if (next && /^\d/.test(next)) {
+        out.push(String(-parseFloat(next)));
+        i++;
+        continue;
+      }
+      out.push("0");
+    }
+    out.push(t);
+  }
+  const prec = { "+": 1, "-": 1, "*": 2, "/": 2, "%": 2, "^": 3 };
+  const nums = [], ops = [];
+  const apply = () => {
+    const op = ops.pop();
+    const b = nums.pop();
+    const a = nums.pop();
+    if (a === undefined || b === undefined || Number.isNaN(a) || Number.isNaN(b)) {
+      throw new Error("invalid expression");
+    }
+    nums.push(
+      op === "+" ? a + b : op === "-" ? a - b : op === "*" ? a * b
+        : op === "/" ? a / b : op === "%" ? a % b : Math.pow(a, b),
+    );
+  };
+  for (const t of out) {
+    if (t === "(") ops.push(t);
+    else if (t === ")") {
+      while (ops.length && ops[ops.length - 1] !== "(") apply();
+      if (!ops.length) throw new Error("unbalanced parentheses");
+      ops.pop();
+    } else if (t in prec) {
+      while (ops.length && prec[ops[ops.length - 1]] >= prec[t] && ops[ops.length - 1] !== "(") apply();
+      ops.push(t);
+    } else nums.push(parseFloat(t));
+  }
+  while (ops.length) {
+    if (ops[ops.length - 1] === "(") throw new Error("unbalanced parentheses");
+    apply();
+  }
+  if (nums.length !== 1 || !Number.isFinite(nums[0])) throw new Error("invalid expression");
+  return nums[0];
+}
+
+function interpolate(template, args) {
+  return String(template).replace(/\{\{(\w+)\}\}/g, (_, key) => encodeURIComponent(String(args[key] ?? "")));
+}
+
+async function runCustomTool(spec, args) {
+  const ex = spec.function.x_tabby_execute || {};
+  if (!ex.url) return { error: "This custom tool has no x_tabby_execute URL." };
+  try {
+    const init = { method: ex.method || "GET", headers: ex.headers || {} };
+    if (ex.body) init.body = interpolate(ex.body, args);
+    const res = await fetch(interpolate(ex.url, args), init);
+    let text = "";
+    if (res.body) {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (text.length < 2000) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+      }
+      await reader.cancel();
+    } else {
+      text = await res.text();
+    }
+    text = text.slice(0, 2000);
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = { text };
+    }
+    return parsed;
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+}
+
+async function executeToolCall(call) {
+  let args;
+  try {
+    args = JSON.parse(call.args || "{}");
+    if (typeof args !== "object" || args === null || Array.isArray(args)) args = {};
+  } catch {
+    return { error: "The tool arguments are not valid JSON." };
+  }
+  try {
+    switch (call.name) {
+      case "web_search": {
+        const body = { query: String(args.query ?? "") };
+        if (typeof args.categories === "string" && args.categories.trim()) {
+          body.categories = args.categories.trim();
+        }
+        if (["day", "week", "month", "year"].includes(args.time_range)) {
+          body.time_range = args.time_range;
+        }
+        if (toolSettings.maxResults) body.max_results = toolSettings.maxResults;
+        if (toolSettings.maxResultChars) body.max_result_chars = toolSettings.maxResultChars;
+        return await (await api("/v1/tools/web_search", { method: "POST", body })).json();
+      }
+      case "fetch_url": {
+        const body = { url: String(args.url ?? "") };
+        if (toolSettings.maxPageChars) body.max_page_chars = toolSettings.maxPageChars;
+        return await (await api("/v1/tools/fetch_url", { method: "POST", body })).json();
+      }
+      case "calculator":
+        return { result: calcEval(String(args.expression ?? "")) };
+      case "datetime": {
+        const now = new Date();
+        return { iso: now.toISOString(), local: now.toString(), unix: Math.floor(now.getTime() / 1000) };
+      }
+      default: {
+        const spec = customTools().find((t) => t.function?.name === call.name);
+        if (!spec) return { error: `Unknown tool: ${call.name}` };
+        return await runCustomTool(spec, args);
+      }
+    }
+  } catch (e) {
+    return { error: e.message || String(e) };
+  }
+}
+
+function approveToolCall(call, controller) {
+  return new Promise((resolve) => {
+    const container = $("tool-approvals");
+    const card = el(
+      "div",
+      { class: "tool-approval" },
+      el(
+        "div",
+        { class: "tool-head" },
+        el("span", { class: "tool-name" }, call.name),
+        el("code", { class: "tool-args" }, call.args || "{}"),
+      ),
+      el(
+        "div",
+        { class: "button-row" },
+        el("button", { type: "button", class: "primary", onclick: () => done(true) }, "Approve"),
+        el("button", { type: "button", onclick: () => done(false) }, "Deny"),
+      ),
+    );
+    const done = (value) => {
+      card.remove();
+      if (!container.children.length) container.hidden = true;
+      resolve(value);
+    };
+    container.hidden = false;
+    container.append(card);
+    controller.signal.addEventListener("abort", () => done(false), { once: true });
+  });
+}
+
+async function runToolCalls(msg, calls, controller) {
+  msg.tool_calls = msg.tool_calls || [];
+  for (const call of calls) {
+    let approved = true;
+    if (!toolSettings.auto) approved = await approveToolCall(call, controller);
+    const result = approved ? await executeToolCall(call) : { error: "Denied by the user." };
+    msg.tool_calls.push({ id: call.id, name: call.name, args: call.args, result });
+    queueLiveUpdate();
+    if (controller.signal.aborted) break;
+  }
+  renderThread();
+}
+
+// ---------------------------------------------------------------------------
 // Generation
 
 async function buildMessages(s) {
@@ -1168,8 +1517,27 @@ async function buildMessages(s) {
   let missing = 0;
   if (s.system && s.system.trim()) messages.push({ role: "system", content: s.system });
   for (const m of s.messages) {
-    // Skip failed or stopped-before-output turns
-    if (m.role === "assistant" && !m.content) continue;
+    // Skip failed or stopped-before-output turns; keep tool-calling turns
+    if (m.role === "assistant" && !m.content && !m.tool_calls?.length) continue;
+    if (m.tool_calls?.length) {
+      messages.push({
+        role: "assistant",
+        content: m.content || "",
+        tool_calls: m.tool_calls.map((c) => ({
+          id: c.id,
+          type: "function",
+          function: { name: c.name, arguments: c.args || "{}" },
+        })),
+      });
+      for (const c of m.tool_calls) {
+        messages.push({
+          role: "tool",
+          tool_call_id: c.id,
+          content: JSON.stringify(c.result ?? { error: "no result" }),
+        });
+      }
+      continue;
+    }
     if (!m.images?.length) {
       messages.push({ role: m.role, content: m.content });
       continue;
@@ -1209,37 +1577,73 @@ async function generate() {
   renderThread();
 
   try {
-    const body = {
-      messages: await buildMessages({ ...s, messages: s.messages.slice(0, -1) }),
-      stream: true,
-      stream_options: { include_usage: true },
-      ...samplerParams,
-    };
-    if (s.messages.some((m) => m.images?.length)) warnIfNoVision();
-
-    const res = await api("/v1/chat/completions", { method: "POST", body, signal: controller.signal });
-
-    for await (const data of sseData(res)) {
-      if (data === "[DONE]") break;
-
-      let chunk;
-      try {
-        chunk = JSON.parse(data);
-      } catch {
-        continue;
+    const tools = activeTools();
+    let iterations = 0;
+    for (;;) {
+      // Later rounds replay the tool calls and results already in the thread
+      const history = iterations ? s.messages : s.messages.slice(0, -1);
+      const body = {
+        messages: await buildMessages({ ...s, messages: history }),
+        stream: true,
+        stream_options: { include_usage: true },
+        ...samplerParams,
+      };
+      if (tools.length) {
+        body.tools = tools;
+        body.tool_choice = "auto";
       }
-      if (chunk.error) throw new Error(chunk.error.message || JSON.stringify(chunk.error));
+      if (s.messages.some((m) => m.images?.length)) warnIfNoVision();
 
-      if (chunk.model) msg.model = chunk.model;
-      const choice = chunk.choices?.[0];
-      if (choice) {
-        const delta = choice.delta || {};
-        if (delta.reasoning_content) msg.reasoning += delta.reasoning_content;
-        if (delta.content) msg.content += delta.content;
-        if (choice.finish_reason) msg.finish = choice.finish_reason;
+      const res = await api("/v1/chat/completions", { method: "POST", body, signal: controller.signal });
+
+      const pending = new Map();
+      for await (const data of sseData(res)) {
+        if (data === "[DONE]") break;
+
+        let chunk;
+        try {
+          chunk = JSON.parse(data);
+        } catch {
+          continue;
+        }
+        if (chunk.error) throw new Error(chunk.error.message || JSON.stringify(chunk.error));
+
+        if (chunk.model) msg.model = chunk.model;
+        const choice = chunk.choices?.[0];
+        if (choice) {
+          const delta = choice.delta || {};
+          if (delta.reasoning_content) msg.reasoning += delta.reasoning_content;
+          if (delta.content) msg.content += delta.content;
+          if (delta.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              const slot = pending.get(tc.index) || { id: "", name: "", args: "" };
+              pending.set(tc.index, slot);
+              if (tc.id) slot.id = tc.id;
+              if (tc.function?.name) slot.name += tc.function.name;
+              if (tc.function?.arguments) slot.args += tc.function.arguments;
+            }
+          }
+          if (choice.finish_reason) msg.finish = choice.finish_reason;
+        }
+        if (chunk.usage) msg.usage = chunk.usage;
+        queueLiveUpdate();
       }
-      if (chunk.usage) msg.usage = chunk.usage;
-      queueLiveUpdate();
+
+      const calls = [...pending.values()].filter((c) => c.name);
+      calls.forEach((c, i) => {
+        if (!c.id) c.id = `call_${i}`;
+      });
+      if (!calls.length) break;
+      if (iterations >= MAX_TOOL_ITERATIONS) {
+        setStatus(`Stopped after ${MAX_TOOL_ITERATIONS} rounds of tool calls.`, true);
+        break;
+      }
+      await runToolCalls(msg, calls, controller);
+      iterations++;
+      if (controller.signal.aborted) {
+        msg.finish = "stopped";
+        break;
+      }
     }
   } catch (e) {
     if (controller.signal.aborted) {
@@ -2021,6 +2425,7 @@ async function connect() {
     $("model-message").textContent = "";
   }
   await Promise.all([refreshModels(), refreshOverrides()]);
+  refreshToolsStatus();
 }
 
 // ---------------------------------------------------------------------------
@@ -2198,6 +2603,42 @@ function bindEvents() {
     connect();
   });
 
+  const setToolsMenu = (open) => {
+    $("tools-menu").hidden = !open;
+    $("tools").setAttribute("aria-expanded", String(open));
+  };
+  $("tools").addEventListener("click", (e) => {
+    e.stopPropagation();
+    setToolsMenu($("tools-menu").hidden);
+  });
+  document.addEventListener("click", (e) => {
+    const menu = $("tools-menu");
+    if (!menu.hidden && !menu.contains(e.target)) setToolsMenu(false);
+  });
+  for (const [id, key] of [["tool-web", "web"], ["tool-calc", "calc"], ["tool-date", "date"], ["tool-auto", "auto"]]) {
+    $(id).addEventListener("change", () => {
+      toolSettings[key] = $(id).checked;
+      save("tools", toolSettings);
+      syncToolsButton();
+    });
+  }
+  for (const [id, key] of [["tool-max-results", "maxResults"], ["tool-max-result-chars", "maxResultChars"], ["tool-max-page-chars", "maxPageChars"]]) {
+    $(id).addEventListener("change", () => {
+      const value = parseInt($(id).value, 10);
+      toolSettings[key] = Number.isFinite(value) && value > 0 ? value : null;
+      save("tools", toolSettings);
+    });
+  }
+  $("custom-tools").addEventListener("input", () => {
+    toolSettings.custom = $("custom-tools").value;
+    save("tools", toolSettings);
+    validateCustomTools();
+    syncToolsButton();
+  });
+  const toolsGroup = $("tools-group");
+  toolsGroup.open = load("tools-group-open", true);
+  toolsGroup.addEventListener("toggle", () => save("tools-group-open", toolsGroup.open));
+
   $("toggle-markdown").addEventListener("click", () => {
     settings.markdown = !settings.markdown;
     save("settings", settings);
@@ -2212,7 +2653,11 @@ function bindEvents() {
   });
 
   for (const button of document.querySelectorAll("[data-drawer]")) {
-    button.addEventListener("click", () => toggleSidePanel(button.dataset.drawer));
+    button.addEventListener("click", () => {
+      // Drawers paint over the tools menu, so the menu must not stay open
+      setToolsMenu(false);
+      toggleSidePanel(button.dataset.drawer);
+    });
   }
   for (const side of Object.values(SIDE_PANELS)) side.drawer.addEventListener("change", applySidePanels);
   $("scrim").addEventListener("click", closeDrawers);
@@ -2250,6 +2695,16 @@ async function init() {
   applyFormatting();
   applySidePanels();
   bindEvents();
+  $("tool-web").checked = toolSettings.web;
+  $("tool-calc").checked = toolSettings.calc;
+  $("tool-date").checked = toolSettings.date;
+  $("tool-auto").checked = toolSettings.auto;
+  if (toolSettings.maxResults) $("tool-max-results").value = toolSettings.maxResults;
+  if (toolSettings.maxResultChars) $("tool-max-result-chars").value = toolSettings.maxResultChars;
+  if (toolSettings.maxPageChars) $("tool-max-page-chars").value = toolSettings.maxPageChars;
+  $("custom-tools").value = toolSettings.custom;
+  validateCustomTools();
+  syncToolsButton();
 
   const current = load("current", null);
   if (!(current && openSession(current)) && !(sessionIndex.length && openSession(sessionIndex[0].id))) {
