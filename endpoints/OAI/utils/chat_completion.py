@@ -113,6 +113,9 @@ def _user_suffix_len(data: ChatCompletionRequest) -> int:
 def _resolve_start_in_reasoning(prompt: str, data: ChatCompletionRequest) -> bool:
     """Determine whether generation starts inside a reasoning block."""
 
+    if data.continue_final_message:
+        return bool(data.messages[-1].reasoning_content) and not data.messages[-1].content
+
     mc = model.container
     if mc.harmony or mc.muse_glimmer:
         # Harmony and Glimmer message headers determine the channel; there
@@ -404,7 +407,15 @@ def _mark_continued_final_message(data: ChatCompletionRequest) -> str:
 
     final_message = data.messages[-1].model_copy(deep=True)
 
-    if isinstance(final_message.content, str):
+    if final_message.reasoning_content and not final_message.content:
+        if final_message.role != "assistant":
+            raise request_error("Reasoning continuation requires an assistant message.")
+        mc = model.container
+        if not (mc.reasoning or mc.harmony or mc.muse_glimmer):
+            raise request_error("Reasoning parsing is not enabled for the loaded model.")
+        final_text = final_message.reasoning_content
+        final_message.reasoning_content = final_text + CONTINUE_FINAL_MESSAGE_TAG
+    elif isinstance(final_message.content, str):
         final_text = final_message.content
         final_message.content = final_message.content + CONTINUE_FINAL_MESSAGE_TAG
     elif isinstance(final_message.content, list):
@@ -682,12 +693,12 @@ async def _chat_stream_collector(
         # reasoning and tool format settings
         tool_format = "harmony"
         use_think = False
-        parser = HarmonyStreamParser()
+        parser = HarmonyStreamParser(start_in_reasoning_mode if params.continue_final_message else None)
     elif mc.muse_glimmer:
         # Same for Muse Glimmer, with recipients in place of channels
         tool_format = "muse_glimmer"
         use_think = False
-        parser = GlimmerStreamParser()
+        parser = GlimmerStreamParser(start_in_reasoning_mode if params.continue_final_message else None)
     else:
         tool_format = mc.tool_format
         t_tool_start, t_tool_end = get_toolcall_tags(tool_format)
