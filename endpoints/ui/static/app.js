@@ -1051,7 +1051,9 @@ async function buildMessages(s) {
     // Skip failed or stopped-before-output turns
     if (m.role === "assistant" && !m.content) continue;
     if (!m.images?.length) {
-      messages.push({ role: m.role, content: m.content });
+      // Send the assistant's reasoning back with its turn ("preserve thinking"),
+      // so the model sees the full prior turn, not just the final answer
+      messages.push({ role: m.role, content: m.content, ...(m.reasoning ? { reasoning_content: m.reasoning } : {}) });
       continue;
     }
 
