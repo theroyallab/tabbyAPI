@@ -693,12 +693,16 @@ async def _chat_stream_collector(
         # reasoning and tool format settings
         tool_format = "harmony"
         use_think = False
-        parser = HarmonyStreamParser(start_in_reasoning_mode if params.continue_final_message else None)
+        parser = HarmonyStreamParser(
+            start_in_reasoning_mode if params.continue_final_message else None
+        )
     elif mc.muse_glimmer:
         # Same for Muse Glimmer, with recipients in place of channels
         tool_format = "muse_glimmer"
         use_think = False
-        parser = GlimmerStreamParser(start_in_reasoning_mode if params.continue_final_message else None)
+        parser = GlimmerStreamParser(
+            start_in_reasoning_mode if params.continue_final_message else None
+        )
     else:
         tool_format = mc.tool_format
         t_tool_start, t_tool_end = get_toolcall_tags(tool_format)

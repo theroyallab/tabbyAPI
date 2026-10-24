@@ -210,7 +210,9 @@ class ChannelStreamParser:
     def __init__(self, start_in_reasoning: Optional[bool] = None):
         self._state = self._HEADER if start_in_reasoning is None else self._BODY
         self._header = ""
-        self._channel = None if start_in_reasoning is None else REASONING if start_in_reasoning else CONTENT
+        self._channel = (
+            None if start_in_reasoning is None else REASONING if start_in_reasoning else CONTENT
+        )
         self._pending = ""
 
         # True if any structural token was matched during the last feed() call
