@@ -39,20 +39,44 @@ class JobStatus:
     gen_tokens: int = 0
     created: float = field(default_factory=time.monotonic)
     samples: deque = field(default_factory=deque)
+    last_generated: float = 0.0
+    # Context restored when the engine takes the job back after a requeue
+    resume_tokens: int = 0
+    resume_total: int = 0
     # Called after every state change so the display can redraw promptly
     on_change: Optional[Callable[[], None]] = None
+    # Whether the engine has put the job back in its queue. A long generation
+    # gives up its cache pages every max_rq_tokens and waits there until there
+    # is room to continue, which can take a while when the cache is full
+    is_waiting: Optional[Callable[[], bool]] = None
 
     def _changed(self):
         if self.on_change is not None:
             self.on_change()
 
     def started(self, cached_tokens: int):
+        if self.gen_tokens:
+            # Taken back after a requeue: the context so far is restored from
+            # the cache, or prefilled again where it was evicted
+            self.stage = "resuming"
+            self.resume_tokens = 0
+            self.resume_total = 0
+            self.samples.clear()
+            self._changed()
+            return
+
         self.stage = "prefill"
         self.cached_tokens = cached_tokens
         self.prefill_tokens = cached_tokens
         self._changed()
 
-    def prefill(self, progress: int):
+    def prefill(self, progress: int, total: int = 0):
+        if self.stage == "resuming":
+            self.resume_tokens = max(self.resume_tokens, progress)
+            self.resume_total = max(self.resume_total, total)
+            self._changed()
+            return
+
         self.stage = "prefill"
         self.prefill_tokens = max(self.prefill_tokens, progress)
         self._changed()
@@ -63,13 +87,26 @@ class JobStatus:
         self.gen_tokens = gen_tokens
 
         now = time.monotonic()
+        self.last_generated = now
         self.samples.append((now, gen_tokens))
         while self.samples and now - self.samples[0][0] > SPEED_WINDOW:
             self.samples.popleft()
         self._changed()
 
+    def waiting(self) -> bool:
+        """Whether a job that has started generating is back in the engine's queue."""
+
+        if self.stage != "generating" or self.is_waiting is None:
+            return False
+        try:
+            return self.is_waiting()
+        except Exception:
+            return False
+
     def tokens_per_second(self) -> Optional[float]:
-        if len(self.samples) < 2:
+        # Samples are only pruned when a new one arrives, so a job that stopped
+        # getting tokens would keep showing its last rate
+        if len(self.samples) < 2 or time.monotonic() - self.samples[-1][0] > SPEED_WINDOW:
             return None
 
         (t0, n0), (t1, n1) = self.samples[0], self.samples[-1]
@@ -295,6 +332,26 @@ class StatusDisplay:
             if job.cached_tokens:
                 detail.append(f" ({job.cached_tokens:,} cached)", style="dim")
             return label, Text("prefill"), bar, detail
+
+        if job.stage == "resuming":
+            bar = ProgressBar(
+                total=max(job.resume_total, 1), completed=job.resume_tokens, width=24
+            )
+            detail = Text(f"{job.gen_tokens:,} tokens")
+            if job.resume_total:
+                detail.append(
+                    f" · context {job.resume_tokens:,}/{job.resume_total:,}", style="dim"
+                )
+            return label, Text("resuming"), bar, detail
+
+        if job.waiting():
+            detail = Text(f"{job.gen_tokens:,} tokens")
+            waited = int(time.monotonic() - job.last_generated)
+            detail.append(
+                f" · requeued, waiting {waited // 60}:{waited % 60:02d}",
+                style="dim",
+            )
+            return label, Text("waiting", style="yellow"), Text(""), detail
 
         detail = Text(f"{job.gen_tokens:,} tokens")
         tps = job.tokens_per_second()

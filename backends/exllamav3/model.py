@@ -1875,6 +1875,18 @@ class ExllamaV3Container:
         sequences = max(len(getattr(inner, "sequences", []) or []), 1)
         return (pages * PAGE_SIZE + tokens) // sequences
 
+    def _job_pending(self, job) -> bool:
+        """
+        Whether a job is in the engine's queue. A requeued job keeps its Job object
+        (prepare_for_requeue reinitializes it in place) and waits there for room to
+        continue. Read on the event loop, the thread the generator iterates on.
+        """
+
+        inner = getattr(job, "job", None)
+        generator = getattr(self.generator, "generator", None)
+        pending = getattr(generator, "pending_jobs", None) or ()
+        return any(j is inner for j in pending)
+
     def _generator_latched(self) -> bool:
         """
         Whether the async generator is unusable. exllamav3 sets AsyncGenerator.error when
@@ -2170,6 +2182,7 @@ class ExllamaV3Container:
             self.job_phases[request_id] = phases
         await disconnect_handler.add_cleanup_task(id(job), job.cancel, ())
         job_status = status_display.add_job(request_id, label, context_len)
+        job_status.is_waiting = lambda: self._job_pending(job)
 
         generated_tokens = 0
         full_response = ""
@@ -2192,7 +2205,9 @@ class ExllamaV3Container:
                     job_status.started(prefill_cached_tokens)
                     prefill_start_time = time.time()
                 elif stage == "prefill":
-                    job_status.prefill(result.get("curr_progress", 0))
+                    job_status.prefill(
+                        result.get("curr_progress", 0), result.get("max_progress", 0)
+                    )
                     if return_progress and prefill_start_time is not None:
                         # Time since the engine began prefill for this job. The
                         # started event and the first prefill event often arrive
