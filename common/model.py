@@ -120,7 +120,12 @@ def use_as_default_settings() -> dict:
     return copy.deepcopy({**config.model_defaults, "draft_model": config.draft_model_defaults})
 
 
-async def apply_load_defaults(model_path: pathlib.Path, request_wins: bool = False, **kwargs):
+async def apply_load_defaults(
+    model_path: pathlib.Path,
+    request_wins: bool = False,
+    inherit_defaults: bool = True,
+    **kwargs,
+):
     """
     Applies model load overrides.
 
@@ -128,8 +133,18 @@ async def apply_load_defaults(model_path: pathlib.Path, request_wins: bool = Fal
     the model folder's tabby_config.yml. For a startup load the file wins,
     since the kwargs hold every config.yml value, set or not. An API request
     (request_wins) only carries the options the client set, and those win
-    over the file.
+    over the file. A request that doesn't inherit_defaults is the complete set
+    of options, and gets neither.
     """
+
+    if not inherit_defaults:
+        merged_kwargs = deep_merge_dicts({"draft_model": {}}, kwargs)
+        xlogger.info(
+            "The load request gives every option (inherit_defaults: false), so "
+            "tabby_config.yml and use_as_default don't apply"
+        )
+        xlogger.debug("Applying load defaults", {"kwargs": kwargs, "inherit_defaults": False})
+        return merged_kwargs
 
     file_config = await read_model_config_file(model_path)
 

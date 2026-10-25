@@ -1944,7 +1944,13 @@ async function loadModel() {
       await api("/v1/model/unload", { method: "POST" });
     }
 
-    const res = await api("/v1/model/load", { method: "POST", body: { ...options, model_name: name } });
+    // The box shows every option that applies to its model, so it loads as the
+    // complete set: a line taken out gets the backend default, as Save to
+    // tabby_config.yml would make it, instead of coming back from the file.
+    // An empty box (cleared, or not filled in yet) leaves them to the server
+    const complete = name === optionsTarget && $("load-options").value.trim() !== "";
+    const body = { ...(complete && { inherit_defaults: false }), ...options, model_name: name };
+    const res = await api("/v1/model/load", { method: "POST", body });
     for await (const data of sseData(res)) {
       const event = JSON.parse(data);
       if (event.error) throw new Error(event.error.message);

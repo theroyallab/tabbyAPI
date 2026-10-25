@@ -260,7 +260,7 @@ SOURCE_MODEL_CONFIG = model.MODEL_CONFIG_FILE
 SOURCE_USE_AS_DEFAULT = "use_as_default"
 
 # Load request fields that aren't settings of the model itself
-NON_SETTING_FIELDS = {"model_name", "draft_model", "skip_queue"}
+NON_SETTING_FIELDS = {"model_name", "draft_model", "skip_queue", "inherit_defaults"}
 
 
 async def get_model_load_config(model_name: str, model_path: pathlib.Path):
