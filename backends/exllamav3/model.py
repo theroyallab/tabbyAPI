@@ -1184,6 +1184,9 @@ class ExllamaV3Container:
 
         xlogger.info(f"Loading model {self.model_dir} ({split_mode})")
 
+        # The draft model is handed to the main load so the autosplit budgets
+        # for what the drafter reads off the target (DFlash taps hidden states
+        # of several layers, which stay resident on their devices during prefill)
         for value in self.model.load_gen(
             tensor_p=self.use_tp,
             tp_backend=self.tp_backend,
@@ -1192,6 +1195,7 @@ class ExllamaV3Container:
             callback=progress_callback,
             max_chunk_size=self.chunk_size,
             max_batch_size=self.max_batch_size,
+            draft_model=self.draft_model if self.use_draft_model else None,
         ):
             if value:
                 yield value
