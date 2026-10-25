@@ -416,6 +416,18 @@ draft_model:
   # verification pass.
   hybrid_draft_tokens: 0
 
+  # Ceiling on the decoding rows of a speculative round, batch size times (1 + draft tokens)
+  # (default: 0, no ceiling). The draft window shrinks as the batch grows so that verifying
+  # drafts doesn't cost more than drafting saves at high concurrency.
+  draft_max_rows: 0
+
+  # Draft through a dynamic sparse LM head of this many vocabulary columns (default: 0, full
+  # head). Cuts draft latency for MTP and DFlash drafters, which share the target's head;
+  # verification keeps the full head so output is unaffected. The column set follows the token
+  # frequencies seen in prompts and generations, saved per tokenizer under the user cache
+  # directory. Layer-split loads only; ignored with tensor parallelism.
+  sparse_draft_head: 0
+
 # Options for Sampling
 sampling:
   # Select a sampler override preset (default: None).

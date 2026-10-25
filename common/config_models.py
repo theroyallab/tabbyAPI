@@ -716,6 +716,28 @@ class DraftModelConfig(BaseConfigModel):
         ),
         ge=0,
     )
+    draft_max_rows: Optional[int] = Field(
+        0,
+        description=(
+            "Ceiling on the decoding rows of a speculative round, batch size times\n"
+            "(1 + draft tokens) (default: 0, no ceiling). The draft window shrinks as\n"
+            "the batch grows so that verifying drafts doesn't cost more than drafting\n"
+            "saves at high concurrency."
+        ),
+        ge=0,
+    )
+    sparse_draft_head: Optional[int] = Field(
+        0,
+        description=(
+            "Draft through a dynamic sparse LM head of this many vocabulary columns\n"
+            "(default: 0, full head). Cuts draft latency for MTP and DFlash drafters,\n"
+            "which share the target's head; verification keeps the full head so output\n"
+            "is unaffected. The column set follows the token frequencies seen in\n"
+            "prompts and generations, saved per tokenizer under the user cache\n"
+            "directory. Layer-split loads only; ignored with tensor parallelism."
+        ),
+        ge=0,
+    )
 
 
 class SamplingConfig(BaseConfigModel):

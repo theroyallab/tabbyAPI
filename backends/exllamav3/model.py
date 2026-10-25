@@ -263,6 +263,8 @@ class ExllamaV3Container:
     draft_confidence: float = 0.4
     ngram_match_min: int = 0
     hybrid_draft_tokens: int = 0
+    draft_max_rows: int = 0
+    sparse_draft_head: int = 0
     recurrent_checkpoint_interval: Optional[int] = None
     recurrent_checkpoint_interval_pp: Optional[int] = None
     # Generator arguments for the persistent disk cache tier, resolved per load
@@ -432,6 +434,19 @@ class ExllamaV3Container:
         if self.hybrid_draft_tokens < 0:
             raise ValueError("hybrid_draft_tokens must be 0 (off) or greater")
 
+        # Ceiling on the decoding rows of a speculative round, bsz * (1 + draft
+        # tokens): the draft window shrinks as the batch grows so that verifying
+        # the drafts doesn't cost more than the drafting saves
+        self.draft_max_rows = unwrap(draft_args.get("draft_max_rows"), 0)
+        if self.draft_max_rows < 0:
+            raise ValueError("draft_max_rows must be 0 (off) or greater")
+
+        # Draft through a sparse LM head of this many vocabulary columns (MTP and
+        # DFlash drafters share the target's head; verification keeps the full head)
+        self.sparse_draft_head = unwrap(draft_args.get("sparse_draft_head"), 0)
+        if self.sparse_draft_head < 0:
+            raise ValueError("sparse_draft_head must be 0 (off) or greater")
+
         # Always disable draft if params are incorrectly configured
         if draft_mode == "model" and draft_args and draft_model_name is None:
             xlogger.warning(
@@ -468,6 +483,14 @@ class ExllamaV3Container:
                 f"Using hybrid drafting: {self.hybrid_draft_tokens} tokens drafted from a "
                 "matching earlier passage of the context."
             )
+        if self.draft_max_rows:
+            xlogger.info(
+                f"Draft windows are trimmed to keep speculative rounds within "
+                f"{self.draft_max_rows} decoding rows (draft_max_rows)."
+            )
+        if self.sparse_draft_head and not self.use_draft_model:
+            xlogger.warning("sparse_draft_head needs a draft model or MTP drafting and is ignored.")
+            self.sparse_draft_head = 0
 
         # Turn off GPU split if the user is using 1 GPU
         gpu_count = torch.cuda.device_count()
@@ -504,6 +527,13 @@ class ExllamaV3Container:
 
                 # TP has its own autosplit loader
                 self.gpu_split_auto = False
+
+                # The sparse drafting head only exists for layer-split loads
+                if self.sparse_draft_head:
+                    xlogger.warning(
+                        "sparse_draft_head is not available in tensor parallel mode and is ignored."
+                    )
+                    self.sparse_draft_head = 0
 
             # Set GPU split options
             # Enable manual GPU split if provided
@@ -1234,6 +1264,8 @@ class ExllamaV3Container:
                 draft_confidence=self.draft_confidence,
                 ngram_match_min=self.ngram_match_min,
                 hybrid_draft_tokens=self.hybrid_draft_tokens,
+                draft_max_rows=self.draft_max_rows,
+                sparse_draft_head=self.sparse_draft_head,
                 **checkpoint_kwargs,
                 **self.disk_cache_kwargs,
             )
