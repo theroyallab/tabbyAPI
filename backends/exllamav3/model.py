@@ -208,6 +208,7 @@ class ExllamaV3Container:
     draft_model_dir: Optional[pathlib.Path] = None
     prompt_template: Optional[PromptTemplate] = None
     tool_format: Optional[str] = None
+    max_tool_calls: Optional[int] = None
     harmony: bool = False
     muse_glimmer: bool = False
     reasoning_budget_tokens: Optional[int] = None
@@ -699,6 +700,7 @@ class ExllamaV3Container:
             self.reasoning_end_token,
         )
         self.tool_calls_in_reasoning = kwargs.get("tool_calls_in_reasoning", True)
+        self.max_tool_calls = kwargs.get("max_tool_calls")
 
         # Reasoning budget defaults, overridable per request
         self.reasoning_budget_tokens = kwargs.get("reasoning_budget_tokens")

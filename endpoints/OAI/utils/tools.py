@@ -56,6 +56,8 @@ ALL_TOOLCALL_FORMATS = {
     "mistral": mistral,
     "muse_glimmer": muse_glimmer,
     "glimmer": muse_glimmer,
+    "nanbeige": qwen3_coder,
+    "nanbeige4": qwen3_coder,
     "qwen3_coder": qwen3_coder,
     "qwen3_5": qwen3_coder,
     "spark2_5": glm4_5,
@@ -234,13 +236,18 @@ def detect_reasoning_tags(
     return None, None
 
 
-def parse_toolcalls(tool_calls_str: str, tool_format: str) -> List[ToolCall]:
+def parse_toolcalls(
+    tool_calls_str: str,
+    tool_format: str,
+    max_tool_calls: Optional[int] = None,
+) -> List[ToolCall]:
     """
     Dispatch tool call parsing to the appropriate format handler.
 
     Args:
         tool_calls_str: Raw tool call text from model generation.
         tool_format: See below
+        max_tool_calls: Optional maximum number of tool calls to return. Truncates if exceeded.
 
     Returns:
         List of parsed ToolCall objects. Empty list on parse failure (never raises).
@@ -251,7 +258,13 @@ def parse_toolcalls(tool_calls_str: str, tool_format: str) -> List[ToolCall]:
         if not parser:
             return []
 
-        return parser.parse_toolcalls(tool_calls_str)
+        calls = parser.parse_toolcalls(tool_calls_str)
+        if max_tool_calls is not None and max_tool_calls > 0 and len(calls) > max_tool_calls:
+            xlogger.warning(
+                f"parse_toolcalls: parsed {len(calls)} tool calls, exceeding max_tool_calls={max_tool_calls}. Truncating to {max_tool_calls}."
+            )
+            calls = calls[:max_tool_calls]
+        return calls
 
     except Exception as e:
         xlogger.error(

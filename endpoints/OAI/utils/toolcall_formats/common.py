@@ -60,3 +60,87 @@ def coerce_param_value(raw: str) -> any:
 
     # Fall back to string — never eval()
     return stripped
+
+
+def strip_code_fences(text: str) -> str:
+    """Strip markdown code fence blocks if present."""
+    text = text.strip()
+    return CODE_FENCE_END_RE.sub("", CODE_FENCE_RE.sub("", text)).strip()
+
+
+def unwrap_tool_args(args: any, func_name: Optional[str] = None) -> dict:
+    """
+    Unwrap nested tool call argument dictionaries and remove redundant function name keys.
+
+    Handles models emitting pseudo-XML or JSON with nested arguments envelopes, e.g.:
+      - {"arguments": {"url": "..."}}
+      - {"name": "func", "arguments": {"url": "..."}}
+      - {"parameters": "{\"url\": \"...\"}"}
+    """
+    if isinstance(args, str):
+        cleaned = strip_code_fences(args)
+        try:
+            parsed = json.loads(cleaned)
+            if isinstance(parsed, dict):
+                args = parsed
+            else:
+                return {"input": args}
+        except (json.JSONDecodeError, ValueError):
+            return {"input": args}
+
+    if not isinstance(args, dict):
+        return {}
+
+    # Copy to avoid mutating original in caller
+    result = dict(args)
+
+    # Strip redundant function name/id if present alongside arguments
+    redundant_keys = {"name", "function", "tool_name"}
+    for rk in redundant_keys:
+        if rk in result and (result[rk] == func_name or ("arguments" in result or "parameters" in result)):
+            del result[rk]
+
+    # Check for wrapped argument envelope: {"arguments": {...}} or {"parameters": {...}}
+    wrapper_keys = ("arguments", "parameters")
+    for wk in wrapper_keys:
+        if wk in result and (len(result) == 1 or all(k in {"type", "id", "index", wk} for k in result)):
+            inner = result[wk]
+            if isinstance(inner, str):
+                inner_cleaned = strip_code_fences(inner)
+                try:
+                    inner_parsed = json.loads(inner_cleaned)
+                    if isinstance(inner_parsed, dict):
+                        inner = inner_parsed
+                except (json.JSONDecodeError, ValueError):
+                    pass
+            if isinstance(inner, dict):
+                return unwrap_tool_args(inner, func_name)
+
+    return result
+
+
+def parse_json_tool_call(block: str) -> Optional[tuple[str, dict]]:
+    """
+    Parse a JSON tool call object, tolerating code fences and surrounding text.
+    Returns (func_name, args_dict) or None.
+    """
+    cleaned = strip_code_fences(block)
+    call = None
+    try:
+        call = json.loads(cleaned)
+    except (json.JSONDecodeError, ValueError):
+        start, end = cleaned.find("{"), cleaned.rfind("}")
+        if start != -1 and end > start:
+            try:
+                call = json.loads(cleaned[start : end + 1])
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    if isinstance(call, dict) and call.get("name"):
+        func_name = str(call["name"])
+        raw_args = call.get("arguments", call.get("parameters", {}))
+        args = unwrap_tool_args(raw_args, func_name)
+        return func_name, args
+
+    return None
+

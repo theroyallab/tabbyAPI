@@ -346,6 +346,10 @@ model:
   # docs for the supported formats. Leave blank to disable tool call parsing.
   tool_format: auto
 
+  # Maximum number of tool calls to parse and return in a single response (default: None, unlimited).
+  # Overridable per request via max_tool_calls.
+  max_tool_calls:
+
   # Parse responses in the Harmony message format (gpt-oss models).
   # Auto-detected from the model's special tokens by default; set to true or false
   # to override. Setting 'tool_format: harmony' is equivalent to setting this to true.

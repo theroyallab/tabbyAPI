@@ -228,6 +228,10 @@ class ModelLoadRequest(_WarnOnUnknownFields):
         default=None,
         description='Format name, "auto", or an empty string to disable tool call parsing',
     )
+    max_tool_calls: Optional[int] = Field(
+        default=None,
+        description="Maximum number of tool calls to parse and return in a single response",
+    )
     harmony: Optional[bool] = None
     muse_glimmer: Optional[bool] = None
 

@@ -156,6 +156,13 @@ class ChatCompletionRequest(CommonCompletionRequest):
     functions: Optional[List[Dict]] = None
     tool_choice: Optional[Union[Literal["none", "auto", "required"], NamedToolChoice]] = None
     parallel_tool_calls: Optional[bool] = True
+    max_tool_calls: Optional[int] = Field(
+        default=None,
+        description=(
+            "Maximum number of tool calls to parse and return in a single response "
+            "(default: None, unlimited). Overrides model config if specified."
+        ),
+    )
 
     # Chat completions requests do not have a BOS token preference. Backend
     # respects the tokenization config for the individual model.

@@ -591,6 +591,13 @@ class ModelConfig(BaseConfigModel):
             "docs for the supported formats. Leave blank to disable tool call parsing."
         ),
     )
+    max_tool_calls: Optional[int] = Field(
+        None,
+        description=(
+            "Maximum number of tool calls to parse and return in a single response\n"
+            "(default: None, unlimited). Overridable per request via max_tool_calls."
+        ),
+    )
     harmony: Optional[bool] = Field(
         None,
         description=(
