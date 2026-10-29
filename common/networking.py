@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from typing import Optional
 from uuid import uuid4
 
-from common.errors import context_length_error_content
+from common.errors import context_length_error_content, loop_detected_error_content
 from common.tabby_config import config
 
 
@@ -55,6 +55,13 @@ def get_context_length_generator_error(message: str):
 
     handle_request_error(message, exc_info=False)
     return json.dumps(context_length_error_content(message))
+
+
+def get_loop_detected_generator_error(message: str):
+    """Get the loop detection error for an active stream."""
+
+    handle_request_error(message, exc_info=False)
+    return json.dumps(loop_detected_error_content(message))
 
 
 def handle_request_error(

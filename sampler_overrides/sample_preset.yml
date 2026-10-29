@@ -157,3 +157,6 @@ adaptive_decay:
 loop_detect_window:
   override: 800
   force: false
+loop_detect_error:
+  override: false
+  force: false

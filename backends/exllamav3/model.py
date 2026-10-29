@@ -42,7 +42,11 @@ from common.gen_logging import (
 )
 from common.hardware import hardware_supports_exllamav3, torch_gpu_problem
 from common.health import HealthManager
-from common.errors import ContextLengthExceededError, validate_context_requirements
+from common.errors import (
+    ContextLengthExceededError,
+    LoopDetectedError,
+    validate_context_requirements,
+)
 from common.logger import xlogger
 from common.model_meta import read_model_meta
 from common.multimodal import MultimodalEmbeddingWrapper
@@ -1795,6 +1799,19 @@ class ExllamaV3Container:
         stop_str = None
         if eos_reason == "max_new_tokens":
             finish_reason = "length"
+        elif eos_reason == "loop_detected":
+            # vLLM's finish_reason for its repetition detector
+            finish_reason = "repetition"
+            xlogger.warning(
+                f"{label}: generation stopped because a token loop was detected",
+                {
+                    "request_id": request_id,
+                    "eos_reason": eos_reason,
+                    "prompt_tokens": result.get("prompt_tokens"),
+                    "gen_tokens": result.get("new_tokens"),
+                    "result": result,
+                },
+            )
         else:
             finish_reason = "stop"
             # Grab stop string if stop was the reason
@@ -1802,17 +1819,6 @@ class ExllamaV3Container:
                 stop_str = result.get("eos_triggering_token_str")
             elif eos_reason == "stop_string":
                 stop_str = result.get("eos_triggering_string")
-            elif eos_reason == "loop_detected":
-                xlogger.warning(
-                    f"{label}: generation stopped because a token loop was detected",
-                    {
-                        "request_id": request_id,
-                        "eos_reason": eos_reason,
-                        "prompt_tokens": result.get("prompt_tokens"),
-                        "gen_tokens": result.get("new_tokens"),
-                        "result": result,
-                    },
-                )
 
         # Prompt
         prompt_tokens = result.get("prompt_tokens")
@@ -2130,6 +2136,8 @@ class ExllamaV3Container:
             settings.append(("logprobs", max(params.logprobs or 0, params.top_logprobs or 0)))
         if params.param_source("loop_detect_window") != "default":
             settings.append(("loop_detect_window", params.loop_detect_window))
+        if params.loop_detect_error and params.get_stop_on_loop():
+            settings.append(("loop_detect_error", True))
 
         settings_text = format_settings(settings, params)
         log_extra = {
@@ -2299,12 +2307,23 @@ class ExllamaV3Container:
                     # Save the final result for metrics logging
                     metrics_result = finish_chunk
 
+                    if finish_chunk["finish_reason"] == "repetition" and params.loop_detect_error:
+                        raise LoopDetectedError(
+                            "Generation failed: the model started repeating itself and "
+                            f"loop detection stopped it after {finish_chunk['gen_tokens']} "
+                            "tokens"
+                        )
+
                     yield finish_chunk
                     break
 
         except CancelledError:
             if not job.cancelled:
                 await job.cancel()
+
+        except LoopDetectedError:
+            # The job ended normally in the engine; only the response fails
+            raise
 
         except Exception as ex:
             await self._recover_from_generation_error(ex, job)

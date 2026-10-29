@@ -9,10 +9,13 @@ from common.errors import (
     ContextLengthExceededError,
     ContextLengthHTTPException,
     GrammarParseError,
+    LoopDetectedError,
+    LoopDetectedHTTPException,
 )
 from common.networking import (
     get_context_length_generator_error,
     get_generator_error,
+    get_loop_detected_generator_error,
     handle_request_disconnect,
     handle_request_error,
     request_disconnect_loop,
@@ -108,6 +111,8 @@ async def stream_generation(data: GenerateRequest, request: Request):
         yield get_context_length_generator_error(str(exc))
     except GrammarParseError as exc:
         yield get_generator_error(str(exc), exc_info=False)
+    except LoopDetectedError as exc:
+        yield get_loop_detected_generator_error(str(exc))
     except Exception:
         yield get_generator_error(
             f"{request_tag(request)} kobold/generate aborted. Please check the server console."
@@ -134,6 +139,9 @@ async def get_generation(data: GenerateRequest, request: Request):
     except GrammarParseError as exc:
         error_message = handle_request_error(str(exc), exc_info=False).error.message
         raise HTTPException(400, error_message) from exc
+    except LoopDetectedError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise LoopDetectedHTTPException(error_message) from exc
     except Exception as exc:
         error_message = handle_request_error(
             f"{request_tag(request)} kobold/generate aborted. Maybe the model was unloaded? "

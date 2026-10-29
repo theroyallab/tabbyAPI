@@ -8,7 +8,12 @@ from urllib.parse import quote
 
 from common import auth, signals
 from common.logger import UVICORN_LOG_CONFIG
-from common.errors import ContextLengthHTTPException, context_length_exception_handler
+from common.errors import (
+    ContextLengthHTTPException,
+    LoopDetectedHTTPException,
+    context_length_exception_handler,
+    loop_detected_exception_handler,
+)
 from common.networking import get_global_depends
 from common.tabby_config import config
 from endpoints.Kobold import router as KoboldRouter
@@ -30,6 +35,7 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
         dependencies=get_global_depends(),
     )
     app.add_exception_handler(ContextLengthHTTPException, context_length_exception_handler)
+    app.add_exception_handler(LoopDetectedHTTPException, loop_detected_exception_handler)
 
     # Allow CORS requests from the configured origins.
     # allow_credentials stays False: TabbyAPI authenticates with a header/query

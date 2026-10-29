@@ -368,6 +368,16 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
+    loop_detect_error: Optional[bool] = Field(
+        default_factory=lambda: get_default_sampler_value("loop_detect_error", False),
+        description=(
+            "ExLlamaV3 only. Fail the request when loop detection stops the generation: "
+            "an HTTP 500 with error code loop_detected, or an error event once a stream "
+            "has started. Otherwise the output so far is returned with finish_reason "
+            '"repetition".'
+        ),
+    )
+
     reasoning_override: Optional[dict] = Field(
         default=None,
         validation_alias=AliasChoices("reasoning_override", "reasoning_overrides"),

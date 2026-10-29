@@ -14,6 +14,14 @@ class GrammarParseError(ValueError):
     """
 
 
+class LoopDetectedError(RuntimeError):
+    """Raised when loop detection ends a generation whose request set loop_detect_error.
+
+    The output so far is the model repeating itself, so the request fails with a
+    server error the client can retry, instead of returning it as a response.
+    """
+
+
 class ContextLengthHTTPException(HTTPException):
     """HTTP error for OpenAI-compatible context overflow responses."""
 
@@ -42,6 +50,38 @@ async def context_length_exception_handler(
     return JSONResponse(
         status_code=exc.status_code,
         content=context_length_error_content(exc.detail),
+    )
+
+
+class LoopDetectedHTTPException(HTTPException):
+    """HTTP error for a generation that loop detection stopped, with loop_detect_error set."""
+
+    def __init__(self, message: str):
+        super().__init__(status_code=500, detail=message)
+
+
+def loop_detected_error_content(message: str) -> dict:
+    """
+    Build an OpenAI-style server error for a detected loop. A 500 is what the
+    OpenAI SDKs and most eval harnesses retry on their own.
+    """
+
+    return {
+        "error": {
+            "message": message,
+            "type": "server_error",
+            "param": None,
+            "code": "loop_detected",
+        }
+    }
+
+
+async def loop_detected_exception_handler(
+    request: Request, exc: LoopDetectedHTTPException
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=loop_detected_error_content(exc.detail),
     )
 
 

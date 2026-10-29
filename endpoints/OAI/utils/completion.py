@@ -15,6 +15,8 @@ from common.errors import (
     ContextLengthExceededError,
     ContextLengthHTTPException,
     GrammarParseError,
+    LoopDetectedError,
+    LoopDetectedHTTPException,
 )
 from common.logger import xlogger
 from typing import List, Optional
@@ -23,6 +25,7 @@ from common import model
 from common.networking import (
     get_context_length_generator_error,
     get_generator_error,
+    get_loop_detected_generator_error,
     handle_request_error,
     request_tag,
     DisconnectHandler,
@@ -392,6 +395,9 @@ async def stream_generate_completion(
     except GrammarParseError as exc:
         yield get_generator_error(str(exc), exc_info=False)
 
+    except LoopDetectedError as exc:
+        yield get_loop_detected_generator_error(str(exc))
+
     except Exception as e:
         xlogger.error("Error during completion", str(e), details=f"\n{str(e)}")
         yield get_generator_error("Completion aborted. Please check the server console.")
@@ -473,6 +479,10 @@ async def generate_completion(
     except GrammarParseError as exc:
         error_message = handle_request_error(str(exc), exc_info=False).error.message
         raise HTTPException(400, error_message) from exc
+
+    except LoopDetectedError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise LoopDetectedHTTPException(error_message) from exc
 
     except Exception as exc:
         error_message = handle_request_error(
