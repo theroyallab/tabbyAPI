@@ -767,6 +767,70 @@ class DeepseekV4ToolcallFormatTests(unittest.TestCase):
         self.assertEqual(calls[0].function.arguments, '{"location": "Tokyo"}')
 
 
+class DeepseekV41ToolcallFormatTests(unittest.TestCase):
+    """V4.1 writes the DSML tags with a space after the token and a shorter outer tag."""
+
+    def parse(self, text):
+        from endpoints.OAI.utils.toolcall_formats.deepseek_v41 import parse_toolcalls
+
+        return parse_toolcalls(text)
+
+    BLOCK = (
+        "<｜DSML｜ calls>\n"
+        '<｜DSML｜ invoke name="get_weather">\n'
+        '<｜DSML｜ parameter name="location" string="true">Paris</｜DSML｜ parameter>\n'
+        '<｜DSML｜ parameter name="days" string="false">3</｜DSML｜ parameter>\n'
+        "</｜DSML｜ invoke>\n"
+        '<｜DSML｜ invoke name="list_files">\n'
+        "</｜DSML｜ invoke>\n"
+        "</｜DSML｜ calls>"
+    )
+
+    def test_parse_spaced_dialect(self):
+        calls = self.parse(self.BLOCK)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0].function.name, "get_weather")
+        self.assertEqual(calls[0].function.arguments, '{"location": "Paris", "days": 3}')
+        self.assertEqual(calls[1].function.name, "list_files")
+        self.assertEqual(calls[1].function.arguments, "{}")
+
+    def test_v4_parser_accepts_the_spaced_dialect(self):
+        # A V4.1 model that lands on the V4 parser still gets its calls parsed
+        from endpoints.OAI.utils.toolcall_formats.deepseek_v4 import parse_toolcalls
+
+        calls = parse_toolcalls(self.BLOCK)
+        self.assertEqual([c.function.name for c in calls], ["get_weather", "list_files"])
+
+    def test_markers_differ_from_v4(self):
+        from endpoints.OAI.utils.toolcall_formats import deepseek_v4, deepseek_v41
+
+        self.assertEqual(deepseek_v41.TOOLCALL_START, "<｜DSML｜ calls>")
+        self.assertEqual(deepseek_v41.TOOLCALL_END, "</｜DSML｜ calls>")
+        self.assertNotEqual(deepseek_v4.TOOLCALL_START, deepseek_v41.TOOLCALL_START)
+
+    def test_streamed_through_tag_parser(self):
+        from endpoints.OAI.utils.toolcall_formats.deepseek_v41 import (
+            TOOLCALL_START,
+            TOOLCALL_END,
+        )
+
+        p = TagStreamParser(
+            reasoning_start="<think>",
+            reasoning_end="</think>",
+            tool_start=TOOLCALL_START,
+            tool_end=TOOLCALL_END,
+            start_in_reasoning=True,
+        )
+        text = "pondering</think>Checking the weather.\n\n" + self.BLOCK
+        out = collect(p, [text[i : i + 7] for i in range(0, len(text), 7)])
+        self.assertEqual(out["reasoning"], "pondering")
+        self.assertEqual(out["content"].rstrip(), "Checking the weather.")
+
+        calls = self.parse(out["tool"])
+        self.assertEqual([c.function.name for c in calls], ["get_weather", "list_files"])
+        self.assertEqual(calls[0].function.arguments, '{"location": "Paris", "days": 3}')
+
+
 class Lfm2ToolcallFormatTests(unittest.TestCase):
     """
     LFM2 / LFM2.5 models emit a Pythonic tool-call list wrapped in

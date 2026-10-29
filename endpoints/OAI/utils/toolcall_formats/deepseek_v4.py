@@ -22,6 +22,11 @@ The string attribute makes parameter typing explicit: string="true" values
 are taken verbatim, string="false" values are parsed as JSON. ｜DSML｜ is a
 single added token; the rest of each tag is ordinary text.
 
+DeepSeek-V4.1 writes the same blocks with a space after the token and a
+shorter outer tag (<｜DSML｜ calls>, see deepseek_v41.py). The invoke and
+parameter patterns here accept both spellings, so a V4.1 model that ends up
+on this parser still has its calls parsed; only the outer tag differs.
+
 Note that the model's chat template requires tool results to appear in the
 same order as the corresponding tool calls; the server sorts tool messages
 before templating to guarantee this.
@@ -37,14 +42,14 @@ DETECT = FormatSignature(
     reasoning_tags=("<think>", "</think>"),
 )
 
-_INVOKE = re.compile(r'<｜DSML｜invoke name="(.*?)">(.*?)</｜DSML｜invoke>', re.DOTALL)
+_INVOKE = re.compile(r'<｜DSML｜ ?invoke name="(.*?)">(.*?)</｜DSML｜ ?invoke>', re.DOTALL)
 _PARAM = re.compile(
-    r'<｜DSML｜parameter name="(.*?)" string="(true|false)">(.*?)</｜DSML｜parameter>',
+    r'<｜DSML｜ ?parameter name="(.*?)" string="(true|false)">(.*?)</｜DSML｜ ?parameter>',
     re.DOTALL,
 )
 
 
-def parse_toolcalls(text: str) -> list[ToolCall]:
+def parse_toolcalls(text: str, log_name: str = "deepseek_v4") -> list[ToolCall]:
     results = []
     for im in _INVOKE.finditer(text):
         func_name = im.group(1).strip()
@@ -66,7 +71,7 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
         results.append(ToolCall(function=Tool(name=func_name, arguments=args_json)))
 
     xlogger.debug(
-        f"deepseek_v4: Parsed {len(results)} tool calls",
+        f"{log_name}: Parsed {len(results)} tool calls",
         {"raw_text": text, "results": results},
     )
     return results

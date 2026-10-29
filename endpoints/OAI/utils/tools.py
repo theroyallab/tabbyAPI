@@ -14,6 +14,7 @@ from endpoints.OAI.utils.toolcall_formats import (
     hy3,
     muse_glimmer,
     deepseek_v4,
+    deepseek_v41,
     mistral_old,
     mistral,
     gemma4,
@@ -26,6 +27,8 @@ from endpoints.OAI.utils.toolcall_formats import (
 ALL_TOOLCALL_FORMATS = {
     "deepseek_v4": deepseek_v4,
     "dsv4": deepseek_v4,
+    "deepseek_v41": deepseek_v41,
+    "dsv41": deepseek_v41,
     "gemma4": gemma4,
     "glm4_5": glm4_5,
     "glm4_6": glm4_5,
