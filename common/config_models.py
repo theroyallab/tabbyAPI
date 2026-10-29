@@ -95,6 +95,14 @@ class NetworkConfig(BaseConfigModel):
         ),
         ge=0,
     )
+    enable_metrics: Optional[bool] = Field(
+        False,
+        description=(
+            "Enable the Prometheus-compatible /metrics endpoint (default: False).\n"
+            "Exposes aggregate inference stats in the text exposition format.\n"
+            "NOTE: This endpoint is not protected by API key authentication."
+        ),
+    )
     access_log: Optional[bool] = Field(
         False,
         description=(
