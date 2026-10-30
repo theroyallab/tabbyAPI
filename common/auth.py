@@ -156,9 +156,11 @@ async def load_auth_keys(disable_from_config: bool):
 
         return
 
+    generated = False
     try:
         AUTH_KEYS = await _read_auth_file()
     except FileNotFoundError:
+        generated = True
         new_auth_keys = AuthKeys(api_key=secrets.token_hex(16), admin_key=secrets.token_hex(16))
         AUTH_KEYS = new_auth_keys
 
@@ -174,12 +176,28 @@ async def load_auth_keys(disable_from_config: bool):
     if _watch_task is None:
         _watch_task = asyncio.create_task(_watch_auth_file())
 
-    logger.info(
-        f"Your API key is: {_format_api_keys(AUTH_KEYS)}\n"
-        f"Your admin key is: {AUTH_KEYS.admin_key}\n"
-        "If these keys get compromised, make sure to delete api_tokens.yml "
-        "and restart the server. Have fun!"
-    )
+    if log_auth_keys():
+        logger.info(
+            f"Your API key is: {_format_api_keys(AUTH_KEYS)}\n"
+            f"Your admin key is: {AUTH_KEYS.admin_key}\n"
+            "If these keys get compromised, make sure to delete api_tokens.yml "
+            "and restart the server. Have fun!"
+        )
+    else:
+        count = len(AUTH_KEYS._api_key_set)
+        origin = "Generated" if generated else "Loaded"
+        logger.info(
+            f"{origin} {count} API key{'s' if count != 1 else ''} and 1 admin key "
+            f"({AUTH_FILE}). The keys are not logged (log_auth_keys is off)."
+        )
+
+
+def log_auth_keys() -> bool:
+    """Whether the keys themselves may appear in the console log and startup links."""
+
+    from common.tabby_config import config
+
+    return bool(config.logging.log_auth_keys)
 
 
 def get_key_permission(request: Request):

@@ -75,6 +75,12 @@ logging:
   # The log files under logs/ always carry full timestamps.
   log_timestamps: true
 
+  # Print the API and admin keys to the console at startup (default: True).
+  # Set to false to log only how many keys api_tokens.yml holds, for consoles or log
+  # files that others can read. The web UI links printed at startup then leave out the
+  # admin key as well.
+  log_auth_keys: true
+
   # Write every /v1/chat/completions request to logs/debug/ as JSON (default: False).
   # Also saves the fully templated prompt (the exact text sent to the tokenizer)
   # as a .txt file with the same basename.
