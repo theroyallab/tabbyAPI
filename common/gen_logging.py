@@ -111,6 +111,8 @@ def _describe_finish(metrics: dict) -> Optional[str]:
             return "max_tokens reached"
         case "loop_detected":
             return "loop detected"
+        case "cancelled":
+            return "cancelled from the status page"
         case _:
             return str(eos_reason)
 

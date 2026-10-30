@@ -116,16 +116,22 @@ def startup_lines(monkeypatch, admin_key, disable_auth):
         setup_app("127.0.0.1", 5000)
     finally:
         logger.remove(sink)
-    return [line for line in lines if line.startswith("Chat client at")]
+    return [line for line in lines if line.startswith(("Chat client at", "Server status"))]
 
 
 def test_startup_link_carries_admin_key(monkeypatch):
     # In the fragment, so the browser never sends it; quoted, since a
     # hand-written key can hold any characters
     lines = startup_lines(monkeypatch, "se/cret key", disable_auth=False)
-    assert lines == ["Chat client at http://127.0.0.1:5000/ui/#key=se%2Fcret%20key\n"]
+    assert lines == [
+        "Chat client at http://127.0.0.1:5000/ui/#key=se%2Fcret%20key\n",
+        "Server status and model loading at http://127.0.0.1:5000/ui/status#key=se%2Fcret%20key\n",
+    ]
 
 
 def test_startup_link_without_auth(monkeypatch):
     lines = startup_lines(monkeypatch, "secret", disable_auth=True)
-    assert lines == ["Chat client at http://127.0.0.1:5000/ui/\n"]
+    assert lines == [
+        "Chat client at http://127.0.0.1:5000/ui/\n",
+        "Server status and model loading at http://127.0.0.1:5000/ui/status\n",
+    ]

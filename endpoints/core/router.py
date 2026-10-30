@@ -22,6 +22,8 @@ from common.tabby_config import config
 from common.templating import PromptTemplate, get_all_templates
 from common.utils import unwrap
 from common.health import HealthManager
+from common.optional_dependencies import package_version_info
+from common.status_display import status_display
 from endpoints.OAI.utils.chat_completion import format_messages_with_template
 from endpoints.core.types.auth import AuthPermissionResponse
 from endpoints.core.types.download import DownloadRequest, DownloadResponse
@@ -46,6 +48,11 @@ from endpoints.core.types.sampler_overrides import (
     SamplerOverrideListResponse,
     SamplerOverrideSwitchRequest,
 )
+from endpoints.core.types.status import (
+    LoadOptionsSchemaResponse,
+    StatusJobText,
+    StatusResponse,
+)
 from endpoints.core.types.template import TemplateList, TemplateSwitchRequest
 from endpoints.core.types.token import (
     TokenDecodeRequest,
@@ -58,6 +65,7 @@ from endpoints.core.utils.model import (
     get_current_model,
     get_current_model_list,
     get_dummy_models,
+    get_load_option_schema,
     get_model_list,
     get_model_load_config,
     save_model_load_config,
@@ -244,6 +252,16 @@ async def model_load_config(model_name: str) -> ModelLoadConfigResponse:
         raise HTTPException(400, error_message) from exc
 
 
+@router.get("/v1/model/load_options", dependencies=[Depends(check_admin_key)])
+async def load_options_schema() -> LoadOptionsSchemaResponse:
+    """
+    Every option a model load request can set, grouped, with its type, the
+    backend default, accepted values and a description, for building a form.
+    """
+
+    return get_load_option_schema()
+
+
 def parse_load_options_yaml(text: str) -> dict:
     """Load options written as YAML (or JSON), as a mapping."""
 
@@ -321,6 +339,67 @@ async def save_load_options(data: ModelLoadConfigSaveRequest) -> ModelLoadConfig
         ).error.message
 
         raise HTTPException(500, error_message) from exc
+
+
+@router.get("/v1/status", dependencies=[Depends(check_api_key)])
+async def server_status(request: Request) -> StatusResponse:
+    """
+    Live status for monitoring: the generation jobs in progress and the ones
+    that finished recently, the engine's cache statistics, and token counters
+    since startup (a client takes rates from the change between polls).
+
+    Any API key can read it. Reading a job's text and cancelling a job need
+    the admin key, so for other keys no job is marked as cancellable.
+    """
+
+    snapshot = status_display.snapshot()
+    info = package_version_info("exllamav3")
+    snapshot["backend"] = {"name": "exllamav3", **info} if info else None
+    if get_key_permission(request) != "admin":
+        for job in snapshot["jobs"]:
+            job["can_cancel"] = False
+
+    return StatusResponse(**snapshot)
+
+
+@router.get("/v1/status/jobs/{request_id}", dependencies=[Depends(check_admin_key)])
+async def status_job_text(request_id: str, offset: int = 0, prompt: bool = False) -> StatusJobText:
+    """
+    The text a job in progress, or one that finished recently, has generated
+    from the given offset on, and its prompt when asked for. Polling with the
+    last text_length as the offset gets only the new text.
+    """
+
+    job = status_display.find_job(request_id)
+    if job is None:
+        raise HTTPException(404, f"No job {request_id} is running or finished recently.")
+
+    offset = min(max(offset, 0), job.text_length)
+    return StatusJobText(
+        request_id=request_id,
+        offset=offset,
+        text=job.text(offset),
+        text_length=job.text_length,
+        finished=job.finished is not None,
+        finish_reason=job.finish_reason,
+        prompt=job.prompt if prompt else None,
+    )
+
+
+@router.post("/v1/status/jobs/{request_id}/cancel", dependencies=[Depends(check_admin_key)])
+async def cancel_status_job(request_id: str):
+    """
+    Cancel a job in progress. Its client gets what was generated so far, with
+    finish_reason "abort".
+    """
+
+    job = status_display.jobs.get(request_id)
+    if job is None or job.cancel is None:
+        raise HTTPException(404, f"No job {request_id} is running.")
+
+    if not job.cancel_requested:
+        await job.cancel()
+    return {"request_id": request_id, "cancelled": True}
 
 
 # Unload model endpoint

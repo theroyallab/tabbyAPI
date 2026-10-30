@@ -50,9 +50,10 @@ network:
   # Generation requests are already logged in detail; this adds the rest, such as model list and health polls.
   access_log: false
 
-  # Serve the built-in chat client at /ui (default: True).
-  # A static page for testing models and settings; it only uses the
-  # regular API, so it does nothing until a browser opens it.
+  # Serve the built-in chat client at /ui and the status page at
+  # /ui/status (default: True). Static pages for testing models and
+  # settings, loading models and watching the server; they only use
+  # the regular API, so they do nothing until a browser opens them.
   web_ui: true
 
 # Options for logging

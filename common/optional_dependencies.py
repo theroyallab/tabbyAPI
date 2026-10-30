@@ -1,7 +1,12 @@
 """Construct a model of all optional dependencies"""
 
+import functools
 import importlib.util
-from importlib.metadata import version as package_version
+import pathlib
+import re
+import subprocess
+from importlib.metadata import PackageNotFoundError, version as package_version
+from typing import Optional
 from common.logger import xlogger
 from packaging import version
 from pydantic import BaseModel, computed_field
@@ -81,3 +86,49 @@ def check_package_version(package_name: str, required_version_str: str):
 
 
 dependencies = get_installed_deps()
+
+
+@functools.cache
+def package_version_info(package_name: str) -> Optional[dict]:
+    """
+    An installed package's version, read without importing it, and the git
+    commit when it runs from a source checkout, whose version file can lag
+    behind. None when the package isn't installed.
+
+    Cached, so the first call fixes the commit: call it at startup, before a
+    checkout can move on from the code that is running.
+    """
+
+    spec = importlib.util.find_spec(package_name)
+    if spec is None or not spec.submodule_search_locations:
+        return None
+    package_dir = pathlib.Path(next(iter(spec.submodule_search_locations)))
+
+    version_str = None
+    try:
+        text = (package_dir / "version.py").read_text(encoding="utf8")
+        match = re.search(r"__version__\s*=\s*[\"']([^\"']+)[\"']", text)
+        version_str = match.group(1) if match else None
+    except OSError:
+        pass
+    if version_str is None:
+        try:
+            version_str = package_version(package_name)
+        except PackageNotFoundError:
+            pass
+
+    commit = None
+    if (package_dir.parent / ".git").exists():
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=package_dir.parent,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            commit = result.stdout.strip() or None
+        except (OSError, subprocess.SubprocessError):
+            pass
+
+    return {"version": version_str, "commit": commit}

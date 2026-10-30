@@ -1,4 +1,4 @@
-"""Serves the built-in chat client as static files."""
+"""Serves the built-in chat client and status page as static files."""
 
 import pathlib
 
@@ -46,5 +46,11 @@ def mount_ui(app: FastAPI, path: str = "/ui"):
     async def ui_redirect():
         # Relative asset URLs in index.html need the trailing slash
         return RedirectResponse(f"{path}/")
+
+    @app.get(f"{path}/status", include_in_schema=False)
+    async def status_redirect():
+        # The status page, at a shorter address. A URL fragment carrying the
+        # key survives the redirect
+        return RedirectResponse(f"{path}/status.html")
 
     app.mount(path, ClientFiles(directory=STATIC_DIR, html=True), name="ui")

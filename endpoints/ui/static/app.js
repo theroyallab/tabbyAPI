@@ -3,68 +3,38 @@
 // keeps its chats and settings in the browser's local storage.
 
 import "./effects.js";
-
-const $ = (id) => document.getElementById(id);
-const STORE = "tabby-ui.";
-
-// ---------------------------------------------------------------------------
-// Storage
-
-let storageWarned = false;
-
-function load(key, fallback) {
-  try {
-    const raw = localStorage.getItem(STORE + key);
-    return raw === null ? fallback : JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
-
-function save(key, value) {
-  try {
-    localStorage.setItem(STORE + key, JSON.stringify(value));
-  } catch (e) {
-    if (!storageWarned) {
-      storageWarned = true;
-      setStatus(`Could not save to browser storage (${e.name}). Delete some chats to free space.`, true);
-    }
-  }
-}
-
-function remove(key) {
-  try {
-    localStorage.removeItem(STORE + key);
-  } catch {
-    // Nothing to clean up if storage is unavailable
-  }
-}
+import {
+  $,
+  STORE,
+  MODEL_CHANGED_KEY,
+  api,
+  copyText,
+  el,
+  fmt,
+  icon,
+  load,
+  newId,
+  onStorageError,
+  remove,
+  save,
+  settings,
+  sseData,
+  takeKeyFromLink,
+} from "./shared.js";
 
 // ---------------------------------------------------------------------------
 // State
 
-const settings = Object.assign({ baseUrl: "", apiKey: "", theme: "", markdown: true }, load("settings", {}));
-// Theme names from before the theme menu ("light", "dark") map to their new names
-settings.theme = window.tabbyTheme.normalize(settings.theme);
 let params = load("params", {});
-// Model names loaded through the client, newest first. The model list only has
-// the top-level folders of the model directory, so nested ones (typed as a
-// path) would otherwise have to be typed again every time.
-let recentModels = load("recent-models", []);
-// Starred model names, shown at the top of the model list
-let favoriteModels = load("favorite-models", []);
 let sessionIndex = load("sessions", []);
 let session = null;
 
 const state = {
   permission: null,
-  models: [],
   currentModel: null,
   // Full path of the loaded model, and its name in the model list if listed
   modelPath: null,
   loadedName: null,
-  selectedModel: null,
-  loading: false,
   overrides: null,
   generating: null,
 };
@@ -73,137 +43,12 @@ let samplerGroups = [];
 const paramSpecs = new Map();
 
 // ---------------------------------------------------------------------------
-// API
-
-class ApiError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
-
-function apiUrl(path) {
-  return settings.baseUrl.replace(/\/+$/, "") + path;
-}
-
-async function errorMessage(res) {
-  try {
-    const body = await res.json();
-    const detail = body.detail ?? body.error?.message ?? body.error ?? body;
-    if (Array.isArray(detail)) {
-      return detail.map((d) => `${(d.loc || []).join(".")}: ${d.msg}`).join("\n");
-    }
-    return typeof detail === "string" ? detail : JSON.stringify(detail);
-  } catch {
-    return `${res.status} ${res.statusText}`;
-  }
-}
-
-async function api(path, { method = "GET", body, signal } = {}) {
-  const headers = {};
-  if (settings.apiKey) headers.Authorization = `Bearer ${settings.apiKey}`;
-  if (body !== undefined) headers["Content-Type"] = "application/json";
-
-  const res = await fetch(apiUrl(path), {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal,
-  });
-
-  if (!res.ok) throw new ApiError(res.status, await errorMessage(res));
-  return res;
-}
-
-// Yields the data field of each server-sent event in a streaming response
-async function* sseData(res) {
-  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
-  let buffer = "";
-
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += value;
-
-    let match;
-    while ((match = /\r\n\r\n|\n\n|\r\r/.exec(buffer))) {
-      const block = buffer.slice(0, match.index);
-      buffer = buffer.slice(match.index + match[0].length);
-
-      const data = block
-        .split(/\r\n|\r|\n/)
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).replace(/^ /, ""));
-      if (data.length) yield data.join("\n");
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
-
-function el(tag, attrs = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [key, value] of Object.entries(attrs)) {
-    if (value === undefined || value === null || value === false) continue;
-    if (key === "class") node.className = value;
-    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
-    else if (key in node && typeof value !== "string") node[key] = value;
-    else node.setAttribute(key, value === true ? "" : value);
-  }
-  for (const child of children.flat()) {
-    if (child === null || child === undefined || child === false) continue;
-    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
-  }
-  return node;
-}
-
-const ICONS = {
-  chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
-  edit: '<path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
-  trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>',
-  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
-  check: '<path d="M20 6 9 17l-5-5"/>',
-  reset: '<path d="M18 6 6 18M6 6l12 12"/>',
-  star: '<path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.2-.9z"/>',
-  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>',
-};
-
-function icon(name) {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("aria-hidden", "true");
-  svg.innerHTML = ICONS[name];
-  return svg;
-}
-
-function newId() {
-  // crypto.randomUUID is missing outside secure contexts (plain http on a LAN)
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-}
-
-function fmt(value, digits = 1) {
-  return typeof value === "number" ? value.toFixed(digits) : value;
-}
 
 function setStatus(text, isError = false) {
   const line = $("status-line");
   line.textContent = text || "";
   line.classList.toggle("error", isError);
-}
-
-async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    // The async clipboard API needs a secure context; fall back for plain http
-    const area = el("textarea", { style: "position:fixed;opacity:0" });
-    area.value = text;
-    document.body.append(area);
-    area.select();
-    document.execCommand("copy");
-    area.remove();
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1589,26 +1434,10 @@ async function switchPreset() {
 }
 
 // ---------------------------------------------------------------------------
-// Models
+// Model
 
-// The model picked in the list, else the filter text taken as a path under
-// the model directory
-function listTarget() {
-  return state.selectedModel || $("model-filter").value.trim() || null;
-}
-
-// A model_name in the load options, which the server resolves when parsing.
-// Read approximately here, just to show the load target while typing.
-function optionsModelName() {
-  const text = $("load-options").value;
-  const match = /^model_name:\s*["']?(.+?)["']?\s*(#.*)?$/m.exec(text) || /"model_name"\s*:\s*"([^"]+)"/.exec(text);
-  return match ? match[1].trim() : null;
-}
-
-// What Load loads: a model_name in the load options, else the list target
-function modelLoadName() {
-  return optionsModelName() || listTarget();
-}
+// Models are loaded and unloaded on the status page; the chat shows which one
+// is loaded, and picks up a change made there through MODEL_CHANGED_KEY
 
 function trimPath(name) {
   return name.replace(/\/+$/, "");
@@ -1621,159 +1450,11 @@ function matchesLoadedPath(name) {
   return !!path && !!n && (path === n || path.endsWith("/" + n));
 }
 
-// Whether a name from the list, the recent paths or the filter is the loaded
-// model. A shorter name can match the end of the path by chance (a flat
-// "4.0bpw" folder vs "<model>/exl3/4.0bpw"), so the longest listed match wins.
-function isLoadedModel(name) {
-  if (!state.currentModel) return false;
-  if (!state.modelPath) return trimPath(name).split("/").pop() === state.currentModel.id;
-  return matchesLoadedPath(name) && (!state.loadedName || trimPath(name).length >= state.loadedName.length);
-}
-
-// ---- Load options, pre-filled with the settings that apply to the target
-
-const editedOptions = new Map();
-let optionsTarget = null;
-let optionsServerText = "";
-let optionsTimer = null;
-let optionsRequest = 0;
-
-function setOptionsNote(text, isError = false) {
-  const note = $("load-options-note");
-  note.textContent = text ? `· ${text}` : "";
-  note.classList.toggle("error", isError);
-}
-
-// Fill the load options for the current list target, keeping any edits made
-// for the previous one in case it's picked again
-function syncLoadOptions(force = false) {
-  const name = listTarget();
-  if (name === optionsTarget && !force) return;
-
-  const box = $("load-options");
-  if (optionsTarget && box.value !== optionsServerText) editedOptions.set(optionsTarget, box.value);
-  if (force) editedOptions.delete(name);
-
-  optionsTarget = name;
-  optionsServerText = "";
-  clearTimeout(optionsTimer);
-  const request = ++optionsRequest;
-
-  if (editedOptions.has(name)) {
-    box.value = editedOptions.get(name);
-    setOptionsNote("edited");
-    updateModelButtons();
-    return;
-  }
-
-  box.value = "";
-  setOptionsNote("");
-  updateModelButtons();
-  if (!name || state.permission !== "admin") return;
-
-  // Typed paths are looked up once typing pauses
-  const delay = name === state.selectedModel ? 0 : 350;
-  optionsTimer = setTimeout(async () => {
-    try {
-      const res = await api(`/v1/model/load_config?model_name=${encodeURIComponent(name)}`);
-      const data = await res.json();
-      if (request !== optionsRequest || box.value.trim()) return;
-      optionsServerText = data.yaml;
-      box.value = data.yaml;
-      setOptionsNote(data.has_tabby_config ? "tabby_config.yml" : "");
-      if (data.has_tabby_config) $("load-options-details").open = true;
-    } catch (e) {
-      // A path still being typed doesn't exist yet
-      if (request === optionsRequest && e.status !== 404) setOptionsNote(e.message, true);
-    }
-    updateModelButtons();
-  }, delay);
-}
-
-// The load options as a request body, parsed by the server so they can be YAML
-async function parseLoadOptions() {
-  const text = $("load-options").value;
-  if (!text.trim()) return {};
-  const res = await api("/v1/model/load_config/parse", { method: "POST", body: { yaml: text } });
-  return (await res.json()).settings;
-}
-
-// Save the load options as the target model's tabby_config.yml. The server
-// leaves out whatever only repeats config.yml's use_as_default
-async function saveLoadOptions() {
-  const message = $("model-message");
-  message.classList.remove("error");
-  let options;
-  try {
-    options = await parseLoadOptions();
-  } catch (e) {
-    message.textContent = e.message.startsWith("Load options") ? e.message : `Load options: ${e.message}`;
-    message.classList.add("error");
-    return;
-  }
-
-  const named = typeof options.model_name === "string" ? options.model_name.trim() : "";
-  const name = named || listTarget();
-  if (!name) return;
-  const question =
-    `Save these load options to the tabby_config.yml of ${name}?\n\n` +
-    "Options that only repeat config.yml's use_as_default are left out, unless the file already has them. " +
-    "An existing file is kept as tabby_config.bak.";
-  if (!confirm(question)) return;
-
-  const button = $("save-load-options");
-  button.disabled = true;
-  try {
-    const res = await api("/v1/model/load_config/save", { method: "POST", body: { model_name: name, settings: options } });
-    const data = await res.json();
-    const { draft_model: draft = {}, ...rest } = data.saved;
-    const count = Object.keys(rest).length + Object.keys(draft).length;
-    const backup = data.backup ? ` The previous file is kept as ${data.backup}.` : "";
-    if (data.removed) {
-      message.textContent = `Removed the tabby_config.yml of ${name}, since every option matches use_as_default.${backup}`;
-    } else if (!count) {
-      message.textContent = "Nothing to save: every option matches use_as_default.";
-    } else {
-      message.textContent = `Saved ${count} option${count === 1 ? "" : "s"} to the tabby_config.yml of ${name}.${backup}`;
-    }
-
-    // Show what applies to the model now
-    editedOptions.delete(name);
-    if (name === optionsTarget) syncLoadOptions(true);
-  } catch (e) {
-    message.textContent = e.message;
-    message.classList.add("error");
-  } finally {
-    updateModelButtons();
-  }
-}
-
-function rememberModel(name) {
-  if (state.models.some((m) => m.id === name)) return;
-  recentModels = [name, ...recentModels.filter((n) => n !== name)].slice(0, 8);
-  save("recent-models", recentModels);
-}
-
-function updateModelButtons() {
-  const admin = state.permission === "admin";
-  const name = modelLoadName();
-  const isLoaded = !!name && isLoadedModel(name);
-  const loadButton = $("load-model");
-  loadButton.textContent = isLoaded ? "Reload" : "Load";
-  loadButton.disabled = !admin || state.loading || !name;
-  $("load-target").textContent = admin && name ? `Load target: ${name}` + (optionsModelName() ? " (from load options)" : "") : "";
-  $("unload-model").disabled = !admin || state.loading || !state.currentModel;
-  $("save-load-options").disabled = !admin || !name;
-}
-
 function renderModelInfo() {
   const info = $("model-info");
   const model = state.currentModel;
-  const dot = $("model-dot");
-  dot.className = "dot" + (state.loading ? " busy" : model ? " ok" : "");
-  $("topbar-model-name").textContent = state.loading
-    ? `Loading ${state.loading}…`
-    : state.loadedName || model?.id || "No model loaded";
+  $("model-dot").className = "dot" + (model ? " ok" : "");
+  $("topbar-model-name").textContent = state.loadedName || model?.id || "No model loaded";
 
   if (!model) {
     info.replaceChildren(el("div", { class: "muted" }, "No model loaded"));
@@ -1796,87 +1477,6 @@ function renderModelInfo() {
   );
 }
 
-function toggleFavorite(name) {
-  favoriteModels = favoriteModels.includes(name)
-    ? favoriteModels.filter((n) => n !== name)
-    : [...favoriteModels, name].sort((a, b) => a.localeCompare(b));
-  save("favorite-models", favoriteModels);
-  renderModelList();
-}
-
-function renderModelList() {
-  const list = $("model-list");
-  const filter = $("model-filter").value.trim().toLowerCase();
-  const admin = state.permission === "admin";
-  const byId = new Map(state.models.map((m) => [m.id, m]));
-  const favorites = new Set(favoriteModels);
-
-  // Favorites first (listed or not, so starred paths stay loadable), then
-  // recently loaded paths the list doesn't have, then the rest of the list
-  const models = [
-    ...(admin ? favoriteModels.map((id) => byId.get(id) || { id, unlisted: true }) : []),
-    ...(admin ? recentModels.filter((n) => !byId.has(n) && !favorites.has(n)).map((id) => ({ id, recent: true })) : []),
-    ...state.models.filter((m) => !favorites.has(m.id)),
-  ].filter((m) => !filter || m.id.toLowerCase().includes(filter));
-  list.replaceChildren();
-
-  for (const m of models) {
-    const item = el(
-      "li",
-      {
-        role: "option",
-        class: (m.id === state.selectedModel ? "selected " : "") + (isLoadedModel(m.id) ? "loaded" : ""),
-        "aria-selected": m.id === state.selectedModel ? "true" : "false",
-        title: m.meta?.n_ctx_train ? `${m.id} (trained context ${m.meta.n_ctx_train})` : m.id,
-        onclick: () => {
-          state.selectedModel = state.selectedModel === m.id ? null : m.id;
-          renderModelList();
-          syncLoadOptions();
-        },
-        ondblclick: () => {
-          state.selectedModel = m.id;
-          syncLoadOptions();
-          loadModel();
-        },
-      },
-      el("span", { class: "dot" }),
-      el("span", { class: "model-name" }, m.id),
-      m.recent ? el("span", { class: "tag" }, "recent") : null,
-      m.unlisted ? el("span", { class: "tag", title: "Not in the model list, loads as a path" }, "path") : null,
-    );
-
-    if (admin) {
-      const starred = favorites.has(m.id);
-      const star = el(
-        "button",
-        {
-          type: "button",
-          class: "star" + (starred ? " starred" : ""),
-          title: starred ? "Remove from favorites" : "Add to favorites",
-          "aria-label": starred ? `Remove ${m.id} from favorites` : `Add ${m.id} to favorites`,
-          "aria-pressed": starred ? "true" : "false",
-        },
-        icon("star"),
-      );
-      // The row selects on click and loads on double click; the star does neither
-      star.addEventListener("click", (e) => {
-        e.stopPropagation();
-        toggleFavorite(m.id);
-      });
-      star.addEventListener("dblclick", (e) => e.stopPropagation());
-      item.append(star);
-    }
-    list.append(item);
-  }
-
-  if (!models.length) {
-    let text = "No models found";
-    if (filter) text = "No match. Load takes the text above as a path under the model directory.";
-    else if (state.permission && state.permission !== "admin") text = "An admin key is needed to list models.";
-    list.append(el("li", { class: "empty" }, text));
-  }
-}
-
 async function refreshModels() {
   try {
     state.currentModel = await (await api("/v1/model")).json();
@@ -1884,106 +1484,30 @@ async function refreshModels() {
     state.currentModel = null;
   }
 
-  // The model card only names the folder; /props has the full path
+  // The model card only names the folder; /props has the full path, and the
+  // model list (admin only) its name under the model directory
   state.modelPath = null;
+  state.loadedName = null;
   if (state.currentModel) {
     try {
       state.modelPath = trimPath((await (await api("/props")).json()).model_path || "") || null;
     } catch {
-      // Fall back to matching on the folder name
+      // Fall back to the folder name
     }
   }
 
-  try {
-    const data = await (await api("/v1/model/list")).json();
-    state.models = (data.data || []).sort((a, b) => a.id.localeCompare(b.id));
-  } catch (e) {
-    state.models = [];
-    $("model-message").textContent = e.message;
+  if (state.modelPath && state.permission === "admin") {
+    let listed = [];
+    try {
+      listed = ((await (await api("/v1/model/list")).json()).data || []).map((m) => m.id);
+    } catch {
+      // Show the folder name
+    }
+    const candidates = [...load("favorite-models", []), ...load("recent-models", []), ...listed].map(trimPath);
+    state.loadedName = candidates.filter(matchesLoadedPath).sort((a, b) => b.length - a.length)[0] || null;
   }
-
-  const candidates = [...favoriteModels, ...recentModels, ...state.models.map((m) => m.id)].map(trimPath);
-  state.loadedName = candidates.filter(matchesLoadedPath).sort((a, b) => b.length - a.length)[0] || null;
 
   renderModelInfo();
-  renderModelList();
-  updateModelButtons();
-}
-
-async function loadModel() {
-  if (!modelLoadName() || state.loading) return;
-
-  const message = $("model-message");
-  let options;
-  try {
-    options = await parseLoadOptions();
-  } catch (e) {
-    message.textContent = e.message.startsWith("Load options") ? e.message : `Load options: ${e.message}`;
-    message.classList.add("error");
-    return;
-  }
-
-  const named = typeof options.model_name === "string" ? options.model_name.trim() : "";
-  const name = named || listTarget();
-  if (!name) return;
-
-  const bar = $("load-progress");
-  message.classList.remove("error");
-  message.textContent = "";
-  state.loading = name;
-  bar.hidden = false;
-  bar.firstElementChild.style.width = "0";
-  renderModelInfo();
-  updateModelButtons();
-
-  try {
-    // Loading the model that is already loaded is a no-op, so a reload with
-    // different options needs an unload first
-    if (isLoadedModel(name)) {
-      message.textContent = "Unloading…";
-      await api("/v1/model/unload", { method: "POST" });
-    }
-
-    // The box shows every option that applies to its model, so it loads as the
-    // complete set: a line taken out gets the backend default, as Save to
-    // tabby_config.yml would make it, instead of coming back from the file.
-    // An empty box (cleared, or not filled in yet) leaves them to the server
-    const complete = name === optionsTarget && $("load-options").value.trim() !== "";
-    const body = { ...(complete && { inherit_defaults: false }), ...options, model_name: name };
-    const res = await api("/v1/model/load", { method: "POST", body });
-    for await (const data of sseData(res)) {
-      const event = JSON.parse(data);
-      if (event.error) throw new Error(event.error.message);
-      const label = event.model_type === "model" ? "model" : `${event.model_type} model`;
-      message.textContent = `Loading ${label}: ${event.module} / ${event.modules} modules`;
-      bar.firstElementChild.style.width = `${(100 * event.module) / event.modules}%`;
-    }
-    message.textContent = `Loaded ${name}`;
-    rememberModel(name);
-  } catch (e) {
-    message.textContent = e.message;
-    message.classList.add("error");
-  } finally {
-    state.loading = false;
-    bar.hidden = true;
-    await refreshModels();
-    await refreshOverrides();
-  }
-}
-
-async function unloadModel() {
-  if (!state.currentModel || state.loading) return;
-  const message = $("model-message");
-  message.classList.remove("error");
-  try {
-    await api("/v1/model/unload", { method: "POST" });
-    message.textContent = "Model unloaded";
-  } catch (e) {
-    message.textContent = e.message;
-    message.classList.add("error");
-  }
-  await refreshModels();
-  await refreshOverrides();
 }
 
 // ---------------------------------------------------------------------------
@@ -2021,11 +1545,10 @@ async function connect() {
     openConnectionDialog(
       result.status === 401 ? "The server needs an API key." : `Could not reach the server: ${result.message}`,
     );
-  } else if (state.permission !== "admin") {
-    $("model-message").textContent = "This key can chat but not list or load models. Use the admin key for that.";
-  } else {
-    $("model-message").textContent = "";
   }
+  // Models are loaded on the status page, which shows only the live status
+  // without the admin key
+  $("status-link").textContent = state.permission === "admin" ? "Load models and view server status" : "View server status";
   await Promise.all([refreshModels(), refreshOverrides()]);
 }
 
@@ -2170,21 +1693,6 @@ function bindEvents() {
     refreshModels();
     refreshOverrides();
   });
-  $("model-filter").addEventListener("input", () => {
-    // A selection the filter hides would otherwise beat the typed path
-    const filter = $("model-filter").value.trim().toLowerCase();
-    if (state.selectedModel && !state.selectedModel.toLowerCase().includes(filter)) state.selectedModel = null;
-    renderModelList();
-    syncLoadOptions();
-  });
-  $("load-options").addEventListener("input", () => {
-    setOptionsNote($("load-options").value !== optionsServerText ? "edited" : "");
-    updateModelButtons();
-  });
-  $("reset-load-options").addEventListener("click", () => syncLoadOptions(true));
-  $("save-load-options").addEventListener("click", saveLoadOptions);
-  $("load-model").addEventListener("click", loadModel);
-  $("unload-model").addEventListener("click", unloadModel);
   $("preset-select").addEventListener("change", switchPreset);
 
   $("reset-params").addEventListener("click", () => {
@@ -2223,11 +1731,15 @@ function bindEvents() {
   for (const side of Object.values(SIDE_PANELS)) side.drawer.addEventListener("change", applySidePanels);
   $("scrim").addEventListener("click", closeDrawers);
 
-  // Another tab may have changed the chats; pick up the session list
+  // Another tab may have changed the chats; pick up the session list. The
+  // status page announces model loads and unloads the same way
   window.addEventListener("storage", (e) => {
     if (e.key === STORE + "sessions") {
       sessionIndex = load("sessions", []);
       renderSessionList();
+    } else if (e.key === STORE + MODEL_CHANGED_KEY) {
+      refreshModels();
+      refreshOverrides();
     }
   });
 }
@@ -2235,21 +1747,8 @@ function bindEvents() {
 // ---------------------------------------------------------------------------
 // Startup
 
-// The server prints a link to the client with the admin key in the URL
-// fragment, which the browser never sends to the server. Take the key from
-// it, then clear it from the address bar.
-function takeKeyFromLink() {
-  const key = new URLSearchParams(location.hash.slice(1)).get("key");
-  if (!key) return;
-
-  // The link is for the server that printed it, not one set up earlier
-  settings.baseUrl = "";
-  settings.apiKey = key;
-  save("settings", settings);
-  history.replaceState(null, "", location.pathname + location.search);
-}
-
 async function init() {
+  onStorageError((e) => setStatus(`Could not save to browser storage (${e.name}). Delete some chats to free space.`, true));
   takeKeyFromLink();
   renderThemeMenu();
   applyTheme();

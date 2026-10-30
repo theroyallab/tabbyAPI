@@ -218,6 +218,8 @@ svg {
   text-align: left;
 }
 
+a.sidebar-item { color: inherit; text-decoration: none; }
+
 .sidebar-item:hover { background: var(--sidebar-hover); }
 .sidebar-item span:first-of-type { flex: 1; }
 
@@ -644,6 +646,8 @@ svg {
   color: var(--fg-muted);
 }
 
+.empty-state a { color: var(--accent); }
+
 .empty-state h1 {
   font-size: 32px;
   font-weight: 600;
@@ -789,23 +793,32 @@ svg {
   cursor: default;
 }
 
-.image-viewer {
+/* Sized to the image and centered. A modal dialog is positioned with inset 0
+   and auto margins, so any width other than fit-content stretches it across
+   the screen with the image at its left edge. By id, so the themes' dialog
+   frames (borders, padding, gradients) stay off it */
+#image-viewer {
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: transparent;
   box-shadow: none;
-  width: auto;
+  width: fit-content;
+  height: fit-content;
   max-width: 95vw;
   max-height: 95vh;
+  overflow: visible;
   cursor: zoom-out;
 }
 
-.image-viewer::backdrop { background: rgba(0, 0, 0, 0.8); }
+#image-viewer::backdrop { background: rgba(0, 0, 0, 0.8); backdrop-filter: none; }
 
-.image-viewer img {
+#image-viewer img {
   display: block;
   max-width: 95vw;
   max-height: 95vh;
+  object-fit: contain;
+  border-radius: 4px;
 }
 
 .composer textarea {
@@ -899,6 +912,12 @@ svg {
 }
 
 .model-info dd { margin: 0; color: var(--fg); overflow-wrap: anywhere; }
+
+.status-link {
+  display: block;
+  color: var(--accent);
+  font-size: 12.5px;
+}
 
 .filter {
   width: 100%;

@@ -1799,6 +1799,9 @@ class ExllamaV3Container:
         stop_str = None
         if eos_reason == "max_new_tokens":
             finish_reason = "length"
+        elif eos_reason == "cancelled":
+            # vLLM's finish_reason for a request ended before it finished
+            finish_reason = "abort"
         elif eos_reason == "loop_detected":
             # vLLM's finish_reason for its repetition detector
             finish_reason = "repetition"
@@ -2191,6 +2194,15 @@ class ExllamaV3Container:
         await disconnect_handler.add_cleanup_task(id(job), job.cancel, ())
         job_status = status_display.add_job(request_id, label, context_len)
         job_status.is_waiting = lambda: self._job_pending(job)
+        job_status.prompt = prompt
+
+        async def cancel_from_status():
+            # Cancelling wakes the consumer below even while the job waits in
+            # the engine's queue; the loop then ends without an EOS result
+            job_status.cancel_requested = True
+            await job.cancel()
+
+        job_status.cancel = cancel_from_status
 
         generated_tokens = 0
         full_response = ""
@@ -2245,7 +2257,10 @@ class ExllamaV3Container:
                         if isinstance(nxt, Exception):
                             raise nxt
                         if not isinstance(nxt, dict):
-                            # Cancellation sentinel: stop consuming
+                            # Cancellation sentinel. A cancel from the status page
+                            # still sends what was generated; the loop ends next
+                            if job_status.cancel_requested:
+                                break
                             raise CancelledError("Job cancelled while draining results")
                         if nxt.get("stage") != "streaming":
                             continue
@@ -2261,6 +2276,7 @@ class ExllamaV3Container:
                     if chunk_tokens is None:
                         chunk_tokens = self.tokenizer.encode(chunk)
                     full_response += chunk
+                    job_status.append_text(chunk)
 
                     # Extract token IDs as a plain list for downstream consumers
                     if isinstance(chunk_tokens, torch.Tensor):
@@ -2306,6 +2322,7 @@ class ExllamaV3Container:
 
                     # Save the final result for metrics logging
                     metrics_result = finish_chunk
+                    job_status.finish_reason = finish_chunk["finish_reason"]
 
                     if finish_chunk["finish_reason"] == "repetition" and params.loop_detect_error:
                         raise LoopDetectedError(
@@ -2316,6 +2333,30 @@ class ExllamaV3Container:
 
                     yield finish_chunk
                     break
+            else:
+                # The job ended without an EOS result. Cancelled from the status
+                # page: finish the response with what was generated. Otherwise
+                # the request itself was cancelled and nothing is sent
+                if job_status.cancel_requested:
+                    xlogger.warning(f"{label}: cancelled from the status page")
+                    finish_chunk = self.handle_finish_chunk(
+                        {
+                            "eos_reason": "cancelled",
+                            "prompt_tokens": context_len,
+                            "cached_tokens": prefill_cached_tokens,
+                            "time_prefill": 0.0,
+                            "new_tokens": generated_tokens,
+                            "time_generate": 0.0,
+                            "time_enqueued": 0.0,
+                        },
+                        request_id,
+                        full_response,
+                        label,
+                    )
+                    await disconnect_handler.finish(id(job))
+                    metrics_result = finish_chunk
+                    job_status.finish_reason = finish_chunk["finish_reason"]
+                    yield finish_chunk
 
         except CancelledError:
             if not job.cancelled:

@@ -3,10 +3,12 @@ import io
 import os
 import pathlib
 import shutil
+import types
 from asyncio import CancelledError
-from typing import Optional
+from typing import Literal, Optional, Union, get_args, get_origin
 
 import aiofiles
+from annotated_types import Ge, Gt, Le, Lt, MultipleOf
 from pydantic import ValidationError
 from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap, CommentedSeq
@@ -16,6 +18,8 @@ from common import model
 from common.networking import get_generator_error, handle_request_disconnect
 from common.model_meta import is_model_dir, read_model_meta
 from common.tabby_config import config
+from common.config_models import DraftModelConfig, ModelConfig
+from common.templating import get_all_templates
 from common.utils import deep_merge_dict
 from endpoints.core.types.model import (
     DraftModelLoadRequest,
@@ -25,6 +29,11 @@ from endpoints.core.types.model import (
     ModelLoadConfigSaveResponse,
     ModelLoadRequest,
     ModelLoadResponse,
+)
+from endpoints.core.types.status import (
+    LoadOptionField,
+    LoadOptionGroup,
+    LoadOptionsSchemaResponse,
 )
 
 
@@ -261,6 +270,230 @@ SOURCE_USE_AS_DEFAULT = "use_as_default"
 
 # Load request fields that aren't settings of the model itself
 NON_SETTING_FIELDS = {"model_name", "draft_model", "skip_queue", "inherit_defaults"}
+
+# Load options a form leaves out: backend has a single choice for now. A value
+# set for one still applies; a form passes it through unchanged
+LOAD_OPTIONS_HIDDEN = {"backend"}
+
+# The load options in the order a form shows them. Every option a load request
+# can set, other than the hidden ones, is in one group (tests/test_status_page.py
+# checks)
+LOAD_OPTION_GROUPS = [
+    (
+        "Context and cache",
+        "model",
+        [
+            "max_seq_len",
+            "cache_size",
+            "cache_mode",
+            "recurrent_state_fp32",
+            "max_batch_size",
+            "chunk_size",
+            "output_chunking",
+            "recurrent_checkpoint_interval",
+            "recurrent_checkpoint_interval_pp",
+        ],
+    ),
+    (
+        "GPU placement",
+        "model",
+        [
+            "gpu_split_auto",
+            "gpu_split",
+            "autosplit_reserve",
+            "tensor_parallel",
+            "tensor_parallel_backend",
+            "layer_map",
+        ],
+    ),
+    (
+        "Memory and offload",
+        "model",
+        [
+            "cpu_moe_offload_layers",
+            "cpu_moe_split_experts",
+            "cpu_moe_threads",
+            "cpu_moe_pinned_arena",
+            "ngram_ram",
+            "embed_stream_from_disk",
+        ],
+    ),
+    ("RoPE", "model", ["rope_scale", "rope_alpha"]),
+    ("Vision", "model", ["vision", "vision_offload"]),
+    (
+        "Prompt template",
+        "model",
+        [
+            "prompt_template",
+            "template_vars_default",
+            "template_vars_force",
+            "force_enable_thinking",
+        ],
+    ),
+    (
+        "Reasoning and tool calls",
+        "model",
+        [
+            "reasoning",
+            "reasoning_start_token",
+            "reasoning_end_token",
+            "start_in_reasoning",
+            "tool_calls_in_reasoning",
+            "reasoning_budget_tokens",
+            "reasoning_budget_message",
+            "tool_format",
+            "harmony",
+            "muse_glimmer",
+        ],
+    ),
+    ("Sampling and warmup", "model", ["sampling", "warmup"]),
+    (
+        "Draft model",
+        "draft_model",
+        [
+            "draft_mode",
+            "draft_model_name",
+            "draft_cache_mode",
+            "draft_gpu_split",
+            "draft_num_tokens",
+            "dynamic_draft",
+            "draft_confidence",
+            "ngram_match_min",
+            "hybrid_draft_tokens",
+            "draft_max_rows",
+            "sparse_draft_head",
+            "draft_rope_scale",
+            "draft_rope_alpha",
+        ],
+    ),
+]
+
+CACHE_MODE_CHOICES = ["FP16", "Q8", "Q6", "Q4", "8,8", "8,6", "6,6", "6,4", "4,4", "4,3", "3,3"]
+
+# Options whose values the request types don't spell out: (choices, whether
+# other values are accepted too)
+LOAD_OPTION_CHOICES = {
+    "cache_mode": (CACHE_MODE_CHOICES, True),
+    "draft_cache_mode": (CACHE_MODE_CHOICES, True),
+    "tensor_parallel_backend": (["native", "nccl"], False),
+    "start_in_reasoning": (["auto", "always", "never"], False),
+}
+
+
+def _option_type(annotation) -> tuple[str, Optional[list]]:
+    """A form field type for a load request field's annotation, and its choices."""
+
+    if get_origin(annotation) in (Union, types.UnionType):
+        args = [arg for arg in get_args(annotation) if arg is not type(None)]
+    else:
+        args = [annotation]
+
+    if len(args) == 1:
+        arg = args[0]
+        origin = get_origin(arg)
+        if origin is Literal:
+            return "choice", [str(choice) for choice in get_args(arg)]
+        if arg is bool:
+            return "bool", None
+        if arg is int:
+            return "int", None
+        if arg is float:
+            return "float", None
+        if arg is str:
+            return "string", None
+        if arg is dict or origin is dict:
+            return "json", None
+        if origin is list:
+            return "list", None
+
+    if float in args and any(get_origin(arg) is Literal for arg in args):
+        return "number_or_auto", None
+    return "text", None
+
+
+def _reflow(text: Optional[str]) -> Optional[str]:
+    """
+    A config description as running text. They are wrapped for config.yml's
+    comment width, so a form showing them at another width would break lines
+    mid-sentence. A line break stays after a sentence, a colon or a short line
+    (one that ends well before the wrap width ends where its author did), and
+    before an option list or example.
+    """
+
+    if not text:
+        return text
+
+    lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
+    result = lines[0]
+    for previous, line in zip(lines, lines[1:], strict=False):
+        keep_break = (
+            previous.endswith((".", ":", "!", "?"))
+            or len(previous) < 50
+            or line.startswith(("-", "*", "Options", "Example"))
+        )
+        result += ("\n" if keep_break else " ") + line
+    return result
+
+
+def _option_field(name: str, request_field, config_field) -> LoadOptionField:
+    kind, choices = _option_type(request_field.annotation)
+    free = False
+    if name in LOAD_OPTION_CHOICES:
+        choices, free = LOAD_OPTION_CHOICES[name]
+        kind = "choice" if kind in ("string", "choice") else kind
+    elif name == "tool_format":
+        from endpoints.OAI.utils.tools import ALL_TOOLCALL_FORMATS
+
+        kind, choices, free = "choice", ["auto", *sorted(ALL_TOOLCALL_FORMATS)], True
+    elif name == "prompt_template":
+        kind, free = "choice", True
+        choices = sorted(path.stem for path in get_all_templates())
+
+    source = config_field or request_field
+    default = source.get_default(call_default_factory=True) if config_field else None
+    limits = {}
+    for item in source.metadata:
+        if isinstance(item, Ge):
+            limits["min"] = item.ge
+        elif isinstance(item, Gt):
+            limits["min"] = item.gt + (1 if kind == "int" else 0)
+        elif isinstance(item, Le):
+            limits["max"] = item.le
+        elif isinstance(item, Lt):
+            limits["max"] = item.lt
+        elif isinstance(item, MultipleOf):
+            limits["step"] = item.multiple_of
+    # A form steps from the minimum, so a positive multiple starts at the step
+    if "step" in limits and limits.get("min", 0) > 0:
+        limits["min"] = limits["step"]
+
+    return LoadOptionField(
+        name=name,
+        type=kind,
+        default=default,
+        description=_reflow(source.description or request_field.description),
+        choices=choices,
+        free=free,
+        **limits,
+    )
+
+
+def get_load_option_schema() -> LoadOptionsSchemaResponse:
+    """Every option a load request can set, with types, defaults and descriptions."""
+
+    groups = []
+    for title, section, names in LOAD_OPTION_GROUPS:
+        if section == "model":
+            request_fields, config_fields = ModelLoadRequest.model_fields, ModelConfig.model_fields
+        else:
+            request_fields = DraftModelLoadRequest.model_fields
+            config_fields = DraftModelConfig.model_fields
+        fields = [
+            _option_field(name, request_fields[name], config_fields.get(name)) for name in names
+        ]
+        groups.append(LoadOptionGroup(name=title, section=section, fields=fields))
+
+    return LoadOptionsSchemaResponse(groups=groups)
 
 
 async def get_model_load_config(model_name: str, model_path: pathlib.Path):

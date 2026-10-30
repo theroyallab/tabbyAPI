@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TabbyAPI Status</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20d='M5.2%2014%204.6%203.6%2012.2%208.6Q16%207.4%2019.8%208.6L27.4%203.6%2026.8%2014Q28.6%2017.2%2028%2021Q26.6%2028.8%2016%2029Q5.4%2028.8%204%2021Q3.4%2017.2%205.2%2014Z'%20fill='none'%20stroke='%23c2410c'%20stroke-width='2.8'%20stroke-linejoin='round'/%3E%3Ctext%20x='16'%20y='25.4'%20font-family='sans-serif'%20font-size='15.5'%20font-weight='800'%20fill='%23c2410c'%20text-anchor='middle'%3ET%3C/text%3E%3C/svg%3E">
+  <script src="theme.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="themes.css">
+  <link rel="stylesheet" href="status.css">
+</head>
+<body class="status-page">
+  <header id="status-bar">
+    <a class="back-link" href="./" target="tabby-chat" title="Open the chat client">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>Chat</span>
+    </a>
+    <h1>TabbyAPI status</h1>
+    <span id="poll-state" class="pill" title="Live updates"></span>
+    <span id="backend-version" class="backend-version"></span>
+    <span id="bar-model" class="bar-model"><span class="dot"></span><span></span></span>
+    <span class="bar-spacer"></span>
+    <button id="open-connection" class="bar-button" type="button">
+      <span>Connection</span>
+      <span id="connection-state" class="pill"></span>
+    </button>
+    <label class="bar-button">
+      <span>Theme</span>
+      <select id="theme-select"></select>
+    </label>
+  </header>
+
+  <div id="status-columns">
+    <!-- Models -->
+    <section id="models-pane" class="pane" aria-label="Models">
+      <div class="card">
+        <div class="section-head">
+          <h2>Loaded model</h2>
+          <button id="unload-model" class="small-button" type="button" disabled>Unload</button>
+        </div>
+        <div id="model-info" class="model-info"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>Models</h2>
+          <button id="refresh-models" class="icon-button small" type="button" aria-label="Refresh model list" title="Refresh">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
+          </button>
+        </div>
+        <input id="model-filter" class="filter" type="search" placeholder="Filter, or type a path to load">
+        <ul id="model-list" class="model-list" role="listbox" aria-label="Available models"></ul>
+      </div>
+
+      <div class="card" id="options-card">
+        <div class="section-head">
+          <h2>Load options <span id="options-target" class="options-target"></span></h2>
+          <div class="options-actions">
+            <button id="copy-options" class="link-button" type="button" title="Keep these options, to paste them into another model's">Copy</button>
+            <button id="paste-options" class="link-button" type="button" disabled>Paste</button>
+            <button id="reset-edits" class="link-button" type="button" title="Drop the changes made here">Reset changes</button>
+          </div>
+        </div>
+        <div id="options-legend" class="legend"></div>
+        <div class="options-toolbar">
+          <label><input id="only-set" type="checkbox"> Only options that are set</label>
+          <label><input id="show-descriptions" type="checkbox"> Descriptions</label>
+        </div>
+        <p id="options-note" class="hint"></p>
+        <div id="options-form" class="options-form"></div>
+      </div>
+
+      <div class="load-bar">
+        <div class="button-row">
+          <button id="load-model" class="primary" type="button" disabled>Load</button>
+          <button id="save-options" type="button" disabled title="Write these options to the model's tabby_config.yml, leaving out any that only repeat config.yml's use_as_default. An existing file is kept as tabby_config.bak.">Save to tabby_config.yml</button>
+        </div>
+        <div id="load-progress" class="progress" hidden><div></div></div>
+        <p id="model-message" class="hint"></p>
+      </div>
+    </section>
+
+    <!-- Live status -->
+    <section id="live-pane" class="pane" aria-label="Live status">
+      <div id="tiles" class="tiles"></div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>Throughput</h2>
+          <span class="muted chart-window">last 5 minutes</span>
+        </div>
+        <div class="charts">
+          <figure class="chart">
+            <figcaption><span class="swatch swatch-gen"></span>Output <span id="chart-gen-now" class="chart-now"></span></figcaption>
+            <canvas id="chart-gen" height="110"></canvas>
+          </figure>
+          <figure class="chart">
+            <figcaption><span class="swatch swatch-prefill"></span>Prompt processing <span id="chart-prefill-now" class="chart-now"></span></figcaption>
+            <canvas id="chart-prefill" height="110"></canvas>
+          </figure>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-head"><h2>Cache</h2></div>
+        <div id="cache-stats" class="cache-stats"></div>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>Requests</h2>
+          <span id="jobs-count" class="muted"></span>
+        </div>
+        <div id="jobs" class="jobs"></div>
+      </div>
+
+      <div class="card" id="inspector" hidden>
+        <div class="section-head">
+          <h2>Inspect <span id="inspect-label" class="inspect-label"></span></h2>
+          <div class="inspect-actions">
+            <button id="inspect-copy" class="small-button" type="button">Copy</button>
+            <button id="inspect-cancel" class="small-button danger" type="button">Cancel request</button>
+            <button id="inspect-close" class="icon-button small" type="button" aria-label="Close" title="Close">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
+          </div>
+        </div>
+        <p id="inspect-meta" class="hint"></p>
+        <details id="inspect-prompt-details">
+          <summary>Prompt</summary>
+          <pre id="inspect-prompt" class="inspect-text"></pre>
+        </details>
+        <pre id="inspect-text" class="inspect-text" tabindex="0"></pre>
+      </div>
+
+      <div class="card">
+        <div class="section-head"><h2>Recently finished</h2></div>
+        <div id="recent" class="jobs recent"></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="option-tip" class="option-tip" role="tooltip" hidden></div>
+
+  <dialog id="connection-dialog">
+    <form id="connection-form">
+      <h2>Connection</h2>
+      <label class="field">
+        <span>Server URL</span>
+        <input id="conn-url" type="url" placeholder="This server">
+      </label>
+      <label class="field">
+        <span>API key</span>
+        <input id="conn-key" type="password" autocomplete="off" placeholder="From api_tokens.yml">
+      </label>
+      <p class="hint">Any API key shows the server status. The admin key also loads models and lets you follow and cancel requests. The key is kept in this browser's local storage, shared with the chat client.</p>
+      <p id="conn-result" class="hint"></p>
+      <div class="button-row end">
+        <button id="conn-cancel" type="button">Cancel</button>
+        <button id="conn-save" class="primary" type="submit">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="status.js"></script>
+</body>
+</html>

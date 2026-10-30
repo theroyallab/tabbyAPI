@@ -107,9 +107,10 @@ class NetworkConfig(BaseConfigModel):
     web_ui: Optional[bool] = Field(
         True,
         description=(
-            "Serve the built-in chat client at /ui (default: True).\n"
-            "A static page for testing models and settings; it only uses the\n"
-            "regular API, so it does nothing until a browser opens it."
+            "Serve the built-in chat client at /ui and the status page at\n"
+            "/ui/status (default: True). Static pages for testing models and\n"
+            "settings, loading models and watching the server; they only use\n"
+            "the regular API, so they do nothing until a browser opens them."
         ),
     )
 

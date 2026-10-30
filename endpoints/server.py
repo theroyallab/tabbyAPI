@@ -15,6 +15,7 @@ from common.errors import (
     loop_detected_exception_handler,
 )
 from common.networking import get_global_depends
+from common.optional_dependencies import package_version_info
 from common.tabby_config import config
 from endpoints.Kobold import router as KoboldRouter
 from endpoints.OAI import router as OAIRouter
@@ -24,6 +25,10 @@ from endpoints.ui.router import mount_ui
 
 def setup_app(host: Optional[str] = None, port: Optional[int] = None):
     """Includes the correct routers for startup"""
+
+    # The status page reports the backend's version and commit. Read now, so a
+    # source checkout updated while the server runs doesn't misreport it
+    package_version_info("exllamav3")
 
     app = FastAPI(
         title="TabbyAPI",
@@ -83,12 +88,16 @@ def setup_app(host: Optional[str] = None, port: Optional[int] = None):
         mount_ui(app)
 
         if host is not None:
-            # Log in with a click: the admin key is printed at startup anyway,
-            # and a URL fragment never reaches the server or its logs
-            link = f"http://{host}:{port}/ui/"
-            if not auth.DISABLE_AUTH and auth.AUTH_KEYS:
-                link += "#key=" + quote(auth.AUTH_KEYS.admin_key, safe="")
-            logger.info(f"Chat client at {link}")
+            # Log in with a click: the admin key is printed at startup anyway
+            # (unless log_auth_keys is off), and a URL fragment never reaches
+            # the server or its logs
+            fragment = ""
+            if not auth.DISABLE_AUTH and auth.AUTH_KEYS and auth.log_auth_keys():
+                fragment = "#key=" + quote(auth.AUTH_KEYS.admin_key, safe="")
+            logger.info(f"Chat client at http://{host}:{port}/ui/{fragment}")
+            logger.info(
+                f"Server status and model loading at http://{host}:{port}/ui/status{fragment}"
+            )
 
     return app
 
