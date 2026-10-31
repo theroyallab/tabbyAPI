@@ -4,14 +4,19 @@ from unittest.mock import patch
 
 from fastapi import HTTPException
 
-import common.model  # noqa: F401 - resolve import cycle ordering
+from common import model
 from endpoints.OAI.types.chat_completion import ChatCompletionMessage, ChatCompletionRequest
+from common.templating import PromptTemplate
 from endpoints.OAI.utils.chat_completion import (
     CONTINUE_FINAL_MESSAGE_TAG,
+    _chat_stream_collector,
+    _continued_field,
     _cut_prompt_at_continue_tag,
     _mark_continued_final_message,
+    _resolve_start_in_reasoning,
     _start_in_reasoning_mode,
     _user_suffix_len,
+    apply_chat_template,
 )
 
 TAG = CONTINUE_FINAL_MESSAGE_TAG
@@ -134,6 +139,262 @@ class UserSuffixLenTests(unittest.TestCase):
             messages=[ChatCompletionMessage(role="user", content="hi")],
         )
         self.assertEqual(_user_suffix_len(data), 0)
+
+
+def assistant(**kwargs):
+    return ChatCompletionMessage(role="assistant", **kwargs)
+
+
+class ContinuedFieldTests(unittest.TestCase):
+    def field(self, message, mode=True):
+        return _continued_field(continue_request(messages=[message], continue_final_message=mode))
+
+    def test_true_continues_reasoning_without_content(self):
+        self.assertEqual(self.field(assistant(reasoning_content="x")), "reasoning_content")
+        self.assertEqual(
+            self.field(assistant(reasoning_content="x", content="")), "reasoning_content"
+        )
+
+    def test_true_continues_content_when_there_is_any(self):
+        self.assertEqual(self.field(assistant(reasoning_content="x", content="y")), "content")
+        self.assertEqual(self.field(assistant(content="y")), "content")
+
+    def test_only_assistant_messages_have_reasoning(self):
+        message = ChatCompletionMessage(role="user", reasoning_content="x")
+        self.assertEqual(self.field(message), "content")
+
+    def test_named_field_wins(self):
+        message = assistant(reasoning_content="x", content="")
+        self.assertEqual(self.field(message, "content"), "content")
+        for name in ("reasoning_content", "reasoning", "thinking"):
+            self.assertEqual(self.field(assistant(content="y"), name), "reasoning_content")
+
+    def test_not_continuing(self):
+        self.assertIsNone(self.field(assistant(reasoning_content="x"), False))
+
+    def test_unknown_field_is_rejected(self):
+        with self.assertRaises(ValueError):
+            continue_request(continue_final_message="tool_calls")
+
+    def test_message_reasoning_goes_by_other_names(self):
+        for name in ("reasoning", "thinking"):
+            message = ChatCompletionMessage(role="assistant", **{name: "x"})
+            self.assertEqual(message.reasoning_content, "x")
+
+
+class MarkReasoningTests(unittest.TestCase):
+    def test_tag_goes_on_the_reasoning(self):
+        data = continue_request(messages=[assistant(reasoning_content="thoughts")])
+
+        self.assertEqual(_mark_continued_final_message(data), "thoughts")
+        self.assertEqual(data.messages[-1].reasoning_content, "thoughts" + TAG)
+        self.assertEqual(data.messages[-1].content, "")
+
+    def test_empty_reasoning_can_be_started(self):
+        data = continue_request(
+            messages=[assistant(reasoning_content="", content="")],
+            continue_final_message="reasoning_content",
+        )
+
+        self.assertEqual(_mark_continued_final_message(data), "")
+
+    def assert_rejected(self, data):
+        with self.assertRaises(HTTPException) as raised:
+            _mark_continued_final_message(data)
+        self.assertEqual(raised.exception.status_code, 422)
+
+    def test_named_reasoning_must_exist(self):
+        self.assert_rejected(
+            continue_request(
+                messages=[assistant(content="x")], continue_final_message="reasoning_content"
+            )
+        )
+
+    def test_named_reasoning_needs_an_assistant_message(self):
+        self.assert_rejected(
+            continue_request(
+                messages=[ChatCompletionMessage(role="user", reasoning_content="x")],
+                continue_final_message="reasoning_content",
+            )
+        )
+
+    def test_tool_calls_cant_be_continued(self):
+        call = {"id": "1", "function": {"name": "f", "arguments": "{}"}}
+        self.assert_rejected(
+            continue_request(messages=[assistant(reasoning_content="x", tool_calls=[call])])
+        )
+
+
+def container(**kwargs):
+    defaults = dict(
+        harmony=False,
+        muse_glimmer=False,
+        reasoning=True,
+        reasoning_start_token="<think>",
+        reasoning_end_token="</think>",
+        start_in_reasoning="auto",
+    )
+    return SimpleNamespace(**{**defaults, **kwargs})
+
+
+class ResolveStartTests(unittest.TestCase):
+    def resolve(self, prompt, data, **kwargs):
+        with patch.object(model, "container", container(**kwargs)):
+            return _resolve_start_in_reasoning(prompt, data)
+
+    def reasoning_request(self, **kwargs):
+        return continue_request(messages=[assistant(reasoning_content="x" * 1000)], **kwargs)
+
+    def test_reasoning_continuation(self):
+        self.assertTrue(self.resolve("<think>" + "x" * 1000, self.reasoning_request()))
+
+    def test_config_doesnt_apply_to_a_block_known_to_be_open(self):
+        data = self.reasoning_request()
+        self.assertTrue(self.resolve("<think>x", data, start_in_reasoning="never"))
+
+    def test_response_prefix_can_close_the_block(self):
+        data = self.reasoning_request(response_prefix="</think>\n\nAnswer: ")
+        self.assertFalse(self.resolve("<think>x</think>\n\nAnswer: ", data))
+
+        data = self.reasoning_request(response_prefix="</think>Hm. <think>")
+        self.assertTrue(self.resolve("<think>x</think>Hm. <think>", data))
+
+    def test_reasoning_prefilled_in_content_is_still_detected(self):
+        data = continue_request(messages=[assistant(content="<think>\nFirst, ")])
+        self.assertTrue(self.resolve("<|assistant|><think>\nFirst, ", data))
+
+    def test_content_continuation_follows_the_config(self):
+        data = continue_request()
+        self.assertTrue(self.resolve("partial", data, start_in_reasoning="always"))
+        self.assertFalse(self.resolve("<think>partial", data, start_in_reasoning="never"))
+
+    def test_channel_formats(self):
+        for flag in ("harmony", "muse_glimmer"):
+            self.assertTrue(self.resolve("x", self.reasoning_request(), **{flag: True}))
+            self.assertFalse(self.resolve("x", continue_request(), **{flag: True}))
+
+    def test_no_reasoning_support(self):
+        self.assertFalse(self.resolve("x", self.reasoning_request(), reasoning=False))
+
+
+# Reads message.content with no default, as the Qwen3 template does
+TAKES_REASONING_CONTENT = (
+    "{% for m in messages %}<|{{ m.role }}|>"
+    "{% if m.reasoning_content %}<think>{{ m.reasoning_content }}</think>{% endif %}"
+    "{{ m.content.strip() }}<|end|>{% endfor %}"
+    "{% if add_generation_prompt %}<|assistant|><think>{% endif %}"
+)
+# Reads only message.thinking, as the gpt-oss template does
+TAKES_THINKING = (
+    "{% for m in messages %}<|{{ m.role }}|>"
+    "{% if m.thinking %}<think>{{ m.thinking }}</think>{% endif %}"
+    "{{ m.content }}<|end|>{% endfor %}"
+)
+# Drops reasoning, and skips it in the generation prompt, as Gemma 4's does
+DROPS_REASONING = (
+    "{% for m in messages %}<|{{ m.role }}|>{{ m.content }}<|end|>{% endfor %}"
+    "{% if add_generation_prompt %}<|assistant|><think>\n</think>{% endif %}"
+)
+
+
+class RenderedPromptTests(unittest.IsolatedAsyncioTestCase):
+    user = ChatCompletionMessage(role="user", content="hi")
+
+    async def render(self, template, message, **kwargs):
+        mc = container(
+            prompt_template=PromptTemplate("test", template),
+            use_vision=False,
+            template_vars_default={},
+            template_vars_force={},
+            get_special_tokens=lambda: {},
+            hf_model=SimpleNamespace(add_bos_token=lambda: False),
+            **kwargs.pop("container", {}),
+        )
+        data = continue_request(messages=[self.user, message], **kwargs)
+        with patch.object(model, "container", mc):
+            prompt, _ = await apply_chat_template(data)
+
+        self.assertEqual(data.messages[-1], message)
+        return prompt
+
+    async def test_reply_cut_off_during_reasoning(self):
+        message = assistant(reasoning_content="First,")
+        prompt = await self.render(TAKES_REASONING_CONTENT, message)
+        self.assertTrue(prompt.endswith("<|assistant|><think>First,"))
+
+    async def test_template_reading_thinking(self):
+        message = assistant(reasoning_content="First,", content="")
+        prompt = await self.render(TAKES_THINKING, message)
+        self.assertTrue(prompt.endswith("<|assistant|><think>First,"))
+
+    async def test_answer_after_reasoning(self):
+        message = assistant(reasoning_content="Done.", content="")
+        prompt = await self.render(
+            TAKES_REASONING_CONTENT, message, continue_final_message="content"
+        )
+        self.assertTrue(prompt.endswith("<think>Done.</think>"))
+
+    async def test_template_dropping_reasoning(self):
+        message = assistant(reasoning_content="\nFirst,", content="")
+        prompt = await self.render(DROPS_REASONING, message)
+        self.assertEqual(prompt, "<|user|>hi<|end|><|assistant|><think>\nFirst,")
+
+    async def test_block_opened_by_hand_gets_its_newline(self):
+        message = assistant(reasoning_content="First,")
+        prompt = await self.render(DROPS_REASONING, message)
+        self.assertTrue(prompt.endswith("<think>\nFirst,"))
+
+    async def test_tags_in_the_history_are_left_alone(self):
+        self.user = ChatCompletionMessage(role="user", content="What does <think> do?")
+        message = assistant(reasoning_content="First,")
+        prompt = await self.render(DROPS_REASONING, message)
+        self.assertTrue(prompt.startswith("<|user|>What does <think> do?<|end|>"))
+
+    async def test_dropped_reasoning_without_reasoning_support(self):
+        message = assistant(reasoning_content="First,")
+        with self.assertRaises(HTTPException) as raised:
+            await self.render(DROPS_REASONING, message, container={"reasoning": False})
+        self.assertEqual(raised.exception.status_code, 422)
+
+
+class ReasoningBudgetTests(unittest.IsolatedAsyncioTestCase):
+    """The budget covers the whole block, including what the request continues."""
+
+    async def injections(self, message, budget):
+        injected = []
+
+        async def stream_generate(*args, **kwargs):
+            yield {"text": " more", "token_ids": [1]}
+            yield {"text": ".", "token_ids": [2], "finish_reason": "stop"}
+
+        mc = container(
+            tool_format=None,
+            tool_calls_in_reasoning=False,
+            reasoning_budget_tokens=None,
+            reasoning_budget_message="",
+            stream_generate=stream_generate,
+            encode_tokens=lambda text: text.split(),
+            set_generation_phase=lambda *args: True,
+            constrain_generation_output=lambda _, text: injected.append(text) or True,
+        )
+        data = continue_request(messages=[message], reasoning_budget_tokens=budget)
+
+        with patch.object(model, "container", mc):
+            await _chat_stream_collector(0, None, "id", "prompt", data, True, streaming_mode=False)
+
+        return injected
+
+    async def test_spent_budget_ends_the_block_at_once(self):
+        message = assistant(reasoning_content="one two three four five")
+        self.assertEqual(await self.injections(message, 5), ["</think>"])
+
+    async def test_remaining_budget_is_left(self):
+        message = assistant(reasoning_content="one two")
+        self.assertEqual(await self.injections(message, 5), [])
+
+    async def test_content_continuation_spends_nothing(self):
+        message = assistant(content="one two three four five")
+        self.assertEqual(await self.injections(message, 5), [])
 
 
 if __name__ == "__main__":

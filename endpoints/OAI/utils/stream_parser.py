@@ -183,7 +183,9 @@ class ChannelStreamParser:
     and tool calls — as a sequence of messages `{header}<|message|>{body}`,
     where the header determines the channel and any other structural token
     ends the body and opens the next header. Generation begins after the
-    prompt's `<|start|>assistant`, so parsing starts inside a message header.
+    prompt's `<|start|>assistant`, so parsing starts inside a message header,
+    unless initial_channel gives the channel of a message the prompt leaves
+    open, as when continuing one.
 
     Subclasses define the structural tokens (_TOKENS, which must include
     `<|message|>`), the terminator appended to emitted tool messages
@@ -207,10 +209,10 @@ class ChannelStreamParser:
         """Map a message header to a channel."""
         raise NotImplementedError
 
-    def __init__(self):
-        self._state = self._HEADER
+    def __init__(self, initial_channel: Optional[str] = None):
+        self._state = self._HEADER if initial_channel is None else self._BODY
         self._header = ""
-        self._channel = None
+        self._channel = initial_channel
         self._pending = ""
 
         # True if any structural token was matched during the last feed() call

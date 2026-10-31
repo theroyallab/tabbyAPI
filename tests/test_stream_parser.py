@@ -1,6 +1,8 @@
 import unittest
 
 from endpoints.OAI.utils.stream_parser import (
+    CONTENT,
+    REASONING,
     GlimmerStreamParser,
     HarmonyStreamParser,
     TagStreamParser,
@@ -147,6 +149,28 @@ class TagStreamParserTests(unittest.TestCase):
         out = collect(p, chunks)
         self.assertEqual(out["reasoning"], "I think so\n")
         self.assertEqual(out["content"], "\n\nYes, 4.")
+
+
+class ContinuedMessageTests(unittest.TestCase):
+    """A continued message's header is in the prompt, so parsing starts in its body."""
+
+    def test_harmony_reasoning(self):
+        p = HarmonyStreamParser(REASONING)
+        self.assertTrue(p.in_reasoning)
+        out = collect(p, [" more<|end|><|start|>assistant<|channel|>final<|message|>Answer"])
+        self.assertEqual(out["reasoning"], " more")
+        self.assertEqual(out["content"], "Answer")
+
+    def test_harmony_content(self):
+        p = HarmonyStreamParser(CONTENT)
+        self.assertTrue(p.in_content)
+        self.assertEqual(collect(p, [" and on"])["content"], " and on")
+
+    def test_glimmer_reasoning(self):
+        p = GlimmerStreamParser(REASONING)
+        out = collect(p, [" more<|eom|><|start|>assistant to=user<|message|>Answer"])
+        self.assertEqual(out["reasoning"], " more")
+        self.assertEqual(out["content"], "Answer")
 
 
 class HarmonyStreamParserTests(unittest.TestCase):

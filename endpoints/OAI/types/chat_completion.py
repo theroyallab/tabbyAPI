@@ -37,7 +37,11 @@ class ChatCompletionMessagePart(BaseModel):
 class ChatCompletionMessage(BaseModel):
     role: str = "user"
     content: Optional[Union[str, List[ChatCompletionMessagePart]]] = None
-    reasoning_content: Optional[str] = None
+    # vLLM and transformers also take a message's reasoning under the other names
+    reasoning_content: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("reasoning_content", "reasoning", "thinking"),
+    )
     tool_calls: Optional[List[ToolCall]] = None
     tool_call_id: Optional[str] = None
 
@@ -146,7 +150,16 @@ class ChatCompletionRequest(CommonCompletionRequest):
     )
     response_prefix: Optional[str] = None
 
-    continue_final_message: Optional[bool] = False
+    continue_final_message: Optional[
+        Union[bool, Literal["content", "reasoning_content", "reasoning", "thinking"]]
+    ] = Field(
+        default=False,
+        description=(
+            "Continue the final message instead of starting a new one. true continues "
+            "its reasoning if it has reasoning and no content, otherwise its content; "
+            "naming a field continues that field."
+        ),
+    )
     model: Optional[str] = None
 
     # tools is follows the format OAI schema, functions is more flexible
