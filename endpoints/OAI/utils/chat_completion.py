@@ -42,6 +42,7 @@ from endpoints.OAI.utils.completion import _gen_label, _parse_gen_request_id
 from endpoints.OAI.utils.stream_parser import (
     CONTENT,
     REASONING,
+    ChannelStreamParser,
     GlimmerStreamParser,
     HarmonyStreamParser,
     TagStreamParser,
@@ -818,6 +819,11 @@ async def _chat_stream_collector(
     # response moves between the two
     phase_applied = parser.in_reasoning
 
+    # With messages to get through first, any grammar waits for the content's
+    channel_parser = None
+    if isinstance(parser, ChannelStreamParser) and not parser.in_content:
+        channel_parser = parser
+
     # A JSON answer may be preceded by the blank line models put after their
     # reasoning (the grammar allows it); the client gets the JSON alone
     strip_content_lead = bool(params.json_schema)
@@ -833,6 +839,7 @@ async def _chat_stream_collector(
             disconnect_handler,
             mm_embeddings,
             reasoning_phase=phase_applied,
+            channel_parser=channel_parser,
             label=label,
         )
         generation = {"index": task_idx}

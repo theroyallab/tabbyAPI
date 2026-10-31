@@ -1,12 +1,15 @@
+from dataclasses import dataclass
 import json
-from typing import List, Optional
+from typing import Callable, Collection, List, Optional
 import traceback
 
+import torch
 from exllamav3 import (
     Tokenizer,
     Filter,
     LLGuidanceFilter,
 )
+from exllamav3.generator.filter.filter import FJ_PASS
 from common.errors import GrammarParseError
 from common.logger import xlogger
 
@@ -76,13 +79,67 @@ def prepare_json_schema(schema):
     return schema
 
 
+@dataclass
+class MessageGate:
+    """Where the content begins, in a response made of headed messages."""
+
+    # The token that ends every header, and all the tokens that bound one
+    message_token: int
+    boundary_tokens: Collection[int]
+
+    # Whether the message a header belongs to is content
+    opens_content: Callable[[str], bool]
+
+
+class GatedFilter(LLGuidanceFilter):
+    """
+    A filter for formats like Harmony and Glimmer, where the content is one
+    message among others. The engine activates a filter on the one token it
+    triggers on, and the token that ends a header also ends the reasoning
+    message's, so the header decides whether that token counts. It's decided
+    here, on the exact token, because a switch made from outside lands a few
+    tokens late (see set_generation_phase).
+
+    The header comes from the filter's journal, which holds every token fed so
+    far and so stays right when banned strings rewind them.
+    """
+
+    def __init__(self, *args, gate: MessageGate, **kwargs):
+        super().__init__(*args, trigger_token=gate.message_token, **kwargs)
+        self.gate = gate
+
+    def feed(self, token: int) -> bool:
+        if not self.is_active and token == self.trigger_token and not self._opens_content():
+            self._journal.append((FJ_PASS, token))
+            return False
+        return super().feed(token)
+
+    def _opens_content(self) -> bool:
+        header = []
+        for _, token in reversed(self._journal):
+            if token in self.gate.boundary_tokens:
+                break
+            header.append(token)
+
+        ids = torch.tensor(header[::-1], dtype=torch.long)
+        return self.gate.opens_content(self.tokenizer.decode(ids, decode_special_tokens=True))
+
+
 class ExLlamaV3Grammar:
     """ExLlamaV3 class for various grammar filters/parsers."""
 
     filters: List[Filter]
 
-    def __init__(self):
+    def __init__(self, gate: Optional[MessageGate] = None):
         self.filters = []
+        self.gate = gate
+
+    def _filter(self, tokenizer: Tokenizer, trigger_token: Optional[int], **kwargs) -> Filter:
+        """Build a filter, which the gate if there is one activates in place of the trigger."""
+
+        if self.gate is not None:
+            return GatedFilter(tokenizer, gate=self.gate, **kwargs)
+        return LLGuidanceFilter(tokenizer, trigger_token=trigger_token, **kwargs)
 
     def add_json_schema_filter(
         self,
@@ -102,11 +159,11 @@ class ExLlamaV3Grammar:
         lmfilter = None
         if allow_leading_whitespace and isinstance(schema, dict):
             try:
-                lmfilter = LLGuidanceFilter(
+                lmfilter = self._filter(
                     tokenizer,
+                    trigger_token_id,
                     eos_after_completed=True,
                     lark_grammar=json_schema_lark_with_lead(schema),
-                    trigger_token=trigger_token_id,
                 )
             except Exception:
                 # Fall through to the plain schema, which reports any problem with it
@@ -120,11 +177,11 @@ class ExLlamaV3Grammar:
             return
 
         try:
-            lmfilter = LLGuidanceFilter(
+            lmfilter = self._filter(
                 tokenizer,
+                trigger_token_id,
                 eos_after_completed=True,
                 json_schema=schema,
-                trigger_token=trigger_token_id,
             )
         except Exception as exc:
             xlogger.error(
@@ -147,11 +204,11 @@ class ExLlamaV3Grammar:
         """Adds an ExllamaV3 filter based on a regular expression."""
 
         try:
-            lmfilter = LLGuidanceFilter(
+            lmfilter = self._filter(
                 tokenizer,
+                trigger_token_id,
                 eos_after_completed=True,
                 regex=pattern,
-                trigger_token=trigger_token_id,
             )
         except Exception as exc:
             xlogger.error(
@@ -180,10 +237,10 @@ class ExLlamaV3Grammar:
         grammar_kind = "gbnf_grammar" if "::=" in grammar_string else "lark_grammar"
 
         try:
-            lmfilter = LLGuidanceFilter(
+            lmfilter = self._filter(
                 tokenizer,
+                trigger_token_id,
                 eos_after_completed=True,
-                trigger_token=trigger_token_id,
                 **{grammar_kind: grammar_string},
             )
         except Exception as exc:

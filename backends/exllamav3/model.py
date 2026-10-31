@@ -27,7 +27,7 @@ from exllamav3 import (
     Tokenizer,
 )
 from exllamav3.cache import CacheLayer_quant
-from backends.exllamav3.grammar import ExLlamaV3Grammar
+from backends.exllamav3.grammar import ExLlamaV3Grammar, MessageGate
 
 from backends.exllamav3.sampler import (
     ExllamaV3SamplerBuilder,
@@ -132,6 +132,10 @@ class JobPhases:
     # token: the engine activates them on the exact token, where a switch made
     # from here lands a few tokens late (see set_generation_phase)
     engine_trigger: bool = False
+
+    # The content filters are on the job already, and open themselves on the
+    # header of the first content message (see GatedFilter)
+    gated: bool = False
 
     def differ(self) -> bool:
         return bool(
@@ -1626,6 +1630,7 @@ class ExllamaV3Container:
         disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
         reasoning_phase: Optional[bool] = None,
+        channel_parser=None,
         label: Optional[str] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """
@@ -1643,6 +1648,9 @@ class ExllamaV3Container:
                 reasoning overrides apply and grammar filters are off. None
                 (default) for callers that don't: one set of settings and
                 filters from the first token.
+            channel_parser: The caller's ChannelStreamParser, for a response
+                of headed messages that has yet to reach its content, where
+                grammar filters wait for the first content message.
             label: Short name for the request in console logs.
 
         Yields:
@@ -1672,6 +1680,7 @@ class ExllamaV3Container:
                 disconnect_handler=disconnect_handler,
                 mm_embeddings=mm_embeddings,
                 reasoning_phase=reasoning_phase,
+                channel_parser=channel_parser,
                 label=label,
             ):
                 yield generation_chunk
@@ -2000,7 +2009,10 @@ class ExllamaV3Container:
             # A forced-output injection (reasoning budget) switches a job's
             # filters off, trigger included, so they have to be set again
             suspended = getattr(getattr(job, "job", None), "filters_suspended", False)
-            if phases.engine_trigger and not reasoning and not suspended:
+            if phases.gated and not suspended:
+                # They're watching the headers, through any number of messages
+                pass
+            elif phases.engine_trigger and not reasoning and not suspended:
                 # The engine armed them itself when it sampled the end tag
                 phases.engine_trigger = False
             else:
@@ -2009,6 +2021,7 @@ class ExllamaV3Container:
                 for content_filter in phases.content_filters:
                     content_filter.trigger_token = None
                 phases.engine_trigger = False
+                phases.gated = False
                 try:
                     job.set_filters([] if reasoning else phases.content_filters)
                 except ValueError:
@@ -2300,6 +2313,7 @@ class ExllamaV3Container:
         disconnect_handler: DisconnectHandler = None,
         mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
         reasoning_phase: Optional[bool] = None,
+        channel_parser=None,
         label: Optional[str] = None,
     ):
         """
@@ -2397,9 +2411,19 @@ class ExllamaV3Container:
         # reasoning they come into force when the content begins: armed by the
         # engine on the end-of-reasoning token if the tag is one token, else
         # swapped in by set_generation_phase. Otherwise from the first token
+        # Formats made of headed messages have no such tag, and the filters
+        # open on the header of the first content message instead
         trigger_token_id = None
         constrained = params.json_schema or params.regex_pattern or params.grammar_string
-        if constrained and reasoning_phase and getattr(self, "reasoning", False):
+        if constrained and channel_parser:
+            grammar_handler.gate = MessageGate(
+                message_token=self.tokenizer.single_id("<|message|>"),
+                boundary_tokens=frozenset(
+                    self.tokenizer.single_id(token) for token in channel_parser.structural_tokens
+                ),
+                opens_content=channel_parser.opens_content,
+            )
+        elif constrained and reasoning_phase and getattr(self, "reasoning", False):
             if self.reasoning_end_token:
                 trigger_token_id = self.tokenizer.single_id(self.reasoning_end_token)
 
@@ -2409,7 +2433,7 @@ class ExllamaV3Container:
                 params.json_schema,
                 self.tokenizer,
                 trigger_token_id=trigger_token_id,
-                allow_leading_whitespace=bool(reasoning_phase),
+                allow_leading_whitespace=bool(reasoning_phase and not grammar_handler.gate),
             )
 
         if params.regex_pattern:
@@ -2438,6 +2462,7 @@ class ExllamaV3Container:
                 content_filters=list(grammar_handler.filters),
                 reasoning=reasoning_phase,
                 engine_trigger=trigger_token_id is not None,
+                gated=grammar_handler.gate is not None,
             )
             if not phases.differ():
                 phases = None
@@ -2520,7 +2545,9 @@ class ExllamaV3Container:
                 max_rq_tokens=max_rq_tokens,
                 stop_on_loop=bool(params.loop_detect),
                 filters=(
-                    [] if in_reasoning and not phases.engine_trigger else grammar_handler.filters
+                    []
+                    if in_reasoning and not (phases.engine_trigger or phases.gated)
+                    else grammar_handler.filters
                 ),
             )
         except AssertionError as ex:

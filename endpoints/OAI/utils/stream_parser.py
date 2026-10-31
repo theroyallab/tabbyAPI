@@ -209,6 +209,14 @@ class ChannelStreamParser:
         """Map a message header to a channel."""
         raise NotImplementedError
 
+    @property
+    def structural_tokens(self) -> List[str]:
+        return self._TOKENS
+
+    def opens_content(self, header: str) -> bool:
+        """Whether a message with this header is routed to the content channel."""
+        return self._resolve_channel(header) == CONTENT
+
     def __init__(self, initial_channel: Optional[str] = None):
         self._state = self._HEADER if initial_channel is None else self._BODY
         self._header = ""
