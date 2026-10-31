@@ -20,7 +20,12 @@ from common.networking import (
 )
 from common.tabby_config import config
 from common.logger import xlogger
-from endpoints.OAI.types.completion import CompletionRequest, CompletionResponse
+from endpoints.OAI.types.completion import (
+    CompletionRequest,
+    CompletionResponse,
+    ContinuationsRequest,
+    ContinuationsResponse,
+)
 from endpoints.OAI.types.chat_completion import (
     ChatCompletionRequest,
     ChatCompletionResponse,
@@ -34,6 +39,7 @@ from endpoints.OAI.utils.chat_completion import (
 )
 from endpoints.OAI.utils.completion import (
     generate_completion,
+    generate_continuations,
     stream_generate_completion,
 )
 from endpoints.OAI.utils.embeddings import get_embeddings
@@ -89,9 +95,9 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
     try:
         disconnect_handler = DisconnectHandler(request, f"{request_tag(request)} completions")
         await disconnect_handler.poll()
+        model.check_context_length(prompt, data)
 
         if data.stream and not config.developer.disable_request_streaming:
-            model.check_context_length(prompt, data)
             return EventSourceResponse(
                 stream_generate_completion(prompt, data, request, model_path, disconnect_handler),
                 ping=get_sse_ping_interval(),
@@ -104,6 +110,31 @@ async def completion_request(request: Request, data: CompletionRequest) -> Compl
 
     except (CancelledError, InvalidStateError) as ex:
         raise HTTPException(422, "/v1/completions request cancelled by user.") from ex
+
+
+# Continuations endpoint
+@router.post(
+    "/v1/continuations",
+    dependencies=[Depends(check_api_key)],
+)
+async def continuations_request(
+    request: Request, data: ContinuationsRequest
+) -> ContinuationsResponse:
+    """
+    Lists the ways a prompt can go on under the given sampler settings: the likeliest
+    next tokens that pass truncation, each followed up to its next branch point.
+    """
+
+    await check_model_container()
+    model.check_context_length(data.prompt, data)
+
+    try:
+        disconnect_handler = DisconnectHandler(request, f"{request_tag(request)} continuations")
+        await disconnect_handler.poll()
+        return await generate_continuations(data, request, disconnect_handler)
+
+    except (CancelledError, InvalidStateError) as ex:
+        raise HTTPException(422, "/v1/continuations request cancelled by user.") from ex
 
 
 # Chat completions endpoint

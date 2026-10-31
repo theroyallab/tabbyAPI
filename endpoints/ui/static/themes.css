@@ -946,6 +946,8 @@
 }
 
 [data-theme="hot-dog-stand"] .section-head h2 { color: #ffffff; letter-spacing: 0.1em; }
+[data-theme="hot-dog-stand"] .section-head .muted { color: #ffff00; }
+[data-theme="hot-dog-stand"] .notebook-options .section-head { margin: -8px 0 6px; }
 [data-theme="hot-dog-stand"] .section-head .icon-button,
 [data-theme="hot-dog-stand"] .section-head .link-button { color: #ffff00; }
 
@@ -1402,10 +1404,14 @@
 }
 
 [data-theme="matrix"] .new-chat::after {
-  content: "INIT_SESSION()";
+  content: "INIT_CHAT()";
   font-size: 13.5px;
   letter-spacing: 0.06em;
 }
+
+[data-theme="matrix"] #new-notebook::after { content: "INIT_RAW()"; }
+[data-theme="matrix"] .new-buttons svg { display: none; }
+[data-theme="matrix"] .new-buttons .new-chat { justify-content: center; }
 
 [data-theme="matrix"] .new-chat:hover { box-shadow: inset 0 0 12px rgba(0, 255, 65, 0.35); }
 

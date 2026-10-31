@@ -11,7 +11,11 @@ from common.logger import xlogger
 from ruamel.yaml import YAML
 from typing import Optional
 
-from common.errors import ContextLengthExceededError, ContextLengthHTTPException
+from common.errors import (
+    ContextLengthExceededError,
+    ContextLengthHTTPException,
+    EmptyPromptError,
+)
 from common.logger import get_loading_progress_bar
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import handle_request_error
@@ -429,7 +433,7 @@ def check_context_length(
     params: BaseSamplerRequest,
     mm_embeddings: Optional[MultimodalEmbeddingWrapper] = None,
 ):
-    """Reject oversized prompts before a streaming response commits HTTP 200."""
+    """Reject unusable prompts before a streaming response commits HTTP 200."""
 
     if isinstance(prompts, str):
         prompts = [prompts]
@@ -440,3 +444,6 @@ def check_context_length(
     except ContextLengthExceededError as exc:
         error_message = handle_request_error(str(exc), exc_info=False).error.message
         raise ContextLengthHTTPException(error_message) from exc
+    except EmptyPromptError as exc:
+        error_message = handle_request_error(str(exc), exc_info=False).error.message
+        raise HTTPException(400, error_message) from exc

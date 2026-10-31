@@ -1,6 +1,7 @@
 // TabbyAPI chat client. Plain browser JavaScript with no build step: it calls
-// the regular API (chat completions, model and sampler override endpoints) and
-// keeps its chats and settings in the browser's local storage.
+// the regular API (chat completions, plain completions for raw text sessions,
+// model and sampler override endpoints) and keeps its sessions and settings in
+// the browser's local storage.
 
 import "./effects.js";
 import {
@@ -46,9 +47,11 @@ const paramSpecs = new Map();
 // Helpers
 
 function setStatus(text, isError = false) {
-  const line = $("status-line");
-  line.textContent = text || "";
-  line.classList.toggle("error", isError);
+  for (const id of ["status-line", "notebook-status"]) {
+    const line = $(id);
+    line.textContent = text || "";
+    line.classList.toggle("error", isError);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -670,8 +673,12 @@ function renderImages(ids) {
 // ---------------------------------------------------------------------------
 // Sessions
 
+function isNotebook(s) {
+  return s?.kind === "notebook";
+}
+
 function sessionSummary(s) {
-  return { id: s.id, title: s.title, updated: s.updated };
+  return { id: s.id, title: s.title, updated: s.updated, kind: s.kind };
 }
 
 function persistSession(s = session) {
@@ -696,32 +703,33 @@ function createSession() {
   return s;
 }
 
+function showSession(s) {
+  leaveNotebook();
+  session = s;
+  save("current", s.id);
+  renderSessionList();
+  renderSession();
+  closeDrawers();
+}
+
 function openSession(id) {
-  // A chat that is still streaming lives in memory, ahead of its stored copy
+  // A session that is still streaming lives in memory, ahead of its stored copy
   const s = state.generating?.session.id === id ? state.generating.session : load(`session.${id}`, null);
   if (!s) {
     sessionIndex = sessionIndex.filter((x) => x.id !== id);
     save("sessions", sessionIndex);
     return false;
   }
-  session = s;
-  save("current", id);
-  renderSessionList();
-  renderThread();
-  closeDrawers();
+  showSession(s);
   return true;
 }
 
 function newChat() {
-  if (session && session.messages.length === 0) {
+  if (session?.messages?.length === 0) {
     $("input").focus();
     return;
   }
-  session = createSession();
-  save("current", session.id);
-  renderSessionList();
-  renderThread();
-  closeDrawers();
+  showSession(createSession());
   $("input").focus();
 }
 
@@ -730,6 +738,7 @@ function deleteSession(id) {
     state.generating.session.deleted = true;
     state.generating.controller.abort();
   }
+  if (unsavedNotebook?.id === id) unsavedNotebook = null;
   remove(`session.${id}`);
   sessionIndex = sessionIndex.filter((x) => x.id !== id);
   save("sessions", sessionIndex);
@@ -737,11 +746,7 @@ function deleteSession(id) {
 
   if (session?.id === id) {
     session = null;
-    if (!sessionIndex.length || !openSession(sessionIndex[0].id)) {
-      session = createSession();
-      save("current", session.id);
-      renderThread();
-    }
+    if (!sessionIndex.length || !openSession(sessionIndex[0].id)) showSession(createSession());
   }
   renderSessionList();
 }
@@ -765,7 +770,7 @@ function renderSessionList() {
         title: item.title,
         onclick: () => item.id !== session?.id && openSession(item.id),
       },
-      icon("chat"),
+      icon(item.kind === "notebook" ? "text" : "chat"),
     );
     const title = el("span", { class: "session-title" }, item.title);
 
@@ -790,6 +795,20 @@ function renderSessionList() {
     const actions = el(
       "span",
       { class: "session-actions" },
+      item.kind === "notebook"
+        ? null
+        : el(
+            "button",
+            {
+              type: "button",
+              title: "Copy to a raw text session",
+              onclick: (e) => {
+                e.stopPropagation();
+                convertToNotebook(item.id);
+              },
+            },
+            icon("text"),
+          ),
       el("button", { type: "button", title: "Rename", onclick: startRename }, icon("edit")),
       el(
         "button",
@@ -908,6 +927,18 @@ function renderMessage(msg, index) {
   );
 }
 
+function renderSession() {
+  const raw = isNotebook(session);
+  $("thread").hidden = raw;
+  $("composer-area").hidden = raw;
+  $("notebook").hidden = !raw;
+  setStatus("");
+
+  if (state.panelMode !== panelMode()) renderParams();
+  if (raw) renderNotebook();
+  else renderThread();
+}
+
 function renderThread() {
   live = null;
   const container = $("messages");
@@ -953,6 +984,10 @@ function updateSystemPreview() {
 }
 
 function updateComposer() {
+  if (isNotebook(session)) {
+    updateNotebookBar();
+    return;
+  }
   const busy = !!state.generating;
   const last = session.messages[session.messages.length - 1];
   $("stop").hidden = !busy;
@@ -1098,6 +1133,8 @@ async function generate() {
     state.generating = null;
     if (!s.deleted) persistSession(s);
     if (session === s) renderThread();
+    else updateComposer();
+    queueOptions(0);
     if (msg.error) setStatus(msg.error, true);
   }
 }
@@ -1152,6 +1189,518 @@ function autosize() {
 }
 
 // ---------------------------------------------------------------------------
+// Notebook
+
+// A raw text session keeps its whole context as text, sent as is through the
+// completions endpoint, so it works without a chat template. The text before
+// the cursor is the prompt, and output goes in at the cursor like typing:
+// through the browser's editing commands where possible, so Ctrl+Z takes it
+// back again. What a session holds is `text`; the textarea follows it.
+
+const NEW_NOTEBOOK_TITLE = "New notebook";
+const NOTEBOOK_SAVE_DELAY = 600;
+const DEFAULT_NOTEBOOK_TOKENS = 128;
+// A step ends at the first text, which only a run of partial characters or a
+// long possible stop string can put off for long. This bounds that run
+const STEP_MAX_TOKENS = 64;
+const TEMPLATE_PLACEHOLDER_SYSTEM = "You are a helpful assistant.";
+const TEMPLATE_PLACEHOLDER_USER = "User message";
+// The panel's settings that go into the chat template rather than the sampler
+const TEMPLATE_PARAMS = ["enable_thinking", "reasoning_effort", "template_vars", "response_prefix"];
+
+let unsavedNotebook = null;
+let notebookSaveTimer = null;
+
+// Long enough for moving the cursor or typing to settle
+const OPTIONS_DELAY = 300;
+// The request behind the continuations on show, or on its way
+const notebookOptions = { key: null, prompt: null, controller: null, timer: null };
+
+function createNotebook(title = NEW_NOTEBOOK_TITLE, text = "") {
+  const s = { id: newId(), kind: "notebook", title, text, created: Date.now(), updated: Date.now() };
+  persistSession(s);
+  return s;
+}
+
+function newNotebook() {
+  if (!isNotebook(session) || session.text) showSession(createNotebook());
+  $("notebook-text").focus();
+}
+
+function queueNotebookSave(s) {
+  unsavedNotebook = s;
+  clearTimeout(notebookSaveTimer);
+  notebookSaveTimer = setTimeout(saveNotebook, NOTEBOOK_SAVE_DELAY);
+}
+
+function saveNotebook() {
+  clearTimeout(notebookSaveTimer);
+  if (unsavedNotebook) persistSession(unsavedNotebook);
+  unsavedNotebook = null;
+}
+
+// Keeps the place in a notebook being left. Moving the cursor isn't a change
+// to the session, so this leaves its spot in the list alone.
+function leaveNotebook() {
+  saveNotebook();
+  if (!isNotebook(session) || session.deleted) return;
+  const area = $("notebook-text");
+  session.cursor = area.selectionEnd;
+  session.scroll = area.scrollTop;
+  if (state.generating?.session !== session) save(`session.${session.id}`, session);
+}
+
+function optionsShown() {
+  return isNotebook(session) && !!load("notebook-options", false);
+}
+
+function applyOptionsPanel() {
+  const shown = !!load("notebook-options", false);
+  $("notebook-options").hidden = !shown;
+  $("notebook-options-toggle").setAttribute("aria-pressed", String(shown));
+}
+
+function toggleOptionsPanel() {
+  save("notebook-options", !load("notebook-options", false));
+  applyOptionsPanel();
+  if (load("notebook-options", false)) queueOptions(0);
+  else cancelOptions();
+}
+
+function cancelOptions() {
+  clearTimeout(notebookOptions.timer);
+  notebookOptions.controller?.abort();
+  notebookOptions.controller = null;
+}
+
+function queueOptions(delay = OPTIONS_DELAY) {
+  clearTimeout(notebookOptions.timer);
+  if (optionsShown()) notebookOptions.timer = setTimeout(refreshOptions, delay);
+}
+
+// Drops what's known, for when the same text would now give different results
+function invalidateOptions() {
+  notebookOptions.key = null;
+  queueOptions(0);
+}
+
+function setOptionsMessage(text, isError = false) {
+  const note = $("notebook-options-note");
+  note.textContent = text;
+  note.classList.toggle("error", isError);
+}
+
+async function refreshOptions() {
+  if (!optionsShown() || state.generating) return;
+  const area = $("notebook-text");
+
+  let body;
+  try {
+    body = { ...collectParams(), prompt: area.value.slice(0, area.selectionStart) };
+  } catch (e) {
+    setOptionsMessage(e.message, true);
+    return;
+  }
+
+  const key = JSON.stringify(body);
+  if (key === notebookOptions.key) return;
+  cancelOptions();
+  notebookOptions.key = key;
+
+  const controller = new AbortController();
+  notebookOptions.controller = controller;
+  $("notebook-options-list").classList.add("stale");
+  try {
+    const res = await api("/v1/continuations", { method: "POST", body, signal: controller.signal });
+    const data = await res.json();
+    if (controller.signal.aborted) return;
+    notebookOptions.prompt = body.prompt;
+    renderOptions(data);
+  } catch (e) {
+    if (controller.signal.aborted) return;
+    notebookOptions.key = null;
+    notebookOptions.prompt = null;
+    $("notebook-options-list").replaceChildren();
+    $("notebook-options-state").textContent = "";
+    setOptionsMessage(e.message, true);
+  } finally {
+    if (notebookOptions.controller === controller) {
+      notebookOptions.controller = null;
+      $("notebook-options-list").classList.remove("stale");
+    }
+  }
+}
+
+// Whitespace is what most options differ in, and can't be seen as it is
+function optionText(text) {
+  const parts = [];
+  for (const part of text.split(/(\n|\t|^ +| +$)/)) {
+    if (!part) continue;
+    if (part === "\n") parts.push(el("span", { class: "option-mark" }, "\u21b5"));
+    else if (part === "\t") parts.push(el("span", { class: "option-mark" }, "\u2192"));
+    else if (!part.trim()) parts.push(el("span", { class: "option-mark" }, "\u00b7".repeat(part.length)));
+    else parts.push(part);
+  }
+  return parts;
+}
+
+const OPTION_ENDS = { branch: "ends at a branch point", stop: "ends the generation", limit: "goes on past here" };
+
+function renderOptions(data) {
+  $("notebook-options-list").replaceChildren(
+    ...data.options.map((option) => {
+      const rest = option.text.slice(option.first.length);
+      const percent = option.prob * 100;
+      const count = `${option.token_ids.length} token${option.token_ids.length === 1 ? "" : "s"}`;
+      return el(
+        "button",
+        {
+          type: "button",
+          class: "option",
+          style: `--prob: ${percent.toFixed(1)}%`,
+          title: `${percent.toFixed(1)}%, ${count}, ${OPTION_ENDS[option.end]}`,
+          onclick: () => chooseOption(option),
+        },
+        el("span", { class: "option-prob" }, percent >= 10 ? percent.toFixed(0) : percent.toFixed(1)),
+        el(
+          "span",
+          { class: "option-text" },
+          el("span", { class: "option-first" }, optionText(option.first)),
+          optionText(rest),
+        ),
+        option.end === "branch" ? null : el("span", { class: "option-end" }, option.end === "stop" ? "stop" : "\u2026"),
+      );
+    }),
+  );
+
+  const shown = data.options.length;
+  const of = data.candidates > shown ? ` of ${data.candidates}` : "";
+  $("notebook-options-state").textContent =
+    `${shown}${of} path${shown === 1 && !of ? "" : "s"} · ${data.generated_tokens} tok in ${fmt(data.time, 2)} s`;
+  setOptionsMessage(data.truncated ? "" : "No truncation is set, so every token is a branch point. Set top-P, top-K or min-P for longer paths.");
+}
+
+function chooseOption(option) {
+  const s = session;
+  const area = $("notebook-text");
+  const start = area.selectionStart;
+  // The list can be behind if the cursor has only just moved
+  if (state.generating || area.value.slice(0, start) !== notebookOptions.prompt) return;
+
+  const end = area.selectionEnd;
+  const text = option.text.replace(/\r\n?/g, "\n");
+  area.focus();
+  s.text = s.text.slice(0, start) + text + s.text.slice(end);
+  nameNotebook(s);
+  writeToEditor(start, end, text);
+  updateNotebookBar();
+  queueNotebookSave(s);
+  queueOptions(0);
+}
+
+function updateNotebookBar() {
+  if (!isNotebook(session)) return;
+  const busy = !!state.generating;
+  $("notebook-step").disabled = busy;
+  $("notebook-run").disabled = busy;
+  $("notebook-stop").disabled = !busy;
+  $("notebook-start").hidden = !!session.text;
+
+  const model = state.currentModel;
+  const template = model?.parameters?.prompt_template;
+  $("notebook-template").disabled = !template;
+  $("notebook-template-note").textContent = template ? "" : model ? "This model has no chat template" : "No model loaded";
+}
+
+// Setting a textarea's value leaves its undo history in place, and redo then
+// replays old edits into the new text. So does setRangeText. Only a new element
+// starts without one.
+function freshEditor() {
+  const old = $("notebook-text");
+  const area = old.cloneNode(false);
+  const focused = document.activeElement === old;
+  old.replaceWith(area);
+  if (focused) area.focus();
+  return area;
+}
+
+function renderNotebook() {
+  const area = freshEditor();
+  area.value = session.text;
+  const cursor = Math.min(session.cursor ?? session.text.length, session.text.length);
+  area.setSelectionRange(cursor, cursor);
+  area.scrollTop = session.scroll ?? (cursor === session.text.length ? area.scrollHeight : 0);
+  if (state.generating?.session === session) {
+    state.generating.scrollTop = area.scrollTop;
+    state.generating.edits = null;
+    state.generating.fresh = true;
+  }
+  updateNotebookBar();
+  applyOptionsPanel();
+  invalidateOptions();
+}
+
+// Replaces start..end of the textarea with text. Output arrives while the
+// reader may be scrolled elsewhere: the view follows the cursor unless they
+// moved it, and goes back to following once they return to the bottom.
+function writeToEditor(start, end, text, view = {}) {
+  let area = $("notebook-text");
+  const moved = view.scrollTop !== undefined && area.scrollTop !== view.scrollTop;
+  if (moved) view.follow = area.scrollHeight - area.scrollTop - area.clientHeight < 80;
+  const scrollTop = area.scrollTop;
+
+  view.inserting = true;
+  let inserted = false;
+  if (document.activeElement === area) {
+    area.setSelectionRange(start, end);
+    inserted = document.execCommand("insertText", false, text);
+  }
+  if (inserted) {
+    if (view.edits !== null) view.edits = (view.edits || 0) + 1;
+    view.fresh = false;
+  } else {
+    // The editing commands need the focus, which has gone elsewhere. This
+    // gives up the undo history, as a new element is the only safe way to set
+    // the text.
+    const value = area.value;
+    if (!view.fresh) area = freshEditor();
+    area.value = value.slice(0, start) + text + value.slice(end);
+    area.setSelectionRange(start + text.length, start + text.length);
+    view.edits = null;
+    view.fresh = true;
+  }
+  view.inserting = false;
+
+  if (view.follow === false || !inserted) area.scrollTop = scrollTop;
+  view.scrollTop = area.scrollTop;
+}
+
+// Output arrives as an edit per frame. Taking those back and inserting it all
+// in one go leaves a single Ctrl+Z for the whole run, and nothing paints between
+// the two.
+function mergeOutputEdits(gen) {
+  const area = $("notebook-text");
+  if (!(gen.edits > 1) || document.activeElement !== area) return;
+
+  const scrollTop = area.scrollTop;
+  gen.inserting = true;
+  for (let i = 0; i < gen.edits; i++) document.execCommand("undo");
+  area.setSelectionRange(gen.first, gen.firstEnd);
+  document.execCommand("insertText", false, gen.output);
+  gen.inserting = false;
+  area.scrollTop = scrollTop;
+  if (area.value !== gen.session.text) renderNotebook();
+}
+
+function flushOutput(gen) {
+  gen.outputQueued = false;
+  const text = gen.pending;
+  if (!text) return;
+  gen.pending = "";
+
+  const s = gen.session;
+  s.text = s.text.slice(0, gen.start) + text + s.text.slice(gen.end);
+  gen.output += text;
+  if (session === s) writeToEditor(gen.start, gen.end, text, gen);
+  gen.start += text.length;
+  gen.end = gen.start;
+  if (session === s) updateNotebookBar();
+}
+
+function addOutput(gen, text) {
+  // A textarea only holds \n, and positions in it have to match the session's
+  gen.pending += text.replace(/\r\n?/g, "\n");
+  if (!gen.outputQueued) {
+    gen.outputQueued = true;
+    requestAnimationFrame(() => flushOutput(gen));
+  }
+}
+
+// Named after the first line of actual text, passing over any that open with
+// template markup, like a chat is after its first message
+function nameNotebook(s) {
+  if (s.title !== NEW_NOTEBOOK_TITLE) return;
+  const line = s.text.split("\n").find((l) => l.trim() && !l.trim().startsWith("<"));
+  if (line) s.title = line.replace(/<[^<>\s]+>/g, "").trim().slice(0, 48) || s.title;
+}
+
+async function sample(step) {
+  if (state.generating || !isNotebook(session)) return;
+  const s = session;
+  const area = $("notebook-text");
+
+  let samplerParams;
+  try {
+    samplerParams = collectParams();
+  } catch (e) {
+    setStatus(e.message, true);
+    return;
+  }
+
+  area.focus();
+  saveNotebook();
+  cancelOptions();
+  s.text = area.value;
+  nameNotebook(s);
+
+  const controller = new AbortController();
+  const gen = {
+    session: s,
+    controller,
+    start: area.selectionStart,
+    end: area.selectionEnd,
+    first: area.selectionStart,
+    firstEnd: area.selectionEnd,
+    pending: "",
+    output: "",
+    scrollTop: area.scrollTop,
+    follow: true,
+  };
+  state.generating = gen;
+  updateNotebookBar();
+  if (!step) setStatus("");
+
+  let finish = null;
+  let timings = null;
+  let error = null;
+  try {
+    const tokens = Number($("notebook-tokens").value);
+    const body = {
+      ...samplerParams,
+      prompt: s.text.slice(0, gen.start),
+      stream: true,
+      max_tokens: step ? STEP_MAX_TOKENS : tokens > 0 ? Math.round(tokens) : undefined,
+      stop_after_output: step || undefined,
+    };
+    const res = await api("/v1/completions", { method: "POST", body, signal: controller.signal });
+
+    for await (const data of sseData(res)) {
+      if (data === "[DONE]") break;
+
+      let chunk;
+      try {
+        chunk = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      if (chunk.error) throw new Error(chunk.error.message || JSON.stringify(chunk.error));
+
+      const choice = chunk.choices?.[0];
+      if (choice?.text) addOutput(gen, choice.text);
+      if (choice?.finish_reason) finish = choice.finish_reason;
+      // The stop token ends the stream without being part of it. It belongs in
+      // the text: the context the next request sees has to include it, or a
+      // step that lands on it would have nothing to show and nothing to move
+      // past. A stop string is the client's own choice of where to end.
+      if (choice?.eos_reason === "stop_token" && choice.stop_str) addOutput(gen, choice.stop_str);
+      if (chunk.timings) timings = chunk.timings;
+    }
+  } catch (e) {
+    if (controller.signal.aborted) {
+      finish = "stopped";
+    } else {
+      error = e.message || String(e);
+      if (e.status === 401) openConnectionDialog();
+    }
+  } finally {
+    flushOutput(gen);
+    if (session === s) mergeOutputEdits(gen);
+    state.generating = null;
+    if (!s.deleted) persistSession(s);
+    updateComposer();
+    queueOptions(0);
+  }
+
+  if (error) {
+    setStatus(error, true);
+    return;
+  }
+  const usage = timings && {
+    completion_tokens: timings.predicted_n,
+    completion_tokens_per_sec: timings.predicted_per_second,
+    prompt_tokens: timings.prompt_n + timings.cache_n,
+    prompt_tokens_details: { cached_tokens: timings.cache_n },
+    prompt_tokens_per_sec: timings.prompt_per_second,
+  };
+  // Every step ends on its output limit, so that says nothing
+  setStatus(statsText({ usage, finish: step && finish === "length" ? null : finish }));
+}
+
+async function applyTemplate(messages, addGenerationPrompt) {
+  const chatParams = collectParams("chat");
+  const body = { messages, add_generation_prompt: addGenerationPrompt };
+  for (const key of TEMPLATE_PARAMS) if (key in chatParams) body[key] = chatParams[key];
+  return (await (await api("/v1/apply-template", { method: "POST", body })).json()).prompt;
+}
+
+async function startFromTemplate() {
+  const s = session;
+  const user = { role: "user", content: TEMPLATE_PLACEHOLDER_USER };
+
+  let text;
+  try {
+    try {
+      text = await applyTemplate([{ role: "system", content: TEMPLATE_PLACEHOLDER_SYSTEM }, user], true);
+    } catch {
+      // Not every template takes a system message
+      text = await applyTemplate([user], true);
+    }
+  } catch (e) {
+    setStatus(e.message, true);
+    return;
+  }
+  if (session !== s || s.text || state.generating) return;
+
+  const area = $("notebook-text");
+  area.focus();
+  s.text = text;
+  // Keeps its title: the first line of this text is template markup
+  if (s.title === NEW_NOTEBOOK_TITLE) s.title = "Notebook";
+  writeToEditor(0, area.value.length, text);
+
+  const placeholder = text.lastIndexOf(TEMPLATE_PLACEHOLDER_USER);
+  if (placeholder >= 0) area.setSelectionRange(placeholder, placeholder + TEMPLATE_PLACEHOLDER_USER.length);
+  persistSession(s);
+  updateNotebookBar();
+  setStatus("");
+}
+
+// Makes a new session from a chat and leaves the chat as it was, since the
+// messages can't be recovered from the text
+async function convertToNotebook(id) {
+  saveNotebook();
+  const generating = state.generating?.session.id === id ? state.generating.session : null;
+  const chat = generating || (id === session?.id ? session : load(`session.${id}`, null));
+  if (!chat) return;
+
+  const messages = [];
+  let images = 0;
+  if (chat.system?.trim()) messages.push({ role: "system", content: chat.system });
+  for (const m of chat.messages) {
+    if (m.role === "assistant" && !m.content) continue;
+    images += m.images?.length || 0;
+    messages.push({ role: m.role, content: m.content });
+  }
+  if (!messages.length) {
+    setStatus("This chat has nothing to convert yet.");
+    return;
+  }
+
+  let text;
+  try {
+    // A chat waiting on the model ends ready for its reply
+    text = await applyTemplate(messages, messages.at(-1).role !== "assistant");
+  } catch (e) {
+    setStatus(e.message, true);
+    return;
+  }
+
+  showSession(createNotebook(chat.title, text));
+  $("notebook-text").focus();
+  setStatus(images ? `${images} image${images === 1 ? "" : "s"} left out: raw text can't carry them.` : "");
+}
+
+// ---------------------------------------------------------------------------
 // Sampling parameters
 
 function unescapeLine(line) {
@@ -1190,13 +1739,30 @@ function paramValue(spec, raw) {
   }
 }
 
-function collectParams() {
+// Which controls apply: a raw text session has no template, reasoning or
+// constraints, and sets its own token count
+function panelMode() {
+  return isNotebook(session) ? "raw" : "chat";
+}
+
+function inMode(spec, mode = panelMode()) {
+  return !spec.mode || spec.mode === mode;
+}
+
+function collectParams(mode = panelMode()) {
   const out = {};
   for (const [key, raw] of Object.entries(params)) {
     const spec = paramSpecs.get(key);
-    if (!spec) continue;
+    if (!spec || !inMode(spec, mode)) continue;
     const value = paramValue(spec, raw);
     if (value !== undefined) out[key] = value;
+  }
+  if (mode === "raw") {
+    for (const spec of paramSpecs.values()) {
+      if (spec.raw_default !== undefined && !(spec.key in out) && !serverDefault(spec).server) {
+        out[spec.key] = spec.raw_default;
+      }
+    }
   }
   return out;
 }
@@ -1212,7 +1778,8 @@ function serverDefault(spec) {
   if (override && "override" in override) {
     return { value: override.override, server: true, force: !!override.force };
   }
-  return { value: spec.default, server: false, force: false };
+  const value = panelMode() === "raw" ? (spec.raw_default ?? spec.default) : spec.default;
+  return { value, server: false, force: false };
 }
 
 function defaultLabel(spec) {
@@ -1354,8 +1921,8 @@ function renderParam(spec) {
 
 function updateGroupCounts() {
   for (const group of samplerGroups) {
-    const n = group.params.filter((p) => params[p.key] !== undefined).length;
-    group.countEl.textContent = n ? `${n} set` : "";
+    const n = group.params.filter((p) => inMode(p) && params[p.key] !== undefined).length;
+    if (group.countEl) group.countEl.textContent = n ? `${n} set` : "";
   }
 }
 
@@ -1363,14 +1930,19 @@ function renderParams() {
   const container = $("params");
   const openState = load("groups-open", {});
   container.replaceChildren();
+  state.panelMode = panelMode();
 
   for (const group of samplerGroups) {
+    group.countEl = null;
+    const shown = group.params.filter((p) => inMode(p));
+    if (!shown.length) continue;
+
     group.countEl = el("span", { class: "count" });
     const details = el(
       "details",
       { class: "param-group", open: openState[group.name] ?? group.open },
       el("summary", {}, group.name, group.countEl),
-      ...group.params.map(renderParam),
+      ...shown.map(renderParam),
     );
     details.addEventListener("toggle", () => {
       openState[group.name] = details.open;
@@ -1385,7 +1957,10 @@ async function loadSamplerSpecs() {
   const res = await fetch("samplers.json");
   samplerGroups = (await res.json()).groups;
   for (const group of samplerGroups) {
-    for (const spec of group.params) paramSpecs.set(spec.key, spec);
+    for (const spec of group.params) {
+      spec.mode ??= group.mode;
+      paramSpecs.set(spec.key, spec);
+    }
   }
 }
 
@@ -1419,6 +1994,7 @@ async function refreshOverrides() {
   $("preset-info").textContent = info.join(" ");
 
   renderParams();
+  invalidateOptions();
 }
 
 async function switchPreset() {
@@ -1458,6 +2034,7 @@ function renderModelInfo() {
 
   if (!model) {
     info.replaceChildren(el("div", { class: "muted" }, "No model loaded"));
+    updateNotebookBar();
     return;
   }
 
@@ -1475,6 +2052,7 @@ function renderModelInfo() {
     el("div", { class: "name" }, state.loadedName || model.id),
     el("dl", {}, rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, String(v))])),
   );
+  updateNotebookBar();
 }
 
 async function refreshModels() {
@@ -1483,6 +2061,7 @@ async function refreshModels() {
   } catch {
     state.currentModel = null;
   }
+  invalidateOptions();
 
   // The model card only names the folder; /props has the full path, and the
   // model list (admin only) its name under the model directory
@@ -1612,6 +2191,7 @@ function applySidePanels() {
 
 function bindEvents() {
   $("new-chat").addEventListener("click", newChat);
+  $("new-notebook").addEventListener("click", newNotebook);
 
   $("messages").addEventListener("click", async (e) => {
     const button = e.target.closest(".code-copy");
@@ -1653,7 +2233,7 @@ function bindEvents() {
   let dragDepth = 0;
   const carriesFiles = (e) => e.dataTransfer?.types.includes("Files");
   document.addEventListener("dragenter", (e) => {
-    if (!carriesFiles(e)) return;
+    if (!carriesFiles(e) || isNotebook(session)) return;
     e.preventDefault();
     dragDepth++;
     $("drop-overlay").hidden = false;
@@ -1672,7 +2252,8 @@ function bindEvents() {
     e.preventDefault();
     dragDepth = 0;
     $("drop-overlay").hidden = true;
-    addAttachments([...e.dataTransfer.files]);
+    if (isNotebook(session)) setStatus("Raw text sessions can't take images.", true);
+    else addAttachments([...e.dataTransfer.files]);
   });
 
   $("image-viewer").addEventListener("click", () => $("image-viewer").close());
@@ -1681,7 +2262,41 @@ function bindEvents() {
   $("regenerate").addEventListener("click", regenerate);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && state.generating && !$("connection-dialog").open) state.generating.controller.abort();
+
+    // Holding down Ctrl+Enter keeps stepping, once for each step finished
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && isNotebook(session) && !$("connection-dialog").open) {
+      e.preventDefault();
+      if (!e.shiftKey) sample(true);
+      else if (!e.repeat) sample(false);
+    }
   });
+
+  // On the parent, as the textarea gets replaced
+  const editor = document.querySelector(".notebook-editor");
+  editor.addEventListener("beforeinput", (e) => {
+    // Output goes in at a tracked position, which editing would throw off
+    const gen = state.generating;
+    if (gen?.session === session && !gen.inserting) e.preventDefault();
+  });
+  editor.addEventListener("input", () => {
+    if (state.generating?.inserting) return;
+    session.text = $("notebook-text").value;
+    updateNotebookBar();
+    queueNotebookSave(session);
+    queueOptions();
+  });
+  document.addEventListener("selectionchange", () => {
+    if (document.activeElement === $("notebook-text")) queueOptions();
+  });
+  $("params").addEventListener("input", () => queueOptions());
+  $("params").addEventListener("change", () => queueOptions());
+  $("notebook-options-toggle").addEventListener("click", toggleOptionsPanel);
+  $("notebook-step").addEventListener("click", () => sample(true));
+  $("notebook-run").addEventListener("click", () => sample(false));
+  $("notebook-stop").addEventListener("click", () => state.generating?.controller.abort());
+  $("notebook-template").addEventListener("click", startFromTemplate);
+  $("notebook-tokens").addEventListener("change", () => save("notebook-tokens", $("notebook-tokens").value));
+  window.addEventListener("pagehide", saveNotebook);
 
   $("system-prompt").addEventListener("input", () => {
     session.system = $("system-prompt").value;
@@ -1695,10 +2310,14 @@ function bindEvents() {
   });
   $("preset-select").addEventListener("change", switchPreset);
 
+  // Settings for the other kind of session aren't on show, so they stay
   $("reset-params").addEventListener("click", () => {
-    params = {};
+    for (const key of Object.keys(params)) {
+      if (!paramSpecs.has(key) || inMode(paramSpecs.get(key))) delete params[key];
+    }
     save("params", params);
     renderParams();
+    queueOptions();
   });
 
   $("open-connection").addEventListener("click", () => openConnectionDialog());
@@ -1716,7 +2335,7 @@ function bindEvents() {
     settings.markdown = !settings.markdown;
     save("settings", settings);
     applyFormatting();
-    renderThread();
+    if (!isNotebook(session)) renderThread();
   });
 
   $("theme-select").addEventListener("change", () => {
@@ -1756,12 +2375,11 @@ async function init() {
   applySidePanels();
   bindEvents();
 
+  $("notebook-tokens").value = load("notebook-tokens", DEFAULT_NOTEBOOK_TOKENS);
+
   const current = load("current", null);
   if (!(current && openSession(current)) && !(sessionIndex.length && openSession(sessionIndex[0].id))) {
-    session = createSession();
-    save("current", session.id);
-    renderSessionList();
-    renderThread();
+    showSession(createSession());
   }
 
   try {
@@ -1772,7 +2390,7 @@ async function init() {
   renderParams();
 
   await connect();
-  $("input").focus();
+  $(isNotebook(session) ? "notebook-text" : "input").focus();
   collectImages();
 }
 

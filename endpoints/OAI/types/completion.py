@@ -5,6 +5,7 @@ from time import time
 from typing import Dict, List, Optional, Union
 from uuid import uuid4
 
+from common.sampling import BaseSamplerRequest
 from endpoints.OAI.types.chat_completion import ChatCompletionLogprobs
 from endpoints.OAI.types.common import CommonCompletionRequest, Timings, UsageStats
 
@@ -49,6 +50,7 @@ class CompletionRespChoice(BaseModel):
     index: int = 0
     finish_reason: Optional[str] = None
     eos_reason: Optional[str] = None
+    stop_str: Optional[str] = None
     logprobs: Optional[CompletionLogprobs] = None
     text: str
 
@@ -60,6 +62,62 @@ class CompletionRequest(CommonCompletionRequest):
     # Prompt can also contain token ids, but that's out of scope
     # for this project.
     prompt: Union[str, List[str]]
+
+
+class ContinuationsRequest(BaseSamplerRequest):
+    """Asks which ways a prompt can go on under the given sampler settings."""
+
+    prompt: str
+    max_options: int = Field(
+        default=10, ge=1, le=64, description="The most likely next tokens to follow, at most"
+    )
+    max_branch_tokens: int = Field(
+        default=20,
+        ge=1,
+        le=256,
+        description=(
+            "Length to follow each one for, as long as a single token keeps passing "
+            "truncation. An incomplete character can take a few tokens more."
+        ),
+    )
+
+
+class ContinuationOption(BaseModel):
+    """One way a prompt can go on, up to its next branch point."""
+
+    text: str
+    first: str = Field(description="The part of text that came from the first token")
+    token_ids: List[int]
+    healed: bool = Field(
+        default=False,
+        description=(
+            "Whether the first token takes the place of the prompt's last token, by token "
+            "healing. The text only has what it adds."
+        ),
+    )
+    prob: float = Field(
+        description="Probability of a generation starting this way under the sampler settings"
+    )
+    end: str = Field(
+        description=(
+            "Why the path ends: branch (several tokens pass truncation next), stop (a "
+            "stop token, included in the text), limit (max_branch_tokens or the context)"
+        )
+    )
+
+
+class ContinuationsResponse(BaseModel):
+    """The ways a prompt can go on, likeliest first."""
+
+    options: List[ContinuationOption]
+    candidates: int = Field(description="Tokens that passed truncation, before max_options")
+    truncated: bool = Field(
+        description="Whether the sampler settings truncate at all. Otherwise every token branches."
+    )
+    prompt_tokens: int
+    cached_tokens: int
+    generated_tokens: int
+    time: float = Field(description="Seconds taken")
 
 
 class CompletionResponse(BaseModel):

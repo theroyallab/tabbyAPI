@@ -1,5 +1,8 @@
 from dataclasses import dataclass, field
-from typing import List, Tuple
+from typing import Callable, List, Optional, Tuple
+
+import torch
+
 from common.sampling import BaseSamplerRequest
 from common.utils import coalesce, unwrap
 from exllamav3.generator.sampler import (
@@ -20,6 +23,7 @@ from exllamav3.generator.sampler import (
     SS_DRY,
     dry_sequence_breaker_tokens,
 )
+from exllamav3.generator.sampler.custom import SS, SS_Normalize, SS_Sort
 
 # Logits-space steps that remain meaningful under greedy decoding: they can
 # change which token has the highest logit, unlike the probability-shaping
@@ -27,6 +31,132 @@ from exllamav3.generator.sampler import (
 _GREEDY_KEPT_STEPS = tuple(
     step for step in (SS_LogitBias, SS_RepP, SS_PresFreqP, SS_DRY, SS_BanTokens) if step is not None
 )
+
+
+class SS_Explore(SS_Base):
+    """
+    Final step of a sampler for exploring continuations, in the place of SS_Sample.
+    It sees the distribution after the request's own truncation: sorted, normalized,
+    with every token that didn't pass at zero. That also keeps the stack off the fused
+    kernel, which never exposes this distribution.
+
+    Needing the past IDs is what makes this exact under speculative decoding. A job's
+    samplers are only launched ahead for a whole draft window when they don't need
+    them, so here each run is for one accepted position, in order.
+    """
+
+    def prep(self, in_state):
+        return [SS_Normalize, SS_Sort]
+
+    def reqs_past_ids(self):
+        return True
+
+    @staticmethod
+    def passing(state) -> Tuple[List[int], List[float]]:
+        """The tokens that passed truncation and their probabilities, likeliest first."""
+
+        # Sorted again, since XTC scales tokens down after they were last sorted
+        probs, order = torch.sort(state.probs[0], descending=True)
+        count = int((probs > 0).sum())
+        return state.indices[0][order[:count]].tolist(), probs[:count].tolist()
+
+    @staticmethod
+    def finish(state, token: int):
+        state.sample = torch.full(
+            (state.bsz,), token, dtype=torch.long, device=state.in_logits.device
+        )
+        state.state = SS.DONE
+
+
+class SS_Candidates(SS_Explore):
+    """Records the tokens that can come next, for a job that stops after one token."""
+
+    def __init__(self, limit: int):
+        self.limit = limit
+        self.candidates: Optional[List[Tuple[int, float]]] = None
+        self.count = 0
+
+    def run(self, state):
+        tokens, probs = self.passing(state)
+        if self.candidates is None:
+            self.candidates = list(zip(tokens, probs, strict=True))[: self.limit]
+            self.count = len(tokens)
+        self.finish(state, tokens[0])
+
+
+class SS_HealedCandidates(SS_Explore):
+    """
+    Records the tokens a job with token healing can start with, then, if the last token
+    of the prompt can stay as it is, the tokens that can follow it. Both come from the
+    one job so that they're the numbers such a generation sees: its next position isn't
+    computed the way a plain job's is, and the difference is enough to reorder tokens
+    that are nearly tied at a truncation limit.
+    """
+
+    def __init__(self, limit: int, last_token: int, stop_token: int):
+        self.limit = limit
+        self.last_token = last_token
+        self.stop_token = stop_token
+        self.candidates: Optional[List[Tuple[int, float]]] = None
+        self.count = 0
+        self.following: Optional[List[Tuple[int, float]]] = None
+        self.following_count = 0
+
+    def run(self, state):
+        tokens, probs = self.passing(state)
+        pairs = list(zip(tokens, probs, strict=True))
+        if self.candidates is None:
+            # The last token goes first, as it mustn't be lost to the limit
+            pairs.sort(key=lambda pair: pair[0] != self.last_token)
+            self.candidates = pairs[: self.limit]
+            self.count = len(tokens)
+            self.finish(state, self.last_token if self.last_token in tokens else self.stop_token)
+        else:
+            if self.following is None:
+                self.following = pairs[: self.limit]
+                self.following_count = len(tokens)
+            self.finish(state, tokens[0])
+
+
+class SS_OnlyPath(SS_Explore):
+    """
+    Follows a path for as long as one token passes truncation, and ends the job at the
+    next branch point by returning stop_token, which the job has as a stop condition.
+    An incomplete character is taken past a branch point on its likeliest token: prompts
+    are text, so a path that stops halfway through a character couldn't be continued.
+    """
+
+    # Whether a span ends in an incomplete character can be told from its last few
+    # tokens, and tokens can carry as little as a byte each
+    TAIL = 8
+
+    def __init__(
+        self,
+        base_length: int,
+        limit: int,
+        stop_token: int,
+        decode: Callable[[List[int]], str],
+    ):
+        self.base_length = base_length
+        self.limit = limit
+        self.stop_token = stop_token
+        self.decode = decode
+        self.span: List[int] = []
+        # "branch" or "limit" when this step ended the path
+        self.end: Optional[str] = None
+
+    def run(self, state):
+        span = state.past_ids[0, self.base_length :].tolist()
+        tokens, _ = self.passing(state)
+
+        partial = self.decode(span[-self.TAIL :]).endswith("\ufffd")
+        if partial or (len(tokens) == 1 and len(span) < self.limit):
+            self.span = [*span, tokens[0]]
+            self.finish(state, tokens[0])
+        else:
+            self.span = span
+            self.end = "limit" if len(span) >= self.limit else "branch"
+            self.finish(state, self.stop_token)
 
 
 @dataclass
@@ -216,6 +346,20 @@ class ExllamaV3SamplerBuilder:
 
     def adaptive_p(self, adaptive_target, adaptive_decay):
         self.stack.append(SS_AdaptiveP(adaptive_target, adaptive_decay))
+
+    def build_explorer(self, greedy: bool, final_step: SS_Explore):
+        """
+        Builds a sampler that ends in final_step instead of drawing a token. Adaptive-P
+        goes: it draws the token itself and truncates nothing. Greedy keeps the one token
+        it would pick, so a greedy request has one path.
+        """
+
+        if greedy:
+            kept = [s for s in self.stack if isinstance(s, _GREEDY_KEPT_STEPS)]
+            return CustomSampler([*kept, SS_TopK(1), final_step])
+
+        kept = [s for s in self.stack if not isinstance(s, SS_AdaptiveP)]
+        return CustomSampler([*kept, final_step])
 
     def build(self, greedy):
         """Builds the final sampler from stack."""

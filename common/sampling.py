@@ -359,6 +359,16 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("adaptive_decay", 0.9)
     )
 
+    # TODO: Update the loop detection options with the next exllamav3 release.
+    # exllamav3 805caee9 (after v1.6.5) replaced the detector: it has no window,
+    # and stop_on_loop takes True or a dict of LoopDetector settings (min_reps,
+    # min_len, exact_reps, exact_len, ...). The (window, min_reps) tuple from
+    # get_stop_on_loop is still accepted but read as True, so loop_detect_window
+    # then only switches detection on or off. Replace it with an on/off option
+    # plus whichever detector settings are worth exposing, and update
+    # sampler_overrides/sample_preset.yml, the chat client's samplers.json, the
+    # loop detection section of docs/03.-Usage.md, the settings line in
+    # backends/exllamav3/model.py and tests/test_loop_detect_window.py
     loop_detect_window: Optional[int] = Field(
         default_factory=lambda: get_default_sampler_value("loop_detect_window", 800),
         description=(

@@ -24,8 +24,6 @@ NOT_IN_PANEL = {
     "mirostat_eta",
     # llama.cpp spelling of dry_range, which the panel has
     "dry_penalty_last_n",
-    # Chat completions take BOS handling from the template
-    "add_bos_token",
     # The client doesn't display logprobs
     "logprobs",
     "top_logprobs",
@@ -49,6 +47,30 @@ def test_panel_keys_are_request_fields():
 
     unknown = set(keys) - set(ChatCompletionRequest.model_fields)
     assert not unknown, f"not chat completion request fields: {sorted(unknown)}"
+
+
+def test_panel_modes():
+    groups = json.loads((STATIC_DIR / "samplers.json").read_text(encoding="utf8"))["groups"]
+    for item in [*groups, *(param for group in groups for param in group["params"])]:
+        assert item.get("mode") in (None, "chat", "raw"), item
+
+    # Raw text sessions have no template, and set their own token count
+    chat_only = {group["name"] for group in groups if group.get("mode") == "chat"}
+    assert chat_only == {"Constraints", "Reasoning", "Template"}
+    params = {param["key"]: param for group in groups for param in group["params"]}
+    assert params["max_tokens"]["mode"] == "chat"
+    # BOS comes from the template in a chat, and from this in raw text
+    assert params["add_bos_token"]["mode"] == "raw"
+    # Raw text is often cut off in the middle of a word
+    assert params["token_healing"]["default"] is False
+    assert params["token_healing"]["raw_default"] is True
+
+
+def test_notebook_controls_exist():
+    page = (STATIC_DIR / "index.html").read_text(encoding="utf8")
+    script = (STATIC_DIR / "app.js").read_text(encoding="utf8")
+    for control in re.findall(r'\$\("(notebook-[a-z-]+|new-notebook)"\)', script):
+        assert f'id="{control}"' in page, control
 
 
 def test_ui_served(monkeypatch):

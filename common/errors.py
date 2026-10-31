@@ -6,6 +6,10 @@ class ContextLengthExceededError(ValueError):
     """Raised when a tokenized prompt exceeds the loaded model's context limit."""
 
 
+class EmptyPromptError(ValueError):
+    """The prompt encodes to no tokens at all, leaving nothing to generate from."""
+
+
 class GrammarParseError(ValueError):
     """Raised when a requested json_schema, regex, or grammar fails to compile.
 

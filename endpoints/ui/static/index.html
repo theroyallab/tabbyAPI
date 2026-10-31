@@ -13,10 +13,16 @@
   <div id="app">
     <!-- Sessions -->
     <aside id="sidebar" class="drawer drawer-left">
-      <button id="new-chat" class="new-chat" type="button">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        New chat
-      </button>
+      <div class="new-buttons">
+        <button id="new-chat" class="new-chat" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          New chat
+        </button>
+        <button id="new-notebook" class="new-chat" type="button" title="New raw text session, sent to the model with no chat template">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          Notebook
+        </button>
+      </div>
       <nav id="session-list" aria-label="Chat sessions"></nav>
       <div class="sidebar-footer">
         <button id="open-connection" class="sidebar-item" type="button">
@@ -70,6 +76,45 @@
           <p>Load a model on the <a href="status.html" target="tabby-status">status page</a>, then start typing.</p>
         </div>
       </div>
+
+      <!-- Raw text sessions -->
+      <section id="notebook" aria-label="Notebook" hidden>
+        <div class="notebook-editor">
+          <textarea id="notebook-text" spellcheck="false" autocomplete="off" placeholder="Type or paste text. Output goes in at the cursor, and only the text before the cursor is sent to the model."></textarea>
+          <div id="notebook-start" class="notebook-start" hidden>
+            <button id="notebook-template" class="ghost-button" type="button">Start from the chat template</button>
+            <span id="notebook-template-note" class="muted"></span>
+          </div>
+        </div>
+        <div id="notebook-options" class="notebook-options" hidden>
+          <div class="section-head">
+            <h2>Continuations</h2>
+            <span id="notebook-options-state" class="muted"></span>
+          </div>
+          <div id="notebook-options-list" class="option-list"></div>
+          <p id="notebook-options-note" class="hint"></p>
+        </div>
+        <div class="notebook-bar">
+          <button id="notebook-step" class="ghost-button" type="button" title="Sample until the model produces text, usually one token">
+            Step <kbd>Ctrl+Enter</kbd>
+          </button>
+          <button id="notebook-run" class="ghost-button" type="button" title="Sample the number of tokens set here">
+            Generate <kbd>Ctrl+Shift+Enter</kbd>
+          </button>
+          <label class="notebook-count" title="Tokens for Generate. Empty fills the rest of the context.">
+            Tokens
+            <input id="notebook-tokens" type="number" min="1" step="1" placeholder="auto">
+          </label>
+          <button id="notebook-stop" class="ghost-button" type="button" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+            Stop
+          </button>
+          <button id="notebook-options-toggle" class="ghost-button" type="button" aria-pressed="false" title="Show the ways the text can go on from the cursor">
+            Continuations
+          </button>
+          <span id="notebook-status" class="notebook-status"></span>
+        </div>
+      </section>
 
       <div id="drop-overlay" class="drop-overlay" hidden><span>Drop images to attach them</span></div>
 

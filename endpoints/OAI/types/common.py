@@ -103,6 +103,16 @@ class CommonCompletionRequest(BaseSamplerRequest):
         ),
     )
 
+    stop_after_output: Optional[bool] = Field(
+        default=False,
+        description=(
+            "End the generation at the first text it produces (default: False), with "
+            "finish_reason length. One token usually produces text, but a character "
+            "split across tokens or the start of a possible stop string takes several, "
+            "and max_tokens would cut those off. Use this to step through a generation."
+        ),
+    )
+
     # Extra OAI request stuff
     best_of: Optional[int] = Field(
         description="Not parsed. Only used for OAI compliance.", default=None

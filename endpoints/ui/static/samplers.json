@@ -1,11 +1,11 @@
 {
-  "_comment": "Controls in the chat client's sampling panel. Each key is a chat completion request field; 'default' is only what the panel shows when the server has no override for it. tests/test_web_ui.py checks this covers every supported sampler.",
+  "_comment": "Controls in the chat client's sampling panel. Each key is a chat completion request field; 'default' is only what the panel shows when the server has no override for it. 'mode' limits a group or param to one kind of session, 'chat' or 'raw' (notebooks); neither shown nor sent in the other. 'raw_default' replaces 'default' in raw text sessions, where it's sent unless the control or the server sets a value. tests/test_web_ui.py checks this covers every supported sampler.",
   "groups": [
     {
       "name": "Length",
       "open": true,
       "params": [
-        { "key": "max_tokens", "label": "Max tokens", "type": "int", "min": 0, "default": "auto", "hint": "Unset fills the rest of the context." },
+        { "key": "max_tokens", "label": "Max tokens", "type": "int", "min": 0, "default": "auto", "mode": "chat", "hint": "Unset fills the rest of the context." },
         { "key": "min_tokens", "label": "Min tokens", "type": "int", "min": 0, "default": 0 },
         { "key": "stop", "label": "Stop strings", "type": "lines", "default": "", "hint": "One per line. \\n, \\t and \\\\ are unescaped." },
         { "key": "loop_detect_window", "label": "Loop detect window", "type": "int", "min": 0, "default": 800, "hint": "Stop when the last N tokens repeat a pattern. 0 disables." },
@@ -56,12 +56,14 @@
         { "key": "banned_strings", "label": "Banned strings", "type": "lines", "default": "", "hint": "One per line." },
         { "key": "banned_tokens", "label": "Banned token IDs", "type": "ints", "default": "", "hint": "Comma-separated." },
         { "key": "logit_bias", "label": "Logit bias", "type": "json", "default": "", "hint": "JSON object, token ID to bias, e.g. {\"128\": -5}" },
-        { "key": "token_healing", "label": "Token healing", "type": "bool", "default": false }
+        { "key": "token_healing", "label": "Token healing", "type": "bool", "default": false, "raw_default": true, "hint": "Lets the text's last token grow, so a word cut off halfway is finished rather than followed by a new one." },
+        { "key": "add_bos_token", "label": "Add BOS token", "type": "bool", "default": "model", "mode": "raw", "hint": "Unset follows the model's tokenizer config." }
       ]
     },
     {
       "name": "Constraints",
       "open": false,
+      "mode": "chat",
       "params": [
         { "key": "json_schema", "label": "JSON schema", "type": "json", "default": "" },
         { "key": "regex_pattern", "label": "Regex pattern", "type": "text", "default": "" },
@@ -71,6 +73,7 @@
     {
       "name": "Reasoning",
       "open": false,
+      "mode": "chat",
       "params": [
         { "key": "enable_thinking", "label": "Enable thinking", "type": "bool", "default": "template" },
         { "key": "reasoning_effort", "label": "Reasoning effort", "type": "string", "default": "", "hint": "Passed to the chat template; values depend on the model." },
@@ -82,6 +85,7 @@
     {
       "name": "Template",
       "open": false,
+      "mode": "chat",
       "params": [
         { "key": "template_vars", "label": "Template variables", "type": "json", "default": "", "hint": "JSON object passed to the chat template." },
         { "key": "response_prefix", "label": "Response prefix", "type": "text", "default": "", "hint": "Appended to the prompt after the generation prompt. Not part of the returned text." }
