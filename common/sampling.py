@@ -359,23 +359,14 @@ class BaseSamplerRequest(BaseModel):
         default_factory=lambda: get_default_sampler_value("adaptive_decay", 0.9)
     )
 
-    # TODO: Update the loop detection options with the next exllamav3 release.
-    # exllamav3 805caee9 (after v1.6.5) replaced the detector: it has no window,
-    # and stop_on_loop takes True or a dict of LoopDetector settings (min_reps,
-    # min_len, exact_reps, exact_len, ...). The (window, min_reps) tuple from
-    # get_stop_on_loop is still accepted but read as True, so loop_detect_window
-    # then only switches detection on or off. Replace it with an on/off option
-    # plus whichever detector settings are worth exposing, and update
-    # sampler_overrides/sample_preset.yml, the chat client's samplers.json, the
-    # loop detection section of docs/03.-Usage.md, the settings line in
-    # backends/exllamav3/model.py and tests/test_loop_detect_window.py
-    loop_detect_window: Optional[int] = Field(
-        default_factory=lambda: get_default_sampler_value("loop_detect_window", 800),
+    loop_detect: Optional[bool] = Field(
+        default_factory=lambda: get_default_sampler_value("loop_detect", True),
+        validation_alias=AliasChoices("loop_detect", "loop_detect_window"),
         description=(
-            "ExLlamaV3 only. Stops generation when the last N tokens are made "
-            "up of a repeating pattern. Set 0 or null to disable."
+            "ExLlamaV3 only. Stops generation when the output settles into repeating "
+            "the same text. The older name loop_detect_window is accepted, where any "
+            "window size means on and 0 means off."
         ),
-        ge=0,
     )
 
     loop_detect_error: Optional[bool] = Field(
@@ -437,7 +428,11 @@ class BaseSamplerRequest(BaseModel):
         """
 
         override = overrides_container.effective().get(name)
-        if isinstance(override, dict) and override.get("override") and override.get("force"):
+        if (
+            isinstance(override, dict)
+            and override.get("override") is not None
+            and override.get("force")
+        ):
             return "forced"
 
         if name in self.model_fields_set:
@@ -447,14 +442,6 @@ class BaseSamplerRequest(BaseModel):
             return "preset"
 
         return "default"
-
-    def get_stop_on_loop(self) -> tuple[int, int] | None:
-        """Get ExLlamaV3 loop detection parameters."""
-
-        if self.loop_detect_window and self.loop_detect_window > 1:
-            return self.loop_detect_window, 2
-
-        return None
 
     @field_validator("reasoning_override", mode="before")
     def check_reasoning_override(cls, v):
@@ -480,6 +467,12 @@ class BaseSamplerRequest(BaseModel):
             checked[name] = value
 
         return checked
+
+    @field_validator("loop_detect", mode="before")
+    def check_loop_detect(cls, v):
+        """loop_detect_window, now an alias of this field, took a size in tokens."""
+
+        return bool(v) if isinstance(v, int) else v
 
     @field_validator("top_k", mode="before")
     def convert_top_k(cls, v):
@@ -943,7 +936,7 @@ def apply_forced_sampler_overrides(params: BaseSamplerRequest):
 
         # Force takes precedence over additive
         # Additive only works on lists and doesn't remove duplicates
-        if override:
+        if override is not None:
             if unwrap(value.get("force"), False):
                 setattr(params, var, override)
             elif (

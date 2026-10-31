@@ -8,7 +8,7 @@
         { "key": "max_tokens", "label": "Max tokens", "type": "int", "min": 0, "default": "auto", "mode": "chat", "hint": "Unset fills the rest of the context." },
         { "key": "min_tokens", "label": "Min tokens", "type": "int", "min": 0, "default": 0 },
         { "key": "stop", "label": "Stop strings", "type": "lines", "default": "", "hint": "One per line. \\n, \\t and \\\\ are unescaped." },
-        { "key": "loop_detect_window", "label": "Loop detect window", "type": "int", "min": 0, "default": 800, "hint": "Stop when the last N tokens repeat a pattern. 0 disables." },
+        { "key": "loop_detect", "label": "Loop detection", "type": "bool", "default": true, "hint": "Stop when the output settles into repeating the same text." },
         { "key": "loop_detect_error", "label": "Fail on loop", "type": "bool", "default": false, "hint": "Return an error instead of the output when a loop is detected." }
       ]
     },

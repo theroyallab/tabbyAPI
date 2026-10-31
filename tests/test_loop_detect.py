@@ -14,7 +14,7 @@ from common.errors import (
     loop_detected_exception_handler,
 )
 from common.networking import get_loop_detected_generator_error
-from common.sampling import BaseSamplerRequest
+from common.sampling import BaseSamplerRequest, overrides_from_dict
 from endpoints.Kobold.utils import generation as kobold_generation
 from endpoints.OAI.utils import chat_completion, completion
 from endpoints.OAI.utils.chat_completion import _compose_serialize_stream_chunk
@@ -51,18 +51,43 @@ def request_with_id(request_id="request-id"):
     return SimpleNamespace(state=SimpleNamespace(id=request_id))
 
 
-class LoopDetectWindowTests(unittest.TestCase):
-    def test_default_loop_detect_window_maps_to_exllamav3_stop_on_loop(self):
+class LoopDetectOptionTests(unittest.TestCase):
+    def tearDown(self):
+        overrides_from_dict({})
+
+    def test_on_by_default(self):
         request = BaseSamplerRequest()
 
-        self.assertEqual(request.loop_detect_window, 800)
-        self.assertEqual(request.get_stop_on_loop(), (800, 2))
+        self.assertIs(request.loop_detect, True)
         self.assertFalse(request.loop_detect_error)
 
-    def test_loop_detect_window_can_be_disabled(self):
-        request = BaseSamplerRequest(loop_detect_window=0)
+    def test_can_be_switched_off(self):
+        self.assertIs(BaseSamplerRequest(loop_detect=False).loop_detect, False)
 
-        self.assertIsNone(request.get_stop_on_loop())
+    def test_old_window_field_only_switches_it(self):
+        self.assertIs(BaseSamplerRequest(loop_detect_window=800).loop_detect, True)
+        self.assertIs(BaseSamplerRequest(loop_detect_window=0).loop_detect, False)
+
+    def test_preset_sets_the_default(self):
+        overrides_from_dict({"loop_detect": {"override": False}})
+
+        self.assertIs(BaseSamplerRequest().loop_detect, False)
+        self.assertIs(BaseSamplerRequest(loop_detect=True).loop_detect, True)
+
+    def test_forced_off_beats_the_request(self):
+        overrides_from_dict({"loop_detect": {"override": False, "force": True}})
+        request = BaseSamplerRequest(loop_detect=True)
+
+        self.assertIs(request.loop_detect, False)
+        self.assertEqual(request.param_source("loop_detect"), "forced")
+
+    def test_forced_zero_beats_the_request(self):
+        # The example in docs/08.-Sampler-Overrides.md
+        overrides_from_dict({"top_k": {"override": 0, "force": True}})
+        request = BaseSamplerRequest(top_k=30)
+
+        self.assertEqual(request.top_k, 0)
+        self.assertEqual(request.param_source("top_k"), "forced")
 
     def test_completion_response_exposes_loop_detected_eos_reason(self):
         response = _compose_response(

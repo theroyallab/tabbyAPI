@@ -2480,9 +2480,9 @@ class ExllamaV3Container:
             settings.append(("token_healing", True))
         if params.logprobs or params.top_logprobs:
             settings.append(("logprobs", max(params.logprobs or 0, params.top_logprobs or 0)))
-        if params.param_source("loop_detect_window") != "default":
-            settings.append(("loop_detect_window", params.loop_detect_window))
-        if params.loop_detect_error and params.get_stop_on_loop():
+        if params.param_source("loop_detect") != "default":
+            settings.append(("loop_detect", params.loop_detect))
+        if params.loop_detect_error and params.loop_detect:
             settings.append(("loop_detect_error", True))
 
         settings_text = format_settings(settings, params)
@@ -2518,7 +2518,7 @@ class ExllamaV3Container:
                 return_top_tokens=params.top_logprobs,
                 return_probs=bool(params.logprobs) or bool(params.top_logprobs),
                 max_rq_tokens=max_rq_tokens,
-                stop_on_loop=params.get_stop_on_loop(),
+                stop_on_loop=bool(params.loop_detect),
                 filters=(
                     [] if in_reasoning and not phases.engine_trigger else grammar_handler.filters
                 ),
