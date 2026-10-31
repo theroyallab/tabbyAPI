@@ -339,7 +339,7 @@ class ExllamaV3Container:
         self = cls()
 
         # Make sure ExllamaV3 is up to date
-        check_package_version("exllamav3", "1.6.5")
+        check_package_version("exllamav3", "1.6.6")
 
         self.model_dir = model_directory
         self.hf_model = hf_model
@@ -2034,21 +2034,11 @@ class ExllamaV3Container:
         Force `text` into the output stream of an active generation job: the
         next sampled tokens are constrained to the given string, then sampling
         resumes. Used to end the reasoning phase when a reasoning budget is
-        exhausted. Returns False if the job is not running or the installed
-        exllamav3 version does not support output constraints.
+        exhausted. Returns False if the job is not running.
         """
 
         job = self.active_job_ids.get(request_id)
         if job is None:
-            return False
-
-        # TODO: Call directly once the minimum exllamav3 version requirement
-        #       includes AsyncJob.constrain_output_now
-        if not hasattr(job, "constrain_output_now"):
-            xlogger.warning(
-                "The installed exllamav3 version does not support output "
-                "constraints; the reasoning budget is ignored."
-            )
             return False
 
         # Encode here rather than passing the string through: tokenizers with
