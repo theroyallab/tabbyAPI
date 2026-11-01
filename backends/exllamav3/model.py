@@ -54,6 +54,7 @@ from common.errors import (
     validate_context_requirements,
 )
 from common.logger import xlogger
+from common.metrics import MetricsManager
 from common.model_meta import read_model_meta
 from common.multimodal import MultimodalEmbeddingWrapper
 from common.networking import DisconnectHandler
@@ -2584,6 +2585,8 @@ class ExllamaV3Container:
         return_progress = bool(getattr(params, "return_progress", False))
         stop_after_output = bool(getattr(params, "stop_after_output", False))
         stopped_at_output = False
+        # Nothing is counted when the endpoint is off
+        metrics_enabled = MetricsManager.enabled()
         prefill_start_time: float | None = None
         prefill_cached_tokens = 0
 
@@ -2686,6 +2689,8 @@ class ExllamaV3Container:
                         self.handle_logprobs(result, generation)
 
                     job_status.generated(generated_tokens)
+                    if metrics_enabled:
+                        MetricsManager.tokens_delivered(request_id, len(token_id_list))
                     yield generation
 
                 if result.get("eos"):
@@ -2782,3 +2787,6 @@ class ExllamaV3Container:
                     context_len,
                     self.max_seq_len,
                 )
+
+            if metrics_enabled:
+                MetricsManager.end_request(request_id, metrics_result)

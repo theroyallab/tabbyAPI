@@ -50,6 +50,11 @@ network:
   # Generation requests are already logged in detail; this adds the rest, such as model list and health polls.
   access_log: false
 
+  # Serve a Prometheus-compatible /metrics endpoint (default: False).
+  # Inference counters move as tokens are delivered, so a dashboard can show throughput
+  # during a generation. NOTE: This endpoint is not protected by API key authentication.
+  enable_metrics: false
+
   # Serve the built-in chat client at /ui and the status page at
   # /ui/status (default: True). Static pages for testing models and
   # settings, loading models and watching the server; they only use

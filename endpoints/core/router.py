@@ -24,6 +24,7 @@ from common.utils import unwrap
 from common.health import HealthManager
 from common.optional_dependencies import package_version_info
 from common.status_display import status_display
+from common.metrics import MetricsManager
 from endpoints.OAI.utils.chat_completion import format_messages_with_template
 from endpoints.core.types.auth import AuthPermissionResponse
 from endpoints.core.types.download import DownloadRequest, DownloadResponse
@@ -86,6 +87,23 @@ async def healthcheck(response: Response) -> HealthCheckResponse:
         response.status_code = 503
 
     return HealthCheckResponse(status="healthy" if healthy else "unhealthy", issues=issues)
+
+
+# Prometheus-compatible metrics endpoint (no auth, opt-in via config)
+@router.get("/metrics")
+async def metrics():
+    """Expose process-wide inference counters in the Prometheus text format."""
+
+    if not MetricsManager.enabled():
+        raise HTTPException(
+            404,
+            "The metrics endpoint is disabled. Set network.enable_metrics to true in config.yml "
+            "to enable it.",
+        )
+
+    return Response(
+        content=MetricsManager.render_prometheus(), media_type="text/plain; version=0.0.4"
+    )
 
 
 @router.get("/.well-known/serviceinfo")
