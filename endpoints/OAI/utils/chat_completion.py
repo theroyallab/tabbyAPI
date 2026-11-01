@@ -696,6 +696,7 @@ def _parse_tool_calls(
     text: str,
     tool_format: str,
     label: str,
+    max_tool_calls: Optional[int] = None,
 ) -> list:
     """
     Parse collected tool calls and convert to OAI format.
@@ -705,7 +706,7 @@ def _parse_tool_calls(
     deltas, which we don't do here.)
     """
 
-    parsed = parse_toolcalls(text, tool_format)
+    parsed = parse_toolcalls(text, tool_format, max_tool_calls=max_tool_calls)
     for tc_idx, p in enumerate(parsed):
         p.index = tc_idx
     dumped = [p.model_dump(mode="json") for p in parsed]
@@ -842,6 +843,13 @@ async def _chat_stream_collector(
     if budget_injection is not None and _continued_field(params) == "reasoning_content":
         reasoning_tokens = len(mc.encode_tokens(params.messages[-1].reasoning_content or ""))
 
+    # Resolve max tool calls ceiling
+    max_tool_calls = (
+        params.max_tool_calls
+        if params.max_tool_calls is not None
+        else getattr(mc, "max_tool_calls", None)
+    )
+
     # The backend holds one set of sampler settings for reasoning and one for
     # content (which alone carries any grammar); it's told here when the
     # response moves between the two
@@ -952,7 +960,7 @@ async def _chat_stream_collector(
                 generation["delta_tool_calls"] = ""
                 if finish_reason and full_tool:
                     generation["delta_tool_calls"] = _parse_tool_calls(
-                        full_tool, tool_format, label
+                        full_tool, tool_format, label, max_tool_calls=max_tool_calls
                     )
                     generation["finish_reason"] = "tool_calls"
                 await gen_queue.put(generation)
@@ -968,7 +976,9 @@ async def _chat_stream_collector(
                 generation["logprob_response"] = ChatCompletionLogprobs(content=collected_logprobs)
             generation["reasoning_content"] = full_reasoning
             generation["content"] = full_content if has_content else None
-            generation["tool_calls"] = _parse_tool_calls(full_tool, tool_format, label)
+            generation["tool_calls"] = _parse_tool_calls(
+                full_tool, tool_format, label, max_tool_calls=max_tool_calls
+            )
             if full_tool:
                 generation["finish_reason"] = "tool_calls"
             return generation

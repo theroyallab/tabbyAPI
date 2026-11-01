@@ -3,7 +3,11 @@ import re
 
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
-from endpoints.OAI.utils.toolcall_formats.common import FormatSignature
+from endpoints.OAI.utils.toolcall_formats.common import (
+    FormatSignature,
+    unwrap_tool_args,
+    parse_json_tool_call,
+)
 
 """
 Hermes-style JSON tool calls: Qwen2.5 / Qwen3 (original), SmolLM3, Nous Hermes
@@ -56,27 +60,41 @@ def _parse_block(block: str):
 def parse_toolcalls(text: str) -> list[ToolCall]:
     results = []
     for match in _OUTER.finditer(text):
-        call = _parse_block(match.group(1))
+        inner = match.group(1)
+        call = _parse_block(inner)
         if not isinstance(call, dict) or not call.get("name"):
+            # Fallback: check if the block contains pseudo-XML function calls (<function=...>)
+            if "<function=" in inner:
+                from endpoints.OAI.utils.toolcall_formats import qwen3_coder
+
+                parsed_xml = qwen3_coder.parse_toolcalls(match.group(0))
+                results.extend(parsed_xml)
             continue
 
-        args = call.get("arguments", call.get("parameters", {}))
-        if isinstance(args, str):
-            # Arguments already serialized; keep them if they're valid JSON
-            try:
-                args = json.loads(args)
-            except (json.JSONDecodeError, ValueError):
-                args = {"input": args}
-        if args is None:
-            args = {}
+        func_name = str(call["name"])
+        raw_args = call.get("arguments", call.get("parameters", {}))
+        args = unwrap_tool_args(raw_args, func_name)
 
         results.append(
             ToolCall(
                 function=Tool(
-                    name=str(call["name"]), arguments=json.dumps(args, ensure_ascii=False)
+                    name=func_name, arguments=json.dumps(args, ensure_ascii=False)
                 )
             )
         )
+
+    # If no outer <tool_call> tags were matched, also check if the entire text is a JSON tool call
+    if not results and "{" in text and "}" in text:
+        json_call = parse_json_tool_call(text)
+        if json_call:
+            func_name, args = json_call
+            results.append(
+                ToolCall(
+                    function=Tool(
+                        name=func_name, arguments=json.dumps(args, ensure_ascii=False)
+                    )
+                )
+            )
 
     xlogger.debug(
         f"hermes: Parsed {len(results)} tool calls", {"raw_text": text, "results": results}

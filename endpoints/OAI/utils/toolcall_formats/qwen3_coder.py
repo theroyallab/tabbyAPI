@@ -2,7 +2,13 @@ import re
 import json
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
-from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, coerce_param_value
+from endpoints.OAI.utils.toolcall_formats.common import (
+    FormatSignature,
+    coerce_param_value,
+    strip_code_fences,
+    unwrap_tool_args,
+    parse_json_tool_call,
+)
 
 """
 Qwen3.5 / Qwen3-Coder - pseudo-XML syntax
@@ -31,7 +37,7 @@ TOOLCALL_END = "</tool_call>"
 DETECT = FormatSignature(
     template_markers=("<tool_call>", "<function="),
     special_tokens=("<tool_call>", "</tool_call>"),
-    architectures=("Qwen3_5", "Qwen3Next", "Qwen4", "Qwen3Coder", "Step3", "NemotronH"),
+    architectures=("Qwen3_5", "Qwen3Next", "Qwen4", "Qwen3Coder", "Step3", "NemotronH", "Nanbeige"),
     reasoning_tags=("<think>", "</think>"),
 )
 
@@ -55,18 +61,38 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
 
     results = []
     for _, inner in segments:
-        for fm in _FUNC.finditer(inner):
-            func_name = fm.group(1)
-            func_body = fm.group(2)
-            args: dict[str, any] = {}
-            for pm in _PARAM.finditer(func_body):
-                key = pm.group(1).strip()
-                val = pm.group(2).strip()
-                val = coerce_param_value(val)
-                args[key] = val
+        funcs_in_segment = list(_FUNC.finditer(inner))
+        if funcs_in_segment:
+            for fm in funcs_in_segment:
+                func_name = fm.group(1).strip()
+                func_body = fm.group(2)
+                args: dict[str, any] = {}
+                for pm in _PARAM.finditer(func_body):
+                    key = pm.group(1).strip()
+                    val = pm.group(2).strip()
+                    val = coerce_param_value(val)
+                    args[key] = val
 
-            args_json = json.dumps(args, ensure_ascii=False)
-            results.append(ToolCall(function=Tool(name=func_name, arguments=args_json)))
+                # Fallback: if no <parameter> tags matched, check if func_body is raw JSON
+                if not args and func_body.strip():
+                    raw_body = strip_code_fences(func_body.strip())
+                    try:
+                        parsed_body = json.loads(raw_body)
+                        if isinstance(parsed_body, dict):
+                            args = parsed_body
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+
+                args = unwrap_tool_args(args, func_name)
+                args_json = json.dumps(args, ensure_ascii=False)
+                results.append(ToolCall(function=Tool(name=func_name, arguments=args_json)))
+        else:
+            # Fallback: segment has no <function=...> tag; check for Hermes-style JSON tool call
+            json_call = parse_json_tool_call(inner)
+            if json_call:
+                func_name, args = json_call
+                args_json = json.dumps(args, ensure_ascii=False)
+                results.append(ToolCall(function=Tool(name=func_name, arguments=args_json)))
 
     xlogger.debug(
         f"qwen3_coder: Parsed {len(results)} tool calls",
