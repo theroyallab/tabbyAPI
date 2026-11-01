@@ -41,6 +41,9 @@ class StatusResponse(BaseModel):
     recent: List[StatusJob] = Field(description="Recently finished jobs, newest first")
     completed: int = Field(description="Jobs finished since startup")
     generated_tokens: int = Field(description="Tokens generated since startup")
+    generated_seconds: float = Field(
+        description="Time spent generating since startup, added up over jobs"
+    )
     prefilled_tokens: int = Field(description="Prompt tokens processed since startup, not cached")
     cache: Optional[dict] = Field(
         default=None, description="The engine's cache statistics, when a model is loaded"

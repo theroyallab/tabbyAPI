@@ -89,20 +89,24 @@ async def healthcheck(response: Response) -> HealthCheckResponse:
     return HealthCheckResponse(status="healthy" if healthy else "unhealthy", issues=issues)
 
 
-# Prometheus-compatible metrics endpoint (no auth, opt-in via config)
-@router.get("/metrics")
+# Prometheus-compatible metrics endpoint (opt-in via config)
+@router.get("/metrics", dependencies=[Depends(check_api_key)])
 async def metrics():
     """Expose process-wide inference counters in the Prometheus text format."""
 
-    if not MetricsManager.enabled():
+    if not config.network.enable_metrics:
         raise HTTPException(
             404,
             "The metrics endpoint is disabled. Set network.enable_metrics to true in config.yml "
             "to enable it.",
         )
 
+    model_name = model.container.model_dir.name if model.container else None
+
     return Response(
-        content=MetricsManager.render_prometheus(), media_type="text/plain; version=0.0.4"
+        content=MetricsManager.render_prometheus(status_display.snapshot(), model_name),
+        media_type="text/plain; version=0.0.4",
+        headers={"Process-Start-Time-Unix": str(int(MetricsManager.process_start_time))},
     )
 
 

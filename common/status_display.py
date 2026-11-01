@@ -42,6 +42,7 @@ class JobStatus:
     gen_tokens: int = 0
     created: float = field(default_factory=time.monotonic)
     samples: deque = field(default_factory=deque)
+    first_generated: float = 0.0
     last_generated: float = 0.0
     # Context restored when the engine takes the job back after a requeue
     resume_tokens: int = 0
@@ -102,6 +103,7 @@ class JobStatus:
         self.gen_tokens = gen_tokens
 
         now = time.monotonic()
+        self.first_generated = self.first_generated or now
         self.last_generated = now
         self.samples.append((now, gen_tokens))
         while self.samples and now - self.samples[0][0] > SPEED_WINDOW:
@@ -156,6 +158,9 @@ class JobStatus:
         except Exception:
             return False
 
+    def generating_seconds(self) -> float:
+        return self.last_generated - self.first_generated
+
     def tokens_per_second(self) -> Optional[float]:
         # Samples are only pruned when a new one arrives, so a job that stopped
         # getting tokens would keep showing its last rate
@@ -173,6 +178,7 @@ class StatusDisplay:
         # Finished jobs, newest first, and the tokens finished jobs processed
         self.recent: deque = deque(maxlen=RECENT_JOBS)
         self.done_gen_tokens = 0
+        self.done_gen_seconds = 0.0
         self.done_prefill_tokens = 0
         self._live = None
         self._task: Optional[asyncio.Task] = None
@@ -299,6 +305,7 @@ class StatusDisplay:
         if job is not None:
             self.completed += 1
             self.done_gen_tokens += job.gen_tokens
+            self.done_gen_seconds += job.generating_seconds()
             self.done_prefill_tokens += max(job.prefill_tokens - job.cached_tokens, 0)
             job.finished = time.monotonic()
             job.cancel = None
@@ -325,6 +332,8 @@ class StatusDisplay:
             "completed": self.completed,
             # Totals since startup. A client takes rates from the change between polls
             "generated_tokens": self.done_gen_tokens + sum(job.gen_tokens for job in active),
+            "generated_seconds": self.done_gen_seconds
+            + sum(job.generating_seconds() for job in active),
             "prefilled_tokens": self.done_prefill_tokens
             + sum(max(job.prefill_tokens - job.cached_tokens, 0) for job in active),
             "cache": self._cache_stats(),

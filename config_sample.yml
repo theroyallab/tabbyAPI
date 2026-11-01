@@ -51,8 +51,8 @@ network:
   access_log: false
 
   # Serve a Prometheus-compatible /metrics endpoint (default: False).
-  # Inference counters move as tokens are delivered, so a dashboard can show throughput
-  # during a generation. NOTE: This endpoint is not protected by API key authentication.
+  # Metric names follow llama.cpp's under a tabbyapi: prefix, and the token counters move
+  # during a generation. Requires an API key unless disable_auth is set.
   enable_metrics: false
 
   # Serve the built-in chat client at /ui and the status page at

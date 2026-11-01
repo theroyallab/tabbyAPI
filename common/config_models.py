@@ -99,8 +99,9 @@ class NetworkConfig(BaseConfigModel):
         False,
         description=(
             "Enable the Prometheus-compatible /metrics endpoint (default: False).\n"
-            "Exposes aggregate inference stats in the text exposition format.\n"
-            "NOTE: This endpoint is not protected by API key authentication."
+            "Exposes aggregate inference stats in the text exposition format,\n"
+            "with the same names as llama.cpp's under a tabbyapi: prefix.\n"
+            "Requires an API key unless disable_auth is set."
         ),
     )
     access_log: Optional[bool] = Field(
