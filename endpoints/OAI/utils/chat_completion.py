@@ -30,6 +30,7 @@ from common.networking import (
 )
 from common.utils import unwrap
 from endpoints.OAI.types.chat_completion import (
+    REASONING_FIELDS,
     ChatCompletionLogprobs,
     ChatCompletionMessage,
     ChatCompletionMessagePart,
@@ -347,10 +348,27 @@ def _sort_tool_messages(message_dicts: List[dict]):
             message_dicts[run_start:i] = run
 
 
+def _expose_reasoning(message: dict):
+    """
+    Give an assistant message's reasoning every name a chat template may read
+    it under: Qwen's read reasoning_content, Laguna's reasoning, gpt-oss's thinking.
+    """
+
+    reasoning = message.get("reasoning_content")
+    if message["role"] != "assistant" or not reasoning:
+        return
+
+    message.update(dict.fromkeys(REASONING_FIELDS, reasoning))
+
+    # Harmony renders either as a tool call's analysis message, and gpt-oss's
+    # template raises if given both. llama.cpp keeps the reasoning too.
+    if model.container.harmony and message.get("tool_calls"):
+        message.pop("content", None)
+
+
 async def format_messages_with_template(
     messages: List[ChatCompletionMessage],
     existing_template_vars: Optional[dict] = None,
-    continue_reasoning: bool = False,
 ):
     """Barebones function to format chat completion messages into a prompt."""
 
@@ -372,12 +390,9 @@ async def format_messages_with_template(
             # Convert the message content into a concatenated string
             message.content = concatenated_content
 
-        message_dicts.append(message.model_dump(exclude_none=True))
-
-    # Chat templates differ in the name they read reasoning under
-    if continue_reasoning:
-        final_message = message_dicts[-1]
-        final_message.update(dict.fromkeys(REASONING_FIELDS, final_message["reasoning_content"]))
+        message_dict = message.model_dump(exclude_none=True)
+        _expose_reasoning(message_dict)
+        message_dicts.append(message_dict)
 
     # Pre-template: convert tool_call arguments from JSON strings to dicts.
     # OpenAI-compatible clients (Kilo, Roo, etc.) send arguments as JSON
@@ -418,9 +433,6 @@ async def format_messages_with_template(
 # _cut_prompt_at_continue_tag uses its survival through rendering to detect
 # templates that trim trailing whitespace from message content.
 CONTINUE_FINAL_MESSAGE_TAG = "CONTINUE_FINAL_MESSAGE_TAG "
-
-# The names a message's reasoning goes by, the first being the one used here
-REASONING_FIELDS = ("reasoning_content", "reasoning", "thinking")
 
 
 def _mark_continued_final_message(data: ChatCompletionRequest) -> str:
@@ -609,7 +621,7 @@ async def apply_chat_template(data: ChatCompletionRequest):
 
         continues_reasoning = _continued_field(data) == "reasoning_content"
         prompt, mm_embeddings, template_vars = await format_messages_with_template(
-            data.messages, data.template_vars, continue_reasoning=continues_reasoning
+            data.messages, data.template_vars
         )
 
         if continued_message_text is not None:
