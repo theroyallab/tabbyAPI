@@ -545,12 +545,23 @@ def _cut_prompt_at_continue_tag(prompt: str, final_message_text: str) -> str:
     return prompt[:tag_loc].rstrip()
 
 
+# What templates call keeping reasoning on turns before the last user message.
+# llama.cpp sets the same four by default.
+PRESERVE_REASONING_VARS = {
+    "preserve_thinking": True,
+    "clear_thinking": False,
+    "truncate_history_thinking": False,
+    "drop_thinking": False,
+}
+
+
 def resolve_template_vars(data: ChatCompletionRequest, container) -> dict:
     """
     Merge chat template variables from all sources. Priority, lowest to
-    highest: the model's template_vars_default, the request's reasoning
-    object, the request's flat reasoning_effort/enable_thinking/verbosity
-    fields, the request's template_vars, then the model's template_vars_force.
+    highest: PRESERVE_REASONING_VARS if there's reasoning to preserve, the
+    model's template_vars_default, the request's reasoning object, the
+    request's flat reasoning_effort/enable_thinking/verbosity fields, the
+    request's template_vars, then the model's template_vars_force.
     """
 
     request_vars = {}
@@ -573,7 +584,12 @@ def resolve_template_vars(data: ChatCompletionRequest, container) -> dict:
 
     request_vars.update(data.template_vars)
 
+    # With no reasoning to keep, these would only give earlier turns empty
+    # reasoning blocks, as Qwen 3.6's and DeepSeek V4's templates do
+    has_reasoning = any(message.reasoning_content for message in data.messages)
+
     return {
+        **(PRESERVE_REASONING_VARS if has_reasoning else {}),
         **container.template_vars_default,
         **request_vars,
         **container.template_vars_force,

@@ -1681,7 +1681,7 @@ async function convertToNotebook(id) {
   for (const m of chat.messages) {
     if (m.role === "assistant" && !m.content) continue;
     images += m.images?.length || 0;
-    messages.push({ role: m.role, content: m.content });
+    messages.push({ role: m.role, content: m.content, ...(m.reasoning ? { reasoning_content: m.reasoning } : {}) });
   }
   if (!messages.length) {
     setStatus("This chat has nothing to convert yet.");

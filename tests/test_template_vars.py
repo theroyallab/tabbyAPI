@@ -2,11 +2,22 @@ import unittest
 from types import SimpleNamespace
 
 from endpoints.OAI.types.chat_completion import ChatCompletionRequest
-from endpoints.OAI.utils.chat_completion import resolve_template_vars
+from endpoints.OAI.utils.chat_completion import PRESERVE_REASONING_VARS, resolve_template_vars
 
 
 def request(**kwargs):
     return ChatCompletionRequest(messages=[{"role": "user", "content": "hi"}], **kwargs)
+
+
+def request_with_reasoning(reasoning="thoughts", **kwargs):
+    return ChatCompletionRequest(
+        messages=[
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "hello", "reasoning": reasoning},
+            {"role": "user", "content": "more"},
+        ],
+        **kwargs,
+    )
 
 
 def container(default=None, force=None):
@@ -124,6 +135,36 @@ class ResolveTemplateVarsTests(unittest.TestCase):
         )
         self.assertIs(out["enable_thinking"], True)
         self.assertEqual(out["verbosity"], "high")
+
+    def test_reasoning_in_the_request_is_preserved(self):
+        out = resolve_template_vars(request_with_reasoning(), container())
+        self.assertEqual(out, PRESERVE_REASONING_VARS)
+
+    def test_nothing_to_preserve_changes_nothing(self):
+        self.assertEqual(resolve_template_vars(request(), container()), {})
+
+    def test_empty_reasoning_is_nothing_to_preserve(self):
+        self.assertEqual(resolve_template_vars(request_with_reasoning(""), container()), {})
+
+    def test_model_default_overrides_preserving(self):
+        out = resolve_template_vars(
+            request_with_reasoning(), container(default={"preserve_thinking": False})
+        )
+        self.assertIs(out["preserve_thinking"], False)
+        self.assertIs(out["clear_thinking"], False)
+
+    def test_request_overrides_preserving(self):
+        out = resolve_template_vars(
+            request_with_reasoning(template_vars={"clear_thinking": True}), container()
+        )
+        self.assertIs(out["clear_thinking"], True)
+
+    def test_forced_value_overrides_preserving(self):
+        out = resolve_template_vars(
+            request_with_reasoning(template_vars={"preserve_thinking": True}),
+            container(force={"preserve_thinking": False}),
+        )
+        self.assertIs(out["preserve_thinking"], False)
 
 
 if __name__ == "__main__":
