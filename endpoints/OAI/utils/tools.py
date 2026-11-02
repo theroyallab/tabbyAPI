@@ -237,6 +237,16 @@ def detect_reasoning_tags(
     return None, None
 
 
+def supports_delta_streaming(tool_format: str) -> bool:
+    """
+    True for formats with an incremental delta streamer (see toolcall_stream).
+    These formats can stream partial tool_calls argument deltas instead of
+    one complete delta at end of stream.
+    """
+
+    return _get_parser(tool_format) is qwen3_coder
+
+
 def parse_toolcalls(tool_calls_str: str, tool_format: str) -> List[ToolCall]:
     """
     Dispatch tool call parsing to the appropriate format handler.

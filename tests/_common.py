@@ -167,7 +167,7 @@ def test_chat_streaming(api_key, base_url, request, n=1, display_idx=0, rawdump=
                             print(f"\n\n[tool_calls][{idx}]")
                     for tc in delta["tool_calls"]:
                         tcidx = tc["index"]
-                        if tcidx not in tool_calls:
+                        if tcidx not in tool_calls[idx]:
                             tool_calls[idx][tcidx] = {
                                 "id": tc.get("id", ""),
                                 "name": tc["function"].get("name", ""),
