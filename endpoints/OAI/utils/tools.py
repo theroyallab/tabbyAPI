@@ -237,7 +237,7 @@ def detect_reasoning_tags(
     return None, None
 
 
-def parse_toolcalls(tool_calls_str: str, tool_format: str) -> List[ToolCall]:
+def parse_toolcalls(tool_calls_str: str, tool_format: str, tools=None) -> List[ToolCall]:
     """
     Dispatch tool call parsing to the appropriate format handler.
 
@@ -254,6 +254,8 @@ def parse_toolcalls(tool_calls_str: str, tool_format: str) -> List[ToolCall]:
         if not parser:
             return []
 
+        if tools and parser is qwen3_coder:
+            return parser.parse_toolcalls(tool_calls_str, tools)
         return parser.parse_toolcalls(tool_calls_str)
 
     except Exception as e:

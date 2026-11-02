@@ -40,7 +40,10 @@ _FUNC = re.compile(r"<function=([^>\s]+)[^>]*>(.*?)</function>", re.DOTALL)
 _PARAM = re.compile(r"<parameter=([^>\s]+)[^>]*>(.*?)</parameter>", re.DOTALL)
 
 
-def parse_toolcalls(text: str) -> list[ToolCall]:
+def parse_toolcalls(text: str, tools=None) -> list[ToolCall]:
+    # Parameters the request's tool schemas declare as strings stay verbatim, even when they look
+    # like JSON (the content of a package.json for a write tool must not become an object)
+    props = {t.function.name: t.function.parameters.get("properties") or {} for t in tools or []}
     # If there are outer <tool_call> wrappers, unwrap them; otherwise use the whole text
     segments: list[tuple[str, str]] = []  # (raw, inner)
     outer_matches = list(_OUTER.finditer(text))
@@ -62,7 +65,8 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
             for pm in _PARAM.finditer(func_body):
                 key = pm.group(1).strip()
                 val = pm.group(2).strip()
-                val = coerce_param_value(val)
+                if (props.get(func_name, {}).get(key) or {}).get("type") != "string":
+                    val = coerce_param_value(val)
                 args[key] = val
 
             args_json = json.dumps(args, ensure_ascii=False)

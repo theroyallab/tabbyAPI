@@ -696,6 +696,7 @@ def _parse_tool_calls(
     text: str,
     tool_format: str,
     label: str,
+    tools=None,
 ) -> list:
     """
     Parse collected tool calls and convert to OAI format.
@@ -705,7 +706,7 @@ def _parse_tool_calls(
     deltas, which we don't do here.)
     """
 
-    parsed = parse_toolcalls(text, tool_format)
+    parsed = parse_toolcalls(text, tool_format, tools)
     for tc_idx, p in enumerate(parsed):
         p.index = tc_idx
     dumped = [p.model_dump(mode="json") for p in parsed]
@@ -952,7 +953,7 @@ async def _chat_stream_collector(
                 generation["delta_tool_calls"] = ""
                 if finish_reason and full_tool:
                     generation["delta_tool_calls"] = _parse_tool_calls(
-                        full_tool, tool_format, label
+                        full_tool, tool_format, label, params.tools
                     )
                     generation["finish_reason"] = "tool_calls"
                 await gen_queue.put(generation)
@@ -968,7 +969,7 @@ async def _chat_stream_collector(
                 generation["logprob_response"] = ChatCompletionLogprobs(content=collected_logprobs)
             generation["reasoning_content"] = full_reasoning
             generation["content"] = full_content if has_content else None
-            generation["tool_calls"] = _parse_tool_calls(full_tool, tool_format, label)
+            generation["tool_calls"] = _parse_tool_calls(full_tool, tool_format, label, params.tools)
             if full_tool:
                 generation["finish_reason"] = "tool_calls"
             return generation
