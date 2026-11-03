@@ -503,6 +503,15 @@ class ExllamaV3Container:
                 )
                 self.draft_model = Model.from_config(self.draft_config)
                 xlogger.info(f"Using draft model: {str(draft_model_path.resolve())}")
+
+                # Such a drafter loads inside the target's load, next to the
+                # layers it reads, so it has no split of its own
+                if self.draft_model.caps.get("load_with_target") and self.draft_gpu_split:
+                    xlogger.warning(
+                        "draft_gpu_split is ignored for this draft model, which loads "
+                        "alongside its target model."
+                    )
+                    self.draft_gpu_split = []
         else:
             self.draft_model = None
             self.draft_cache = None

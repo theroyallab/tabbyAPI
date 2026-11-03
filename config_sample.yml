@@ -402,6 +402,8 @@ draft_model:
 
   # Array of VRAM sizes to split between GPUs, in GB (default: []).
   # If this isn't filled in, the draft model is autosplit.
+  # Ignored for draft models that load alongside their target model
+  # (e.g. Gemma4 assistant drafters), which follow the target's split.
   draft_gpu_split: []
 
   # Number of tokens to draft per iteration (default: draft model default)
