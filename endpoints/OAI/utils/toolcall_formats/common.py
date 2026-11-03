@@ -36,17 +36,59 @@ CODE_FENCE_RE = re.compile(r"^```(?:json)?\s*", re.MULTILINE)
 CODE_FENCE_END_RE = re.compile(r"\s*```\s*$", re.MULTILINE)
 
 
-def coerce_param_value(raw: str) -> any:
+# {function name: {parameter name: JSON schema type}} taken from a request's tool
+# definitions; None where the schema gives a parameter no single type
+ParamTypes = dict[str, dict[str, Optional[str]]]
+
+
+def param_types_from_tools(tools) -> ParamTypes:
+    """
+    Declared parameter types per function from the request's tool definitions
+    (ToolSpec objects or the equivalent dicts). A parameter without a single
+    `type` in its schema (anyOf, missing) maps to None, which keeps the
+    type-guessing coercion for it.
+    """
+
+    types: ParamTypes = {}
+    for tool in tools or []:
+        function = getattr(tool, "function", None)
+        if function is None and isinstance(tool, dict):
+            function = tool.get("function")
+        if function is None:
+            continue
+        if isinstance(function, dict):
+            name, parameters = function.get("name"), function.get("parameters")
+        else:
+            name = getattr(function, "name", None)
+            parameters = getattr(function, "parameters", None)
+        if not name:
+            continue
+        properties = parameters.get("properties") if isinstance(parameters, dict) else None
+        declared = {}
+        for key, schema in (properties or {}).items():
+            schema_type = schema.get("type") if isinstance(schema, dict) else None
+            declared[key] = schema_type if isinstance(schema_type, str) else None
+        types[name] = declared
+    return types
+
+
+def coerce_param_value(raw: str, declared: Optional[str] = None) -> any:
     """Coerce a raw parameter value string to the appropriate Python type.
 
     Strategy (safe, no eval()):
       1. Strip leading/trailing newlines (official template emits \\n
          after opening tag and before closing tag).
-      2. Try json.loads — handles objects, arrays, numbers, bools, null.
-      3. Fall back to plain string.
+      2. A parameter the tool schema declares as `string` is returned as is:
+         "123" stays a string, and a streaming parser can emit it as it is
+         generated without waiting to learn its type.
+      3. Otherwise try json.loads (objects, arrays, numbers, bools, null)
+         and fall back to the plain string.
     """
     # Strip template-inserted newlines around values
     stripped = raw.strip()
+
+    if declared == "string":
+        return stripped
 
     # Empty string
     if not stripped:

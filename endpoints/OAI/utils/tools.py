@@ -1,6 +1,8 @@
 """Tool call processing utilities for OAI server."""
 
+import inspect
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Callable, List, Optional
 
 from common.logger import xlogger
@@ -244,16 +246,29 @@ def supports_delta_streaming(tool_format: str) -> bool:
     one complete delta at end of stream.
     """
 
-    return _get_parser(tool_format) is qwen3_coder
+    # Imported here: toolcall_stream imports this module
+    from endpoints.OAI.utils.toolcall_stream import DELTA_STREAMERS
+
+    return canonical_format_name(tool_format) in DELTA_STREAMERS
 
 
-def parse_toolcalls(tool_calls_str: str, tool_format: str) -> List[ToolCall]:
+@lru_cache(maxsize=None)
+def _accepts_param_types(parser) -> bool:
+    return "param_types" in inspect.signature(parser.parse_toolcalls).parameters
+
+
+def parse_toolcalls(
+    tool_calls_str: str, tool_format: str, param_types: Optional[dict] = None
+) -> List[ToolCall]:
     """
     Dispatch tool call parsing to the appropriate format handler.
 
     Args:
         tool_calls_str: Raw tool call text from model generation.
         tool_format: See below
+        param_types: Declared parameter types from the request's tools
+            (common.param_types_from_tools), for formats whose values are
+            untyped text. Ignored by formats that don't take them.
 
     Returns:
         List of parsed ToolCall objects. Empty list on parse failure (never raises).
@@ -264,6 +279,8 @@ def parse_toolcalls(tool_calls_str: str, tool_format: str) -> List[ToolCall]:
         if not parser:
             return []
 
+        if param_types is not None and _accepts_param_types(parser):
+            return parser.parse_toolcalls(tool_calls_str, param_types=param_types)
         return parser.parse_toolcalls(tool_calls_str)
 
     except Exception as e:

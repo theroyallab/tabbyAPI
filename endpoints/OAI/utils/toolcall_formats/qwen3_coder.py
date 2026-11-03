@@ -40,7 +40,7 @@ _FUNC = re.compile(r"<function=([^>\s]+)[^>]*>(.*?)</function>", re.DOTALL)
 _PARAM = re.compile(r"<parameter=([^>\s]+)[^>]*>(.*?)</parameter>", re.DOTALL)
 
 
-def parse_toolcalls(text: str) -> list[ToolCall]:
+def parse_toolcalls(text: str, param_types=None) -> list[ToolCall]:
     # If there are outer <tool_call> wrappers, unwrap them; otherwise use the whole text
     segments: list[tuple[str, str]] = []  # (raw, inner)
     outer_matches = list(_OUTER.finditer(text))
@@ -58,11 +58,12 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
         for fm in _FUNC.finditer(inner):
             func_name = fm.group(1)
             func_body = fm.group(2)
+            declared = (param_types or {}).get(func_name, {})
             args: dict[str, any] = {}
             for pm in _PARAM.finditer(func_body):
                 key = pm.group(1).strip()
                 val = pm.group(2).strip()
-                val = coerce_param_value(val)
+                val = coerce_param_value(val, declared.get(key))
                 args[key] = val
 
             args_json = json.dumps(args, ensure_ascii=False)

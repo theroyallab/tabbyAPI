@@ -51,9 +51,9 @@ from endpoints.OAI.utils.stream_parser import (
 from endpoints.OAI.utils.tools import (
     get_toolcall_tags,
     parse_toolcalls,
-    supports_delta_streaming,
 )
-from endpoints.OAI.utils.toolcall_stream import QwenToolCallDeltaStreamer
+from endpoints.OAI.utils.toolcall_formats.common import param_types_from_tools
+from endpoints.OAI.utils.toolcall_stream import make_delta_streamer
 from endpoints.OAI.utils.common_ import aggregate_usage_stats, get_timings, get_usage_stats
 
 
@@ -698,16 +698,17 @@ def _parse_tool_calls(
     text: str,
     tool_format: str,
     label: str,
+    param_types: Optional[dict] = None,
 ) -> list:
     """
     Parse collected tool calls and convert to OAI format.
 
     Insert tool indices as well. (These are not choice indices; OAI enumerates the tool
-    calls within each individual choice for the sake of streaming incomplete tool arg
-    deltas, which we don't do here.)
+    calls within each individual choice, and the delta streamer numbers them the same way.)
+    param_types carries the parameter types declared by the request's tools.
     """
 
-    parsed = parse_toolcalls(text, tool_format)
+    parsed = parse_toolcalls(text, tool_format, param_types)
     for tc_idx, p in enumerate(parsed):
         p.index = tc_idx
     dumped = [p.model_dump(mode="json") for p in parsed]
@@ -833,9 +834,13 @@ async def _chat_stream_collector(
     # OpenAI-style tool call fragments as they are generated instead of one
     # complete delta at end of stream. The end-of-stream parse stays as the
     # fallback whenever the streamer produced nothing.
+    # Parameter types declared by the request's tools: a string parameter is
+    # never reinterpreted as a JSON literal, and the delta streamer can emit it
+    # as it is generated
+    param_types = param_types_from_tools(params.tools)
     tool_streamer = None
-    if streaming_mode and use_tool and supports_delta_streaming(tool_format):
-        tool_streamer = QwenToolCallDeltaStreamer()
+    if streaming_mode and use_tool:
+        tool_streamer = make_delta_streamer(tool_format, param_types)
 
     # Reasoning budget: when the reasoning phase exceeds the budget, force
     # end-of-reasoning tokens into the output stream so the model answers
@@ -975,7 +980,7 @@ async def _chat_stream_collector(
                         tool_streamer.verify(full_tool, label)
                     else:
                         generation["delta_tool_calls"] = _parse_tool_calls(
-                            full_tool, tool_format, label
+                            full_tool, tool_format, label, param_types
                         )
                     generation["finish_reason"] = "tool_calls"
                 await gen_queue.put(generation)
@@ -991,7 +996,7 @@ async def _chat_stream_collector(
                 generation["logprob_response"] = ChatCompletionLogprobs(content=collected_logprobs)
             generation["reasoning_content"] = full_reasoning
             generation["content"] = full_content if has_content else None
-            generation["tool_calls"] = _parse_tool_calls(full_tool, tool_format, label)
+            generation["tool_calls"] = _parse_tool_calls(full_tool, tool_format, label, param_types)
             if full_tool:
                 generation["finish_reason"] = "tool_calls"
             return generation

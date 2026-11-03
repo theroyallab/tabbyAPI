@@ -39,7 +39,7 @@ _INVOKE = re.compile(r'<invoke\s+name="([^"]+)"[^>]*>(.*?)</invoke>', re.DOTALL)
 _PARAM = re.compile(r'<parameter\s+name="([^"]+)"[^>]*>(.*?)</parameter>', re.DOTALL)
 
 
-def parse_toolcalls(text: str) -> list[ToolCall]:
+def parse_toolcalls(text: str, param_types=None) -> list[ToolCall]:
     outer_matches = list(_OUTER.finditer(text))
 
     results = []
@@ -48,11 +48,12 @@ def parse_toolcalls(text: str) -> list[ToolCall]:
         for im in _INVOKE.finditer(inner):
             func_name = im.group(1)
             func_body = im.group(2)
+            declared = (param_types or {}).get(func_name, {})
             args: dict[str, any] = {}
             for pm in _PARAM.finditer(func_body):
                 key = pm.group(1).strip()
                 val = pm.group(2).strip()
-                val = coerce_param_value(val)
+                val = coerce_param_value(val, declared.get(key))
                 args[key] = val
 
             args_json = json.dumps(args, ensure_ascii=False)
