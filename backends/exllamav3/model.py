@@ -1192,7 +1192,12 @@ class ExllamaV3Container:
                 if value:
                     yield value
 
-        if self.use_draft_model:
+        if self.draft_model is not None and self.draft_model.caps.get("load_with_target"):
+            xlogger.info(
+                f"Draft model {self.draft_model_dir} loads with its target model, "
+                "skipping its standalone load"
+            )
+        elif self.use_draft_model:
             for value in self.draft_model.load_gen(
                 reserve_per_device=(
                     None if (self.gpu_split or self.draft_gpu_split) else self.autosplit_reserve
