@@ -1647,6 +1647,7 @@ class ExllamaV3Container:
         reasoning_phase: Optional[bool] = None,
         channel_parser=None,
         label: Optional[str] = None,
+        return_logits: bool = False,
     ) -> AsyncIterator[Dict[str, Any]]:
         """
         Generates a response iteratively (streaming) for a given prompt.
@@ -1667,6 +1668,9 @@ class ExllamaV3Container:
                 of headed messages that has yet to reach its content, where
                 grammar filters wait for the first content message.
             label: Short name for the request in console logs.
+            return_logits: Attach the raw logits of each generated position to
+                its chunk ("logits", shape (1, n, vocab)), for callers that read
+                the next-token distribution (the decision endpoints).
 
         Yields:
             Generation chunks
@@ -1697,6 +1701,7 @@ class ExllamaV3Container:
                 reasoning_phase=reasoning_phase,
                 channel_parser=channel_parser,
                 label=label,
+                return_logits=return_logits,
             ):
                 yield generation_chunk
         finally:

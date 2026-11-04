@@ -502,14 +502,16 @@ def test_read_logits_argmax_outside_labels():
 
 
 def make_container(logits_for_prompt, bos="<bos>", add_bos=True):
-    """A container whose generate_gen yields the logits chosen by the rendered prompt."""
+    """A container whose stream_generate yields the logits chosen by the rendered prompt."""
 
     prompts = []
+    params_seen = []
 
-    async def generate_gen(request_id, prompt, params, **kwargs):
+    async def stream_generate(request_id, prompt, params, **kwargs):
+        # The registry-owning wrapper, not generate_gen: the read must go through it
         prompts.append(prompt)
+        params_seen.append(params)
         assert kwargs["return_logits"] is True
-        assert params.max_tokens == 1 and params.temperature == 0
         yield {"prompt_tokens": 10, "generated_tokens": 1, "logits": logits_for_prompt(prompt)}
         yield {
             "prompt_tokens": 10,
@@ -518,16 +520,21 @@ def make_container(logits_for_prompt, bos="<bos>", add_bos=True):
             "finish_reason": "length",
         }
 
-    container = SimpleNamespace(
+    async def generate_gen(*args, **kwargs):
+        raise AssertionError("reads must use stream_generate so the job registry is kept")
+        yield  # pragma: no cover
+
+    return SimpleNamespace(
         tokenizer=SimpleNamespace(get_id_to_piece_list=lambda **k: PIECES),
         template_vars_default={"enable_thinking": True},
         template_vars_force={},
         hf_model=SimpleNamespace(add_bos_token=lambda: add_bos),
         model_dir=SimpleNamespace(name="fake-model"),
+        stream_generate=stream_generate,
         generate_gen=generate_gen,
         prompts=prompts,
+        params_seen=params_seen,
     )
-    return container
 
 
 async def fake_format(messages, existing_template_vars=None):
@@ -661,6 +668,64 @@ def test_validation_errors_surface_before_any_read():
         with pytest.raises(DecisionValidationError, match="ordered list of levels"):
             run(dec.generate_systemone(data, req, None))
     assert container.prompts == []
+
+
+def test_forced_sampler_overrides_do_not_reach_the_read(monkeypatch):
+    """A chat preset forcing token limits, healing or a grammar must not move the
+    answer position or constrain the first token."""
+
+    from common import sampling
+
+    forced = {
+        "max_tokens": {"override": 200, "force": True},
+        "min_tokens": {"override": 50, "force": True},
+        "token_healing": {"override": True, "force": True},
+        "temperature": {"override": 0.8, "force": True},
+        "regex_pattern": {"override": "[a-z]+", "force": True},
+        "top_logprobs": {"override": 5, "force": True},
+    }
+    monkeypatch.setattr(sampling.SamplerOverridesContainer, "effective", lambda self: forced)
+    chat_params = sampling.BaseSamplerRequest()
+    assert chat_params.max_tokens == 200 and chat_params.token_healing is True
+
+    params = dec.read_params()
+    assert params.max_tokens == 1 and params.min_tokens == 1
+    assert params.temperature == 0 and params.token_healing is False
+    assert params.regex_pattern is None and params.top_logprobs == 0
+
+    container = make_container(lambda prompt: torch.zeros((1, 1, len(PIECES))))
+    req = SimpleNamespace(state=SimpleNamespace(id="r4"))
+    with (
+        patch.object(dec, "model", SimpleNamespace(container=container)),
+        patch.object(dec, "format_messages_with_template", fake_format),
+        patch.object(dec, "request_tag", lambda r: "req"),
+    ):
+        run(dec.generate_decisions(request(), req, None))
+    (seen,) = container.params_seen
+    assert seen.max_tokens == 1 and seen.token_healing is False
+
+
+def test_forced_template_variables_do_not_turn_thinking_back_on():
+    """A model config forcing enable_thinking for chat still reads at the answer
+    position; only the request's own template arguments can turn thinking on."""
+
+    container = make_container(lambda prompt: torch.zeros((1, 1, len(PIECES))))
+    container.template_vars_force = {"enable_thinking": True}
+    req = SimpleNamespace(state=SimpleNamespace(id="r5"))
+    data = SystemOneRequest.model_validate(
+        {"state": "x", "questions": {"q": {"type": "noul", "instructions": "ok?"}}}
+    )
+    with (
+        patch.object(dec, "model", SimpleNamespace(container=container)),
+        patch.object(dec, "format_messages_with_template", fake_format),
+        patch.object(dec, "request_tag", lambda r: "req"),
+    ):
+        run(dec.generate_systemone(data, req, None))
+        assert container.prompts[-1].endswith("<model>")
+
+        data.chat_template_kwargs = {"enable_thinking": True}
+        run(dec.generate_systemone(data, req, None))
+        assert container.prompts[-1].endswith("<model><think>")
 
 
 def test_question_dataclass_is_immutable():

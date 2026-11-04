@@ -371,16 +371,48 @@ def read_logits(logits: torch.Tensor, groups: List[List[int]]) -> Tuple[List[flo
 
 
 def _decision_template_vars(container, chat_template_kwargs: Optional[dict]) -> dict:
-    """Template variables for a read: the model's defaults, thinking off unless
-    the request turns it on, the model's forced values on top."""
+    """
+    Template variables for a read: the model's default and forced values, then
+    thinking off, then the request's own variables. The read has to land on the
+    answer position, so a forced `enable_thinking` for chat does not apply here;
+    only the request itself can turn thinking on, as in vLLM.
+    """
 
     return {
         "add_generation_prompt": True,
         **container.template_vars_default,
+        **container.template_vars_force,
         "enable_thinking": False,
         **(chat_template_kwargs or {}),
-        **container.template_vars_force,
     }
+
+
+#: Request fields the read pins after the server's forced sampler overrides
+#: were applied: the job must generate exactly one unconstrained token at the
+#: answer position, whatever a chat preset forces
+_READ_PARAMS = {
+    "max_tokens": 1,
+    "min_tokens": 1,
+    "temperature": 0,
+    "token_healing": False,
+    "logprobs": 0,
+    "top_logprobs": 0,
+    "json_schema": None,
+    "regex_pattern": None,
+    "grammar_string": None,
+}
+
+
+def read_params() -> BaseSamplerRequest:
+    """Sampling parameters of a read: greedy, one token, nothing that moves the
+    answer position or constrains the first token. Forced overrides are applied
+    when the request is built, so the fields are pinned afterwards."""
+
+    params = BaseSamplerRequest(max_tokens=1, min_tokens=1, temperature=0)
+    for name, value in _READ_PARAMS.items():
+        if name in type(params).model_fields:
+            setattr(params, name, value)
+    return params
 
 
 async def _render_prompt(container, content: str, template_vars: dict) -> str:
@@ -412,13 +444,16 @@ async def _read_question(
 
     # Greedy, one token; min_tokens keeps a stop token at the answer position
     # from ending the job before its logits are reported
-    params = BaseSamplerRequest(max_tokens=1, min_tokens=1, temperature=0)
+    params = read_params()
 
     logits = None
     prompt_tokens = 0
     output_tokens = 0
     cached_tokens = 0
-    async for generation in container.generate_gen(
+    # stream_generate, not generate_gen: it registers the job with the container
+    # and removes it when the read ends, which unloading and generator recovery
+    # wait on
+    async for generation in container.stream_generate(
         request_id,
         prompt,
         params,
