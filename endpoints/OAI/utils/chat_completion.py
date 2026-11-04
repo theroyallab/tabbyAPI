@@ -978,6 +978,11 @@ async def _chat_stream_collector(
                         # calls itself, so only cross-check against the
                         # authoritative parse and close the finish reason.
                         tool_streamer.verify(full_tool, label)
+                        names = tool_streamer.names
+                        xlogger.info(
+                            f"{label}: streamed {len(names)} tool call"
+                            f"{'' if len(names) == 1 else 's'} ({tool_format}): " + ", ".join(names)
+                        )
                     else:
                         generation["delta_tool_calls"] = _parse_tool_calls(
                             full_tool, tool_format, label, param_types

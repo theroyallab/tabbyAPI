@@ -341,6 +341,12 @@ class QwenToolCallDeltaStreamer:
         self.emitter.emitted = value
 
     @property
+    def names(self) -> list:
+        """Function names of the calls streamed so far, in index order."""
+
+        return list(self.emitter._names)
+
+    @property
     def _names(self) -> list:
         return self.emitter._names
 

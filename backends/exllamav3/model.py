@@ -2330,6 +2330,7 @@ class ExllamaV3Container:
         reasoning_phase: Optional[bool] = None,
         channel_parser=None,
         label: Optional[str] = None,
+        return_logits: bool = False,
     ):
         """
         Create generator function for prompt completion.
@@ -2557,7 +2558,7 @@ class ExllamaV3Container:
                 embeddings=mm_embeddings_content,
                 return_top_tokens=params.top_logprobs,
                 return_probs=bool(params.logprobs) or bool(params.top_logprobs),
-                return_logits=bool(getattr(params, "_return_logits", False)),
+                return_logits=return_logits,
                 max_rq_tokens=max_rq_tokens,
                 stop_on_loop=bool(params.loop_detect),
                 filters=(

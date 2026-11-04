@@ -78,6 +78,22 @@ class TypedParsingTests(unittest.TestCase):
         (call,) = qwen3_coder.parse_toolcalls(text)
         self.assertEqual(json.loads(call.function.arguments)["path"], 123)
 
+    def test_string_parameter_holding_json_is_kept_verbatim(self):
+        """A package.json written through a `write` tool must stay text (PR #513's case)."""
+
+        package_json = '{"name": "demo", "private": true}'
+        text = qwen_call("write_file", [("path", "package.json"), ("content", package_json)])
+        types = param_types_from_tools(TOOLS)
+        (call,) = tools_module.parse_toolcalls(text, "qwen3_coder", types)
+        args = json.loads(call.function.arguments)
+        self.assertEqual(args["content"], package_json)
+        self.assertIsInstance(args["content"], str)
+        # Without the schema the old coercion turns it into an object
+        (call,) = tools_module.parse_toolcalls(text, "qwen3_coder")
+        self.assertEqual(
+            json.loads(call.function.arguments)["content"], {"name": "demo", "private": True}
+        )
+
     def test_dispatcher_passes_types_only_where_accepted(self):
         types = param_types_from_tools(TOOLS)
         text = qwen_call("write_file", [("path", "123")])

@@ -32,7 +32,12 @@ from endpoints.OAI.types.chat_completion import (
     ChatCompletionResponse,
 )
 from endpoints.OAI.types.embedding import EmbeddingsRequest, EmbeddingsResponse
-from endpoints.OAI.types.decisions import DecisionsRequest, DecisionsResponse
+from endpoints.OAI.types.decisions import (
+    DecisionRequest,
+    DecisionResponse,
+    SystemOneRequest,
+    SystemOneResponse,
+)
 from endpoints.OAI.utils.common_ import load_inline_model
 from endpoints.OAI.utils.chat_completion import (
     apply_chat_template,
@@ -45,7 +50,11 @@ from endpoints.OAI.utils.completion import (
     stream_generate_completion,
 )
 from endpoints.OAI.utils.embeddings import get_embeddings
-from endpoints.OAI.utils.decisions import DecisionValidationError, generate_decisions
+from endpoints.OAI.utils.decisions import (
+    DecisionValidationError,
+    generate_decisions,
+    generate_systemone,
+)
 
 
 api_name = "OAI"
@@ -54,6 +63,7 @@ urls = {
     "Completions": "http://{host}:{port}/v1/completions",
     "Chat completions": "http://{host}:{port}/v1/chat/completions",
     "Decisions": "http://{host}:{port}/v1/decisions",
+    "System One": "http://{host}:{port}/v1/systemone",
 }
 
 # Block when model is still loading while second inline load request comes in
@@ -204,21 +214,12 @@ async def chat_completion_request(
         raise HTTPException(422, "/v1/chat/completions request cancelled by user.") from ex
 
 
-# Decisions endpoint
-@router.post("/v1/decisions", dependencies=[Depends(check_api_key)])
-async def decisions_request(request: Request, data: DecisionsRequest) -> DecisionsResponse:
-    """
-    Answer typed choice, score, and yes/no questions with a probability for
-    every option, read from the model's next-token distribution at the answer
-    position. No text is generated.
-    """
-
-    raw_json = await request.json()
-    xlogger.debug("[ENDPOINT] /v1/decisions", {"raw": raw_json})
-
+# Decision endpoints: typed questions answered from the model's next-token
+# distribution at the answer position (see endpoints/OAI/utils/decisions.py)
+async def _answer_decisions(request: Request, model_name, route: str, generate):
     async with load_lock:
-        if data.model:
-            await load_inline_model(data.model, request)
+        if model_name:
+            await load_inline_model(model_name, request)
         await check_model_container()
 
     if model.container.prompt_template is None:
@@ -231,12 +232,10 @@ async def decisions_request(request: Request, data: DecisionsRequest) -> Decisio
     disconnect_handler = DisconnectHandler(request, f"{request_tag(request)} decisions")
     try:
         await disconnect_handler.poll()
-
-        response = await generate_decisions(data, request, disconnect_handler)
-        return response
+        return await generate(request, disconnect_handler)
 
     except (CancelledError, InvalidStateError) as ex:
-        raise HTTPException(422, "/v1/decisions request cancelled by user.") from ex
+        raise HTTPException(422, f"{route} request cancelled by user.") from ex
 
     except DecisionValidationError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -247,6 +246,38 @@ async def decisions_request(request: Request, data: DecisionsRequest) -> Decisio
 
     finally:
         await disconnect_handler.cleanup()
+
+
+@router.post("/v1/decisions", dependencies=[Depends(check_api_key)])
+async def decisions_request(request: Request, data: DecisionRequest) -> DecisionResponse:
+    """
+    OpenAI Decisions API: answer predicate, choice and score questions about a
+    shared input with a probability for every option. No text is generated.
+    """
+
+    xlogger.debug("[ENDPOINT] /v1/decisions", {"raw": await request.json()})
+    return await _answer_decisions(
+        request,
+        data.model,
+        "/v1/decisions",
+        lambda req, dh: generate_decisions(data, req, dh),
+    )
+
+
+@router.post("/v1/systemone", dependencies=[Depends(check_api_key)])
+async def systemone_request(request: Request, data: SystemOneRequest) -> SystemOneResponse:
+    """
+    TypeSafe System One API: answer choice, score and noul questions about a
+    state, as llama.cpp and vLLM serve it.
+    """
+
+    xlogger.debug("[ENDPOINT] /v1/systemone", {"raw": await request.json()})
+    return await _answer_decisions(
+        request,
+        data.model,
+        "/v1/systemone",
+        lambda req, dh: generate_systemone(data, req, dh),
+    )
 
 
 # Apply template endpoint (llama-server compatible)
