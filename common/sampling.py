@@ -351,6 +351,10 @@ class BaseSamplerRequest(BaseModel):
         ge=0,
     )
 
+    # Private flag for /v1/decisions: read raw next-token logits at the answer
+    # position. Not a request field — no public endpoint consumes the logits.
+    _return_logits: bool = PrivateAttr(default=False)
+
     adaptive_target: Optional[float] = Field(
         default_factory=lambda: get_default_sampler_value("adaptive_target", 1.0)
     )
