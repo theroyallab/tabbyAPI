@@ -17,7 +17,7 @@ from common.auth import load_auth_keys
 from common.actions import run_subcommand
 from common.logger import setup_logger, xlogger
 from common.networking import port_bind_error
-from common.optional_dependencies import dependencies
+from common.optional_dependencies import dependencies, check_package_version
 from common.signals import signal_handler
 from common.status_display import status_display
 from common.tabby_config import config
@@ -219,21 +219,23 @@ def entrypoint(
             "UNSAFE: Skipping ExllamaV3 version check.\n"
             "If you aren't a developer, please keep this off!"
         )
-    elif not dependencies.inference:
-        install_message = (
-            f"ERROR: Inference dependencies for TabbyAPI are not installed.\n"
-            "Please update your environment by running an update script "
-            "(update_scripts/"
-            f"update_deps.{'bat' if platform.system() == 'Windows' else 'sh'})\n\n"
-            "Or you can manually run a requirements update "
-            "using the following command:\n\n"
-            "For CUDA 12.x:\n"
-            "pip install --upgrade .[cu12]\n\n"
-            "For CUDA 13.x:\n"
-            "pip install --upgrade .[cu13]\n\n"
-        )
+    else:
+        if not dependencies.inference:
+            install_message = (
+                f"ERROR: Inference dependencies for TabbyAPI are not installed.\n"
+                "Please update your environment by running an update script "
+                "(update_scripts/"
+                f"update_deps.{'bat' if platform.system() == 'Windows' else 'sh'})\n\n"
+                "Or you can manually run a requirements update "
+                "using the following command:\n\n"
+                "For CUDA 12.x:\n"
+                "pip install --upgrade .[cu12]\n\n"
+                "For CUDA 13.x:\n"
+                "pip install --upgrade .[cu13]\n\n"
+            )
+            raise SystemExit(install_message)
+        check_package_version("exllamav3", "1.6.6")
 
-        raise SystemExit(install_message)
 
     # Set the process priority
     if config.developer.realtime_process_priority:
