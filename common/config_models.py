@@ -901,6 +901,112 @@ class MemoryConfig(BaseConfigModel):
         ),
         ge=0,
     )
+    aging_lfu: Optional[bool] = Field(
+        False,
+        description=(
+            "Enable aging-LFU prompt-cache weights (default: False). A hit covering\n"
+            "P pages adds min(P, aging_hit_cap_pages) / P to each reused page, so\n"
+            "repeated system/tool prefixes gain weight while one-off long documents\n"
+            "earn only a small per-page increment. Eviction orders leaves by effective\n"
+            "weight, tree-aware, instead of raw recency."
+        ),
+    )
+    aging_half_life_hours: Optional[float] = Field(
+        72.0,
+        description=(
+            "Half-life of per-page prompt-cache weight, in hours (default: 72).\n"
+            "72 keeps stable system/tool prompts hot while letting one-off documents\n"
+            "decay out. Must be positive."
+        ),
+        gt=0,
+    )
+    aging_hit_cap_pages: Optional[int] = Field(
+        64,
+        description=(
+            "Per-hit credit cap, in pages (default: 64). A 245K one-off document\n"
+            "covers ~960 pages, so it earns 64/960 per page instead of 1 and cannot\n"
+            "dominate the cache after one read."
+        ),
+        ge=1,
+    )
+    aging_weight_cap: Optional[float] = Field(
+        64.0,
+        description=(
+            "Per-page cumulative weight cap (default: 64). A hot page cannot grow\n"
+            "without bound."
+        ),
+        gt=0,
+    )
+    aging_persist_dir: Optional[str] = Field(
+        None,
+        description=(
+            "Directory for the SQLite aging-LFU sidecar (default: None). Weights are\n"
+            "keyed by page hash and survive a restart; configured warm prefixes are\n"
+            "stored as token IDs so a later process can re-prefill them and attach\n"
+            "the weights their pages earned."
+        ),
+    )
+    aging_capture_prefixes: Optional[bool] = Field(
+        True,
+        description=(
+            "Persist the token IDs of chains that earn weight, so a restart can\n"
+            "re-prefill them and rebuild their K/V pages instead of only their\n"
+            "weights (default: True). Needs aging_persist_dir; captures at most\n"
+            "aging_prefix_max_entries chains, each up to aging_prefix_max_tokens."
+        ),
+    )
+    aging_prefix_min_tokens: Optional[int] = Field(
+        2048,
+        description=(
+            "Shortest chain worth capturing (default: 2048). Recurrent-checkpoint\n"
+            "models gain nothing from a prefix shorter than their checkpoint\n"
+            "interval, so tiny prologues are skipped."
+        ),
+        ge=0,
+    )
+    aging_prefix_max_tokens: Optional[int] = Field(
+        65536,
+        description=(
+            "Longest chain to capture, truncated down to whole pages (default:\n"
+            "65536). Bounds the SQLite blob per prefix."
+        ),
+        ge=0,
+    )
+    aging_prefix_max_entries: Optional[int] = Field(
+        8,
+        description=(
+            "Number of captured prefixes to keep (default: 8). The least recently\n"
+            "written are dropped."
+        ),
+        ge=0,
+    )
+    warm_prefix_max_tokens: Optional[int] = Field(
+        65536,
+        description=(
+            "Budget for replaying warm prefixes after a model load, in tokens\n"
+            "(default: 65536). Prefixes are replayed longest-list-first and the\n"
+            "warm-up stops once this many tokens are being re-prefilled, so a restart\n"
+            "is not blocked by a long queue of stale chains."
+        ),
+        ge=0,
+    )
+    warm_prefixes: Optional[List[str]] = Field(
+        None,
+        description=(
+            "Prompt strings to prefill once after model load, so their complete pages\n"
+            "and weights are resident before the first request (default: None). Use\n"
+            "exact, templated static prefixes; dynamic dates/cwd/session IDs before\n"
+            "the static block break the hash chain."
+        ),
+    )
+    warm_prefix_token_ids: Optional[List[List[int]]] = Field(
+        None,
+        description=(
+            "Alternative to warm_prefixes: exact token ID lists to prefill after\n"
+            "model load (default: None). Use this when the chat template or tokenizer\n"
+            "must match a harness exactly."
+        ),
+    )
     sysmem_multimodal_cache: Optional[int] = Field(
         1024,
         description=(

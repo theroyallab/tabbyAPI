@@ -258,6 +258,7 @@ class ExllamaV3Container:
     active_job_ids: Dict[str, Any]
     job_phases: Dict[str, JobPhases]
     recreate_task: Optional[asyncio.Task] = None
+    warm_prefix_task: Optional[asyncio.Task] = None
     loaded: bool = False
     load_lock: asyncio.Lock
     load_condition: asyncio.Condition
@@ -1107,6 +1108,17 @@ class ExllamaV3Container:
             # Cleanup and update model load state
             self.loaded = True
             xlogger.info(f"Model loaded in {time.perf_counter() - load_start:.1f} s")
+
+            # Re-prefill warm prefixes in the background: the model is already
+            # servable, and a request that needs the same prefix only queues
+            # behind prefill work it would have had to do itself
+            if config.memory.aging_lfu and (
+                config.memory.warm_prefixes
+                or config.memory.warm_prefix_token_ids
+                or config.memory.aging_persist_dir
+            ):
+                await self.cancel_warm_prefixes()
+                self.warm_prefix_task = asyncio.create_task(self.warm_prefixes_gen())
         finally:
             self.load_lock.release()
 
@@ -1183,6 +1195,103 @@ class ExllamaV3Container:
             )
         else:
             xlogger.info(f"Warmup finished in {elapsed:.1f} s")
+
+    async def warm_prefixes_gen(self):
+        """
+        Prefill configured warm prefixes once, in the background after a load, so
+        their complete pages (and the aging-LFU weights those pages earn) are
+        resident before the first request. Sources, in order:
+
+        - memory.warm_prefix_token_ids: exact token ID lists, no tokenizer step
+        - memory.warm_prefixes: prompt strings, encoded with this model's tokenizer
+        - the aging-LFU sidecar: prefixes a previous process warmed or captured from a cache hit
+
+        Only useful when the prefix is byte-identical across requests. Anything
+        dynamic (date, cwd, session id) before the static block breaks the page
+        hash chain at that point, so choose the strings deliberately.
+        """
+
+        if self.generator is None or self.tokenizer is None:
+            return
+
+        generator = self.generator.generator
+        pagetable = getattr(generator, "pagetable", None)
+        if pagetable is None or not getattr(pagetable, "aging_lfu", False):
+            return
+
+        candidates: List[tuple[str, torch.Tensor, bool]] = []
+        for i, ids in enumerate(config.memory.warm_prefix_token_ids or []):
+            candidates.append((f"config-ids-{i}", torch.tensor([ids], dtype=torch.long), True))
+        for i, text in enumerate(config.memory.warm_prefixes or []):
+            try:
+                encoded = self.tokenizer.encode(
+                    text,
+                    add_bos=self.hf_model.add_bos_token(),
+                    encode_special_tokens=True,
+                )
+            except Exception as exc:
+                xlogger.warning(f"Warm prefix config-text-{i} could not be encoded: {exc}")
+                continue
+            candidates.append((f"config-text-{i}", encoded, True))
+        candidates.extend((label, ids, False) for label, ids in pagetable.stored_prefixes())
+
+        # Chains captured by earlier processes are replayed within a token budget, in most-recently-written order,
+        # so a restart does not spend minutes re-prefilling stale prefixes before serving
+        budget = config.memory.warm_prefix_max_tokens
+
+        seen = set()
+        warmed = 0
+        warmed_tokens = 0
+        for label, ids, pinned in candidates:
+            ids = ids.detach().cpu().to(torch.long).reshape(1, -1)
+            key = ids.contiguous().numpy().tobytes()
+            if key in seen:
+                continue
+            if not pinned and budget and warmed_tokens + ids.shape[-1] > budget:
+                xlogger.info(
+                    f"Warm prefix {label!r}: {ids.shape[-1]:,} tokens skipped, "
+                    f"{warmed_tokens:,}-token warm budget used"
+                )
+                continue
+            seen.add(key)
+
+            label = label if len(label) <= 40 else label[:37] + "..."
+            started = time.perf_counter()
+            job = None
+            try:
+                job = AsyncJob(self.generator, input_ids=ids, max_new_tokens=1)
+                async for result in job:
+                    if result.get("eos"):
+                        break
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                xlogger.warning(f"Warm prefix {label!r} failed and was skipped: {exc}")
+                continue
+            finally:
+                # A cancelled task must not leave the job queued in the engine
+                if job is not None:
+                    try:
+                        await job.cancel()
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        pass
+
+            pagetable.remember_prefix(label, ids)
+            warmed += 1
+            warmed_tokens += ids.shape[-1]
+            xlogger.info(
+                f"Warm prefix {label!r}: {ids.shape[-1]:,} tokens in "
+                f"{time.perf_counter() - started:.1f} s"
+            )
+
+        if warmed:
+            stats = generator.get_cache_stats()
+            xlogger.info(
+                f"Warmed {warmed} prefix(es); prompt cache now holds "
+                f"{stats['cached_tokens']:,} reusable tokens."
+            )
 
     @torch.inference_mode()
     def load_model_sync(self, progress_callback=None):
@@ -1305,6 +1414,15 @@ class ExllamaV3Container:
                 max_chunk_size=self.chunk_size,
                 recurrent_cache_size=config.memory.sysmem_recurrent_cache * 1024**2,
                 cpu_cache_size=config.memory.sysmem_kv_cache * 1024**2,
+                aging_lfu=config.memory.aging_lfu,
+                aging_half_life_hours=config.memory.aging_half_life_hours,
+                aging_hit_cap_pages=config.memory.aging_hit_cap_pages,
+                aging_weight_cap=config.memory.aging_weight_cap,
+                aging_persist_dir=config.memory.aging_persist_dir,
+                aging_capture_prefixes=config.memory.aging_capture_prefixes,
+                aging_prefix_min_tokens=config.memory.aging_prefix_min_tokens,
+                aging_prefix_max_tokens=config.memory.aging_prefix_max_tokens,
+                aging_prefix_max_entries=config.memory.aging_prefix_max_entries,
                 num_draft_tokens=self.draft_num_tokens,
                 dynamic_draft_tokens=self.dynamic_draft,
                 draft_confidence=self.draft_confidence,
@@ -1377,6 +1495,9 @@ class ExllamaV3Container:
 
             # Clear the image embedding cache
             clear_image_embedding_cache()
+
+            # Stop a background prefix warmup before its generator goes away
+            await self.cancel_warm_prefixes()
 
             # Retire the generator while the cache tensors are still there:
             # closing it persists what is only in VRAM to the disk cache, and
@@ -1472,6 +1593,24 @@ class ExllamaV3Container:
         while len(cache) > ENCODE_CACHE_ENTRIES:
             cache.popitem(last=False)
         return ids
+
+    async def cancel_warm_prefixes(self):
+        """
+        Stop a background warm-prefix prefill, waiting for its job to leave the
+        engine queue. Safe to call when no warmup is running.
+        """
+
+        task = self.warm_prefix_task
+        self.warm_prefix_task = None
+        if task is None or task.done():
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            xlogger.debug(f"Warm prefix task ended with an error: {exc}")
 
     def encode_tokens(self, text: str, **kwargs) -> List[int]:
         """
