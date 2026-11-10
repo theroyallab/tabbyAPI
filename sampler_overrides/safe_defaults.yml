@@ -1,6 +1,10 @@
 # Fallback sampling settings for frontends that don't send any. These match the
 # llama.cpp defaults so a bare request behaves the way most users expect.
 # Each value only applies when the request omits that parameter (force: false).
+#
+# Temperature is applied after the truncation samplers, as llama.cpp does: the
+# candidate set is then chosen on the model's own distribution, and raising the
+# temperature only flattens the choice among those candidates.
 
 temperature:
   override: 0.8
@@ -16,4 +20,8 @@ top_p:
 
 min_p:
   override: 0.05
+  force: false
+
+temperature_last:
+  override: true
   force: false
