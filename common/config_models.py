@@ -474,6 +474,37 @@ class ModelConfig(BaseConfigModel):
         multiple_of=256,
         gt=0,
     )
+    recurrent_frontier_checkpoints: Optional[bool] = Field(
+        None,
+        description=(
+            "Also checkpoint the exact end of every prompt and every finished or\n"
+            "requeued request, even when it falls inside a page (default: None, the\n"
+            "engine default of True). This is FlashStates' arbitrary state\n"
+            "checkpointing: the partially filled page's K/V is kept in the system\n"
+            "memory tier under the content hash of the prefix, so the next request\n"
+            "that extends exactly that prefix resumes there instead of replaying up\n"
+            "to the previous page boundary. Needs sysmem_kv_cache > 0 for the partial\n"
+            "page. Only used by models with recurrent layers."
+        ),
+    )
+    recurrent_eviction: Optional[Literal["lru", "gds"]] = Field(
+        None,
+        description=(
+            "Eviction policy for the recurrent checkpoint cache (default: None, the\n"
+            "engine default of 'lru'). 'gds' is GreedyDual-Size over the prefill\n"
+            "seconds a checkpoint saves per byte it occupies (FlashStates' cost-aware\n"
+            "hybrid state management), which keeps states that are expensive to\n"
+            "recompute and cheap to store without per-workload tuning."
+        ),
+    )
+    prefill_cost_coefficients: Optional[List[float]] = Field(
+        None,
+        description=(
+            "Two values (D, E) for recurrent_eviction='gds': prefill seconds saved by\n"
+            "a checkpoint are approximated as D * saved_tokens + E. Only their ratio\n"
+            "matters. Default (1.0, 0.0), i.e. value proportional to prefix length."
+        ),
+    )
     prompt_template: Optional[str] = Field(
         None,
         description=(

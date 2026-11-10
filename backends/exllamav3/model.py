@@ -664,12 +664,19 @@ class ExllamaV3Container:
         # Recurrent checkpoint intervals (None = engine defaults)
         self.recurrent_checkpoint_interval = kwargs.get("recurrent_checkpoint_interval")
         self.recurrent_checkpoint_interval_pp = kwargs.get("recurrent_checkpoint_interval_pp")
+        # FlashStates-style arbitrary state checkpointing and cost-aware eviction (None = engine defaults)
+        self.recurrent_frontier_checkpoints = kwargs.get("recurrent_frontier_checkpoints")
+        self.recurrent_eviction = kwargs.get("recurrent_eviction")
+        self.prefill_cost_coefficients = kwargs.get("prefill_cost_coefficients")
         if (
             self.recurrent_checkpoint_interval is not None
             or self.recurrent_checkpoint_interval_pp is not None
+            or self.recurrent_frontier_checkpoints is not None
+            or self.recurrent_eviction is not None
+            or self.prefill_cost_coefficients is not None
         ) and not self.model.caps.get("recurrent_states"):
             xlogger.warning(
-                "recurrent_checkpoint_interval settings are ignored because "
+                "recurrent checkpoint settings are ignored because "
                 "the model has no recurrent layers."
             )
 
@@ -1402,6 +1409,20 @@ class ExllamaV3Container:
                 checkpoint_kwargs["recurrent_checkpoint_interval_pp"] = (
                     self.recurrent_checkpoint_interval_pp
                 )
+            hybrid_kwargs = {}
+            if getattr(self, "recurrent_frontier_checkpoints", None) is not None:
+                hybrid_kwargs["recurrent_frontier_checkpoints"] = (
+                    self.recurrent_frontier_checkpoints
+                )
+            if getattr(self, "recurrent_eviction", None) is not None:
+                hybrid_kwargs["recurrent_eviction"] = self.recurrent_eviction
+            if getattr(self, "prefill_cost_coefficients", None) is not None:
+                coefficients = list(self.prefill_cost_coefficients)
+                if len(coefficients) != 2:
+                    raise ValueError(
+                        "prefill_cost_coefficients must contain exactly two values (D, E)"
+                    )
+                hybrid_kwargs["prefill_cost_coefficients"] = coefficients
 
             # Create new generator
             self.generator = AsyncGenerator(
@@ -1431,6 +1452,7 @@ class ExllamaV3Container:
                 draft_max_rows=self.draft_max_rows,
                 sparse_draft_head=self.sparse_draft_head,
                 **checkpoint_kwargs,
+                **hybrid_kwargs,
                 **self.disk_cache_kwargs,
             )
 
@@ -1447,6 +1469,29 @@ class ExllamaV3Container:
                     f"{generator.recurrent_checkpoint_interval} tokens (generation), "
                     f"{generator.recurrent_checkpoint_interval_pp} tokens (prompt ingestion)."
                 )
+            if generator.recurrent_cache is not None:
+                # The engine may not have the FlashStates options yet (the PRs land separately)
+                eviction = getattr(generator, "recurrent_eviction", "lru")
+                frontier = getattr(generator, "recurrent_frontier_checkpoints", False)
+                coefficients = getattr(generator, "prefill_cost_coefficients", (1.0, 0.0))
+                gds_note = (
+                    ""
+                    if eviction != "gds"
+                    else f" (D={coefficients[0]:g}, "
+                    f"E={coefficients[1]:g})"
+                )
+                xlogger.info(
+                    "Hybrid state checkpoints: frontier="
+                    f"{'on' if frontier else 'off'}, "
+                    f"eviction={eviction}{gds_note}"
+                )
+                if frontier and \
+                        (config.memory.sysmem_kv_cache or 0) <= 0:
+                    xlogger.warning(
+                        "recurrent_frontier_checkpoints is enabled but memory.sysmem_kv_cache "
+                        "is 0, so there is no tier for a partially filled page: only page-aligned "
+                        "checkpoints can be stored. Set sysmem_kv_cache to a few hundred MB."
+                    )
 
             # What the disk cache directory already holds for this model and
             # cache configuration (from an earlier process, usually)

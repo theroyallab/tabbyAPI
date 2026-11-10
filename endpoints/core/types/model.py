@@ -197,6 +197,19 @@ class ModelLoadRequest(_WarnOnUnknownFields):
         multiple_of=256,
         gt=0,
     )
+    recurrent_frontier_checkpoints: Optional[bool] = Field(
+        description="Checkpoint the exact end of prompts and requests, including mid-page positions",
+        default=None,
+    )
+    recurrent_eviction: Optional[Literal["lru", "gds"]] = Field(
+        description="Recurrent checkpoint eviction policy: 'lru' or cost-aware 'gds'",
+        default=None,
+    )
+    prefill_cost_coefficients: Optional[List[float]] = Field(
+        description="(D, E) prefill seconds per saved token and fixed cost, for recurrent_eviction='gds'",
+        default=None,
+        examples=[[1.862e-5, 3.33e-6]],
+    )
     max_batch_size: Optional[int] = None
     prompt_template: Optional[str] = None
     vision: Optional[bool] = None
