@@ -375,6 +375,10 @@ async def server_status(request: Request) -> StatusResponse:
     """
 
     snapshot = status_display.snapshot()
+    container = model.container
+    snapshot["model"] = (
+        str(container.model_dir) if container and getattr(container, "loaded", False) else None
+    )
     info = package_version_info("exllamav3")
     snapshot["backend"] = {"name": "exllamav3", **info} if info else None
     if get_key_permission(request) != "admin":

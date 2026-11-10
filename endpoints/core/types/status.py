@@ -45,6 +45,13 @@ class StatusResponse(BaseModel):
         description="Time spent generating since startup, added up over jobs"
     )
     prefilled_tokens: int = Field(description="Prompt tokens processed since startup, not cached")
+    model: Optional[str] = Field(
+        default=None,
+        description=(
+            "Path of the loaded model, so a client can tell when a load it didn't "
+            "make (an inline load, another client) changed it; null without a model"
+        ),
+    )
     cache: Optional[dict] = Field(
         default=None, description="The engine's cache statistics, when a model is loaded"
     )

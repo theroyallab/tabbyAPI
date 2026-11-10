@@ -47,6 +47,8 @@ const state = {
   configTarget: null,
   configError: null,
   status: null,
+  // The loaded model's path as the last status poll reported it; undefined before the first poll
+  statusModel: undefined,
   // Throughput samples, {t, gen, prefill} in tokens per second
   history: [],
   lastCounters: null,
@@ -966,8 +968,10 @@ async function poll() {
       }
       state.lastCounters = { t, generated: data.generated_tokens, prefilled: data.prefilled_tokens };
 
-      // A model loaded or unloaded elsewhere (another tab, an inline load)
-      if (!!data.cache !== !!state.currentModel && !state.loading) refreshModels();
+      // A model loaded, swapped or unloaded elsewhere (an inline load, another client).
+      // The models list and load options aren't touched by that; the loaded model is
+      if (state.statusModel !== undefined && data.model !== state.statusModel && !state.loading) refreshModels();
+      state.statusModel = data.model;
 
       state.status = data;
       setPollState(true);
