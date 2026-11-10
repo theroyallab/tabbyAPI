@@ -3,7 +3,7 @@ import json
 import pathlib
 from common.logger import xlogger
 from pydantic import BaseModel
-from typing import Dict, List, Optional, Set, Union
+from typing import ClassVar, Dict, List, Optional, Set, Union
 
 
 class GenerationConfig(BaseModel):
@@ -13,6 +13,22 @@ class GenerationConfig(BaseModel):
     """
 
     eos_token_id: Optional[Union[int, List[int]]] = None
+
+    # The sampling parameters a model ships with (use_generation_config load option)
+    do_sample: Optional[bool] = None
+    temperature: Optional[float] = None
+    top_k: Optional[int] = None
+    top_p: Optional[float] = None
+    min_p: Optional[float] = None
+    repetition_penalty: Optional[float] = None
+
+    SAMPLER_FIELDS: ClassVar[tuple] = (
+        "temperature",
+        "top_k",
+        "top_p",
+        "min_p",
+        "repetition_penalty",
+    )
 
     @classmethod
     async def from_directory(cls, model_directory: pathlib.Path):
@@ -25,6 +41,26 @@ class GenerationConfig(BaseModel):
             contents = await generation_config_json.read()
             generation_config_dict = json.loads(contents)
             return cls.model_validate(generation_config_dict)
+
+    def sampler_defaults(self) -> Dict[str, Union[int, float]]:
+        """
+        The sampling parameters the file sets, keyed by TabbyAPI sampler name.
+        `do_sample: false` is greedy decoding in HF, which ignores the shaping
+        parameters, so it becomes temperature 0 and only a repetition penalty
+        is kept alongside it.
+        """
+
+        if self.do_sample is False:
+            values = {"temperature": 0.0}
+            if self.repetition_penalty is not None:
+                values["repetition_penalty"] = self.repetition_penalty
+            return values
+
+        return {
+            name: getattr(self, name)
+            for name in self.SAMPLER_FIELDS
+            if getattr(self, name) is not None
+        }
 
     def eos_tokens(self):
         """Wrapper method to fetch EOS tokens."""
@@ -72,6 +108,26 @@ class HuggingFaceConfig(BaseModel):
             return self.quantization_config.get("quant_method")
         else:
             return None
+
+    def sampler_defaults(self) -> Dict[str, Union[int, float]]:
+        """
+        The sampling parameters the file sets, keyed by TabbyAPI sampler name.
+        `do_sample: false` is greedy decoding in HF, which ignores the shaping
+        parameters, so it becomes temperature 0 and only a repetition penalty
+        is kept alongside it.
+        """
+
+        if self.do_sample is False:
+            values = {"temperature": 0.0}
+            if self.repetition_penalty is not None:
+                values["repetition_penalty"] = self.repetition_penalty
+            return values
+
+        return {
+            name: getattr(self, name)
+            for name in self.SAMPLER_FIELDS
+            if getattr(self, name) is not None
+        }
 
     def eos_tokens(self):
         """Wrapper method to fetch EOS tokens."""

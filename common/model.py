@@ -330,10 +330,42 @@ async def load_model_gen(model_path: pathlib.Path, request_wins: bool = False, *
                 progress.stop()
 
         # Sampler overrides for this model, replacing the previous model's layer
-        if sampler_preset or sampler_inline:
-            await sampling.set_model_overrides(sampler_preset, sampler_inline)
+        model_defaults = generation_config_defaults(
+            hf_model, unwrap(kwargs.get("use_generation_config"), False)
+        )
+        if sampler_preset or sampler_inline or model_defaults:
+            await sampling.set_model_overrides(sampler_preset, sampler_inline, model_defaults)
         else:
             sampling.clear_model_overrides()
+
+
+def generation_config_defaults(hf_model: HFModel, enabled: bool) -> dict:
+    """
+    The sampling values of the model's generation_config.json when the
+    use_generation_config load option is on, checked the way a request's values
+    are so a bad entry is dropped at load rather than failing every request.
+    """
+
+    if not enabled:
+        return {}
+
+    values = hf_model.generation_config.sampler_defaults() if hf_model.generation_config else {}
+    if not values:
+        xlogger.info(
+            "generation_config.json sets no sampling parameters; the configured sampler "
+            "overrides apply unchanged."
+        )
+        return {}
+
+    for name, value in list(values.items()):
+        try:
+            BaseSamplerRequest.model_validate({name: value})
+        except ValueError as exc:
+            xlogger.warning(
+                f"Ignoring {name} {value!r} from generation_config.json: {exc.errors()[0]['msg']}"
+            )
+            del values[name]
+    return values
 
 
 async def load_model(model_path: pathlib.Path, **kwargs):

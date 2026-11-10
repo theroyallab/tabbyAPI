@@ -202,6 +202,7 @@ class ModelLoadRequest(_WarnOnUnknownFields):
     vision: Optional[bool] = None
     vision_offload: Optional[bool] = None
     sampling: Optional[dict] = None
+    use_generation_config: Optional[bool] = None
     warmup: Optional[bool] = None
 
     # Memory and offload

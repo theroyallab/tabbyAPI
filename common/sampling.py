@@ -860,17 +860,32 @@ async def set_global_overrides(preset_name: Optional[str], inline: Optional[dict
     )
 
 
-async def set_model_overrides(preset_name: Optional[str], inline: Optional[dict] = None):
-    """Set the model layer from a preset and/or inline overrides, on top of the global one"""
+async def set_model_overrides(
+    preset_name: Optional[str],
+    inline: Optional[dict] = None,
+    model_defaults: Optional[dict] = None,
+):
+    """
+    Set the model layer from a preset and/or inline overrides, on top of the global
+    one. `model_defaults` are plain sampler values the model ships with (its
+    generation_config.json); they become non-forced overrides under the preset and
+    inline entries, so the model's own sampling section still wins per key.
+    """
 
     inline = validate_inline_overrides(inline, "the model's sampling config")
     name, overrides = await _build_layer(preset_name, inline)
+    defaults = {
+        key: {"override": value, "force": False} for key, value in (model_defaults or {}).items()
+    }
+    overrides = {**defaults, **overrides}
     overrides_container.model_preset = name
     overrides_container.model_overrides = filter_none_values(overrides)
 
     xlogger.info(
-        _describe_layer("Sampler overrides for this model", name, inline, overrides),
-        {"preset": name, "inline": inline},
+        _describe_layer(
+            "Sampler overrides for this model", name, inline, overrides, bool(defaults)
+        ),
+        {"preset": name, "inline": inline, "model_defaults": model_defaults},
     )
 
 
@@ -887,8 +902,12 @@ def clear_model_overrides():
     overrides_container.model_overrides = {}
 
 
-def _describe_layer(label: str, preset: Optional[str], inline: dict, merged: dict) -> str:
+def _describe_layer(
+    label: str, preset: Optional[str], inline: dict, merged: dict, model_defaults: bool = False
+) -> str:
     sources = []
+    if model_defaults:
+        sources.append("generation_config.json")
     if preset:
         sources.append(f'preset "{preset}"')
     if inline:

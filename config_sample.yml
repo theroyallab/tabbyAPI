@@ -291,6 +291,13 @@ model:
   #     force: false
   sampling:
 
+  # Take fallback sampling values from the model's generation_config.json (default: False).
+  # The temperature, top_k, top_p, min_p and repetition_penalty it sets apply to requests that
+  # omit them, ahead of the global sampling section; parameters the file doesn't set keep those
+  # fallbacks. do_sample: false means greedy decoding. The model's own sampling section still
+  # wins over the file.
+  use_generation_config: false
+
   # Warm up the model after loading (default: False).
   # Runs a short schedule of forward passes so kernel compilation, autotuning and CUDA graph
   # capture happen at load time instead of on the first requests. Adds some seconds to loading;
