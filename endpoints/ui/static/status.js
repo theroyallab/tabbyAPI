@@ -21,8 +21,10 @@ import {
   takeKeyFromLink,
 } from "./shared.js";
 
-const POLL_INTERVAL = 1000;
+const POLL_INTERVAL = 500;
 const HIDDEN_POLL_INTERVAL = 5000;
+// Displayed rates are averaged over this long, however often the page polls
+const RATE_WINDOW_SECONDS = 3;
 // The throughput charts show this many seconds
 const HISTORY_SECONDS = 300;
 
@@ -982,7 +984,7 @@ async function poll() {
 }
 
 // The rate over the last few samples, which smooths out the poll jitter
-function recentRate(key, samples = 3) {
+function recentRate(key, samples = Math.round((RATE_WINDOW_SECONDS * 1000) / POLL_INTERVAL)) {
   const tail = state.history.slice(-samples);
   return tail.length ? tail.reduce((sum, s) => sum + s[key], 0) / tail.length : null;
 }
