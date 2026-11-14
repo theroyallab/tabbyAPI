@@ -258,6 +258,7 @@ class ExllamaV3Container:
     active_job_ids: Dict[str, Any]
     job_phases: Dict[str, JobPhases]
     recreate_task: Optional[asyncio.Task] = None
+    warm_prefix_task: Optional[asyncio.Task] = None
     loaded: bool = False
     load_lock: asyncio.Lock
     load_condition: asyncio.Condition
@@ -663,12 +664,19 @@ class ExllamaV3Container:
         # Recurrent checkpoint intervals (None = engine defaults)
         self.recurrent_checkpoint_interval = kwargs.get("recurrent_checkpoint_interval")
         self.recurrent_checkpoint_interval_pp = kwargs.get("recurrent_checkpoint_interval_pp")
+        # FlashStates-style arbitrary state checkpointing and cost-aware eviction (None = engine defaults)
+        self.recurrent_frontier_checkpoints = kwargs.get("recurrent_frontier_checkpoints")
+        self.recurrent_eviction = kwargs.get("recurrent_eviction")
+        self.prefill_cost_coefficients = kwargs.get("prefill_cost_coefficients")
         if (
             self.recurrent_checkpoint_interval is not None
             or self.recurrent_checkpoint_interval_pp is not None
+            or self.recurrent_frontier_checkpoints is not None
+            or self.recurrent_eviction is not None
+            or self.prefill_cost_coefficients is not None
         ) and not self.model.caps.get("recurrent_states"):
             xlogger.warning(
-                "recurrent_checkpoint_interval settings are ignored because "
+                "recurrent checkpoint settings are ignored because "
                 "the model has no recurrent layers."
             )
 
@@ -1107,6 +1115,17 @@ class ExllamaV3Container:
             # Cleanup and update model load state
             self.loaded = True
             xlogger.info(f"Model loaded in {time.perf_counter() - load_start:.1f} s")
+
+            # Re-prefill warm prefixes in the background: the model is already
+            # servable, and a request that needs the same prefix only queues
+            # behind prefill work it would have had to do itself
+            if config.memory.aging_lfu and (
+                config.memory.warm_prefixes
+                or config.memory.warm_prefix_token_ids
+                or config.memory.aging_persist_dir
+            ):
+                await self.cancel_warm_prefixes()
+                self.warm_prefix_task = asyncio.create_task(self.warm_prefixes_gen())
         finally:
             self.load_lock.release()
 
@@ -1183,6 +1202,103 @@ class ExllamaV3Container:
             )
         else:
             xlogger.info(f"Warmup finished in {elapsed:.1f} s")
+
+    async def warm_prefixes_gen(self):
+        """
+        Prefill configured warm prefixes once, in the background after a load, so
+        their complete pages (and the aging-LFU weights those pages earn) are
+        resident before the first request. Sources, in order:
+
+        - memory.warm_prefix_token_ids: exact token ID lists, no tokenizer step
+        - memory.warm_prefixes: prompt strings, encoded with this model's tokenizer
+        - the aging-LFU sidecar: prefixes a previous process warmed or captured from a cache hit
+
+        Only useful when the prefix is byte-identical across requests. Anything
+        dynamic (date, cwd, session id) before the static block breaks the page
+        hash chain at that point, so choose the strings deliberately.
+        """
+
+        if self.generator is None or self.tokenizer is None:
+            return
+
+        generator = self.generator.generator
+        pagetable = getattr(generator, "pagetable", None)
+        if pagetable is None or not getattr(pagetable, "aging_lfu", False):
+            return
+
+        candidates: List[tuple[str, torch.Tensor, bool]] = []
+        for i, ids in enumerate(config.memory.warm_prefix_token_ids or []):
+            candidates.append((f"config-ids-{i}", torch.tensor([ids], dtype=torch.long), True))
+        for i, text in enumerate(config.memory.warm_prefixes or []):
+            try:
+                encoded = self.tokenizer.encode(
+                    text,
+                    add_bos=self.hf_model.add_bos_token(),
+                    encode_special_tokens=True,
+                )
+            except Exception as exc:
+                xlogger.warning(f"Warm prefix config-text-{i} could not be encoded: {exc}")
+                continue
+            candidates.append((f"config-text-{i}", encoded, True))
+        candidates.extend((label, ids, False) for label, ids in pagetable.stored_prefixes())
+
+        # Chains captured by earlier processes are replayed within a token budget, in most-recently-written order,
+        # so a restart does not spend minutes re-prefilling stale prefixes before serving
+        budget = config.memory.warm_prefix_max_tokens
+
+        seen = set()
+        warmed = 0
+        warmed_tokens = 0
+        for label, ids, pinned in candidates:
+            ids = ids.detach().cpu().to(torch.long).reshape(1, -1)
+            key = ids.contiguous().numpy().tobytes()
+            if key in seen:
+                continue
+            if not pinned and budget and warmed_tokens + ids.shape[-1] > budget:
+                xlogger.info(
+                    f"Warm prefix {label!r}: {ids.shape[-1]:,} tokens skipped, "
+                    f"{warmed_tokens:,}-token warm budget used"
+                )
+                continue
+            seen.add(key)
+
+            label = label if len(label) <= 40 else label[:37] + "..."
+            started = time.perf_counter()
+            job = None
+            try:
+                job = AsyncJob(self.generator, input_ids=ids, max_new_tokens=1)
+                async for result in job:
+                    if result.get("eos"):
+                        break
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                xlogger.warning(f"Warm prefix {label!r} failed and was skipped: {exc}")
+                continue
+            finally:
+                # A cancelled task must not leave the job queued in the engine
+                if job is not None:
+                    try:
+                        await job.cancel()
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        pass
+
+            pagetable.remember_prefix(label, ids)
+            warmed += 1
+            warmed_tokens += ids.shape[-1]
+            xlogger.info(
+                f"Warm prefix {label!r}: {ids.shape[-1]:,} tokens in "
+                f"{time.perf_counter() - started:.1f} s"
+            )
+
+        if warmed:
+            stats = generator.get_cache_stats()
+            xlogger.info(
+                f"Warmed {warmed} prefix(es); prompt cache now holds "
+                f"{stats['cached_tokens']:,} reusable tokens."
+            )
 
     @torch.inference_mode()
     def load_model_sync(self, progress_callback=None):
@@ -1293,6 +1409,20 @@ class ExllamaV3Container:
                 checkpoint_kwargs["recurrent_checkpoint_interval_pp"] = (
                     self.recurrent_checkpoint_interval_pp
                 )
+            hybrid_kwargs = {}
+            if getattr(self, "recurrent_frontier_checkpoints", None) is not None:
+                hybrid_kwargs["recurrent_frontier_checkpoints"] = (
+                    self.recurrent_frontier_checkpoints
+                )
+            if getattr(self, "recurrent_eviction", None) is not None:
+                hybrid_kwargs["recurrent_eviction"] = self.recurrent_eviction
+            if getattr(self, "prefill_cost_coefficients", None) is not None:
+                coefficients = list(self.prefill_cost_coefficients)
+                if len(coefficients) != 2:
+                    raise ValueError(
+                        "prefill_cost_coefficients must contain exactly two values (D, E)"
+                    )
+                hybrid_kwargs["prefill_cost_coefficients"] = coefficients
 
             # Create new generator
             self.generator = AsyncGenerator(
@@ -1305,6 +1435,15 @@ class ExllamaV3Container:
                 max_chunk_size=self.chunk_size,
                 recurrent_cache_size=config.memory.sysmem_recurrent_cache * 1024**2,
                 cpu_cache_size=config.memory.sysmem_kv_cache * 1024**2,
+                aging_lfu=config.memory.aging_lfu,
+                aging_half_life_hours=config.memory.aging_half_life_hours,
+                aging_hit_cap_pages=config.memory.aging_hit_cap_pages,
+                aging_weight_cap=config.memory.aging_weight_cap,
+                aging_persist_dir=config.memory.aging_persist_dir,
+                aging_capture_prefixes=config.memory.aging_capture_prefixes,
+                aging_prefix_min_tokens=config.memory.aging_prefix_min_tokens,
+                aging_prefix_max_tokens=config.memory.aging_prefix_max_tokens,
+                aging_prefix_max_entries=config.memory.aging_prefix_max_entries,
                 num_draft_tokens=self.draft_num_tokens,
                 dynamic_draft_tokens=self.dynamic_draft,
                 draft_confidence=self.draft_confidence,
@@ -1313,6 +1452,7 @@ class ExllamaV3Container:
                 draft_max_rows=self.draft_max_rows,
                 sparse_draft_head=self.sparse_draft_head,
                 **checkpoint_kwargs,
+                **hybrid_kwargs,
                 **self.disk_cache_kwargs,
             )
 
@@ -1329,6 +1469,29 @@ class ExllamaV3Container:
                     f"{generator.recurrent_checkpoint_interval} tokens (generation), "
                     f"{generator.recurrent_checkpoint_interval_pp} tokens (prompt ingestion)."
                 )
+            if generator.recurrent_cache is not None:
+                # The engine may not have the FlashStates options yet (the PRs land separately)
+                eviction = getattr(generator, "recurrent_eviction", "lru")
+                frontier = getattr(generator, "recurrent_frontier_checkpoints", False)
+                coefficients = getattr(generator, "prefill_cost_coefficients", (1.0, 0.0))
+                gds_note = (
+                    ""
+                    if eviction != "gds"
+                    else f" (D={coefficients[0]:g}, "
+                    f"E={coefficients[1]:g})"
+                )
+                xlogger.info(
+                    "Hybrid state checkpoints: frontier="
+                    f"{'on' if frontier else 'off'}, "
+                    f"eviction={eviction}{gds_note}"
+                )
+                if frontier and \
+                        (config.memory.sysmem_kv_cache or 0) <= 0:
+                    xlogger.warning(
+                        "recurrent_frontier_checkpoints is enabled but memory.sysmem_kv_cache "
+                        "is 0, so there is no tier for a partially filled page: only page-aligned "
+                        "checkpoints can be stored. Set sysmem_kv_cache to a few hundred MB."
+                    )
 
             # What the disk cache directory already holds for this model and
             # cache configuration (from an earlier process, usually)
@@ -1377,6 +1540,9 @@ class ExllamaV3Container:
 
             # Clear the image embedding cache
             clear_image_embedding_cache()
+
+            # Stop a background prefix warmup before its generator goes away
+            await self.cancel_warm_prefixes()
 
             # Retire the generator while the cache tensors are still there:
             # closing it persists what is only in VRAM to the disk cache, and
@@ -1472,6 +1638,24 @@ class ExllamaV3Container:
         while len(cache) > ENCODE_CACHE_ENTRIES:
             cache.popitem(last=False)
         return ids
+
+    async def cancel_warm_prefixes(self):
+        """
+        Stop a background warm-prefix prefill, waiting for its job to leave the
+        engine queue. Safe to call when no warmup is running.
+        """
+
+        task = self.warm_prefix_task
+        self.warm_prefix_task = None
+        if task is None or task.done():
+            return
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+        except Exception as exc:
+            xlogger.debug(f"Warm prefix task ended with an error: {exc}")
 
     def encode_tokens(self, text: str, **kwargs) -> List[int]:
         """
