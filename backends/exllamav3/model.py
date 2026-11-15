@@ -27,6 +27,7 @@ from exllamav3 import (
     Tokenizer,
 )
 from exllamav3.cache import CacheLayer_quant
+from backends.exllamav3.admission import LaneGate
 from backends.exllamav3.grammar import ExLlamaV3Grammar, MessageGate
 
 from backends.exllamav3.sampler import (
@@ -289,6 +290,9 @@ class ExllamaV3Container:
     chunk_size: int = 2048
     max_rq_tokens: Optional[int] = 2048
     max_batch_size: Optional[int] = None
+    # Request-class admission gate (lanes): None until __init__ creates the
+    # disabled gate, then replaced at every load from the admission block.
+    admission: Optional[LaneGate] = None
     draft_num_tokens: Optional[int] = None
     dynamic_draft: Optional[bool] = False
     draft_confidence: float = 0.4
@@ -311,6 +315,8 @@ class ExllamaV3Container:
         self.load_condition = asyncio.Condition()
         self.autosplit_reserve = [96 / 1024]
         self.encode_cache = OrderedDict()
+        # Disabled gate until a load supplies an admission block.
+        self.admission = LaneGate.from_config(None)
 
     # Required methods
     @classmethod
@@ -697,6 +703,16 @@ class ExllamaV3Container:
         output_chunking = unwrap(kwargs.get("output_chunking"), True)
         self.max_rq_tokens = self.chunk_size if output_chunking else None
 
+        # Request-class admission (lanes): from_config validates the block at
+        # load and defers every loop-bound primitive to the first acquire, so
+        # no event loop is needed here. A missing or empty admission block
+        # leaves the gate disabled and the request path untouched.
+        self.admission = LaneGate.from_config(
+            unwrap(kwargs.get("admission"), None),
+            max_batch_size=self.max_batch_size,
+            logger=xlogger,
+        )
+
         # Warm up kernels and graphs after loading, sized from the settings above
         self.warmup_enabled = unwrap(kwargs.get("warmup"), False)
 
@@ -1035,6 +1051,16 @@ class ExllamaV3Container:
         Args:
             skip_wait: If True, cancel jobs immediately instead of waiting.
         """
+
+        # Lane holds are not jobs: active_job_ids means "job the engine is
+        # running", and a request queued on its lane has no entry there, so
+        # the cancel and drain loops below cannot reach it. Release the holds
+        # whenever the model is going away, ahead of the generator check so a
+        # hold is released even on a teardown whose generator is already gone.
+        # A held client that then proceeds into a tearing-down engine hits the
+        # existing not-loaded error path; the alternative is sleeping until
+        # hold_timeout and failing into the same path much later.
+        self.admission.abort_all()
 
         if not self.generator:
             return
@@ -2542,266 +2568,292 @@ class ExllamaV3Container:
         in_reasoning = phases is not None and phases.reasoning
 
         generation = {}
-        try:
-            job = AsyncJob(
-                self.generator,
-                sampler=reasoning_sampler if in_reasoning else sampler,
-                input_ids=input_ids,
-                max_new_tokens=max_tokens,
-                min_new_tokens=unwrap(params.min_tokens, 0),
-                token_healing=(
-                    unwrap(params.token_healing, False)
-                    and self._can_heal(input_ids[0], stop_conditions)
-                ),
-                decode_special_tokens=True,
-                stop_conditions=stop_conditions,
-                banned_strings=reasoning_banned if in_reasoning else content_banned,
-                embeddings=mm_embeddings_content,
-                return_top_tokens=params.top_logprobs,
-                return_probs=bool(params.logprobs) or bool(params.top_logprobs),
-                return_logits=return_logits,
-                max_rq_tokens=max_rq_tokens,
-                stop_on_loop=bool(params.loop_detect),
-                filters=(
-                    []
-                    if in_reasoning and not (phases.engine_trigger or phases.gated)
-                    else grammar_handler.filters
-                ),
-            )
-        except AssertionError as ex:
-            # The engine's own page check; the preflight above mirrors it, but a request
-            # it misses must still reach the client as a context-length error and not
-            # as a generic failure
-            if "cannot be enqueued" not in str(ex):
-                raise
-            raise ContextLengthExceededError(
-                f"{ex}. The request exceeds the available context size "
-                "(this model's maximum context length)."
-            ) from ex
-        self.active_job_ids[request_id] = job
-        if phases is not None:
-            phases.job = job
-            self.job_phases[request_id] = phases
-        await disconnect_handler.add_cleanup_task(id(job), job.cancel, ())
-        job_status = status_display.add_job(request_id, label, context_len)
-        job_status.is_waiting = lambda: self._job_pending(job)
-        job_status.prompt = prompt
+        # Classify on the limit the client asked for: max_tokens above
+        # is the engine-resolved value, which auto-expands an absent
+        # limit to the whole remaining window and would file every
+        # open-ended request into the longest lane.
+        client_max_new = params.max_tokens if unwrap(params.max_tokens, 0) > 0 else None
+        # Lane admission: hold a slot for this request's class before the
+        # job is built, and hold it until every exit path below has run.
+        # The split can only be expressed here: exllamav3 re-queues a
+        # long job at the head of its pending list, so nothing inside
+        # the engine can keep a short request from being overtaken. The
+        # async with frees the slot on every exit, including the
+        # AssertionError mapped to ContextLengthExceededError below and
+        # any cancellation, so no path can strand a permit. The handler
+        # may be None on some call paths, so its abort event is read
+        # defensively. A disabled gate's context manager never awaits:
+        # with no admission block in the yml, this block is inert.
+        async with self.admission.acquire(
+            self.admission.classify(context_len, client_max_new),
+            request_id,
+            prompt_tokens=context_len,
+            max_new_tokens=client_max_new,
+            abort_event=disconnect_handler.abort_event if disconnect_handler else None,
+        ):
+            try:
+                job = AsyncJob(
+                    self.generator,
+                    sampler=reasoning_sampler if in_reasoning else sampler,
+                    input_ids=input_ids,
+                    max_new_tokens=max_tokens,
+                    min_new_tokens=unwrap(params.min_tokens, 0),
+                    token_healing=(
+                        unwrap(params.token_healing, False)
+                        and self._can_heal(input_ids[0], stop_conditions)
+                    ),
+                    decode_special_tokens=True,
+                    stop_conditions=stop_conditions,
+                    banned_strings=reasoning_banned if in_reasoning else content_banned,
+                    embeddings=mm_embeddings_content,
+                    return_top_tokens=params.top_logprobs,
+                    return_probs=bool(params.logprobs) or bool(params.top_logprobs),
+                    return_logits=return_logits,
+                    max_rq_tokens=max_rq_tokens,
+                    stop_on_loop=bool(params.loop_detect),
+                    filters=(
+                        []
+                        if in_reasoning and not (phases.engine_trigger or phases.gated)
+                        else grammar_handler.filters
+                    ),
+                )
+            except AssertionError as ex:
+                # The engine's own page check; the preflight above mirrors it, but a request
+                # it misses must still reach the client as a context-length error and not
+                # as a generic failure
+                if "cannot be enqueued" not in str(ex):
+                    raise
+                raise ContextLengthExceededError(
+                    f"{ex}. The request exceeds the available context size "
+                    "(this model's maximum context length)."
+                ) from ex
+            self.active_job_ids[request_id] = job
+            if phases is not None:
+                phases.job = job
+                self.job_phases[request_id] = phases
+            await disconnect_handler.add_cleanup_task(id(job), job.cancel, ())
+            job_status = status_display.add_job(request_id, label, context_len)
+            job_status.is_waiting = lambda: self._job_pending(job)
+            job_status.prompt = prompt
 
-        async def cancel_from_status():
-            # Cancelling wakes the consumer below even while the job waits in
-            # the engine's queue; the loop then ends without an EOS result
-            job_status.cancel_requested = True
-            await job.cancel()
-
-        job_status.cancel = cancel_from_status
-
-        generated_tokens = 0
-        full_response = ""
-        metrics_result = {}
-        # Only the OAI request types carry these flags; Kobold requests don't
-        return_progress = bool(getattr(params, "return_progress", False))
-        stop_after_output = bool(getattr(params, "stop_after_output", False))
-        stopped_at_output = False
-        prefill_start_time: float | None = None
-        prefill_cached_tokens = 0
-
-        # Get the generation status once it's ready
-        try:
-            async for result in job:
-                await disconnect_handler.poll()
-
-                stage = result.get("stage")
-                if stage == "started":
-                    # The started event carries no counts; the job knows how
-                    # much of its prompt was found in the cache at allocation
-                    prefill_cached_tokens = self._job_cached_tokens(job)
-                    job_status.started(prefill_cached_tokens)
-                    prefill_start_time = time.time()
-                elif stage == "prefill":
-                    job_status.prefill(
-                        result.get("curr_progress", 0), result.get("max_progress", 0)
-                    )
-                    if return_progress and prefill_start_time is not None:
-                        # Time since the engine began prefill for this job. The
-                        # started event and the first prefill event often arrive
-                        # in the same batch, so the event stamp lags by a chunk
-                        started_at = getattr(job.job, "time_first_prefill", None)
-                        yield {
-                            "_prefill_progress": {
-                                "total": result.get("max_progress", 0),
-                                "cache": prefill_cached_tokens,
-                                "processed": result.get("curr_progress", 0),
-                                "time_ms": int(
-                                    (time.time() - (started_at or prefill_start_time)) * 1000
-                                ),
-                            }
-                        }
-
-                # The generator can produce several results per iteration
-                # (speculative decoding), while this consumer may only get one
-                # scheduling slot per iteration whenever an await above or
-                # downstream actually suspends. Merge everything already
-                # queued so streaming keeps pace with generation instead of
-                # backing up until the generator goes idle.
-                if result.get("stage") == "streaming" and not result.get("eos"):
-                    span = [result]
-                    while not job.queue.empty():
-                        nxt = job.queue.get_nowait()
-                        if isinstance(nxt, Exception):
-                            raise nxt
-                        if not isinstance(nxt, dict):
-                            # Cancellation sentinel. A cancel from the status page
-                            # still sends what was generated; the loop ends next
-                            if job_status.cancel_requested:
-                                break
-                            raise CancelledError("Job cancelled while draining results")
-                        if nxt.get("stage") != "streaming":
-                            continue
-                        span.append(nxt)
-                        if nxt.get("eos"):
-                            break
-                    if len(span) > 1:
-                        result = _merge_stream_results(span)
-
-                chunk = unwrap(result.get("text"), "")
-                if chunk:
-                    chunk_tokens = result.get("token_ids")
-                    if chunk_tokens is None:
-                        chunk_tokens = self.tokenizer.encode(chunk)
-                    full_response += chunk
-                    job_status.append_text(chunk)
-
-                    # Extract token IDs as a plain list for downstream consumers
-                    if isinstance(chunk_tokens, torch.Tensor):
-                        token_id_list = chunk_tokens.flatten().tolist()
-                        generated_tokens += len(token_id_list)
-                    elif isinstance(chunk_tokens, tuple):
-                        first = chunk_tokens[0]
-                        if isinstance(first, torch.Tensor):
-                            token_id_list = first.flatten().tolist()
-                        else:
-                            token_id_list = list(first)
-                        generated_tokens += len(token_id_list)
-                    else:
-                        token_id_list = list(chunk_tokens)
-                        generated_tokens += len(token_id_list)
-
-                    # Increase penalty range to generated token amount
-                    # TODO:
-                    # if auto_scale_penalty_range:
-                    #     gen_settings.token_repetition_range = generated_tokens
-
-                    generation = {
-                        "request_id": request_id,
-                        "text": chunk,
-                        "token_ids": token_id_list,
-                        "prompt_tokens": context_len,
-                        "generated_tokens": generated_tokens,
-                        "offset": len(full_response),
-                    }
-
-                    # Raw logits for the generated positions, when requested
-                    if result.get("logits") is not None:
-                        generation["logits"] = result["logits"]
-
-                    if params.logprobs > 0:
-                        self.handle_logprobs(result, generation)
-
-                    job_status.generated(generated_tokens)
-                    yield generation
-
-                if result.get("eos"):
-                    xlogger.debug("EOS result received from generator", result)
-                    finish_chunk = self.handle_finish_chunk(
-                        result, request_id, full_response, label
-                    )
-                    await disconnect_handler.finish(id(job))
-
-                    # Save the final result for metrics logging
-                    metrics_result = finish_chunk
-                    job_status.finish_reason = finish_chunk["finish_reason"]
-
-                    if finish_chunk["finish_reason"] == "repetition" and params.loop_detect_error:
-                        raise LoopDetectedError(
-                            "Generation failed: the model started repeating itself and "
-                            f"loop detection stopped it after {finish_chunk['gen_tokens']} "
-                            "tokens"
-                        )
-
-                    yield finish_chunk
-                    break
-
-                if chunk and stop_after_output:
-                    # Text is out and the job has no EOS of its own to reach;
-                    # the loop ends and the response finishes below
-                    stopped_at_output = True
-                    await job.cancel()
-            else:
-                # The job ended without an EOS result. Cancelled from the status
-                # page or stopped at its first output: finish the response with
-                # what was generated. Otherwise the request itself was cancelled
-                # and nothing is sent
-                if job_status.cancel_requested or stopped_at_output:
-                    if job_status.cancel_requested:
-                        xlogger.warning(f"{label}: cancelled from the status page")
-                    finish_chunk = self.handle_finish_chunk(
-                        {
-                            "eos_reason": (
-                                "cancelled" if job_status.cancel_requested else "max_new_tokens"
-                            ),
-                            "prompt_tokens": context_len,
-                            "cached_tokens": prefill_cached_tokens,
-                            "new_tokens": generated_tokens,
-                            **self._job_times(job),
-                        },
-                        request_id,
-                        full_response,
-                        label,
-                    )
-                    await disconnect_handler.finish(id(job))
-                    metrics_result = finish_chunk
-                    job_status.finish_reason = finish_chunk["finish_reason"]
-                    yield finish_chunk
-
-        except CancelledError:
-            if not job.cancelled:
+            async def cancel_from_status():
+                # Cancelling wakes the consumer below even while the job waits in
+                # the engine's queue; the loop then ends without an EOS result
+                job_status.cancel_requested = True
                 await job.cancel()
 
-        except LoopDetectedError:
-            # The job ended normally in the engine; only the response fails
-            raise
+            job_status.cancel = cancel_from_status
 
-        except Exception as ex:
-            await self._recover_from_generation_error(ex, job)
+            generated_tokens = 0
+            full_response = ""
+            metrics_result = {}
+            # Only the OAI request types carry these flags; Kobold requests don't
+            return_progress = bool(getattr(params, "return_progress", False))
+            stop_after_output = bool(getattr(params, "stop_after_output", False))
+            stopped_at_output = False
+            prefill_start_time: float | None = None
+            prefill_cached_tokens = 0
 
-            if isinstance(ex, AssertionError) and "cannot be enqueued" in str(ex):
-                raise ContextLengthExceededError(
-                    f"{str(ex)}. The request exceeds the available context size."
-                ) from ex
+            # Get the generation status once it's ready
+            try:
+                async for result in job:
+                    await disconnect_handler.poll()
 
-            raise ex
-        finally:
-            status_display.remove_job(request_id)
-            self.job_phases.pop(request_id, None)
+                    stage = result.get("stage")
+                    if stage == "started":
+                        # The started event carries no counts; the job knows how
+                        # much of its prompt was found in the cache at allocation
+                        prefill_cached_tokens = self._job_cached_tokens(job)
+                        job_status.started(prefill_cached_tokens)
+                        prefill_start_time = time.time()
+                    elif stage == "prefill":
+                        job_status.prefill(
+                            result.get("curr_progress", 0), result.get("max_progress", 0)
+                        )
+                        if return_progress and prefill_start_time is not None:
+                            # Time since the engine began prefill for this job. The
+                            # started event and the first prefill event often arrive
+                            # in the same batch, so the event stamp lags by a chunk
+                            started_at = getattr(job.job, "time_first_prefill", None)
+                            yield {
+                                "_prefill_progress": {
+                                    "total": result.get("max_progress", 0),
+                                    "cache": prefill_cached_tokens,
+                                    "processed": result.get("curr_progress", 0),
+                                    "time_ms": int(
+                                        (time.time() - (started_at or prefill_start_time)) * 1000
+                                    ),
+                                }
+                            }
 
-            # Log generation options to console
-            # Some options are too large, so log the args instead
-            log_generation_params(
-                label,
-                request_id=request_id,
-                bos_token_id=self.bos_token_id,
-                eos_token_id=eos_tokens,
-                prompt=prompt,
-                **params.model_dump(exclude={"prompt"}),
-                # auto_scale_penalty_range=auto_scale_penalty_range,  # TODO
-            )
+                    # The generator can produce several results per iteration
+                    # (speculative decoding), while this consumer may only get one
+                    # scheduling slot per iteration whenever an await above or
+                    # downstream actually suspends. Merge everything already
+                    # queued so streaming keeps pace with generation instead of
+                    # backing up until the generator goes idle.
+                    if result.get("stage") == "streaming" and not result.get("eos"):
+                        span = [result]
+                        while not job.queue.empty():
+                            nxt = job.queue.get_nowait()
+                            if isinstance(nxt, Exception):
+                                raise nxt
+                            if not isinstance(nxt, dict):
+                                # Cancellation sentinel. A cancel from the status page
+                                # still sends what was generated; the loop ends next
+                                if job_status.cancel_requested:
+                                    break
+                                raise CancelledError("Job cancelled while draining results")
+                            if nxt.get("stage") != "streaming":
+                                continue
+                            span.append(nxt)
+                            if nxt.get("eos"):
+                                break
+                        if len(span) > 1:
+                            result = _merge_stream_results(span)
 
-            # Log the metrics if present
-            if metrics_result:
-                log_metrics(
+                    chunk = unwrap(result.get("text"), "")
+                    if chunk:
+                        chunk_tokens = result.get("token_ids")
+                        if chunk_tokens is None:
+                            chunk_tokens = self.tokenizer.encode(chunk)
+                        full_response += chunk
+                        job_status.append_text(chunk)
+
+                        # Extract token IDs as a plain list for downstream consumers
+                        if isinstance(chunk_tokens, torch.Tensor):
+                            token_id_list = chunk_tokens.flatten().tolist()
+                            generated_tokens += len(token_id_list)
+                        elif isinstance(chunk_tokens, tuple):
+                            first = chunk_tokens[0]
+                            if isinstance(first, torch.Tensor):
+                                token_id_list = first.flatten().tolist()
+                            else:
+                                token_id_list = list(first)
+                            generated_tokens += len(token_id_list)
+                        else:
+                            token_id_list = list(chunk_tokens)
+                            generated_tokens += len(token_id_list)
+
+                        # Increase penalty range to generated token amount
+                        # TODO:
+                        # if auto_scale_penalty_range:
+                        #     gen_settings.token_repetition_range = generated_tokens
+
+                        generation = {
+                            "request_id": request_id,
+                            "text": chunk,
+                            "token_ids": token_id_list,
+                            "prompt_tokens": context_len,
+                            "generated_tokens": generated_tokens,
+                            "offset": len(full_response),
+                        }
+
+                        # Raw logits for the generated positions, when requested
+                        if result.get("logits") is not None:
+                            generation["logits"] = result["logits"]
+
+                        if params.logprobs > 0:
+                            self.handle_logprobs(result, generation)
+
+                        job_status.generated(generated_tokens)
+                        yield generation
+
+                    if result.get("eos"):
+                        xlogger.debug("EOS result received from generator", result)
+                        finish_chunk = self.handle_finish_chunk(
+                            result, request_id, full_response, label
+                        )
+                        await disconnect_handler.finish(id(job))
+
+                        # Save the final result for metrics logging
+                        metrics_result = finish_chunk
+                        job_status.finish_reason = finish_chunk["finish_reason"]
+
+                        if (
+                            finish_chunk["finish_reason"] == "repetition"
+                            and params.loop_detect_error
+                        ):
+                            raise LoopDetectedError(
+                                "Generation failed: the model started repeating itself and "
+                                f"loop detection stopped it after {finish_chunk['gen_tokens']} "
+                                "tokens"
+                            )
+
+                        yield finish_chunk
+                        break
+
+                    if chunk and stop_after_output:
+                        # Text is out and the job has no EOS of its own to reach;
+                        # the loop ends and the response finishes below
+                        stopped_at_output = True
+                        await job.cancel()
+                else:
+                    # The job ended without an EOS result. Cancelled from the status
+                    # page or stopped at its first output: finish the response with
+                    # what was generated. Otherwise the request itself was cancelled
+                    # and nothing is sent
+                    if job_status.cancel_requested or stopped_at_output:
+                        if job_status.cancel_requested:
+                            xlogger.warning(f"{label}: cancelled from the status page")
+                        finish_chunk = self.handle_finish_chunk(
+                            {
+                                "eos_reason": (
+                                    "cancelled" if job_status.cancel_requested else "max_new_tokens"
+                                ),
+                                "prompt_tokens": context_len,
+                                "cached_tokens": prefill_cached_tokens,
+                                "new_tokens": generated_tokens,
+                                **self._job_times(job),
+                            },
+                            request_id,
+                            full_response,
+                            label,
+                        )
+                        await disconnect_handler.finish(id(job))
+                        metrics_result = finish_chunk
+                        job_status.finish_reason = finish_chunk["finish_reason"]
+                        yield finish_chunk
+
+            except CancelledError:
+                if not job.cancelled:
+                    await job.cancel()
+
+            except LoopDetectedError:
+                # The job ended normally in the engine; only the response fails
+                raise
+
+            except Exception as ex:
+                await self._recover_from_generation_error(ex, job)
+
+                if isinstance(ex, AssertionError) and "cannot be enqueued" in str(ex):
+                    raise ContextLengthExceededError(
+                        f"{str(ex)}. The request exceeds the available context size."
+                    ) from ex
+
+                raise ex
+            finally:
+                status_display.remove_job(request_id)
+                self.job_phases.pop(request_id, None)
+
+                # Log generation options to console
+                # Some options are too large, so log the args instead
+                log_generation_params(
                     label,
-                    metrics_result,
-                    context_len,
-                    self.max_seq_len,
+                    request_id=request_id,
+                    bos_token_id=self.bos_token_id,
+                    eos_token_id=eos_tokens,
+                    prompt=prompt,
+                    **params.model_dump(exclude={"prompt"}),
+                    # auto_scale_penalty_range=auto_scale_penalty_range,  # TODO
                 )
-                MetricsManager.record_finish(metrics_result)
+
+                # Log the metrics if present
+                if metrics_result:
+                    log_metrics(
+                        label,
+                        metrics_result,
+                        context_len,
+                        self.max_seq_len,
+                    )
+                    MetricsManager.record_finish(metrics_result)
