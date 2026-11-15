@@ -106,9 +106,9 @@ class PromptTemplate:
 
     async def render(self, template_vars: dict):
         """Get a prompt from a template and a list of messages."""
-        if version.parse(package_version("jinja2")) < version.parse("3.0.0"):
+        if version.parse(package_version("jinja2")) < version.parse("3.1.0"):
             raise ImportError(
-                "Parsing these chat completion messages requires jinja2 3.0.0 "
+                "Parsing these chat completion messages requires jinja2 3.1.0 "
                 f"or greater. Current version: {package_version('jinja2')}\n"
                 "Please update jinja by running the following command: "
                 "pip install --upgrade jinja2"
