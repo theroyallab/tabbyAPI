@@ -24,9 +24,9 @@ Two parts, so that a format only has to supply a tokenizer:
   with another declared type is emitted whole when it closes, as the value
   coerce_param_value() parses; a parameter the schema doesn't type falls back
   to type guessing and is held until the accumulated text provably cannot be a
-  JSON literal (see _is_streamable). Values are stripped of surrounding
-  whitespace exactly as the end-of-stream parsers do, so trailing whitespace is
-  held back until later text makes it interior.
+  JSON literal (see _is_streamable). Values are stripped of the template's
+  surrounding newlines exactly as the end-of-stream parsers do, so trailing
+  newlines are held back until later text makes them interior.
 
   QwenToolCallDeltaStreamer is the tokenizer for the qwen3_coder pseudo-XML
   (<function=NAME> ... <parameter=KEY>VALUE</parameter> ... </function>),
@@ -56,7 +56,10 @@ from uuid import uuid4
 
 from common.logger import xlogger
 from endpoints.OAI.utils.toolcall_formats import qwen3_coder
-from endpoints.OAI.utils.toolcall_formats.common import coerce_param_value
+from endpoints.OAI.utils.toolcall_formats.common import (
+    coerce_param_value,
+    strip_template_newlines,
+)
 from endpoints.OAI.utils.tools import canonical_format_name
 
 # First characters whose stripped value may still json.loads() to something
@@ -202,7 +205,8 @@ class ToolCallDeltaEmitter:
         self._raw += text
 
         if not self._streaming:
-            stripped = self._raw.strip()
+            value = strip_template_newlines(self._raw)
+            stripped = value.strip()
             if not stripped:
                 return
             if self._declared == "string":
@@ -214,14 +218,14 @@ class ToolCallDeltaEmitter:
                 streamable = _is_streamable(stripped)
             if streamable:
                 self._streaming = True
-                self._sent = stripped
-                self._emit(deltas, self._arg_fragment(self._param_prefix() + '"' + _esc(stripped)))
+                self._sent = value
+                self._emit(deltas, self._arg_fragment(self._param_prefix() + '"' + _esc(value)))
             return
 
         # Streaming: the stripped prefix of the raw value grows monotonically;
-        # trailing whitespace stays unemitted until later text makes it
-        # interior, matching the strip() applied by the end-of-stream parser.
-        candidate = self._raw.strip()
+        # trailing newlines stay unemitted until later text makes them
+        # interior, matching the stripping applied by the end-of-stream parser.
+        candidate = strip_template_newlines(self._raw)
         new = candidate[len(self._sent) :]
         if new:
             self._sent = candidate
@@ -231,7 +235,7 @@ class ToolCallDeltaEmitter:
         if self._streaming:
             # Close the JSON string. The streamed content must equal the
             # stripped raw value; guard against any drift.
-            final = json.dumps(self._raw.strip(), ensure_ascii=False)
+            final = json.dumps(strip_template_newlines(self._raw), ensure_ascii=False)
             streamed = '"' + _esc(self._sent) + '"'
             if final != streamed:
                 xlogger.error(

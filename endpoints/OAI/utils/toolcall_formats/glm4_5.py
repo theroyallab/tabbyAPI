@@ -60,7 +60,7 @@ def parse_toolcalls(text: str, param_types=None) -> list[ToolCall]:
 
         # Extract interleaved key/value pairs
         keys = [m.group(1).strip() for m in _ARG_KEY.finditer(inner)]
-        values = [m.group(1).strip() for m in _ARG_VALUE.finditer(inner)]
+        values = [m.group(1) for m in _ARG_VALUE.finditer(inner)]
 
         declared = (param_types or {}).get(func_name, {})
         args: dict[str, any] = {}
