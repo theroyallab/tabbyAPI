@@ -90,6 +90,11 @@ def coerce_param_value(raw: str, declared: Optional[str] = None) -> any:
     if declared == "string":
         return stripped
 
+    # A parameter declared boolean also takes the Python spellings ("True" / "False") that some
+    # models write; json.loads rejects them and the call would carry a string, not a boolean
+    if declared == "boolean" and stripped.lower() in ("true", "false"):
+        return stripped.lower() == "true"
+
     # Empty string
     if not stripped:
         return ""
