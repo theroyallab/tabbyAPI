@@ -62,7 +62,7 @@ def parse_toolcalls(text: str, param_types=None) -> list[ToolCall]:
             args: dict[str, any] = {}
             for pm in _PARAM.finditer(func_body):
                 key = pm.group(1).strip()
-                val = pm.group(2).strip()
+                val = pm.group(2)
                 val = coerce_param_value(val, declared.get(key))
                 args[key] = val
 

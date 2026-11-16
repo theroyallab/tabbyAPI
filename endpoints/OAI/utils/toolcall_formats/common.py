@@ -72,6 +72,10 @@ def param_types_from_tools(tools) -> ParamTypes:
     return types
 
 
+def strip_template_newlines(raw: str) -> str:
+    return raw.strip("\r\n")
+
+
 def coerce_param_value(raw: str, declared: Optional[str] = None) -> any:
     """Coerce a raw parameter value string to the appropriate Python type.
 
@@ -85,12 +89,13 @@ def coerce_param_value(raw: str, declared: Optional[str] = None) -> any:
          and fall back to the plain string.
     """
     # Strip template-inserted newlines around values
-    stripped = raw.strip()
+    value = strip_template_newlines(raw)
 
     if declared == "string":
-        return stripped
+        return value
 
     # Empty string
+    stripped = value.strip()
     if not stripped:
         return ""
 
@@ -101,4 +106,4 @@ def coerce_param_value(raw: str, declared: Optional[str] = None) -> any:
         pass
 
     # Fall back to string — never eval()
-    return stripped
+    return value

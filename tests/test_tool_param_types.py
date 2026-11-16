@@ -65,6 +65,14 @@ class ParamTypesTests(unittest.TestCase):
         self.assertEqual(coerce_param_value("123"), 123)
         self.assertEqual(coerce_param_value("123 apples"), "123 apples")
 
+    def test_coercion_keeps_edge_whitespace(self):
+        self.assertEqual(coerce_param_value("\n  SPACED2  \n", "string"), "  SPACED2  ")
+        self.assertEqual(coerce_param_value("\n\tindented\n", "string"), "\tindented")
+        self.assertEqual(coerce_param_value("\n  plain text  \n"), "  plain text  ")
+        self.assertEqual(coerce_param_value("\n  42  \n", "integer"), 42)
+        self.assertEqual(coerce_param_value('\n  {"a": 1}  \n', "object"), {"a": 1})
+        self.assertEqual(coerce_param_value("\n   \n"), "")
+
 
 class TypedParsingTests(unittest.TestCase):
     def test_qwen_string_parameter_stays_a_string(self):
@@ -121,6 +129,33 @@ class TypedParsingTests(unittest.TestCase):
             (call,) = module.parse_toolcalls(text)
             self.assertEqual(json.loads(call.function.arguments), {"a": 12}, module.__name__)
 
+    def test_edge_whitespace_survives_parsing(self):
+        types = param_types_from_tools(TOOLS)
+        code = "\tif x:\n\t\treturn 1"
+        text = qwen_call(
+            "write_file",
+            [("path", "  SPACED2  "), ("content", code), ("mode", " 7 "), ("meta", ' {"a": 1} ')],
+        )
+        (call,) = qwen3_coder.parse_toolcalls(text, param_types=types)
+        self.assertEqual(
+            json.loads(call.function.arguments),
+            {"path": "  SPACED2  ", "content": code, "mode": 7, "meta": {"a": 1}},
+        )
+        mm = (
+            f'{LT}minimax:tool_call{GT}{LT}invoke name="f"{GT}'
+            f'{LT}parameter name="a"{GT}\n  x  \n{LT}/parameter{GT}{LT}/invoke{GT}{LT}/minimax:tool_call{GT}'
+        )
+        glm = f"{LT}tool_call{GT}f{LT}arg_key{GT}a{LT}/arg_key{GT}{LT}arg_value{GT}  x  {LT}/arg_value{GT}{LT}/tool_call{GT}"
+        hy = (
+            f"{LT}tool_call:opensource{GT}f{LT}tool_sep:opensource{GT}"
+            f"{LT}arg_key:opensource{GT}a{LT}/arg_key:opensource{GT}"
+            f"{LT}arg_value:opensource{GT}  x  {LT}/arg_value:opensource{GT}"
+            f"{LT}/tool_call:opensource{GT}"
+        )
+        for module, text in ((minimax_m2, mm), (glm4_5, glm), (hy3, hy)):
+            (call,) = module.parse_toolcalls(text, param_types={"f": {"a": "string"}})
+            self.assertEqual(json.loads(call.function.arguments), {"a": "  x  "}, module.__name__)
+
 
 def stream(text, param_types, n=3):
     streamer = QwenToolCallDeltaStreamer(param_types)
@@ -173,6 +208,25 @@ class TypedStreamingTests(unittest.TestCase):
         expected = qwen3_coder.parse_toolcalls(text, param_types=self.types)[0].function.arguments
         self.assertEqual(assembled[0]["args"], expected)
         self.assertEqual(json.loads(expected), {"mode": 644, "meta": {"a": [1, 2]}})
+
+    def test_edge_whitespace_streams_like_the_parse(self):
+        import endpoints.OAI.utils.toolcall_stream as tcs
+
+        params = [("path", "  SPACED2  "), ("content", "\tindented\n\tbody  "), ("mode", " 7 ")]
+        text = qwen_call("write_file", params)
+        errors = []
+        original = tcs.xlogger.error
+        tcs.xlogger.error = lambda *a, **k: errors.append(a)
+        try:
+            for types in (self.types, None):
+                for n in (1, 3, 7):
+                    streamer, frames, assembled = stream(text, types, n)
+                    parsed = qwen3_coder.parse_toolcalls(text, param_types=types)
+                    self.assertEqual(assembled[0]["args"], parsed[0].function.arguments)
+        finally:
+            tcs.xlogger.error = original
+        self.assertEqual(errors, [])
+        self.assertEqual(json.loads(assembled[0]["args"])["path"], "  SPACED2  ")
 
     def test_verify_agrees_with_the_typed_parse(self):
         text = qwen_call("write_file", [("path", "123"), ("mode", "7")])
