@@ -395,6 +395,12 @@ class ExllamaV3Container:
                     "or cpu_moe_split_experts."
                 )
 
+        # Experimental, Linux: split the CPU MoE offload across NUMA nodes, one
+        # worker process per node ("all" or a list of node IDs)
+        cpu_moe_numa_nodes = kwargs.get("cpu_moe_numa_nodes")
+        if cpu_moe_numa_nodes is not None:
+            self.config.infer_params.moe_cpu_numa_nodes = cpu_moe_numa_nodes
+
         # Load an n-gram embedding table (PLE models) fully into system RAM
         # instead of streaming rows from disk per forward. Must be set before
         # the model weights are loaded
