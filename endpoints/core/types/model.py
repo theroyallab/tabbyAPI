@@ -212,6 +212,7 @@ class ModelLoadRequest(_WarnOnUnknownFields):
     cpu_moe_split_experts: Optional[int] = None
     cpu_moe_threads: Optional[int] = None
     cpu_moe_pinned_arena: Optional[bool] = None
+    cpu_moe_numa_nodes: Optional[Union[Literal["all"], List[int]]] = None
     layer_map: Optional[Union[List[int], str]] = None
 
     # Template variables

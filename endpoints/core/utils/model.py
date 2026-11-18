@@ -314,6 +314,7 @@ LOAD_OPTION_GROUPS = [
             "cpu_moe_split_experts",
             "cpu_moe_threads",
             "cpu_moe_pinned_arena",
+            "cpu_moe_numa_nodes",
             "ngram_ram",
             "embed_stream_from_disk",
         ],
