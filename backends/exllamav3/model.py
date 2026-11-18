@@ -17,6 +17,7 @@ from typing import (
     Optional,
 )
 from exllamav3.constants import PAGE_SIZE
+from exllamav3.model.lora import LoRA
 from exllamav3 import (
     AsyncGenerator,
     AsyncJob,
@@ -143,6 +144,18 @@ class JobPhases:
             or self.reasoning_sampler is not self.content_sampler
             or self.reasoning_banned != self.content_banned
         )
+
+
+@dataclass
+class LoadedLora:
+    """
+    A LoRA applied to the model. The requested name and scaling are kept
+    because LoRA.lora_scaling is the effective factor (alpha and rank folded in).
+    """
+
+    name: str
+    scaling: float
+    lora: LoRA
 
 
 def reasoning_tag_conflicts(end_tag: Optional[str], strings: list) -> List[str]:
@@ -273,6 +286,7 @@ class ExllamaV3Container:
     draft_config: Optional[Config] = None
     generator: Optional[AsyncGenerator] = None
     vision_model: Optional[Model] = None
+    loras: List[LoadedLora]
 
     # Class-specific vars
     gpu_split: Optional[List[float]] = None
@@ -307,6 +321,7 @@ class ExllamaV3Container:
         # would be a single object shared by every container.
         self.active_job_ids = {}
         self.job_phases = {}
+        self.loras = []
         self.load_lock = asyncio.Lock()
         self.load_condition = asyncio.Condition()
         self.autosplit_reserve = [96 / 1024]
@@ -1052,20 +1067,101 @@ class ExllamaV3Container:
         while len(self.active_job_ids) > 0:
             await asyncio.sleep(0.01)
 
-    # TODO: Wire up exllamav3's LoRA support once the API surface for it is decided
     async def load_loras(self, lora_directory: pathlib.Path, **kwargs) -> Dict[str, List[str]]:
-        """Stub. LoRAs aren't hooked up to the ExLlamaV3 backend yet."""
+        """
+        Loads LoRA adapters onto the model and rebuilds the generator.
 
-        xlogger.error("LoRA loading is not hooked up to the ExLlamaV3 backend yet.")
-        return {
-            "success": [],
-            "failure": [lora.get("name", "unknown") for lora in kwargs.get("loras", [])],
-        }
+        Waits for running jobs (or cancels them with skip_wait) first. The
+        adapters are applied in place on the model's layers, so this holds the
+        load lock until the new generator is ready.
 
-    def get_loras(self) -> List[Any]:
-        """Stub. LoRAs aren't hooked up to the ExLlamaV3 backend yet."""
+        Args:
+            lora_directory: Directory holding one PEFT adapter folder per lora.
+            **kwargs: loras (list of dicts with a name and an optional scaling)
+                and skip_wait.
 
-        return []
+        Returns:
+            The names of the loras that loaded and of those that failed.
+        """
+
+        loras = unwrap(kwargs.get("loras"), [])
+        names = [lora.get("name") for lora in loras if lora.get("name")]
+
+        if self.use_tp:
+            xlogger.error(
+                "LoRAs can't be loaded with tensor parallelism: ExLlamaV3 doesn't apply "
+                "them to tensor-parallel sliced layers, so they would have no effect."
+            )
+            return {"success": [], "failure": names}
+
+        if self.disk_cache_kwargs:
+            xlogger.error(
+                "LoRAs can't be loaded with the disk cache enabled: its fingerprint doesn't "
+                "cover runtime adapters, so base model and adapter K/V pages would be mixed. "
+                "Unset disk_cache_dir to use LoRAs."
+            )
+            return {"success": [], "failure": names}
+
+        success = []
+        failure = []
+
+        try:
+            await self.load_lock.acquire()
+
+            # Wait for existing generation jobs to finish
+            await self.wait_for_jobs(kwargs.get("skip_wait"))
+
+            for lora in loras:
+                name = lora.get("name")
+                if not name:
+                    xlogger.warning(
+                        "One of your loras does not have a name. "
+                        "Please check your config.yml! Skipping lora load."
+                    )
+                    continue
+
+                scaling = unwrap(lora.get("scaling"), 1.0)
+                xlogger.info(f"Adding lora: {name} at scaling {scaling}")
+
+                try:
+                    # Reads and applies the weights, off the event loop
+                    adapter = await asyncio.to_thread(
+                        LoRA.from_directory, self.model, str(lora_directory / name), scaling
+                    )
+                except Exception as exc:
+                    xlogger.error(f"Failed to load lora {name}: {exc}")
+                    failure.append(name)
+                    continue
+
+                if not adapter.target_modules:
+                    adapter.unload()
+                    xlogger.error(
+                        f"Lora {name} matched no layers of this model. "
+                        "Is it an adapter for a different base model?"
+                    )
+                    failure.append(name)
+                    continue
+
+                self.loras.append(LoadedLora(name=name, scaling=scaling, lora=adapter))
+                success.append(name)
+                xlogger.info(f"Lora successfully added: {name}")
+
+            # The weights changed under the prompt cache: its pages and recurrent
+            # checkpoints would be reused for prompts they no longer match
+            if success:
+                await self.create_generator(lock_held=True)
+        finally:
+            self.load_lock.release()
+
+            async with self.load_condition:
+                self.load_condition.notify_all()
+
+        return {"success": success, "failure": failure}
+
+    def get_loras(self) -> List[LoadedLora]:
+        """The LoRAs currently applied to the model, in load order."""
+
+        return list(self.loras)
 
     async def load_gen(self, progress_callback=None, **kwargs):
         """
@@ -1242,7 +1338,7 @@ class ExllamaV3Container:
             if value:
                 yield value
 
-    async def create_generator(self):
+    async def create_generator(self, lock_held: bool = False):
         """
         Create and save a Exllama generator class.
 
@@ -1251,15 +1347,21 @@ class ExllamaV3Container:
         replacement is constructed. close() is what actually frees the old
         generator's host-side caches: the failed jobs and their tracebacks keep
         the object itself reachable for a while, so the collection is best-effort.
+
+        Args:
+            lock_held: The caller already holds the load lock and has emptied the
+                job queue (LoRA load and unload). The lock is neither acquired
+                nor released here, and running jobs are not cancelled.
         """
 
         try:
             # Don't acquire locks unless a model is loaded
             if self.loaded:
-                await self.load_lock.acquire()
+                if not lock_held:
+                    await self.load_lock.acquire()
 
-                # Immediately cancel all jobs
-                await self.wait_for_jobs(skip_wait=True)
+                    # Immediately cancel all jobs
+                    await self.wait_for_jobs(skip_wait=True)
 
                 # Retire the previous generator before replacing it. Cancelling the
                 # jobs alone leaves its iteration task alive, parked on an emptied
@@ -1344,8 +1446,9 @@ class ExllamaV3Container:
                 )
         finally:
             # This means the generator is being recreated
-            # The load lock is already released in the load function
-            if self.loaded:
+            # The load lock is already released in the load function, and a
+            # caller that holds it (lock_held) releases it itself
+            if self.loaded and not lock_held:
                 self.load_lock.release()
 
                 async with self.load_condition:
@@ -1360,9 +1463,31 @@ class ExllamaV3Container:
             **kwargs: Additional unloading options (e.g., shutdown).
         """
 
-        # Nothing to do for LoRA-only unloads until LoRAs are hooked up
+        # LoRA-only unloads rebuild the generator, which drops its prompt cache:
+        # the cached K/V pages were computed with the adapters applied
         if loras_only:
-            xlogger.error("LoRA unloading is not hooked up to the ExLlamaV3 backend yet.")
+            try:
+                await self.load_lock.acquire()
+
+                # Wait for other jobs to finish
+                await self.wait_for_jobs(kwargs.get("skip_wait"))
+
+                if not self.loras:
+                    return
+
+                for loaded in self.loras:
+                    loaded.lora.unload()
+
+                self.loras = []
+                await self.create_generator(lock_held=True)
+
+                xlogger.info("Loras unloaded.")
+            finally:
+                self.load_lock.release()
+
+                async with self.load_condition:
+                    self.load_condition.notify_all()
+
             return
 
         # Used when shutting down the server
@@ -1386,6 +1511,7 @@ class ExllamaV3Container:
                 self.generator = None
 
             self.model.unload()
+            self.loras = []
             self.model = None
             self.config = None
             self.cache = None
