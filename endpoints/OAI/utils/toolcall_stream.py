@@ -243,7 +243,8 @@ class ToolCallDeltaEmitter:
             self._emit(deltas, self._arg_fragment('"'))
         else:
             value = (
-                self._text_value() if self._declared == "string"
+                self._text_value()
+                if self._declared == "string"
                 else coerce_param_value(self._raw, self._declared)
             )
             self._emit(
