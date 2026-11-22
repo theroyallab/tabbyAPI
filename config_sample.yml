@@ -163,8 +163,14 @@ model:
   # Not parsed for single GPU users.
   gpu_split_auto: true
 
-  # Reserve VRAM used when loading a model (default: 96 MB on GPU 0).
-  # Represented as an array of MB per GPU.
+  # VRAM headroom kept out of the automatic model split, in MiB per visible GPU.
+  # Entry i applies to visible CUDA device i. For example, [1024, 2048]
+  # leaves 1 GiB on device 0 and 2 GiB on device 1; these are not model size limits.
+  # The example default below requests 96 MiB on device 0. ExLlamaV3 1.6.7
+  # uses 512 MiB for any additional device without an explicit entry.
+  # If the model loads but runs out of memory during generation, leave more
+  # headroom on the affected GPU or reduce max_seq_len or max_batch_size.
+  # Increasing the reserve also leaves less memory for the model split.
   # A negative value excludes that GPU from the model split, so
   # excluding every GPU will fail to load.
   # Ignored for a model whose placement is already set by gpu_split
