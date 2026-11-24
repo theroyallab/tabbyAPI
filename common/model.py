@@ -282,7 +282,9 @@ async def load_model_gen(model_path: pathlib.Path, request_wins: bool = False, *
         # Add possible types of models that can be loaded
         model_type = [ModelType.MODEL]
 
-        if new_container.use_draft_model:
+        # A drafter that loads inside the main model's load reports no progress
+        # of its own, so it gets no stage
+        if new_container.draft_loads_separately:
             model_type.insert(0, ModelType.DRAFT)
 
         if new_container.use_vision:

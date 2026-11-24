@@ -903,6 +903,21 @@ class ExllamaV3Container:
 
         return self
 
+    @property
+    def draft_loads_separately(self) -> bool:
+        """
+        True when the draft model has a load of its own, ahead of the main
+        model's. A drafter that reads the target's cache layers in place (Hy4
+        Flash's DFly MTP head, the Gemma4 assistants) loads inside the target's
+        load instead and reports no progress of its own.
+        """
+
+        return bool(
+            self.use_draft_model
+            and self.draft_model is not None
+            and not self.draft_model.caps.get("load_with_target")
+        )
+
     # Enforce a multiple of 256 for cache size
     # Overestimate to ensure that the cache isn't below max_seq_len
     def adjust_cache_size(self, cache_size):
@@ -1199,12 +1214,7 @@ class ExllamaV3Container:
                 if value:
                     yield value
 
-        if self.draft_model is not None and self.draft_model.caps.get("load_with_target"):
-            xlogger.info(
-                f"Draft model {self.draft_model_dir} loads with its target model, "
-                "skipping its standalone load"
-            )
-        elif self.use_draft_model:
+        if self.draft_loads_separately:
             for value in self.draft_model.load_gen(
                 reserve_per_device=(
                     None if (self.gpu_split or self.draft_gpu_split) else self.autosplit_reserve
@@ -1214,6 +1224,11 @@ class ExllamaV3Container:
             ):
                 if value:
                     yield value
+        elif self.use_draft_model:
+            xlogger.info(
+                f"Draft model {self.draft_model_dir} loads with its target model, "
+                "skipping its standalone load"
+            )
 
         # Without a manual split the engine autosplits with the reserve, over
         # however many devices are visible
