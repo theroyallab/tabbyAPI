@@ -199,6 +199,8 @@ def disk_cache_kwargs(memory_config) -> dict:
         "disk_cache_size": memory_config.disk_cache_size * 1024**2,
         "disk_cache_flush_on_idle": bool(memory_config.disk_cache_flush_on_idle),
         "disk_cache_checkpoint_interval": memory_config.disk_cache_checkpoint_interval,
+        # The engine defaults to writing behind every 2 seconds; off unless configured
+        "disk_cache_write_interval": float(memory_config.disk_cache_write_interval or 0.0),
     }
 
 

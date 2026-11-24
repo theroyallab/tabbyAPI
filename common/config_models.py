@@ -912,6 +912,19 @@ class MemoryConfig(BaseConfigModel):
         ),
         ge=0,
     )
+    disk_cache_write_interval: Optional[float] = Field(
+        0.0,
+        description=(
+            "While generating, also queue the complete pages of the running requests\n"
+            "for the disk cache every this many seconds, so a server that crashes\n"
+            "mid-request loses less (default: 0, off). The pages go through the system\n"
+            "memory tier, where they displace cached contexts that only the lower tiers\n"
+            "hold, so this costs prompt cache hits when the running requests outgrow\n"
+            "VRAM. Without it, pages reach the disk when they leave VRAM or when the\n"
+            "server goes idle."
+        ),
+        ge=0,
+    )
     sysmem_multimodal_cache: Optional[int] = Field(
         1024,
         description=(

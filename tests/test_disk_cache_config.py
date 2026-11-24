@@ -26,13 +26,29 @@ def test_resolves_engine_kwargs(tmp_path, monkeypatch):
         disk_cache_size=2048,
         disk_cache_flush_on_idle=False,
         disk_cache_checkpoint_interval=0,
+        disk_cache_write_interval=1.5,
     )
     assert exl3_model.disk_cache_kwargs(cfg) == {
         "disk_cache_dir": str(tmp_path),
         "disk_cache_size": 2048 * 1024**2,
         "disk_cache_flush_on_idle": False,
         "disk_cache_checkpoint_interval": 0,
+        "disk_cache_write_interval": 1.5,
     }
+
+
+def test_write_behind_is_off_by_default(tmp_path, monkeypatch):
+    """The engine writes the running requests' pages behind every 2 seconds
+    unless told otherwise, at the expense of the prompt cache."""
+
+    monkeypatch.setattr(exl3_model, "engine_supports_disk_cache", lambda: True)
+    cfg = memory(sysmem_kv_cache=1024, disk_cache_dir=str(tmp_path))
+    assert exl3_model.disk_cache_kwargs(cfg)["disk_cache_write_interval"] == 0.0
+
+
+def test_write_interval_cannot_be_negative():
+    with pytest.raises(ValueError):
+        memory(disk_cache_write_interval=-1)
 
 
 def test_expands_user_home(monkeypatch):
