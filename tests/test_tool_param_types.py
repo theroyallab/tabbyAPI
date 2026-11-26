@@ -72,6 +72,13 @@ class ParamTypesTests(unittest.TestCase):
         self.assertEqual(coerce_param_value("true", "string"), "true")
         self.assertEqual(coerce_param_value("123", "integer"), 123)
         self.assertEqual(coerce_param_value("not a number", "integer"), "not a number")
+        # A declared boolean accepts the Python spellings too; other types and untyped values stay
+        self.assertIs(coerce_param_value("True", "boolean"), True)
+        self.assertIs(coerce_param_value("\nFalse\n", "boolean"), False)
+        self.assertIs(coerce_param_value("true", "boolean"), True)
+        self.assertEqual(coerce_param_value("yes", "boolean"), "yes")
+        self.assertEqual(coerce_param_value("True", "string"), "True")
+        self.assertEqual(coerce_param_value("True"), "True")
         # Untyped: the old guess
         self.assertEqual(coerce_param_value("123"), 123)
         self.assertEqual(coerce_param_value("123 apples"), "123 apples")
