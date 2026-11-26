@@ -3,7 +3,7 @@ import json
 from itertools import zip_longest
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
-from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, coerce_param_value
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, unframed_param_value
 
 """
 GLM-4.5 / GLM-4.6 / GLM-4.7 family - XML with interleaved key/value pairs
@@ -60,12 +60,12 @@ def parse_toolcalls(text: str, param_types=None) -> list[ToolCall]:
 
         # Extract interleaved key/value pairs
         keys = [m.group(1).strip() for m in _ARG_KEY.finditer(inner)]
-        values = [m.group(1).strip() for m in _ARG_VALUE.finditer(inner)]
+        values = [m.group(1) for m in _ARG_VALUE.finditer(inner)]
 
         declared = (param_types or {}).get(func_name, {})
         args: dict[str, any] = {}
         for key, val in zip_longest(keys, values):
-            args[key] = coerce_param_value(val, declared.get(key))
+            args[key] = unframed_param_value(val, declared.get(key))
 
         args_json = json.dumps(args, ensure_ascii=False)
         results.append(ToolCall(function=Tool(name=func_name, arguments=args_json)))

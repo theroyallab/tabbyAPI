@@ -142,6 +142,37 @@ class TypedParsingTests(unittest.TestCase):
             (call,) = module.parse_toolcalls(text)
             self.assertEqual(json.loads(call.function.arguments), {"a": 12}, module.__name__)
 
+    def test_unframed_formats_keep_string_whitespace_exactly(self):
+        """GLM-4.5, Hy3/Hy4 and MiniMax M2 write values with nothing around them,
+        so every edge newline and space of a declared string is the model's."""
+
+        def minimax(value, number):
+            return (
+                f'{LT}minimax:tool_call{GT}{LT}invoke name="f"{GT}'
+                f'{LT}parameter name="a"{GT}{value}{LT}/parameter{GT}'
+                f'{LT}parameter name="n"{GT}{number}{LT}/parameter{GT}'
+                f"{LT}/invoke{GT}{LT}/minimax:tool_call{GT}"
+            )
+
+        def kv(suffix=""):
+            def render(value, number):
+                tag = lambda name: f"{LT}{name}{suffix}{GT}"  # noqa: E731
+                pairs = (
+                    f"{tag('arg_key')}a{tag('/arg_key')}{tag('arg_value')}{value}{tag('/arg_value')}"
+                    f"{tag('arg_key')}n{tag('/arg_key')}{tag('arg_value')}{number}{tag('/arg_value')}"
+                )
+                return f"{tag('tool_call')}f{pairs}{tag('/tool_call')}"
+
+            return render
+
+        types = {"f": {"a": "string", "n": "integer"}}
+        formats = ((minimax_m2, minimax), (glm4_5, kv()), (hy3, kv(":opensource")))
+        for module, render in formats:
+            for value in WHITESPACE_VALUES + ["\n  framed by the model  \n"]:
+                with self.subTest(format=module.__name__, value=value):
+                    (call,) = module.parse_toolcalls(render(value, " 7\n"), param_types=types)
+                    self.assertEqual(json.loads(call.function.arguments), {"a": value, "n": 7})
+
 
 def stream(text, param_types, n=3):
     streamer = QwenToolCallDeltaStreamer(param_types)

@@ -102,3 +102,17 @@ def coerce_param_value(raw: str, declared: Optional[str] = None) -> any:
 
     # Fall back to string — never eval()
     return stripped
+
+
+def unframed_param_value(raw: Optional[str], declared: Optional[str] = None) -> any:
+    """
+    The value of a parameter in a format whose template writes values with
+    nothing around them (GLM-4.5, Hy3/Hy4, MiniMax M2): a declared string is
+    kept exactly as written, since any leading or trailing whitespace in it
+    (indentation, a file's final newline) is part of the value. Other types are
+    coerced as usual.
+    """
+
+    if declared == "string" and raw is not None:
+        return raw
+    return coerce_param_value(raw, declared)

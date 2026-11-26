@@ -2,7 +2,7 @@ import re
 import json
 from common.logger import xlogger
 from endpoints.OAI.types.tools import ToolCall, Tool
-from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, coerce_param_value
+from endpoints.OAI.utils.toolcall_formats.common import FormatSignature, unframed_param_value
 
 """
 MiniMax M2 family (M2, M2.1, M2.5) - structured XML syntax
@@ -52,9 +52,7 @@ def parse_toolcalls(text: str, param_types=None) -> list[ToolCall]:
             args: dict[str, any] = {}
             for pm in _PARAM.finditer(func_body):
                 key = pm.group(1).strip()
-                val = pm.group(2).strip()
-                val = coerce_param_value(val, declared.get(key))
-                args[key] = val
+                args[key] = unframed_param_value(pm.group(2), declared.get(key))
 
             args_json = json.dumps(args, ensure_ascii=False)
             results.append(ToolCall(function=Tool(name=func_name, arguments=args_json)))
