@@ -24,9 +24,9 @@ Two parts, so that a format only has to supply a tokenizer:
   with another declared type is emitted whole when it closes, as the value
   coerce_param_value() parses; a parameter the schema doesn't type falls back
   to type guessing and is held until the accumulated text provably cannot be a
-  JSON literal (see _is_streamable). Values are stripped of surrounding
-  whitespace exactly as the end-of-stream parsers do, so trailing whitespace is
-  held back until later text makes it interior.
+  JSON literal (see _is_streamable). Declared strings keep whitespace beyond
+  the template's framing newlines. Untyped values keep the parser's existing
+  whitespace trimming.
 
   QwenToolCallDeltaStreamer is the tokenizer for the qwen3_coder pseudo-XML
   (<function=NAME> ... <parameter=KEY>VALUE</parameter> ... </function>),
@@ -200,10 +200,10 @@ class ToolCallDeltaEmitter:
             return
 
         self._raw += text
+        candidate = self._text_value()
 
         if not self._streaming:
-            stripped = self._raw.strip()
-            if not stripped:
+            if not candidate:
                 return
             if self._declared == "string":
                 streamable = True
@@ -211,27 +211,29 @@ class ToolCallDeltaEmitter:
                 # A typed non-string value is parsed when it closes
                 streamable = False
             else:
-                streamable = _is_streamable(stripped)
+                streamable = _is_streamable(candidate)
             if streamable:
                 self._streaming = True
-                self._sent = stripped
-                self._emit(deltas, self._arg_fragment(self._param_prefix() + '"' + _esc(stripped)))
+                self._sent = candidate
+                self._emit(deltas, self._arg_fragment(self._param_prefix() + '"' + _esc(candidate)))
             return
 
-        # Streaming: the stripped prefix of the raw value grows monotonically;
-        # trailing whitespace stays unemitted until later text makes it
-        # interior, matching the strip() applied by the end-of-stream parser.
-        candidate = self._raw.strip()
+        # Trailing framing stays buffered until later text makes it interior.
         new = candidate[len(self._sent) :]
         if new:
             self._sent = candidate
             self._emit(deltas, self._arg_fragment(_esc(new)))
 
+    def _text_value(self) -> str:
+        if self._declared == "string":
+            return qwen3_coder.strip_parameter_delimiters(self._raw)
+        return self._raw.strip()
+
     def close_param(self, deltas: list):
         if self._streaming:
             # Close the JSON string. The streamed content must equal the
-            # stripped raw value; guard against any drift.
-            final = json.dumps(self._raw.strip(), ensure_ascii=False)
+            # complete parser value; guard against any drift.
+            final = json.dumps(self._text_value(), ensure_ascii=False)
             streamed = '"' + _esc(self._sent) + '"'
             if final != streamed:
                 xlogger.error(
@@ -240,7 +242,11 @@ class ToolCallDeltaEmitter:
                 )
             self._emit(deltas, self._arg_fragment('"'))
         else:
-            value = coerce_param_value(self._raw, self._declared)
+            value = (
+                self._text_value()
+                if self._declared == "string"
+                else coerce_param_value(self._raw, self._declared)
+            )
             self._emit(
                 deltas,
                 self._arg_fragment(self._param_prefix() + json.dumps(value, ensure_ascii=False)),

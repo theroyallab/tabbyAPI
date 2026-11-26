@@ -40,6 +40,11 @@ _FUNC = re.compile(r"<function=([^>\s]+)[^>]*>(.*?)</function>", re.DOTALL)
 _PARAM = re.compile(r"<parameter=([^>\s]+)[^>]*>(.*?)</parameter>", re.DOTALL)
 
 
+def strip_parameter_delimiters(value: str) -> str:
+    """Remove the single newline on each side of a value in the Qwen template."""
+    return value.removeprefix("\n").removesuffix("\n")
+
+
 def parse_toolcalls(text: str, param_types=None) -> list[ToolCall]:
     # If there are outer <tool_call> wrappers, unwrap them; otherwise use the whole text
     segments: list[tuple[str, str]] = []  # (raw, inner)
@@ -62,9 +67,12 @@ def parse_toolcalls(text: str, param_types=None) -> list[ToolCall]:
             args: dict[str, any] = {}
             for pm in _PARAM.finditer(func_body):
                 key = pm.group(1).strip()
-                val = pm.group(2).strip()
-                val = coerce_param_value(val, declared.get(key))
-                args[key] = val
+                value = pm.group(2)
+                kind = declared.get(key)
+                if kind == "string":
+                    args[key] = strip_parameter_delimiters(value)
+                else:
+                    args[key] = coerce_param_value(value, kind)
 
             args_json = json.dumps(args, ensure_ascii=False)
             results.append(ToolCall(function=Tool(name=func_name, arguments=args_json)))
