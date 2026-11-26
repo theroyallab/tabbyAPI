@@ -39,6 +39,17 @@ def qwen_call(name, params, wrapped=True):
     return f"{LT}tool_call{GT}\n{block}\n{LT}/tool_call{GT}" if wrapped else block
 
 
+# Declared string values whose surrounding whitespace is content (PR #531): the
+# template's one framing newline on each side is all the parser may remove
+WHITESPACE_VALUES = [
+    "    indented\n        more\n",
+    "line\n\n",
+    "\n",
+    "   ",
+    "",
+]
+
+
 class ParamTypesTests(unittest.TestCase):
     def test_from_dicts_and_models(self):
         expected = {
@@ -93,6 +104,16 @@ class TypedParsingTests(unittest.TestCase):
         self.assertEqual(
             json.loads(call.function.arguments)["content"], {"name": "demo", "private": True}
         )
+
+    def test_qwen_string_parameter_keeps_its_whitespace(self):
+        types = param_types_from_tools(TOOLS)
+        for content in WHITESPACE_VALUES:
+            with self.subTest(content=content):
+                text = qwen_call("write_file", [("content", content), ("mode", " 644 ")])
+                (call,) = qwen3_coder.parse_toolcalls(text, param_types=types)
+                self.assertEqual(
+                    json.loads(call.function.arguments), {"content": content, "mode": 644}
+                )
 
     def test_dispatcher_passes_types_only_where_accepted(self):
         types = param_types_from_tools(TOOLS)
@@ -173,6 +194,14 @@ class TypedStreamingTests(unittest.TestCase):
         expected = qwen3_coder.parse_toolcalls(text, param_types=self.types)[0].function.arguments
         self.assertEqual(assembled[0]["args"], expected)
         self.assertEqual(json.loads(expected), {"mode": 644, "meta": {"a": [1, 2]}})
+
+    def test_declared_string_streams_its_whitespace(self):
+        for content in WHITESPACE_VALUES:
+            text = qwen_call("write_file", [("content", content)])
+            for n in (1, 3, len(text)):
+                with self.subTest(content=content, chunk=n):
+                    _, _, assembled = stream(text, self.types, n)
+                    self.assertEqual(json.loads(assembled[0]["args"]), {"content": content})
 
     def test_verify_agrees_with_the_typed_parse(self):
         text = qwen_call("write_file", [("path", "123"), ("mode", "7")])
