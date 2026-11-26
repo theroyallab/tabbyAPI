@@ -47,6 +47,8 @@ ALL_TOOLCALL_FORMATS = {
     "olmo": olmo3,
     "hy3": hy3,
     "hy_v3": hy3,
+    "hy4": hy3,
+    "hy_v4": hy3,
     "laguna": glm4_5,
     "poolside_v1": glm4_5,
     "ling": glm4_5,

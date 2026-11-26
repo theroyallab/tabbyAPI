@@ -45,6 +45,56 @@ def test_each_format_is_detected_from_its_template_alone(expected, template):
     assert detection.evidence == ["template"]
 
 
+# Hy4 Flash's template builds every tag from a suffix variable, so the full
+# tags never appear literally (excerpt of the real template)
+HY4_TEMPLATE = """{%- set HYTK = ':opensource' %}
+{%- set toolcalls_begin_token = '<tool_calls{}>'.format(HYTK) %}
+{%- set toolcall_begin_token = '<tool_call{}>'.format(HYTK) %}
+{%- set argkey_begin_token = '<arg_key{}>'.format(HYTK) %}
+{%- for tool in tools %}{{ tool | tojson }}{% endfor %}
+{{- toolcalls_begin_token -}}{{- toolcall_begin_token ~ func['name'] -}}"""
+
+HY4_TOKENS = {
+    "<tool_calls:opensource>",
+    "<arg_key:opensource>",
+    "<think:opensource>",
+    "</think:opensource>",
+}
+
+
+def test_hy4_template_selects_hy3():
+    detection = detect_tool_format(
+        HY4_TEMPLATE, HY4_TOKENS.__contains__, "HYV4FlashForConditionalGeneration"
+    )
+    assert detection.tool_format == "hy3", detection
+    assert detection.evidence == ["template", "tokenizer", "architecture"]
+    tags, _ = detect_reasoning_tags(HY4_TEMPLATE, HY4_TOKENS.__contains__, "hy3")
+    assert tags == ("<think:opensource>", "</think:opensource>")
+
+
+def test_hy3_parses_hy4_calls_without_tool_sep():
+    """Hy4 writes the function name straight before the first argument, and
+    non-string values as JSON."""
+
+    text = (
+        "<tool_calls:opensource><tool_call:opensource>run"
+        "<arg_key:opensource>cmd</arg_key:opensource>"
+        "<arg_value:opensource>ls -la\nfoo <x></arg_value:opensource>"
+        "<arg_key:opensource>opts</arg_key:opensource>"
+        '<arg_value:opensource>{"a": [1, 2]}</arg_value:opensource>'
+        "</tool_call:opensource><tool_call:opensource>noargs</tool_call:opensource>"
+        "</tool_calls:opensource>"
+    )
+    param_types = {"run": {"cmd": "string", "opts": "object"}}
+    calls = parse_toolcalls(text, "hy3", param_types=param_types)
+    assert [c.function.name for c in calls] == ["run", "noargs"]
+    assert json.loads(calls[0].function.arguments) == {
+        "cmd": "ls -la\nfoo <x>",
+        "opts": {"a": [1, 2]},
+    }
+    assert json.loads(calls[1].function.arguments) == {}
+
+
 def test_all_registered_formats_carry_a_signature():
     missing = [
         name for name, module in ALL_TOOLCALL_FORMATS.items() if not hasattr(module, "DETECT")

@@ -30,10 +30,14 @@ rendered as JSON.
 TOOLCALL_START = "<tool_calls:opensource>"
 TOOLCALL_END = "</tool_calls:opensource>"
 
+# Hy4 (Flash) writes the same calls without <tool_sep:opensource>, which the
+# name pattern below allows for. Its template builds every tag from the suffix,
+# '<tool_calls{}>'.format(HYTK) with HYTK = ':opensource', so the full tag never
+# appears literally there
 DETECT = FormatSignature(
-    template_markers=("<tool_calls:opensource>",),
+    template_markers=(("<tool_calls:opensource>", "<tool_calls{}>"), ":opensource"),
     special_tokens=("<tool_calls:opensource>", "<arg_key:opensource>"),
-    architectures=("HunYuan", "Hunyuan"),
+    architectures=("HunYuan", "Hunyuan", "HYV4"),
     reasoning_tags=("<think:opensource>", "</think:opensource>"),
 )
 
