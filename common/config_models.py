@@ -6,7 +6,7 @@ from pydantic import (
     PrivateAttr,
     field_validator,
 )
-from typing import List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 
 CACHE_SIZES = Literal["FP16", "Q8", "Q6", "Q4"]
@@ -443,6 +443,20 @@ class ModelConfig(BaseConfigModel):
             "can reduce it further to minimize VRAM overhead."
         ),
         ge=1,
+    )
+    admission: Optional[Dict[str, Any]] = Field(
+        None,
+        description=(
+            "Request-class admission control (default: None, disabled).\n"
+            "Splits requests into classes by their declared size and holds a lane\n"
+            "slot per class before the job reaches the engine, so small queries\n"
+            "keep their latency while long agentic sessions never share the\n"
+            "engine with each other. Keys: classes (per-class predicates\n"
+            "prompt_tokens_gte / max_new_tokens_gte plus max_concurrent, first\n"
+            "match wins), default, hold_timeout in seconds. A held request is\n"
+            "never rejected, it waits for its lane and always eventually\n"
+            "proceeds. Used by EXL3 models only.\n"
+        ),
     )
     recurrent_checkpoint_interval: Optional[int] = Field(
         None,
