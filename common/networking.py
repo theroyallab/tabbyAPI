@@ -191,23 +191,23 @@ async def request_disconnect_loop(request: Request):
 async def run_with_request_disconnect(
     request: Request, call_task: asyncio.Task, disconnect_message: str
 ):
-    """Utility function to cancel if a request is disconnected."""
+    """Run a request task and drain both tasks on completion or cancellation."""
 
-    _, unfinished = await asyncio.wait(
-        [
-            call_task,
-            asyncio.create_task(request_disconnect_loop(request)),
-        ],
-        return_when=asyncio.FIRST_COMPLETED,
-    )
-    for task in unfinished:
-        task.cancel()
+    disconnect_task = asyncio.create_task(request_disconnect_loop(request))
+    tasks = (call_task, disconnect_task)
 
     try:
-        return call_task.result()
-    except (asyncio.CancelledError, asyncio.InvalidStateError) as ex:
-        handle_request_disconnect(disconnect_message)
-        raise HTTPException(422, disconnect_message) from ex
+        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        try:
+            return call_task.result()
+        except (asyncio.CancelledError, asyncio.InvalidStateError) as ex:
+            handle_request_disconnect(disconnect_message)
+            raise HTTPException(422, disconnect_message) from ex
+    finally:
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def port_bind_error(host: str, port: int) -> Optional[str]:
