@@ -366,6 +366,19 @@ class ModelConfig(BaseConfigModel):
             "unset, defers to the EXL3_MOE_PINNED_ARENA environment variable."
         ),
     )
+    cpu_moe_numa_nodes: Optional[Union[Literal["all"], List[int]]] = Field(
+        None,
+        description=(
+            "Experimental, Linux: NUMA nodes to split the CPU MoE offload\n"
+            "across (default: None). One worker process per node, pinned to the\n"
+            "node with its memory bound there and a slice of every CPU-resident\n"
+            "expert, so multi-socket / SNC machines read expert weights from\n"
+            "local memory. Either 'all' or a list of at least two node IDs.\n"
+            "Only applies with cpu_moe_offload_layers or cpu_moe_split_experts;\n"
+            "cpu_moe_threads then sets each worker's thread count. When unset,\n"
+            "one worker."
+        ),
+    )
     layer_map: Optional[Union[List[int], str]] = Field(
         None,
         description=(
